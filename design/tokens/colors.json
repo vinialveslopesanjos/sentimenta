@@ -1,0 +1,48 @@
+{
+  "colors": {
+    "background": {
+      "primary": "#0d1117",
+      "secondary": "#161b22",
+      "tertiary": "#1c2128"
+    },
+    "surface": {
+      "default": "#161b22",
+      "hover": "#1c2128",
+      "active": "#21262d",
+      "border": "#30363d",
+      "border-hover": "#484f58"
+    },
+    "text": {
+      "primary": "#e6edf3",
+      "secondary": "#8b949e",
+      "tertiary": "#6e7681",
+      "inverse": "#0d1117"
+    },
+    "accent": {
+      "primary": "#7c3aed",
+      "primary-hover": "#6d28d9",
+      "primary-light": "rgba(124, 58, 237, 0.15)",
+      "secondary": "#a78bfa"
+    },
+    "semantic": {
+      "success": "#3fb950",
+      "success-bg": "rgba(63, 185, 80, 0.1)",
+      "warning": "#d29922",
+      "warning-bg": "rgba(210, 153, 34, 0.1)",
+      "error": "#f85149",
+      "error-bg": "rgba(248, 81, 73, 0.1)",
+      "info": "#58a6ff",
+      "info-bg": "rgba(88, 166, 255, 0.1)"
+    },
+    "sentiment": {
+      "positive": "#3fb950",
+      "neutral": "#d29922",
+      "negative": "#f85149"
+    },
+    "platform": {
+      "youtube": "#FF0000",
+      "instagram": "#E4405F",
+      "tiktok": "#00f2ea"
+    }
+  }
+}

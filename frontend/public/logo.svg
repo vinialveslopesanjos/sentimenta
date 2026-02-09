@@ -1,0 +1,41 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" fill="none">
+  <defs>
+    <linearGradient id="sentimentGrad" x1="0%" y1="100%" x2="100%" y2="0%">
+      <stop offset="0%" stop-color="#f85149"/>
+      <stop offset="50%" stop-color="#d29922"/>
+      <stop offset="100%" stop-color="#3fb950"/>
+    </linearGradient>
+    <linearGradient id="accentGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#7c3aed"/>
+      <stop offset="100%" stop-color="#a78bfa"/>
+    </linearGradient>
+    <clipPath id="bubbleClip">
+      <path d="M256 52C148.8 52 62 126 62 218c0 50.4 26.8 95.6 68.8 127.2L112 420l82.4-41.2c19.2 5.6 39.6 8.4 61.6 8.4 107.2 0 194-74 194-166S363.2 52 256 52z"/>
+    </clipPath>
+  </defs>
+
+  <!-- Chat bubble shape -->
+  <path
+    d="M256 52C148.8 52 62 126 62 218c0 50.4 26.8 95.6 68.8 127.2L112 420l82.4-41.2c19.2 5.6 39.6 8.4 61.6 8.4 107.2 0 194-74 194-166S363.2 52 256 52z"
+    fill="url(#accentGrad)"
+    opacity="0.15"
+    stroke="url(#accentGrad)"
+    stroke-width="8"
+  />
+
+  <!-- Sentiment pulse line inside the bubble -->
+  <polyline
+    points="140,240 185,240 210,280 240,170 270,260 300,200 330,220 372,220"
+    stroke="url(#sentimentGrad)"
+    stroke-width="14"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+    fill="none"
+    clip-path="url(#bubbleClip)"
+  />
+
+  <!-- Accent dot on peak -->
+  <circle cx="240" cy="170" r="10" fill="#3fb950"/>
+  <circle cx="210" cy="280" r="8" fill="#f85149"/>
+  <circle cx="300" cy="200" r="9" fill="#d29922"/>
+</svg>
