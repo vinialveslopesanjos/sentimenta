@@ -21,19 +21,19 @@ const features = [
     icon: "hub",
     color: "bg-violet-50 text-brand-lilacDark",
     title: "Conecte",
-    desc: "Instagram e YouTube em segundos. Sem OAuth complicado — só o @ da conta.",
+    desc: "Sem senhas, sem burocracia. Basta colar o @ da conta. Nada de permissões chatas ou logins complicados. Em segundos, estamos prontos para ouvir.",
   },
   {
     icon: "psychology",
     color: "bg-cyan-50 text-brand-cyanDark",
     title: "Analise",
-    desc: "Nossa IA classifica sentimento, emoções, tópicos e detecta sarcasmo em cada comentário.",
+    desc: "A gente faz o trabalho sujo. Nossa IA lê comentário por comentário. Ela identifica elogios reais, críticas construtivas e até sinais sutis de contexto que passam despercebidos.",
   },
   {
     icon: "insights",
     color: "bg-rose-50 text-rose-500",
     title: "Entenda",
-    desc: "Dashboard visual com score, tendência e relatório de saúde gerado por IA em tempo real.",
+    desc: "A verdade mastigada para você. Nada de planilhas infinitas. Você recebe um relatório que parece uma conversa, te dizendo exatamente onde você acertou a mão e onde o clima pesou.",
   },
 ];
 
@@ -149,25 +149,19 @@ export default function LandingPage() {
         <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[900px] h-[700px] bg-gradient-to-b from-violet-100/50 to-transparent rounded-full blur-3xl -z-10 pointer-events-none" />
 
         <div className="max-w-4xl mx-auto text-center space-y-8 relative z-10">
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-white border border-violet-100 shadow-sm animate-fade-in">
-            <span className="w-2 h-2 rounded-full bg-brand-cyan animate-pulse" />
-            <span className="text-xs font-medium text-slate-500 tracking-wide uppercase">Novo: Análise de Threads do Instagram</span>
-          </div>
 
           <h1 className="text-5xl md:text-7xl font-sans font-semibold text-brand-heading leading-[1.1] tracking-tight animate-slide-up">
-            Entenda o coração da<br />
-            <span className="text-gradient">sua audiência.</span>
+            Chega de passar o olho em mil comentários para saber se gostaram do post.
           </h1>
 
-          <p className="text-lg md:text-xl text-slate-400 font-light max-w-2xl mx-auto leading-relaxed">
-            Descubra o sentimento por trás de cada comentário. Transforme reações em insights estratégicos com nossa IA — em uma interface que traz paz, não caos.
+          <p className="text-lg md:text-xl text-slate-400 font-light max-w-3xl mx-auto leading-relaxed">
+            Nossos Agentes de IA analisam cada post e comentário das suas redes para gerar um direcionamento claro. Saiba o que seu público ama, o que detesta e o que ele está pedindo para você postar amanhã.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
             <Link
               href="/login"
-              className="px-8 py-4 rounded-full bg-gradient-to-r from-brand-lilacDark to-violet-600 text-white font-medium text-lg hover:shadow-glow hover:scale-105 transition-all duration-300"
+              className="px-8 py-4 rounded-full bg-gradient-to-r from-brand-lilacDark to-violet-600 text-white font-medium text-lg hover:shadow-glow hover:scale-105 transition-all duration-300 subtle-glow"
             >
               Comece grátis 14 dias
             </Link>
@@ -261,7 +255,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-4xl font-sans font-semibold text-slate-700 mb-4">Simples de usar. Profundo na análise.</h2>
-            <p className="text-slate-400 font-light max-w-xl mx-auto text-lg">Três passos para entender o que sua audiência realmente pensa.</p>
+            <p className="text-slate-400 font-light max-w-xl mx-auto text-lg">Três passos simples para transformar comentário em direção prática.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {features.map((f, i) => (
@@ -279,12 +273,12 @@ export default function LandingPage() {
           {/* Feature details */}
           <div className="mt-20 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
             <div className="space-y-6">
-              <h3 className="text-3xl font-sans font-semibold text-slate-700">IA que entende contexto, ironia e sarcasmo.</h3>
+              <h3 className="text-3xl font-sans font-semibold text-slate-700">IA que entende seu público em profundidade.</h3>
               <p className="text-slate-400 font-light leading-relaxed">
-                Nosso modelo não só classifica positivo/negativo — ele detecta emoções específicas (alegria, raiva, tristeza), identifica tópicos recorrentes e sinaliza comentários com sarcasmo para que você não seja enganado por análises superficiais.
+                Nosso modelo vai além de positivo e negativo. Ele captura variações de sentimento, identifica emoções dominantes e mostra os temas que movem sua audiência para você entender o lado mais subjetivo da conversa.
               </p>
               <div className="space-y-3">
-                {["Detecção de sarcasmo com badge especial", "7 categorias de emoção por comentário", "Tópicos agrupados automaticamente", "Score de sentimento 0–10 por post"].map((item) => (
+                {["Variação de sentimento ao longo do tempo", "Emoções mais presentes em cada conteúdo", "Tópicos que mais mobilizam seu público", "Score de sentimento 0-10 por post"].map((item) => (
                   <div key={item} className="flex items-center gap-3">
                     <div className="w-5 h-5 rounded-full bg-emerald-100 flex items-center justify-center shrink-0">
                       <svg fill="none" height="12" stroke="#10B981" strokeWidth="2.5" viewBox="0 0 24 24" width="12"><polyline points="20 6 9 17 4 12"/></svg>
@@ -297,8 +291,8 @@ export default function LandingPage() {
             {/* Mock comment card */}
             <div className="space-y-3">
               {[
-                { score: 8.4, user: "@fã_clube", text: "Amei o conteúdo! A edição ficou incrível, muito melhor que o último.", emotions: ["alegria", "aprovação"], sarcasm: false, color: "text-emerald-600 bg-emerald-50" },
-                { score: 2.1, user: "@cetico_user", text: "Claro que vai funcionar... como sempre né 🙄", emotions: ["ironia", "ceticismo"], sarcasm: true, color: "text-rose-600 bg-rose-50" },
+                { score: 8.4, user: "@fa_clube", text: "Amei o conteúdo! A edição ficou incrível, muito melhor que o último.", emotions: ["alegria", "aprovação"], sarcasm: false, color: "text-emerald-600 bg-emerald-50" },
+                { score: 4.8, user: "@analitico_user", text: "Bom post, mas senti a mensagem um pouco corrida no final.", emotions: ["curiosidade", "atenção"], sarcasm: false, color: "text-amber-600 bg-amber-50" },
                 { score: 6.2, user: "@curioso_br", text: "Interessante, mas faltou explicar melhor a parte técnica.", emotions: ["curiosidade", "neutro"], sarcasm: false, color: "text-amber-600 bg-amber-50" },
               ].map((c) => (
                 <div key={c.user} className="dream-card p-4">
@@ -307,11 +301,7 @@ export default function LandingPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="text-xs font-semibold text-slate-700">{c.user}</span>
-                        {c.sarcasm && (
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium flex items-center gap-1">
-                            🎭 sarcasmo
-                          </span>
-                        )}
+                        
                       </div>
                       <p className="text-sm text-slate-500 font-light">{c.text}</p>
                       <div className="flex gap-1 mt-2 flex-wrap">

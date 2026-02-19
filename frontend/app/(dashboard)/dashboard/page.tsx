@@ -106,7 +106,7 @@ function SentimentBarChart({ data }: { data: TrendResponse | null }) {
                 neutral: "Neutro",
                 negative: "Negativo",
               };
-              return [Math.round(value), labels[name] ?? name];
+              return [Math.round(value), labels[name] || name];
             }}
           />
           <Bar dataKey="positive" stackId="sent" fill="#34D399" radius={[2, 2, 0, 0]} />
@@ -157,9 +157,9 @@ function ConnectionCard({ conn, onSync }: { conn: Connection; onSync: (id: strin
       <div className="flex gap-2">
         <Link
           href={`/dashboard/connection/${conn.id}`}
-          className="flex-1 text-center py-2 rounded-xl bg-slate-50 text-slate-600 text-xs font-medium hover:bg-brand-lilacLight hover:text-brand-lilacDark transition-colors"
+          className="flex-1 text-center py-2 rounded-xl bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white text-xs font-semibold hover:shadow-float transition-all"
         >
-          Ver análise
+          Ver análise detalhada
         </Link>
         <button
           onClick={handleSync}
@@ -175,15 +175,6 @@ function ConnectionCard({ conn, onSync }: { conn: Connection; onSync: (id: strin
 }
 
 function RecentPostItem({ post }: { post: PostSummary }) {
-  const score = post.summary?.avg_score;
-  const sentLabel = score == null ? "Pendente" : score >= 7 ? "Positivo" : score >= 4 ? "Neutro" : "Negativo";
-  const sentColor = score == null
-    ? "bg-slate-50 text-slate-400 border-slate-100"
-    : score >= 7
-      ? "bg-emerald-50 text-emerald-600 border-emerald-100"
-      : score >= 4
-        ? "bg-amber-50 text-amber-600 border-amber-100"
-        : "bg-rose-50 text-rose-500 border-rose-100";
   const [imgError, setImgError] = useState(false);
   const thumbnailSrc = buildThumbnailSrc(post.thumbnail_url);
   const showThumb = thumbnailSrc && !imgError;
@@ -215,8 +206,8 @@ function RecentPostItem({ post }: { post: PostSummary }) {
           {post.platform} · {post.comment_count} comentários
         </p>
       </div>
-      <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-lg border shrink-0 ${sentColor}`}>
-        {sentLabel}
+      <span className="text-[10px] font-semibold text-brand-lilacDark bg-violet-50 border border-violet-100 px-2 py-1 rounded-lg shrink-0">
+        Ver análise →
       </span>
     </Link>
   );
@@ -229,6 +220,7 @@ export default function DashboardPage() {
   const [loadingHealth, setLoadingHealth] = useState(false);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState<string | null>(null);
+  const HEALTH_CACHE_KEY = "sentimenta_latest_health_report";
 
   const loadData = useCallback(async () => {
     const token = getToken();
@@ -248,26 +240,40 @@ export default function DashboardPage() {
     }
   }, []);
 
-  useEffect(() => {
-    // Get user name from localStorage
-    const stored = typeof window !== "undefined" ? localStorage.getItem("sentiment_user_name") : null;
-    setUserName(stored);
-    loadData();
-  }, [loadData]);
-
-  const loadHealth = async () => {
+  const loadHealth = useCallback(async () => {
     const token = getToken();
     if (!token) return;
     setLoadingHealth(true);
     try {
       const h = await dashboardApi.healthReport(token);
       setHealth(h);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(HEALTH_CACHE_KEY, JSON.stringify(h));
+      }
     } catch (error) {
       console.error("Falha ao carregar relatório de saúde", error);
     } finally {
       setLoadingHealth(false);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // Get user name from localStorage
+    const stored = typeof window !== "undefined" ? localStorage.getItem("sentiment_user_name") : null;
+    setUserName(stored);
+    if (typeof window !== "undefined") {
+      const raw = localStorage.getItem(HEALTH_CACHE_KEY);
+      if (raw) {
+        try {
+          setHealth(JSON.parse(raw));
+        } catch {
+          // ignore malformed cache
+        }
+      }
+    }
+    loadData();
+    loadHealth();
+  }, [loadData, loadHealth]);
 
   const handleSync = async (connectionId: string) => {
     const token = getToken();
@@ -289,6 +295,13 @@ export default function DashboardPage() {
     return "Boa noite";
   };
 
+  const firstName = (() => {
+    const raw = (userName ?? "").trim();
+    if (!raw) return "";
+    const name = raw.split(" ")[0];
+    return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
+  })();
+
   const isEmpty = !loading && summary && summary.total_connections === 0;
 
   return (
@@ -297,7 +310,7 @@ export default function DashboardPage() {
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-100 px-6 md:px-8 py-5 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-sans font-medium text-slate-800">
-            {greeting()}{userName ? `, ${userName.split(" ")[0]}` : ""}. 👋
+            {greeting()}{firstName ? `, ${firstName}` : ""}. 👋
           </h1>
           <p className="text-sm text-slate-400 font-light">Aqui está o resumo dos seus sentimentos hoje.</p>
         </div>
@@ -340,6 +353,36 @@ export default function DashboardPage() {
 
         {!isEmpty && (
           <>
+            {/* Connections */}
+            {!loading && (summary?.connections ?? []).length > 0 && (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-sans font-medium text-slate-700">Seus Perfis</h2>
+                    <p className="text-sm text-slate-400 font-light">Este dashboard mostra a visão consolidada de todas as redes conectadas.</p>
+                  </div>
+                  <Link href="/connect" className="text-xs text-brand-lilacDark font-medium hover:underline flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">add</span>
+                    Adicionar perfil
+                  </Link>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {(summary?.connections ?? []).map((conn) => (
+                    <ConnectionCard key={conn.id} conn={conn} onSync={handleSync} />
+                  ))}
+                  <Link
+                    href="/connect"
+                    className="dream-card p-5 flex flex-col items-center justify-center gap-3 border-dashed border-2 border-slate-100 hover:border-brand-lilac hover:bg-violet-50/30 transition-all duration-300 group"
+                  >
+                    <div className="w-10 h-10 rounded-2xl bg-slate-50 group-hover:bg-brand-lilacLight flex items-center justify-center transition-colors">
+                      <span className="material-symbols-outlined text-[20px] text-slate-300 group-hover:text-brand-lilacDark transition-colors">add</span>
+                    </div>
+                    <span className="text-xs text-slate-400 group-hover:text-brand-lilacDark font-medium transition-colors">Adicionar perfil</span>
+                  </Link>
+                </div>
+              </div>
+            )}
+
             {/* KPI cards */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
               {loading ? (
@@ -458,6 +501,7 @@ export default function DashboardPage() {
                   </div>
                   {health ? (
                     <div className="prose prose-sm prose-slate max-w-none text-brand-text leading-relaxed">
+                      <p className="text-xs text-slate-400 font-light mb-3">Último relatório disponível para os perfis conectados.</p>
                       <ReactMarkdown>{health.report_text}</ReactMarkdown>
                     </div>
                   ) : (
@@ -475,6 +519,7 @@ export default function DashboardPage() {
                   <h2 className="text-lg font-sans font-medium text-slate-700">Posts Recentes</h2>
                   <Link href="/connect" className="text-xs text-brand-lilacDark font-medium hover:underline">Ver tudo</Link>
                 </div>
+                <p className="text-xs text-slate-400 mb-3">Clique em um post para ver a análise individual detalhada.</p>
                 {loading ? (
                   <div className="space-y-3">
                     {Array(4).fill(0).map((_, i) => (
@@ -496,32 +541,6 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Connections */}
-            {!loading && (summary?.connections ?? []).length > 0 && (
-              <div>
-                <div className="flex items-center justify-between mb-5">
-                  <h2 className="text-lg font-sans font-medium text-slate-700">Seus Perfis</h2>
-                  <Link href="/connect" className="text-xs text-brand-lilacDark font-medium hover:underline flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[14px]">add</span>
-                    Adicionar perfil
-                  </Link>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {(summary?.connections ?? []).map((conn) => (
-                    <ConnectionCard key={conn.id} conn={conn} onSync={handleSync} />
-                  ))}
-                  <Link
-                    href="/connect"
-                    className="dream-card p-5 flex flex-col items-center justify-center gap-3 border-dashed border-2 border-slate-100 hover:border-brand-lilac hover:bg-violet-50/30 transition-all duration-300 group"
-                  >
-                    <div className="w-10 h-10 rounded-2xl bg-slate-50 group-hover:bg-brand-lilacLight flex items-center justify-center transition-colors">
-                      <span className="material-symbols-outlined text-[20px] text-slate-300 group-hover:text-brand-lilacDark transition-colors">add</span>
-                    </div>
-                    <span className="text-xs text-slate-400 group-hover:text-brand-lilacDark font-medium transition-colors">Adicionar perfil</span>
-                  </Link>
-                </div>
-              </div>
-            )}
           </>
         )}
       </main>
