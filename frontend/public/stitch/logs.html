@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Sentimenta - Pipeline Logs</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'], 
+                        body: ['"Satoshi"', 'sans-serif'],
+                        mono: ['"Fira Code"', 'monospace'],
+                    },
+                    colors: {
+                        aura: {
+                            base: '#6366f1',
+                            pink: '#f472b6',
+                            purple: '#a855f7',
+                            cyan: '#22d3ee',
+                            surface: 'rgba(255, 255, 255, 0.65)',
+                            surfaceHighlight: 'rgba(255, 255, 255, 0.85)',
+                            text: '#1e293b',
+                            muted: '#475569',
+                        }
+                    },
+                    boxShadow: {
+                        'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.07)',
+                        'glow': '0 0 20px rgba(168, 85, 247, 0.4)',
+                    },
+                    animation: {
+                        'blob': 'blob 10s infinite',
+                    },
+                    keyframes: {
+                        blob: {
+                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                            '100%': { transform: 'translate(0px, 0px) scale(1)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .bg-noise {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.08'/%3E%3C/svg%3E");
+            opacity: 0.6;
+            pointer-events: none;
+        }
+        .aura-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -2;
+            background-color: #e0e7ff;
+            background: 
+                radial-gradient(circle at 15% 50%, rgba(168, 85, 247, 0.4), transparent 50%),
+                radial-gradient(circle at 85% 30%, rgba(34, 211, 238, 0.4), transparent 50%),
+                radial-gradient(circle at 50% 80%, rgba(244, 114, 182, 0.5), transparent 50%);
+            filter: blur(40px);
+            background-size: 150% 150%;
+        }
+        .aura-shape {
+            position: fixed;
+            top: 20%;
+            left: 30%;
+            width: 80vw;
+            height: 80vh;
+            background: conic-gradient(from 180deg at 50% 50%, #C4B5FD 0deg, #F472B6 120deg, #6366F1 240deg, #C4B5FD 360deg);
+            filter: blur(90px);
+            opacity: 0.6;
+            border-radius: 50%;
+            z-index: -2;
+            animation: blob 20s infinite alternate;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+            border-radius: 24px;
+        }
+        .glass-card-dark {
+             background: rgba(255, 255, 255, 0.7);
+             border: 1px solid rgba(255, 255, 255, 0.8);
+        }
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body class="p-6 md:p-12 min-h-screen font-body text-slate-700 selection:bg-pink-200 selection:text-pink-900 overflow-x-hidden">
+<div class="aura-background"></div>
+<div class="aura-shape"></div>
+<div class="bg-noise"></div>
+<header class="mb-12 flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pb-6 border-b border-white/30 relative z-10">
+<div>
+<div class="flex items-center gap-3 mb-1">
+<div class="w-11 h-11 rounded-2xl glass-card flex items-center justify-center text-indigo-600 shadow-glow">
+<span class="material-symbols-outlined text-2xl">bubble_chart</span>
+</div>
+<h1 class="text-4xl font-sans font-bold tracking-tight text-slate-800">sentimenta</h1>
+</div>
+<p class="text-slate-500 text-xs font-semibold tracking-[0.2em] pl-1 mix-blend-multiply uppercase">Processing Logs • Pipeline Monitor</p>
+</div>
+<div class="hidden md:flex gap-3">
+<div class="glass-card px-5 py-2.5 text-[10px] font-bold text-indigo-900 uppercase tracking-[0.15em] flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse"></span>
+                System Operational
+             </div>
+</div>
+</header>
+<main class="grid grid-cols-1 lg:grid-cols-12 gap-10 relative z-10">
+<div class="lg:col-span-4 space-y-8">
+<section>
+<h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">grid_view</span>
+                    Visão Geral
+                </h2>
+<div class="glass-card p-6 space-y-6">
+<div class="flex items-center justify-between">
+<div>
+<p class="text-sm font-medium text-slate-500">Total Tasks (24h)</p>
+<p class="text-3xl font-sans font-bold text-slate-800 mt-1">1,284</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-indigo-50 text-indigo-500 flex items-center justify-center">
+<span class="material-symbols-outlined">data_usage</span>
+</div>
+</div>
+<div class="h-px bg-gradient-to-r from-transparent via-slate-200 to-transparent"></div>
+<div class="grid grid-cols-2 gap-4">
+<div>
+<p class="text-xs text-slate-500 mb-1">Success Rate</p>
+<div class="flex items-center gap-2 text-green-600 font-bold font-sans">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+                               98.2%
+                           </div>
+</div>
+<div>
+<p class="text-xs text-slate-500 mb-1">Avg. Duration</p>
+<div class="flex items-center gap-2 text-slate-700 font-bold font-sans">
+<span class="material-symbols-outlined text-sm">timer</span>
+                               4.2s
+                           </div>
+</div>
+</div>
+</div>
+</section>
+<section>
+<h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-4">Worker Status</h2>
+<div class="glass-card p-5 space-y-4">
+<div class="flex items-center justify-between group cursor-pointer hover:bg-white/40 p-2 rounded-xl transition-colors">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)]"></div>
+<span class="font-sans font-medium text-sm text-slate-700">Sentiment-Worker-01</span>
+</div>
+<span class="text-[10px] font-mono text-slate-400 bg-white/50 px-2 py-0.5 rounded">IDLE</span>
+</div>
+<div class="flex items-center justify-between group cursor-pointer hover:bg-white/40 p-2 rounded-xl transition-colors">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-green-500 shadow-[0_0_10px_rgba(34,197,94,0.5)] animate-pulse"></div>
+<span class="font-sans font-medium text-sm text-slate-700">Sentiment-Worker-02</span>
+</div>
+<span class="text-[10px] font-mono text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded">BUSY</span>
+</div>
+<div class="flex items-center justify-between group cursor-pointer hover:bg-white/40 p-2 rounded-xl transition-colors">
+<div class="flex items-center gap-3">
+<div class="w-2 h-2 rounded-full bg-amber-400"></div>
+<span class="font-sans font-medium text-sm text-slate-700">Data-Ingest-04</span>
+</div>
+<span class="text-[10px] font-mono text-amber-600 bg-amber-50 px-2 py-0.5 rounded">PAUSED</span>
+</div>
+</div>
+</section>
+</div>
+<div class="lg:col-span-8 space-y-8">
+<section>
+<h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm animate-spin">sync</span>
+                    Processing Now
+                </h2>
+<div class="glass-card p-0 overflow-hidden relative group border-l-4 border-l-indigo-500">
+<div class="absolute inset-0 bg-gradient-to-r from-indigo-50/50 via-purple-50/30 to-transparent pointer-events-none"></div>
+<div class="p-6 md:p-8 relative z-10">
+<div class="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+<div class="flex items-center gap-4">
+<div class="w-12 h-12 rounded-full bg-white border border-slate-100 flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-indigo-600">rocket_launch</span>
+</div>
+<div>
+<h3 class="text-xl font-sans font-bold text-slate-800">Sync: @tech_startups_br</h3>
+<p class="text-xs text-slate-500 font-medium">Batch ID: #8829-AZ</p>
+</div>
+</div>
+<div class="flex items-center gap-2 bg-indigo-100/50 px-3 py-1.5 rounded-full border border-indigo-200/50 backdrop-blur-sm">
+<span class="w-2 h-2 rounded-full bg-indigo-500 animate-pulse"></span>
+<span class="text-xs font-bold text-indigo-700 uppercase tracking-wider">Rodando</span>
+</div>
+</div>
+<div class="space-y-2 mb-6">
+<div class="flex justify-between text-xs font-bold text-slate-600 uppercase tracking-wide">
+<span>Análise de Sentimento</span>
+<span>50%</span>
+</div>
+<div class="w-full h-2 bg-slate-200/70 rounded-full overflow-hidden">
+<div class="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500 w-1/2 relative overflow-hidden">
+<div class="absolute inset-0 bg-white/30 w-full h-full -skew-x-12 animate-[shimmer_2s_infinite]"></div>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-2 md:grid-cols-4 gap-4">
+<div class="bg-white/40 rounded-xl p-3 border border-white/50">
+<p class="text-[10px] font-bold text-slate-400 uppercase">Posts Analisados</p>
+<p class="text-lg font-sans font-semibold text-slate-700 mt-0.5">4<span class="text-slate-400 text-sm">/8</span></p>
+</div>
+<div class="bg-white/40 rounded-xl p-3 border border-white/50">
+<p class="text-[10px] font-bold text-slate-400 uppercase">Tempo Decorrido</p>
+<p class="text-lg font-mono font-medium text-slate-700 mt-0.5">00:42s</p>
+</div>
+<div class="bg-white/40 rounded-xl p-3 border border-white/50">
+<p class="text-[10px] font-bold text-slate-400 uppercase">Tokens IA</p>
+<p class="text-lg font-sans font-semibold text-slate-700 mt-0.5">~1.2k</p>
+</div>
+<div class="bg-white/40 rounded-xl p-3 border border-white/50">
+<p class="text-[10px] font-bold text-slate-400 uppercase">Fila</p>
+<p class="text-lg font-sans font-semibold text-slate-700 mt-0.5">Prioridade Alta</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section>
+<div class="flex items-center justify-between mb-4">
+<h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">history</span>
+                        Pipeline History
+                    </h2>
+<div class="flex gap-2">
+<button class="p-1.5 rounded-lg hover:bg-white/30 text-slate-500 transition-colors">
+<span class="material-symbols-outlined text-lg">filter_list</span>
+</button>
+<button class="p-1.5 rounded-lg hover:bg-white/30 text-slate-500 transition-colors">
+<span class="material-symbols-outlined text-lg">refresh</span>
+</button>
+</div>
+</div>
+<div class="glass-card overflow-hidden">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-200/50">
+<th class="px-6 py-4 font-semibold">Tarefa</th>
+<th class="px-6 py-4 font-semibold">Status</th>
+<th class="px-6 py-4 font-semibold">Duração</th>
+<th class="px-6 py-4 font-semibold">Erros</th>
+<th class="px-6 py-4 font-semibold text-right">Horário</th>
+</tr>
+</thead>
+<tbody class="text-sm">
+<tr class="group hover:bg-white/40 transition-colors border-b border-slate-100/30">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
+<span class="material-symbols-outlined text-base">check_circle</span>
+</div>
+<div>
+<p class="font-bold text-slate-700">Import: @cafes_sp</p>
+<p class="text-xs text-slate-500">ID: #8828-BB</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-100/50 text-emerald-700 text-[10px] font-bold uppercase tracking-wide border border-emerald-200/50">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                            Concluído
+                                        </span>
+</td>
+<td class="px-6 py-4 font-mono text-slate-600 text-xs">02m 14s</td>
+<td class="px-6 py-4">
+<span class="text-slate-400">-</span>
+</td>
+<td class="px-6 py-4 text-right text-slate-500 font-mono text-xs">14:22 PM</td>
+</tr>
+<tr class="group hover:bg-white/40 transition-colors border-b border-slate-100/30 relative overflow-hidden">
+<td class="px-6 py-4 relative z-10">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-red-50 text-red-500 flex items-center justify-center border border-red-100">
+<span class="material-symbols-outlined text-base">warning</span>
+</div>
+<div>
+<p class="font-bold text-slate-700">Sync: @moda_verao</p>
+<p class="text-xs text-slate-500">ID: #8827-FF</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4 relative z-10">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-red-100/50 text-red-700 text-[10px] font-bold uppercase tracking-wide border border-red-200/50">
+<span class="w-1.5 h-1.5 rounded-full bg-red-500"></span>
+                                            Falhou
+                                        </span>
+</td>
+<td class="px-6 py-4 font-mono text-slate-600 text-xs relative z-10">00m 05s</td>
+<td class="px-6 py-4 relative z-10">
+<span class="px-2 py-0.5 rounded bg-red-50 text-red-600 font-bold text-xs border border-red-100">3 API</span>
+</td>
+<td class="px-6 py-4 text-right text-slate-500 font-mono text-xs relative z-10">14:15 PM</td>
+</tr>
+<tr class="group hover:bg-white/40 transition-colors border-b border-slate-100/30">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center border border-emerald-100">
+<span class="material-symbols-outlined text-base">check_circle</span>
+</div>
+<div>
+<p class="font-bold text-slate-700">Report: Monthly</p>
+<p class="text-xs text-slate-500">ID: #8826-AA</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-100/50 text-emerald-700 text-[10px] font-bold uppercase tracking-wide border border-emerald-200/50">
+<span class="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+                                            Concluído
+                                        </span>
+</td>
+<td class="px-6 py-4 font-mono text-slate-600 text-xs">05m 30s</td>
+<td class="px-6 py-4">
+<span class="text-slate-400">-</span>
+</td>
+<td class="px-6 py-4 text-right text-slate-500 font-mono text-xs">13:45 PM</td>
+</tr>
+<tr class="group hover:bg-white/40 transition-colors">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-100">
+<span class="material-symbols-outlined text-base">error</span>
+</div>
+<div>
+<p class="font-bold text-slate-700">Scrape: #marketing</p>
+<p class="text-xs text-slate-500">ID: #8825-WW</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-100/50 text-amber-700 text-[10px] font-bold uppercase tracking-wide border border-amber-200/50">
+<span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+                                            Parcial
+                                        </span>
+</td>
+<td class="px-6 py-4 font-mono text-slate-600 text-xs">01m 12s</td>
+<td class="px-6 py-4">
+<span class="px-2 py-0.5 rounded bg-amber-50 text-amber-600 font-bold text-xs border border-amber-100">1 Timeout</span>
+</td>
+<td class="px-6 py-4 text-right text-slate-500 font-mono text-xs">13:10 PM</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="p-4 border-t border-slate-200/50 bg-white/20 backdrop-blur-sm flex justify-center">
+<button class="text-xs font-bold text-indigo-600 uppercase tracking-widest hover:text-indigo-800 transition-colors flex items-center gap-2">
+                            Ver todos os logs
+                            <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button>
+</div>
+</div>
+</section>
+</div>
+</main>
+<footer class="mt-20 pt-10 border-t border-white/20 text-center relative z-10">
+<p class="text-[10px] text-slate-500 font-bold tracking-[0.3em] opacity-40 uppercase">Sentimenta • Aura Edition • 2026</p>
+</footer>
+
+</body></html>

@@ -1,0 +1,406 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Sentimenta Main Dashboard</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'], 
+                        body: ['"Satoshi"', 'sans-serif'],
+                    },
+                    colors: {
+                        aura: {
+                            base: '#6366f1',
+                            pink: '#f472b6',
+                            purple: '#a855f7',
+                            cyan: '#22d3ee',
+                            dark: '#0f172a',
+                            darker: '#020617',
+                        }
+                    },
+                    boxShadow: {
+                        'glass': '0 8px 32px 0 rgba(0, 0, 0, 0.3)',
+                        'glow': '0 0 40px rgba(99, 102, 241, 0.25)',
+                        'glow-pink': '0 0 40px rgba(244, 114, 182, 0.25)',
+                    },
+                }
+            }
+        }
+    </script>
+<style>
+        body {
+            background-color: #020617;
+            color: #e2e8f0;
+        }
+        .bg-noise {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+            opacity: 0.4;
+            pointer-events: none;
+        }
+        .aura-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -2;
+            background: 
+                radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.15), transparent 40%),
+                radial-gradient(circle at 90% 80%, rgba(244, 114, 182, 0.1), transparent 40%),
+                radial-gradient(circle at 50% 50%, rgba(168, 85, 247, 0.08), transparent 60%);
+            filter: blur(60px);
+        }
+        .glass-panel {
+            background: rgba(30, 41, 59, 0.4);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+            border-radius: 20px;
+        }
+        .glass-sidebar {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .nav-item {
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        .nav-item:hover, .nav-item.active {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+        .nav-item.active::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 50%;
+            transform: translateY(-50%);
+            height: 60%;
+            width: 3px;
+            background: #6366f1;
+            border-radius: 0 4px 4px 0;
+            box-shadow: 0 0 10px #6366f1;
+        }.chart-area {
+            position: relative;
+            overflow: hidden;
+        }
+        .chart-path {
+            fill-opacity: 0.2;
+            stroke-width: 2;
+            stroke-linecap: round;
+        }::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0,0,0,0.1); 
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(255,255,255,0.1); 
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255,255,255,0.2); 
+        }
+    </style>
+</head>
+<body class="font-body text-slate-300 selection:bg-indigo-500/30 selection:text-indigo-200 overflow-hidden h-screen flex">
+<div class="aura-background"></div>
+<div class="bg-noise"></div>
+<aside class="w-20 lg:w-64 glass-sidebar h-full flex flex-col justify-between z-20 shrink-0">
+<div class="flex flex-col gap-8 p-4 lg:p-6">
+<div class="flex items-center gap-3 justify-center lg:justify-start">
+<div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-glow shrink-0">
+<span class="material-symbols-outlined text-[20px]">bubble_chart</span>
+</div>
+<span class="hidden lg:block text-xl font-sans font-bold tracking-tight text-white">Sentimenta</span>
+</div>
+<nav class="flex flex-col gap-2 mt-4">
+<a class="nav-item active flex items-center gap-4 p-3 rounded-xl text-slate-400" href="#">
+<span class="material-symbols-outlined">dashboard</span>
+<span class="hidden lg:block font-medium text-sm">Dashboard</span>
+</a>
+<a class="nav-item flex items-center gap-4 p-3 rounded-xl text-slate-400" href="#">
+<span class="material-symbols-outlined">pie_chart</span>
+<span class="hidden lg:block font-medium text-sm">Análises</span>
+</a>
+<a class="nav-item flex items-center gap-4 p-3 rounded-xl text-slate-400" href="#">
+<span class="material-symbols-outlined">hub</span>
+<span class="hidden lg:block font-medium text-sm">Conexões</span>
+</a>
+<a class="nav-item flex items-center gap-4 p-3 rounded-xl text-slate-400" href="#">
+<span class="material-symbols-outlined">description</span>
+<span class="hidden lg:block font-medium text-sm">Relatórios</span>
+</a>
+<a class="nav-item flex items-center gap-4 p-3 rounded-xl text-slate-400" href="#">
+<span class="material-symbols-outlined">group</span>
+<span class="hidden lg:block font-medium text-sm">Equipe</span>
+</a>
+</nav>
+</div>
+<div class="p-4 lg:p-6">
+<a class="nav-item flex items-center gap-4 p-3 rounded-xl text-slate-400" href="#">
+<span class="material-symbols-outlined">settings</span>
+<span class="hidden lg:block font-medium text-sm">Configurações</span>
+</a>
+<a class="nav-item flex items-center gap-4 p-3 rounded-xl text-slate-400 hover:text-red-400 mt-2" href="#">
+<span class="material-symbols-outlined">logout</span>
+<span class="hidden lg:block font-medium text-sm">Sair</span>
+</a>
+</div>
+</aside>
+<main class="flex-1 flex flex-col h-full relative z-10 overflow-hidden">
+<header class="h-20 px-8 flex items-center justify-between border-b border-white/5 shrink-0 bg-slate-900/20 backdrop-blur-sm">
+<div>
+<h1 class="text-2xl font-sans font-semibold text-white">Olá, <span class="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 to-pink-400">Ricardo</span></h1>
+<p class="text-xs text-slate-400 font-medium tracking-wide">Bem-vindo ao seu painel de sentimentos.</p>
+</div>
+<div class="flex items-center gap-6">
+<div class="relative">
+<span class="material-symbols-outlined text-slate-400 hover:text-white cursor-pointer transition-colors">notifications</span>
+<span class="absolute top-0 right-0 w-2 h-2 rounded-full bg-pink-500 animate-pulse"></span>
+</div>
+<div class="h-8 w-[1px] bg-white/10"></div>
+<div class="flex items-center gap-3">
+<div class="text-right hidden md:block">
+<p class="text-sm font-bold text-white">Ricardo Silva</p>
+<p class="text-[10px] text-slate-400 uppercase tracking-wider">Admin</p>
+</div>
+<div class="w-10 h-10 rounded-full bg-slate-700 border border-white/10 overflow-hidden relative">
+<div class="absolute inset-0 bg-gradient-to-tr from-indigo-500 to-purple-500 opacity-80"></div>
+<span class="absolute inset-0 flex items-center justify-center font-bold text-white text-sm">RS</span>
+</div>
+</div>
+</div>
+</header>
+<div class="flex-1 overflow-y-auto p-8">
+<div class="max-w-7xl mx-auto space-y-8">
+<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
+<div class="glass-panel p-5 relative overflow-hidden group hover:border-indigo-500/30 transition-colors">
+<div class="absolute right-[-10px] top-[-10px] w-20 h-20 bg-indigo-500/10 rounded-full blur-xl group-hover:bg-indigo-500/20 transition-all"></div>
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-indigo-500/20 rounded-lg text-indigo-400">
+<span class="material-symbols-outlined text-xl">link</span>
+</div>
+<span class="text-xs font-bold text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded">+12%</span>
+</div>
+<p class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">Conexões Ativas</p>
+<h3 class="text-3xl font-sans font-bold text-white">24</h3>
+</div>
+<div class="glass-panel p-5 relative overflow-hidden group hover:border-pink-500/30 transition-colors">
+<div class="absolute right-[-10px] top-[-10px] w-20 h-20 bg-pink-500/10 rounded-full blur-xl group-hover:bg-pink-500/20 transition-all"></div>
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-pink-500/20 rounded-lg text-pink-400">
+<span class="material-symbols-outlined text-xl">post_add</span>
+</div>
+<span class="text-xs font-bold text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded">+5%</span>
+</div>
+<p class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">Posts Analisados</p>
+<h3 class="text-3xl font-sans font-bold text-white">1,842</h3>
+</div>
+<div class="glass-panel p-5 relative overflow-hidden group hover:border-cyan-500/30 transition-colors">
+<div class="absolute right-[-10px] top-[-10px] w-20 h-20 bg-cyan-500/10 rounded-full blur-xl group-hover:bg-cyan-500/20 transition-all"></div>
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-cyan-500/20 rounded-lg text-cyan-400">
+<span class="material-symbols-outlined text-xl">forum</span>
+</div>
+<span class="text-xs font-bold text-emerald-400 bg-emerald-400/10 px-2 py-1 rounded">+28%</span>
+</div>
+<p class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">Comentários</p>
+<h3 class="text-3xl font-sans font-bold text-white">12.5k</h3>
+</div>
+<div class="glass-panel p-5 relative overflow-hidden group hover:border-purple-500/30 transition-colors">
+<div class="absolute right-[-10px] top-[-10px] w-20 h-20 bg-purple-500/10 rounded-full blur-xl group-hover:bg-purple-500/20 transition-all"></div>
+<div class="flex justify-between items-start mb-4">
+<div class="p-2 bg-purple-500/20 rounded-lg text-purple-400">
+<span class="material-symbols-outlined text-xl">stars</span>
+</div>
+<span class="text-xs font-bold text-slate-400 bg-slate-400/10 px-2 py-1 rounded">Avg</span>
+</div>
+<p class="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-1">Score Médio</p>
+<h3 class="text-3xl font-sans font-bold text-white">8.4</h3>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+<div class="lg:col-span-2 glass-panel p-8 relative overflow-hidden">
+<div class="absolute top-0 right-0 p-8 opacity-20 pointer-events-none">
+<span class="material-symbols-outlined text-9xl text-indigo-400">psychology</span>
+</div>
+<div class="flex items-center gap-3 mb-6">
+<div class="h-8 w-8 rounded-full bg-gradient-to-tr from-indigo-500 to-pink-500 flex items-center justify-center shadow-glow">
+<span class="material-symbols-outlined text-white text-sm">auto_awesome</span>
+</div>
+<h2 class="text-lg font-sans font-bold text-white tracking-tight">Relatório de Saúde IA</h2>
+<span class="bg-indigo-500/20 text-indigo-300 text-[10px] font-bold px-2 py-0.5 rounded uppercase tracking-wide border border-indigo-500/30">Atualizado agora</span>
+</div>
+<div class="space-y-4 max-w-2xl relative z-10">
+<p class="text-slate-300 leading-relaxed font-body text-sm lg:text-base">
+                                A análise de sentimento desta semana indica uma tendência de <strong class="text-white font-semibold">crescimento positivo</strong> nas interações diretas. O algoritmo Aura detectou um aumento significativo no uso de termos associados a "confiança" e "agilidade" nos comentários do LinkedIn, sugerindo que a nova campanha institucional está ressoando bem com o público B2B.
+                            </p>
+<p class="text-slate-300 leading-relaxed font-body text-sm lg:text-base border-l-2 border-pink-500/50 pl-4">
+                                Entretanto, notamos um pico de sentimentos neutros a negativos relacionados ao tempo de resposta no Instagram Direct. Recomenda-se ajustar os fluxos de automação para priorizar tickets com palavras-chave de urgência. O Score Geral mantém-se estável, mas a atenção a este canal pode elevar a métrica em até 15% na próxima quinzena.
+                            </p>
+</div>
+<div class="mt-8 flex gap-4">
+<button class="px-5 py-2.5 bg-white text-indigo-900 text-xs font-bold uppercase tracking-wider rounded-lg hover:bg-indigo-50 transition-colors shadow-lg shadow-white/10">
+                                Ver Detalhes Completos
+                            </button>
+<button class="px-5 py-2.5 bg-transparent border border-white/20 text-white text-xs font-bold uppercase tracking-wider rounded-lg hover:bg-white/5 transition-colors">
+                                Exportar PDF
+                            </button>
+</div>
+</div>
+<div class="glass-panel p-6 flex flex-col">
+<div class="flex justify-between items-center mb-6">
+<h2 class="text-base font-sans font-bold text-white">Conexões Ativas</h2>
+<button class="text-indigo-400 hover:text-indigo-300 transition-colors">
+<span class="material-symbols-outlined text-xl">add_circle</span>
+</button>
+</div>
+<div class="space-y-4 flex-1 overflow-y-auto pr-2 custom-scrollbar">
+<div class="p-3 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between hover:bg-white/10 transition-colors group">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-[#0077b5] flex items-center justify-center text-white">
+<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M19 0h-14c-2.761 0-5 2.239-5 5v14c0 2.761 2.239 5 5 5h14c2.762 0 5-2.239 5-5v-14c0-2.761-2.238-5-5-5zm-11 19h-3v-11h3v11zm-1.5-12.268c-.966 0-1.75-.79-1.75-1.764s.784-1.764 1.75-1.764 1.75.79 1.75 1.764-.783 1.764-1.75 1.764zm13.5 12.268h-3v-5.604c0-3.368-4-3.113-4 0v5.604h-3v-11h3v1.765c1.396-2.586 7-2.777 7 2.476v6.759z"></path></svg>
+</div>
+<div>
+<p class="text-sm font-bold text-white">LinkedIn Corp</p>
+<p class="text-[10px] text-emerald-400">Online • 2m atrás</p>
+</div>
+</div>
+<button class="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-bold uppercase tracking-wider text-indigo-300 border border-indigo-500/30 px-2 py-1 rounded hover:bg-indigo-500/20">
+                                    Sincronizar
+                                </button>
+</div>
+<div class="p-3 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between hover:bg-white/10 transition-colors group">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-gradient-to-tr from-yellow-400 via-red-500 to-purple-500 flex items-center justify-center text-white">
+<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"></path></svg>
+</div>
+<div>
+<p class="text-sm font-bold text-white">Instagram BR</p>
+<p class="text-[10px] text-amber-400">Sincronização pendente</p>
+</div>
+</div>
+<button class="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-bold uppercase tracking-wider text-indigo-300 border border-indigo-500/30 px-2 py-1 rounded hover:bg-indigo-500/20">
+                                    Sincronizar
+                                </button>
+</div>
+<div class="p-3 rounded-xl bg-white/5 border border-white/5 flex items-center justify-between hover:bg-white/10 transition-colors group">
+<div class="flex items-center gap-3">
+<div class="w-8 h-8 rounded bg-blue-400 flex items-center justify-center text-white">
+<svg class="w-4 h-4 fill-current" viewBox="0 0 24 24"><path d="M24 4.557c-.883.392-1.832.656-2.828.775 1.017-.609 1.798-1.574 2.165-2.724-.951.564-2.005.974-3.127 1.195-.897-.957-2.178-1.555-3.594-1.555-3.179 0-5.515 2.966-4.797 6.045-4.091-.205-7.719-2.165-10.148-5.144-1.29 2.213-.669 5.108 1.523 6.574-.806-.026-1.566-.247-2.229-.616-.054 2.281 1.581 4.415 3.949 4.89-.693.188-1.452.232-2.224.084.626 1.956 2.444 3.379 4.6 3.419-2.07 1.623-4.678 2.348-7.29 2.04 2.179 1.397 4.768 2.212 7.548 2.212 9.142 0 14.307-7.721 13.995-14.646.962-.695 1.797-1.562 2.457-2.549z"></path></svg>
+</div>
+<div>
+<p class="text-sm font-bold text-white">Twitter / X</p>
+<p class="text-[10px] text-emerald-400">Online • 5m atrás</p>
+</div>
+</div>
+<button class="opacity-0 group-hover:opacity-100 transition-opacity text-[10px] font-bold uppercase tracking-wider text-indigo-300 border border-indigo-500/30 px-2 py-1 rounded hover:bg-indigo-500/20">
+                                    Sincronizar
+                                </button>
+</div>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 pb-8">
+<div class="glass-panel p-6 flex flex-col">
+<div class="flex justify-between items-center mb-6">
+<h2 class="text-base font-sans font-bold text-white">Tendência de Sentimento</h2>
+<div class="flex gap-2 text-[10px] font-bold uppercase tracking-wider">
+<span class="flex items-center gap-1 text-slate-400"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>Positivo</span>
+<span class="flex items-center gap-1 text-slate-400"><span class="w-2 h-2 rounded-full bg-slate-400"></span>Neutro</span>
+<span class="flex items-center gap-1 text-slate-400"><span class="w-2 h-2 rounded-full bg-pink-500"></span>Negativo</span>
+</div>
+</div>
+<div class="h-64 w-full chart-area relative">
+<svg class="w-full h-full" preserveAspectRatio="none" viewBox="0 0 100 50">
+<line stroke="rgba(255,255,255,0.05)" stroke-width="0.2" x1="0" x2="100" y1="10" y2="10"></line>
+<line stroke="rgba(255,255,255,0.05)" stroke-width="0.2" x1="0" x2="100" y1="20" y2="20"></line>
+<line stroke="rgba(255,255,255,0.05)" stroke-width="0.2" x1="0" x2="100" y1="30" y2="30"></line>
+<line stroke="rgba(255,255,255,0.05)" stroke-width="0.2" x1="0" x2="100" y1="40" y2="40"></line>
+<path class="chart-path fill-emerald-500 stroke-emerald-400" d="M0,50 L0,35 C10,32 20,25 30,20 C40,15 50,18 60,15 C70,12 80,10 90,8 L100,5 L100,50 Z"></path>
+<path class="chart-path fill-slate-500 stroke-slate-400" d="M0,50 L0,42 C10,40 20,38 30,35 C40,32 50,35 60,38 C70,40 80,35 90,32 L100,30 L100,50 Z"></path>
+<path class="chart-path fill-pink-500 stroke-pink-400" d="M0,50 L0,48 C15,48 25,46 40,45 C55,44 65,47 80,46 L100,45 L100,50 Z"></path>
+</svg>
+</div>
+</div>
+<div class="glass-panel p-6 flex flex-col">
+<div class="flex justify-between items-center mb-6">
+<h2 class="text-base font-sans font-bold text-white">Posts Recentes</h2>
+<a class="text-xs text-indigo-400 hover:text-white transition-colors font-semibold uppercase tracking-wider" href="#">Ver tudo</a>
+</div>
+<div class="space-y-4">
+<div class="flex gap-4 items-start p-2 rounded-lg hover:bg-white/5 transition-colors cursor-pointer">
+<div class="w-12 h-12 rounded-lg bg-white/10 shrink-0 overflow-hidden relative">
+<div class="absolute inset-0 bg-gradient-to-br from-indigo-500/20 to-purple-500/20"></div>
+</div>
+<div class="flex-1 min-w-0">
+<p class="text-sm font-medium text-white truncate">Lançamento da nova feature de IA generativa...</p>
+<div class="flex items-center gap-2 mt-1">
+<span class="text-[10px] text-slate-400">LinkedIn • 2h atrás</span>
+<span class="w-1 h-1 rounded-full bg-slate-600"></span>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[10px] text-emerald-400">thumb_up</span>
+<span class="text-[10px] text-emerald-400 font-bold">92% Positivo</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex gap-4 items-start p-2 rounded-lg hover:bg-white/5 transition-colors cursor-pointer">
+<div class="w-12 h-12 rounded-lg bg-white/10 shrink-0 overflow-hidden relative">
+<div class="absolute inset-0 bg-gradient-to-br from-pink-500/20 to-orange-500/20"></div>
+</div>
+<div class="flex-1 min-w-0">
+<p class="text-sm font-medium text-white truncate">Feedback sobre o último webinar de tendências</p>
+<div class="flex items-center gap-2 mt-1">
+<span class="text-[10px] text-slate-400">Instagram • 5h atrás</span>
+<span class="w-1 h-1 rounded-full bg-slate-600"></span>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[10px] text-slate-400">remove</span>
+<span class="text-[10px] text-slate-400 font-bold">Neutro</span>
+</div>
+</div>
+</div>
+</div>
+<div class="flex gap-4 items-start p-2 rounded-lg hover:bg-white/5 transition-colors cursor-pointer">
+<div class="w-12 h-12 rounded-lg bg-white/10 shrink-0 overflow-hidden relative">
+<div class="absolute inset-0 bg-gradient-to-br from-blue-500/20 to-cyan-500/20"></div>
+</div>
+<div class="flex-1 min-w-0">
+<p class="text-sm font-medium text-white truncate">Reclamações sobre instabilidade no servidor...</p>
+<div class="flex items-center gap-2 mt-1">
+<span class="text-[10px] text-slate-400">Twitter • 8h atrás</span>
+<span class="w-1 h-1 rounded-full bg-slate-600"></span>
+<div class="flex items-center gap-1">
+<span class="material-symbols-outlined text-[10px] text-pink-500">warning</span>
+<span class="text-[10px] text-pink-500 font-bold">Negativo</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</main>
+
+</body></html>

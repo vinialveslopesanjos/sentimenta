@@ -11,6 +11,7 @@ from app.schemas.auth import (
     UserLogin,
     UserRegister,
     UserResponse,
+    UserUpdate,
 )
 from app.services.auth_service import (
     authenticate_google,
@@ -65,6 +66,23 @@ def refresh(data: TokenRefresh, db: Session = Depends(get_db)):
 
 @router.get("/me", response_model=UserResponse)
 def me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+@router.patch("/me", response_model=UserResponse)
+def update_me(
+    data: UserUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    if data.name is not None:
+        current_user.name = data.name
+    if data.avatar_url is not None:
+        current_user.avatar_url = data.avatar_url
+
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
     return current_user
 
 

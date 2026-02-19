@@ -1,313 +1,246 @@
 # Sentimenta
 
-Plataforma SaaS de analise de sentimento para redes sociais. Conecte suas contas (Instagram, YouTube) e entenda o que seu publico pensa sobre voce atraves de analise inteligente de comentarios com IA.
+> *"O que as pessoas falam sobre você importa. A gente ajuda você a ouvir."*
 
-## Conceito de Negocio
+Plataforma SaaS de análise de sentimento para criadores e marcas. Conecte seu Instagram ou YouTube e entenda, em minutos, o que o seu público realmente sente — com scores, emoções, tópicos e relatórios gerados por IA.
 
-Sentimenta resolve um problema real: **pessoas publicas nao tem visibilidade sobre o sentimento do seu publico**. Politicos, influenciadores e profissionais liberais recebem centenas de comentarios por dia, mas nao conseguem extrair insights acionaveis desse volume de dados.
+→ Documento de fundação completo (cultura, valores, filosofia de produto): [SENTIMENTA_FOUNDATION.md](SENTIMENTA_FOUNDATION.md)
 
-Diferente de ferramentas enterprise de social listening (Brandwatch, Sprinklr), o Sentimenta e focado em **pessoa fisica** — o dono do perfil conecta suas proprias contas via OAuth e recebe analises personalizadas da sua reputacao digital.
+---
 
-> Para o plano de negocio completo (personas, mercado, pricing, projecoes), veja [PLANO_DE_NEGOCIO.md](PLANO_DE_NEGOCIO.md).
+## O que faz
 
-## Arquitetura
+- **Coleta automática** de posts e comentários públicos (Instagram via Apify + instaloader, YouTube via yt-dlp)
+- **Análise por IA** (Gemini): score 0–10, polaridade −1/+1, emoções, tópicos, detecção de sarcasmo
+- **Dashboard interativo**: tendência de score ao longo do tempo, distribuição de sentimento, top emoções/tópicos
+- **Health Report** gerado por Gemini com tom humano e estruturado em Markdown
+- **Parâmetros de scraping configuráveis**: número de posts, comentários por post, filtro por data
+- **Multi-plataforma**: Instagram e YouTube (TikTok em breve)
 
-```
-                        ┌──────────────────────────────┐
-                        │     Frontend (Next.js 14)     │
-                        │   TailwindCSS + Dark Theme    │
-                        └──────────────┬───────────────┘
-                                       │ REST API
-                        ┌──────────────┴───────────────┐
-                        │      Backend (FastAPI)        │
-                        │  Auth + Routers + Services    │
-                        └──┬──────────┬──────────┬─────┘
-                           │          │          │
-                    ┌──────┴──┐  ┌────┴────┐  ┌──┴──────────┐
-                    │PostgreSQL│  │  Redis  │  │Celery Worker│
-                    │  (data)  │  │ (queue) │  │ (pipeline)  │
-                    └──────────┘  └─────────┘  └─────────────┘
-```
+---
 
 ## Stack
 
 | Camada | Tecnologia |
-|--------|-----------|
-| Frontend | Next.js 14, TailwindCSS, Recharts |
-| Backend | Python, FastAPI, SQLAlchemy, Alembic |
-| Auth | JWT (email+senha) + Google OAuth |
+|---|---|
+| Frontend | Next.js 14 (App Router), TypeScript, Tailwind CSS |
+| Componentes | SVG puro (charts), `react-markdown`, `@tailwindcss/typography` |
+| Backend | Python 3.12, FastAPI, SQLAlchemy 2, Pydantic v2 |
+| Auth | JWT (access + refresh) + Google OAuth |
 | Database | PostgreSQL 16 |
-| Queue | Celery + Redis 7 |
-| Instagram | Graph API oficial (OAuth 2.0) |
-| YouTube | yt-dlp (scraping, sem API key) |
-| LLM | Google Gemini 2.0 Flash |
+| Cache + Filas | Redis 7 + Celery |
+| Scraping Instagram | Apify `instagram-comment-scraper` + instaloader (fallback) |
+| Scraping YouTube | yt-dlp |
+| LLM | Google Gemini (configurável via `GEMINI_MODEL`) |
 | Infra | Docker Compose |
 
-## Estrutura do Projeto
+---
+
+## Estrutura do projeto
 
 ```
-social_media_sentiment/
+sentimenta/
 ├── backend/
 │   ├── app/
-│   │   ├── main.py                 # FastAPI app + CORS + lifespan
+│   │   ├── main.py                    # FastAPI app + CORS + lifespan
 │   │   ├── core/
-│   │   │   ├── config.py           # Settings (env vars, Pydantic)
-│   │   │   ├── security.py         # JWT, bcrypt, Fernet (AES-256)
-│   │   │   └── deps.py             # get_current_user, get_db
-│   │   ├── models/                 # SQLAlchemy models
-│   │   │   ├── user.py             # User (email, plan, google_id)
-│   │   │   ├── social_connection.py# Conexoes com redes sociais
-│   │   │   ├── post.py             # Posts/videos
-│   │   │   ├── comment.py          # Comentarios
-│   │   │   ├── analysis.py         # CommentAnalysis + PostSummary
-│   │   │   └── pipeline_run.py     # Execucoes do pipeline
-│   │   ├── schemas/                # Pydantic DTOs
-│   │   ├── routers/                # Endpoints REST
-│   │   │   ├── auth.py             # /register, /login, /google, /me
-│   │   │   ├── connections.py      # CRUD + OAuth + sync
-│   │   │   ├── posts.py            # Listagem + detalhe
-│   │   │   └── dashboard.py        # Resumo agregado
-│   │   ├── services/               # Logica de negocio
-│   │   │   ├── auth_service.py     # Register, login, Google auth
-│   │   │   ├── instagram_service.py# OAuth + Graph API
-│   │   │   ├── youtube_service.py  # Wrapper do yt-dlp
-│   │   │   └── analysis_service.py # Pipeline LLM + summaries
-│   │   ├── tasks/                  # Celery async
-│   │   │   ├── celery_app.py       # Config Celery + Redis
-│   │   │   └── pipeline_tasks.py   # ingest, analyze, full_pipeline
-│   │   └── db/
-│   │       └── session.py          # Engine, SessionLocal, Base
-│   ├── tests/                      # pytest (38+ testes)
-│   ├── alembic/                    # Migracoes PostgreSQL
-│   ├── requirements.txt
-│   ├── pytest.ini
-│   └── Dockerfile
+│   │   │   ├── config.py              # Settings (env vars, Pydantic)
+│   │   │   ├── security.py            # JWT, bcrypt, Fernet (AES-256)
+│   │   │   ├── cache.py               # Redis cache helpers
+│   │   │   └── deps.py                # get_current_user, get_db
+│   │   ├── models/                    # SQLAlchemy models
+│   │   │   ├── user.py
+│   │   │   ├── social_connection.py
+│   │   │   ├── post.py
+│   │   │   ├── comment.py
+│   │   │   ├── analysis.py            # CommentAnalysis + PostSummary
+│   │   │   └── pipeline_run.py
+│   │   ├── routers/
+│   │   │   ├── auth.py                # /register /login /google /me
+│   │   │   ├── connections.py         # CRUD + sync (com SyncRequest params)
+│   │   │   ├── posts.py
+│   │   │   ├── comments.py            # Busca + filtro + paginação
+│   │   │   └── dashboard.py           # summary, trends, health-report, alerts
+│   │   ├── services/
+│   │   │   ├── instagram_scrape_service.py   # Apify + instaloader
+│   │   │   ├── instagram_ingest_service.py   # Orquestra ingestão Instagram
+│   │   │   ├── youtube_service.py
+│   │   │   ├── analysis_service.py           # Pipeline LLM (batch 30 comentários)
+│   │   │   └── report_service.py             # Health report via Gemini
+│   │   ├── tasks/
+│   │   │   ├── celery_app.py
+│   │   │   └── pipeline_tasks.py      # task_ingest, task_analyze, task_full_pipeline
+│   │   └── db/session.py
+│   ├── alembic/                       # Migrações PostgreSQL
+│   ├── tests/                         # pytest (38+ testes)
+│   └── requirements.txt
 ├── frontend/
 │   ├── app/
-│   │   ├── page.tsx                # Landing page
-│   │   ├── (auth)/login/           # Login + registro
-│   │   └── (dashboard)/            # Dashboard, conexoes, posts
-│   ├── components/ui/              # Button, Input, Card
+│   │   ├── page.tsx                   # Landing page
+│   │   ├── (auth)/login/              # Login + registro
+│   │   └── (dashboard)/
+│   │       ├── dashboard/             # Visão geral + connection/[id]
+│   │       ├── connect/               # Gerenciar perfis + params de scraping
+│   │       ├── posts/[id]/            # Detalhe de post
+│   │       ├── alerts/                # Alertas de crise
+│   │       ├── compare/               # Comparativo entre plataformas
+│   │       ├── settings/              # Configurações
+│   │       └── logs/                  # Histórico de pipeline
+│   ├── components/
+│   │   ├── Sidebar.tsx
+│   │   ├── Logo.tsx
+│   │   └── ui/                        # tooltip, etc.
 │   ├── lib/
-│   │   ├── api.ts                  # Client HTTP tipado
-│   │   ├── auth.ts                 # Token management
-│   │   └── utils.ts                # Helpers
-│   ├── package.json
-│   └── Dockerfile
-├── src/                            # Modulos reutilizados do v0
-│   ├── sources/youtube_scrape.py   # YouTubeScrapeSource (yt-dlp)
-│   ├── sources/base.py             # CommentSource ABC
-│   ├── analysis/llm_client.py      # LLMClient (Gemini)
-│   └── config.py
-├── docker-compose.yml              # postgres + redis + api + worker + frontend
-├── .env                            # Variaveis de ambiente
-├── PLANO_DE_NEGOCIO.md
+│   │   ├── api.ts                     # Cliente HTTP tipado
+│   │   ├── auth.ts                    # Token management
+│   │   └── types.ts                   # Tipos compartilhados
+│   └── tailwind.config.ts
+├── docker-compose.yml
+├── start.ps1                          # Script de startup local (Windows)
+├── SENTIMENTA_FOUNDATION.md           # Cultura, valores e documentação técnica
 └── README.md
 ```
 
-## Setup Rapido (Docker Compose)
+---
 
-### Pre-requisitos
+## Setup rápido
 
-- Docker e Docker Compose
-- Conta no [Meta for Developers](https://developers.facebook.com/) (para Instagram OAuth)
-- API key do [Google Gemini](https://aistudio.google.com/app/apikey)
-
-### 1. Configure as variaveis de ambiente
+### Docker Compose
 
 ```bash
+# 1. Configure o ambiente
 cp .env.example .env
-```
+# Edite .env com suas chaves (Gemini, Apify, PostgreSQL, etc.)
 
-Edite o `.env` com suas credenciais:
-
-```env
-# Database
-DATABASE_URL=postgresql://sentimenta:sentimenta@postgres:5432/sentimenta
-
-# Auth
-SECRET_KEY=sua-chave-secreta-aqui
-TOKEN_ENCRYPTION_KEY=    # base64 Fernet key (python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())")
-
-# Google OAuth (opcional)
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-
-# Instagram OAuth
-INSTAGRAM_APP_ID=seu_app_id
-INSTAGRAM_APP_SECRET=seu_app_secret
-INSTAGRAM_REDIRECT_URI=http://localhost:8000/api/v1/connections/instagram/callback
-
-# LLM
-GEMINI_API_KEY=sua_chave_gemini
-
-# Redis
-REDIS_URL=redis://redis:6379/0
-```
-
-### 2. Suba os containers
-
-```bash
+# 2. Suba tudo
 docker-compose up --build
+
+# 3. Acesse
+# Frontend:  http://localhost:3000
+# API:       http://localhost:8000
+# Swagger:   http://localhost:8000/docs
 ```
 
-### 3. Acesse
+### Desenvolvimento local (sem Docker)
 
-| Servico | URL |
-|---------|-----|
-| Frontend | http://localhost:3000 |
-| API | http://localhost:8000 |
-| API Docs (Swagger) | http://localhost:8000/docs |
-
-## API Endpoints
-
-Todos os endpoints ficam sob `/api/v1/`.
-
-### Auth
-
-| Metodo | Endpoint | Descricao |
-|--------|---------|-----------|
-| POST | `/auth/register` | Cadastro (email + senha) |
-| POST | `/auth/login` | Login (retorna JWT) |
-| POST | `/auth/google` | Login com Google OAuth |
-| POST | `/auth/refresh` | Renovar access token |
-| GET | `/auth/me` | Perfil do usuario logado |
-
-### Conexoes
-
-| Metodo | Endpoint | Descricao |
-|--------|---------|-----------|
-| GET | `/connections` | Listar conexoes do usuario |
-| GET | `/connections/{id}` | Detalhe de uma conexao |
-| DELETE | `/connections/{id}` | Remover conexao |
-| POST | `/connections/youtube` | Conectar canal YouTube |
-| GET | `/connections/instagram/auth-url` | Gerar URL OAuth Instagram |
-| GET | `/connections/instagram/callback` | Callback OAuth Instagram |
-| POST | `/connections/{id}/sync` | Disparar sincronizacao |
-
-### Posts e Dashboard
-
-| Metodo | Endpoint | Descricao |
-|--------|---------|-----------|
-| GET | `/posts` | Listar posts (filtro por conexao) |
-| GET | `/posts/{id}` | Detalhe + comentarios + analise |
-| GET | `/dashboard/summary` | Resumo geral do usuario |
-
-## Testes
+Requer PostgreSQL 16 e Redis 7 rodando localmente.
 
 ```bash
-cd backend
-pip install -r requirements.txt
-pytest
-```
-
-Os testes usam SQLite in-memory (nao precisam de PostgreSQL):
-
-- `test_auth.py` — Registro, login, refresh, JWT
-- `test_connections.py` — CRUD de conexoes, OAuth URL
-- `test_posts.py` — Listagem, detalhe, dashboard
-- `test_security.py` — Hash de senha, JWT, criptografia Fernet
-- `test_models.py` — Relacionamentos, cascade delete, unique constraints
-
-## Como Funciona
-
-### Fluxo do Usuario
-
-1. **Cadastro/Login** — Email+senha ou Google OAuth
-2. **Conectar rede social** — Instagram via OAuth ou YouTube via nome do canal
-3. **Coleta automatica** — Celery worker busca posts e comentarios em background
-4. **Analise com IA** — Gemini 2.0 Flash analisa cada comentario (score 0-10, polaridade, emocoes, topicos, sarcasmo)
-5. **Dashboard** — Visualiza score medio, distribuicao de sentimento, tendencias
-
-### Pipeline de Analise
-
-```
-Comentario bruto
-    │
-    ▼
-Gemini 2.0 Flash (LLM)
-    │
-    ├── score_0_10: 7.5
-    ├── polarity: 0.6
-    ├── intensity: 0.4
-    ├── emotions: ["alegria", "surpresa"]
-    ├── topics: ["produto", "preco"]
-    ├── sarcasm: false
-    ├── summary_pt: "Comentario positivo sobre o produto"
-    └── confidence: 0.92
-```
-
-### Seguranca
-
-- Senhas com bcrypt (salt automatico)
-- JWT access token (30min) + refresh token (7 dias)
-- Tokens de redes sociais criptografados com Fernet (AES-256) antes de salvar no banco
-- CORS configuravel
-- LGPD compliant — usuario e dono dos seus dados, pode deletar a qualquer momento
-
-## Database Schema
-
-7 tabelas principais:
-
-| Tabela | Descricao |
-|--------|-----------|
-| `users` | Usuarios (email, plan, google_id) |
-| `social_connections` | Conexoes OAuth (tokens criptografados) |
-| `posts` | Posts/videos coletados |
-| `comments` | Comentarios com dedup (SHA-256 hash) |
-| `comment_analysis` | Analise individual por comentario |
-| `post_analysis_summary` | Resumo agregado por post |
-| `pipeline_runs` | Historico de execucoes do pipeline |
-
-## Desenvolvimento Local (sem Docker)
-
-### Backend
-
-```bash
+# Backend
 cd backend
 python -m venv .venv
-.venv\Scripts\activate        # Windows
-# source .venv/bin/activate   # Linux/Mac
+.venv\Scripts\activate          # Windows
 pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
-```
 
-### Frontend
+# Celery worker (terminal separado)
+celery -A app.tasks.celery_app worker --loglevel=info
 
-```bash
+# Frontend
 cd frontend
 npm install
 npm run dev
 ```
 
-### Celery Worker
+**Windows:** use `start.ps1` na raiz para abrir os 3 processos de uma vez.
 
-```bash
-cd backend
-celery -A app.tasks.celery_app worker --loglevel=info
+### Variáveis de ambiente necessárias
+
+```env
+DATABASE_URL=postgresql://sentimenta:sentimenta@localhost:5432/sentimenta
+REDIS_URL=redis://localhost:6379/0
+SECRET_KEY=sua-chave-secreta
+GEMINI_API_KEY=sua-chave-gemini
+GEMINI_MODEL=gemini-1.5-flash
+APIFY_API_TOKEN=sua-chave-apify   # opcional — fallback para instaloader
 ```
-
-Requer PostgreSQL e Redis rodando localmente.
-
-## Roadmap
-
-- [x] Backend FastAPI + Auth JWT
-- [x] PostgreSQL schema + SQLAlchemy models
-- [x] Instagram OAuth + Graph API
-- [x] YouTube scraping (yt-dlp)
-- [x] Pipeline de analise com Gemini
-- [x] Celery tasks assincrono
-- [x] Frontend Next.js (dark theme)
-- [x] Testes pytest
-- [x] Docker Compose
-- [ ] Alembic migrations
-- [ ] Deploy producao
-- [ ] Twitter/X integration
-- [ ] TikTok integration
-- [ ] Alertas de crise em tempo real
-- [ ] Analise temporal (historico)
-- [ ] Mobile app
 
 ---
 
-Feito com Python + Next.js + Gemini
+## Pipeline de análise
+
+```
+POST /{connection_id}/sync  (SyncRequest: max_posts, max_comments_per_post, since_date)
+        │
+        ▼
+task_full_pipeline (Celery)
+        │
+        ├── task_ingest
+        │       ├── fetch_recent_posts (instaloader) → filtra por max_posts + since_date
+        │       └── fetch_post_comments (Apify → fallback instaloader)
+        │
+        └── analyze_post_comments (para cada post, batch de 30 comentários)
+                │
+                └── Gemini → score_0_10, polarity, emotions[], topics[], sarcasm, summary_pt
+                        └── generate_post_summary → avg_score, weighted_avg_score, distribuição
+```
+
+---
+
+## API — Endpoints principais
+
+| Método | Endpoint | Descrição |
+|---|---|---|
+| POST | `/auth/register` | Cadastro |
+| POST | `/auth/login` | Login → JWT |
+| GET | `/auth/me` | Perfil do usuário |
+| GET | `/connections` | Listar conexões |
+| POST | `/connections/instagram` | Conectar Instagram (scraping público) |
+| POST | `/connections/youtube` | Conectar YouTube |
+| POST | `/connections/{id}/sync` | Disparar pipeline (aceita body com params) |
+| DELETE | `/connections/{id}` | Remover conexão |
+| GET | `/dashboard/summary` | KPIs gerais |
+| GET | `/dashboard/connection/{id}` | Dashboard de uma conexão |
+| GET | `/dashboard/trends` | Tendência de score ao longo do tempo |
+| GET | `/dashboard/health-report` | Relatório de saúde gerado por IA |
+| GET | `/dashboard/alerts` | Alertas de sentimento negativo |
+| GET | `/dashboard/compare` | Comparativo entre plataformas |
+| GET | `/comments` | Comentários com filtro, busca e paginação |
+| GET | `/pipeline/runs` | Histórico de execuções |
+
+---
+
+## Testes
+
+```bash
+cd backend
+pytest
+```
+
+- `test_auth.py` — Registro, login, JWT
+- `test_connections.py` — CRUD, OAuth
+- `test_posts.py` — Listagem, dashboard
+- `test_security.py` — Bcrypt, JWT, Fernet
+- `test_models.py` — Relacionamentos, cascade delete
+
+---
+
+## Roadmap
+
+### Concluído
+- [x] Backend FastAPI + Auth JWT + Google OAuth
+- [x] PostgreSQL schema + SQLAlchemy + Alembic migrations
+- [x] Instagram via Apify + instaloader (sem OAuth obrigatório)
+- [x] YouTube via yt-dlp
+- [x] Pipeline assíncrono com Celery + Redis
+- [x] Análise de sentimento com Gemini (score, polaridade, emoções, tópicos, sarcasmo)
+- [x] Dashboard completo (trends, distribuição, KPIs, health report)
+- [x] Design system Sentimenta (lilás + ciano, tipografia Outfit/Inter)
+- [x] Parâmetros de scraping configuráveis (posts, comentários, since_date)
+- [x] Tooltips explicativos nas métricas
+- [x] Ordenação e limite de posts no dashboard
+- [x] Health report humanizado com Markdown renderizado
+- [x] Páginas: alerts, compare, settings, logs
+- [x] Docker Compose
+
+### Próximos
+- [ ] TikTok integration
+- [ ] Webhooks (Slack, Email) para alertas em tempo real
+- [ ] Exportação de relatórios em PDF
+- [ ] Multi-conta por usuário (agências)
+- [ ] API pública
+- [ ] Deploy produção
+
+---
+
+*Feito com Python + Next.js + Gemini — com empatia pelos dados e pelos humanos que os geram.*

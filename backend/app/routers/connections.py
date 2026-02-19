@@ -1,7 +1,10 @@
 import uuid
+from datetime import date
+from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
@@ -14,6 +17,12 @@ from app.schemas.connection import (
     SyncResponse,
     YouTubeConnectRequest,
 )
+
+
+class SyncRequest(BaseModel):
+    max_posts: int = Field(10, ge=1, le=200)
+    max_comments_per_post: int = Field(100, ge=10, le=1000)
+    since_date: Optional[date] = None
 
 router = APIRouter(prefix="/connections", tags=["connections"])
 
@@ -208,6 +217,7 @@ async def instagram_callback(
 @router.post("/{connection_id}/sync", response_model=SyncResponse)
 def trigger_sync(
     connection_id: uuid.UUID,
+    body: Optional[SyncRequest] = Body(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -227,9 +237,18 @@ def trigger_sync(
     if not conn:
         raise HTTPException(status_code=404, detail="Connection not found")
 
+    params = body or SyncRequest()
+    since_date_str = str(params.since_date) if params.since_date else None
+
     from app.tasks.pipeline_tasks import task_full_pipeline
 
-    result = task_full_pipeline.delay(str(connection_id), str(current_user.id))
+    result = task_full_pipeline.delay(
+        str(connection_id),
+        str(current_user.id),
+        max_posts=params.max_posts,
+        max_comments_per_post=params.max_comments_per_post,
+        since_date=since_date_str,
+    )
 
     return SyncResponse(
         connection_id=connection_id,

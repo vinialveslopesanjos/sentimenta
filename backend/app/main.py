@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.db.session import Base, engine
+import app.models  # noqa: F401 - ensure all models registered before create_all
 from app.routers import auth, connections, posts, dashboard, pipeline, comments
 
 logger = logging.getLogger(__name__)

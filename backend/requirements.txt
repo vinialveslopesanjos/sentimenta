@@ -33,6 +33,7 @@ sse-starlette>=1.6.0
 # Social media scraping
 yt-dlp>=2023.12.30
 instaloader>=4.10.0
+apify-client>=1.6.0
 
 # LLM
 google-generativeai>=0.3.0

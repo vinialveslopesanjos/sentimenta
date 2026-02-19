@@ -50,6 +50,9 @@ export const authApi = {
       body: JSON.stringify({ email, password }),
     }),
 
+  logout: (token: string) =>
+    apiFetch<{ message: string }>("/auth/logout", { method: "POST", token }),
+
   googleLogin: (googleToken: string) =>
     apiFetch<{ access_token: string; refresh_token: string }>("/auth/google", {
       method: "POST",
@@ -64,6 +67,22 @@ export const authApi = {
       avatar_url: string | null;
       plan: string;
     }>("/auth/me", { token }),
+
+  updateMe: (
+    token: string,
+    payload: { name?: string | null; avatar_url?: string | null }
+  ) =>
+    apiFetch<{
+      id: string;
+      email: string;
+      name: string | null;
+      avatar_url: string | null;
+      plan: string;
+    }>("/auth/me", {
+      method: "PATCH",
+      token,
+      body: JSON.stringify(payload),
+    }),
 };
 
 // Connections
@@ -100,10 +119,14 @@ export const connectionsApi = {
   getInstagramAuthUrl: (token: string) =>
     apiFetch<{ auth_url: string }>("/connections/instagram/auth-url", { token }),
 
-  sync: (token: string, connectionId: string) =>
+  sync: (
+    token: string,
+    connectionId: string,
+    params?: { max_posts?: number; max_comments_per_post?: number; since_date?: string }
+  ) =>
     apiFetch<{ connection_id: string; task_id: string; message: string }>(
       `/connections/${connectionId}/sync`,
-      { method: "POST", token }
+      { method: "POST", token, body: params ? JSON.stringify(params) : undefined }
     ),
 
   delete: (token: string, connectionId: string) =>
@@ -166,6 +189,50 @@ export const dashboardApi = {
 
   healthReport: (token: string) =>
     apiFetch<HealthReport>("/dashboard/health-report", { token }),
+
+  compare: (token: string, days = 30) =>
+    apiFetch<{
+      days: number;
+      platforms: Array<{
+        platform: string;
+        total_comments: number;
+        total_analyzed: number;
+        avg_score: number | null;
+        sentiment_distribution: { positive: number; neutral: number; negative: number };
+        positive_rate: number;
+        negative_rate: number;
+      }>;
+      generated_at: string;
+    }>(`/dashboard/compare?days=${days}`, { token }),
+
+  alerts: (
+    token: string,
+    params: { days?: number; min_analyzed?: number; negative_threshold?: number } = {}
+  ) => {
+    const query = new URLSearchParams();
+    if (params.days !== undefined) query.set("days", String(params.days));
+    if (params.min_analyzed !== undefined) query.set("min_analyzed", String(params.min_analyzed));
+    if (params.negative_threshold !== undefined) {
+      query.set("negative_threshold", String(params.negative_threshold));
+    }
+    const qs = query.toString();
+    return apiFetch<{
+      days: number;
+      total_alerts: number;
+      alerts: Array<{
+        connection_id: string;
+        platform: string;
+        username: string;
+        severity: string;
+        negative_rate: number;
+        sarcasm_rate: number;
+        total_analyzed: number;
+        avg_score: number | null;
+        message: string;
+      }>;
+      generated_at: string;
+    }>(`/dashboard/alerts${qs ? `?${qs}` : ""}`, { token });
+  },
 };
 
 // Pipeline

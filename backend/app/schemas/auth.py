@@ -15,6 +15,11 @@ class UserLogin(BaseModel):
     password: str
 
 
+class UserUpdate(BaseModel):
+    name: str | None = None
+    avatar_url: str | None = None
+
+
 class GoogleLogin(BaseModel):
     token: str  # Google ID token from frontend
 

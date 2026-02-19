@@ -1,46 +1,39 @@
 """
 Instagram Public Scraping Service
 
-Uses instaloader to scrape public Instagram profiles without OAuth.
-Similar approach to YouTube scraping.
+Uses Apify's instagram-comment-scraper actor for reliable comment extraction
+from public posts. Falls back to instaloader for profile discovery and post listing.
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from typing import Optional
 
 import instaloader
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.models.social_connection import SocialConnection
 
 logger = logging.getLogger(__name__)
 
 
+def _get_apify_client():
+    """Get Apify client if token is configured."""
+    if not settings.APIFY_API_TOKEN:
+        return None
+    try:
+        from apify_client import ApifyClient
+        return ApifyClient(settings.APIFY_API_TOKEN)
+    except ImportError:
+        logger.warning("apify-client not installed, falling back to instaloader")
+        return None
+
+
 def discover_profile_info(username: str) -> Optional[dict]:
     """
     Fetch public Instagram profile info using instaloader.
-
-    Args:
-        username: Instagram username (with or without @)
-
-    Returns:
-        Dict with profile info or None if profile not found/private
-
-    Example:
-        >>> info = discover_profile_info("@nasa")
-        >>> print(info)
-        {
-            'username': 'nasa',
-            'full_name': 'NASA',
-            'biography': '...',
-            'followers': 12000000,
-            'profile_pic_url': '...',
-            'is_private': False,
-            'post_count': 1234
-        }
     """
-    # Remove @ if present
     if username.startswith("@"):
         username = username[1:]
 
@@ -58,7 +51,6 @@ def discover_profile_info(username: str) -> Optional[dict]:
 
         profile = instaloader.Profile.from_username(loader.context, username)
 
-        # Check if profile is private
         if profile.is_private:
             logger.warning(f"Instagram profile @{username} is private")
             return None
@@ -94,21 +86,12 @@ def create_instagram_connection(
 ) -> Optional[SocialConnection]:
     """
     Create a SocialConnection for Instagram using public scraping.
-
-    Args:
-        db: Database session
-        user_id: User UUID
-        username: Instagram username
-
-    Returns:
-        SocialConnection instance or None if failed
     """
     profile_info = discover_profile_info(username)
 
     if not profile_info:
         return None
 
-    # Check if already connected
     existing = (
         db.query(SocialConnection)
         .filter(
@@ -120,7 +103,6 @@ def create_instagram_connection(
     )
 
     if existing:
-        # Update info
         existing.display_name = profile_info["full_name"]
         existing.followers_count = profile_info["followers"]
         existing.profile_image_url = profile_info["profile_pic_url"]
@@ -130,11 +112,10 @@ def create_instagram_connection(
         db.refresh(existing)
         return existing
 
-    # Create new connection
     connection = SocialConnection(
         user_id=user_id,
         platform="instagram",
-        platform_user_id=profile_info["username"],  # use username as ID for scraping
+        platform_user_id=profile_info["username"],
         username=profile_info["username"],
         display_name=profile_info["full_name"],
         profile_url=f"https://www.instagram.com/{profile_info['username']}/",
@@ -153,16 +134,9 @@ def create_instagram_connection(
     return connection
 
 
-def fetch_recent_posts(username: str, max_posts: int = 10) -> list[dict]:
+def fetch_recent_posts(username: str, max_posts: int = 10, since_date: Optional[date] = None) -> list[dict]:
     """
-    Fetch recent posts from a public Instagram profile.
-
-    Args:
-        username: Instagram username
-        max_posts: Maximum number of posts to fetch (default 10)
-
-    Returns:
-        List of post dictionaries with normalized structure
+    Fetch recent posts from a public Instagram profile using instaloader.
     """
     if username.startswith("@"):
         username = username[1:]
@@ -190,6 +164,9 @@ def fetch_recent_posts(username: str, max_posts: int = 10) -> list[dict]:
             if len(posts) >= max_posts:
                 break
 
+            if since_date and post.date_utc and post.date_utc.date() < since_date:
+                break
+
             posts.append({
                 "platform_post_id": post.shortcode,
                 "post_type": "video" if post.is_video else "image",
@@ -211,16 +188,60 @@ def fetch_recent_posts(username: str, max_posts: int = 10) -> list[dict]:
         return []
 
 
-def fetch_post_comments(shortcode: str, max_comments: int = 100) -> list[dict]:
+def fetch_post_comments_apify(shortcode: str, max_comments: int = 100) -> list[dict]:
     """
-    Fetch comments from an Instagram post.
+    Fetch comments from an Instagram post using Apify's instagram-comment-scraper.
 
-    Args:
-        shortcode: Instagram post shortcode (from URL: instagram.com/p/SHORTCODE/)
-        max_comments: Maximum number of comments to fetch
+    This is the preferred method - reliable, no login required, handles rate limits.
+    """
+    client = _get_apify_client()
+    if not client:
+        return []
 
-    Returns:
-        List of comment dictionaries
+    post_url = f"https://www.instagram.com/p/{shortcode}/"
+    logger.info(f"Fetching comments via Apify for post {shortcode} (limit: {max_comments})")
+
+    try:
+        run = client.actor("apify/instagram-comment-scraper").call(
+            run_input={
+                "directUrls": [post_url],
+                "resultsLimit": max_comments,
+            },
+            timeout_secs=120,
+        )
+
+        comments = []
+        for item in client.dataset(run["defaultDatasetId"]).iterate_items():
+            # Normalize Apify output to our internal format
+            username = (
+                item.get("ownerUsername", "")
+                or (item.get("owner", {}) or {}).get("username", "")
+            )
+            timestamp = item.get("timestamp", None)
+            # Apify may return timestamp as ISO string or epoch
+            if isinstance(timestamp, (int, float)):
+                timestamp = datetime.fromtimestamp(timestamp, tz=timezone.utc).isoformat()
+
+            comments.append({
+                "platform_comment_id": str(item.get("id", "")),
+                "text": item.get("text", ""),
+                "username": username,
+                "timestamp": timestamp,
+                "like_count": item.get("likesCount", 0) or item.get("likes_count", 0) or 0,
+                "parent_id": None,
+            })
+
+        logger.info(f"Apify fetched {len(comments)} comments from post {shortcode}")
+        return comments
+
+    except Exception as e:
+        logger.error(f"Apify error fetching comments for post {shortcode}: {e}")
+        return []
+
+
+def fetch_post_comments_instaloader(shortcode: str, max_comments: int = 100) -> list[dict]:
+    """
+    Fetch comments from an Instagram post using instaloader (fallback).
     """
     try:
         loader = instaloader.Instaloader(
@@ -247,12 +268,29 @@ def fetch_post_comments(shortcode: str, max_comments: int = 100) -> list[dict]:
                 "username": comment.owner.username,
                 "timestamp": comment.created_at_utc.isoformat() if comment.created_at_utc else None,
                 "like_count": comment.likes_count or 0,
-                "parent_id": None,  # instaloader doesn't expose reply structure easily
+                "parent_id": None,
             })
 
-        logger.info(f"Fetched {len(comments)} comments from post {shortcode}")
+        logger.info(f"Instaloader fetched {len(comments)} comments from post {shortcode}")
         return comments
 
     except Exception as e:
-        logger.error(f"Error fetching comments for post {shortcode}: {e}")
+        logger.error(f"Instaloader error fetching comments for post {shortcode}: {e}")
         return []
+
+
+def fetch_post_comments(shortcode: str, max_comments: int = 100) -> list[dict]:
+    """
+    Fetch comments from an Instagram post.
+
+    Strategy:
+    1. Try Apify first (reliable, no login needed)
+    2. Fall back to instaloader if Apify is not configured or fails
+    """
+    if settings.APIFY_API_TOKEN:
+        comments = fetch_post_comments_apify(shortcode, max_comments)
+        if comments:
+            return comments
+        logger.warning(f"Apify returned no comments for {shortcode}, trying instaloader fallback")
+
+    return fetch_post_comments_instaloader(shortcode, max_comments)

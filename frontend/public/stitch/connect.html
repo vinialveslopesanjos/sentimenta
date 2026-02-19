@@ -1,0 +1,410 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Sentimenta - Conectar Perfis</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'], 
+                        body: ['"Satoshi"', 'sans-serif'],
+                    },
+                    colors: {
+                        aura: {
+                            base: '#6366f1',
+                            pink: '#f472b6',
+                            purple: '#a855f7',
+                            cyan: '#22d3ee',
+                            text: '#1e293b',
+                            muted: '#475569',
+                        }
+                    },
+                    boxShadow: {
+                        'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.07)',
+                        'glow': '0 0 20px rgba(168, 85, 247, 0.4)',
+                    },
+                    animation: {
+                        'blob': 'blob 10s infinite',
+                    },
+                    keyframes: {
+                        blob: {
+                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                            '100%': { transform: 'translate(0px, 0px) scale(1)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .bg-noise {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.08'/%3E%3C/svg%3E");
+            opacity: 0.6;
+            pointer-events: none;
+        }
+        .aura-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -2;
+            background-color: #e0e7ff;
+            background: 
+                radial-gradient(circle at 15% 50%, rgba(168, 85, 247, 0.4), transparent 50%),
+                radial-gradient(circle at 85% 30%, rgba(34, 211, 238, 0.4), transparent 50%),
+                radial-gradient(circle at 50% 80%, rgba(244, 114, 182, 0.5), transparent 50%);
+            filter: blur(40px);
+            background-size: 150% 150%;
+        }
+        .aura-shape {
+            position: fixed;
+            top: 20%;
+            left: 30%;
+            width: 80vw;
+            height: 80vh;
+            background: conic-gradient(from 180deg at 50% 50%, #C4B5FD 0deg, #F472B6 120deg, #6366F1 240deg, #C4B5FD 360deg);
+            filter: blur(90px);
+            opacity: 0.6;
+            border-radius: 50%;
+            z-index: -2;
+            animation: blob 20s infinite alternate;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.65);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border: 1px solid rgba(255, 255, 255, 0.8);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+            border-radius: 24px;
+        }
+        .glass-card-sm {
+            background: rgba(255, 255, 255, 0.4);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.5);
+            border-radius: 16px;
+        }
+        .glass-table-row {
+            transition: background-color 0.3s ease;
+        }
+        .glass-table-row:hover {
+            background-color: rgba(255, 255, 255, 0.5);
+        }
+        .input-aura {
+            background: rgba(255, 255, 255, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            backdrop-filter: blur(4px);
+            transition: all 0.3s ease;
+        }
+        .input-aura:focus {
+            background: rgba(255, 255, 255, 0.9);
+            border-color: #6366f1;
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+            outline: none;
+        }
+    </style>
+</head>
+<body class="p-6 md:p-12 min-h-screen font-body text-slate-700 selection:bg-pink-200 selection:text-pink-900 overflow-x-hidden">
+<div class="aura-background"></div>
+<div class="aura-shape"></div>
+<div class="bg-noise"></div>
+<header class="mb-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-6 border-b border-white/30 relative z-10">
+<div>
+<div class="flex items-center gap-3 mb-1">
+<div class="w-11 h-11 rounded-2xl glass-card flex items-center justify-center text-indigo-600 shadow-glow transition-transform hover:scale-105">
+<svg fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" viewBox="0 0 24 24" width="24">
+<path d="M12 2a10 10 0 1 0 10 10H12V2z"></path>
+<path d="M12 2a10 10 0 0 1 10 10"></path>
+<path d="M12 12 2.1 12.05"></path>
+</svg>
+</div>
+<h1 class="text-3xl font-sans font-bold tracking-tight text-slate-800">Conectar Perfis</h1>
+</div>
+<p class="text-slate-500 text-xs font-semibold tracking-[0.2em] pl-1 mix-blend-multiply uppercase">Gerenciar Fontes de Dados</p>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex items-center -space-x-2">
+<img alt="User" class="w-8 h-8 rounded-full border-2 border-white" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAxiNwNm9capeJDlSWP1Kqlv9WnkzkRV-cKVRO7MtFlbwFSOHEg5k9qqxPHUeP_tOlCR2F2PHes_OOukDfQqzb1o8vUb_akimTL1NUaj_Z3Lwufb2XhbTluibaHd4fI-v9tTGlpR-X5tZi7Pd-CwyXg6bzKGjQ-dNoAsM2qyJOriqxYqDHVnxt5UYISYtOEWH6lB2WTR7-0cwOpEH3snTWtci33GP4qVdIVOax5WXzY94U4L2aRmeGOv7Inz2q2-p6hJoUly7GVGNE"/>
+<div class="w-8 h-8 rounded-full border-2 border-white bg-indigo-100 flex items-center justify-center text-[10px] font-bold text-indigo-600">+2</div>
+</div>
+<button class="glass-card px-4 py-2.5 text-xs font-bold text-indigo-900 uppercase tracking-wider flex items-center gap-2 hover:bg-white/70 transition-colors">
+<span class="material-symbols-outlined text-sm">settings</span>
+                Configurações
+             </button>
+</div>
+</header>
+<main class="relative z-10 max-w-7xl mx-auto space-y-12">
+<section>
+<div class="flex items-center gap-2 mb-6">
+<h2 class="text-lg font-sans font-semibold text-slate-800">Adicionar Perfil</h2>
+<span class="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-600 text-[10px] font-bold uppercase tracking-wider border border-indigo-200">Nova Conexão</span>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+<div class="glass-card p-6 flex flex-col gap-4 group hover:border-pink-300/50 transition-all duration-300">
+<div class="flex items-center justify-between">
+<div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-yellow-400 via-pink-500 to-purple-600 p-0.5 shadow-lg shadow-pink-200">
+<div class="w-full h-full bg-white rounded-[10px] flex items-center justify-center">
+<span class="material-symbols-outlined text-pink-600 text-2xl">photo_camera</span>
+</div>
+</div>
+<div class="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_10px_rgba(74,222,128,0.6)]"></div>
+</div>
+<div>
+<h3 class="font-sans font-bold text-slate-800 text-lg">Instagram</h3>
+<p class="text-xs text-slate-500 font-body">Conecte perfis comerciais ou de criador.</p>
+</div>
+<div class="mt-2 space-y-3">
+<label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider">Nome de usuário</label>
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">@</span>
+<input class="w-full pl-7 pr-4 py-2.5 rounded-xl input-aura text-sm font-medium text-slate-700 placeholder:text-slate-400" placeholder="username" type="text"/>
+</div>
+<button class="w-full py-2.5 rounded-xl bg-gradient-to-r from-pink-500 to-purple-600 text-white font-sans font-bold text-sm shadow-lg shadow-pink-200 hover:shadow-pink-300 hover:-translate-y-0.5 transition-all duration-300">
+                            Conectar
+                        </button>
+</div>
+</div>
+<div class="glass-card p-6 flex flex-col gap-4 group hover:border-red-300/50 transition-all duration-300">
+<div class="flex items-center justify-between">
+<div class="w-12 h-12 rounded-xl bg-gradient-to-tr from-red-500 to-red-600 p-0.5 shadow-lg shadow-red-200">
+<div class="w-full h-full bg-white rounded-[10px] flex items-center justify-center">
+<span class="material-symbols-outlined text-red-600 text-2xl">smart_display</span>
+</div>
+</div>
+<div class="w-2 h-2 rounded-full bg-green-400 shadow-[0_0_10px_rgba(74,222,128,0.6)]"></div>
+</div>
+<div>
+<h3 class="font-sans font-bold text-slate-800 text-lg">YouTube</h3>
+<p class="text-xs text-slate-500 font-body">Analise comentários e sentimento em canais.</p>
+</div>
+<div class="mt-2 space-y-3">
+<label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider">URL do Canal</label>
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm font-icon material-symbols-outlined text-[16px]">link</span>
+<input class="w-full pl-9 pr-4 py-2.5 rounded-xl input-aura text-sm font-medium text-slate-700 placeholder:text-slate-400" placeholder="youtube.com/channel/..." type="text"/>
+</div>
+<button class="w-full py-2.5 rounded-xl bg-gradient-to-r from-red-500 to-orange-500 text-white font-sans font-bold text-sm shadow-lg shadow-red-200 hover:shadow-red-300 hover:-translate-y-0.5 transition-all duration-300">
+                            Conectar
+                        </button>
+</div>
+</div>
+<div class="glass-card p-6 flex flex-col gap-4 opacity-75 grayscale hover:grayscale-0 transition-all duration-500 relative overflow-hidden">
+<div class="absolute -right-12 top-4 bg-slate-200 text-slate-500 text-[10px] font-bold uppercase tracking-widest py-1 w-48 text-center rotate-45 z-10 border border-white">Em Breve</div>
+<div class="flex items-center justify-between">
+<div class="w-12 h-12 rounded-xl bg-slate-800 p-0.5 shadow-lg shadow-slate-300">
+<div class="w-full h-full bg-white rounded-[10px] flex items-center justify-center">
+<span class="material-symbols-outlined text-slate-900 text-2xl">music_note</span>
+</div>
+</div>
+<div class="w-2 h-2 rounded-full bg-slate-300"></div>
+</div>
+<div>
+<h3 class="font-sans font-bold text-slate-800 text-lg">TikTok</h3>
+<p class="text-xs text-slate-500 font-body">Monitoramento de tendências e sons.</p>
+</div>
+<div class="mt-2 space-y-3 opacity-50 pointer-events-none select-none">
+<label class="block text-xs font-semibold text-slate-600 uppercase tracking-wider">Nome de usuário</label>
+<div class="relative">
+<span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-sm">@</span>
+<input class="w-full pl-7 pr-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-sm" disabled="" placeholder="username" type="text"/>
+</div>
+<button class="w-full py-2.5 rounded-xl bg-slate-200 text-slate-400 font-sans font-bold text-sm" disabled="">
+                            Indisponível
+                        </button>
+</div>
+</div>
+</div>
+</section>
+<section>
+<div class="flex items-center justify-between mb-6">
+<h2 class="text-lg font-sans font-semibold text-slate-800">Perfis Monitorados</h2>
+<div class="flex gap-2">
+<button class="w-8 h-8 rounded-lg glass-card flex items-center justify-center text-slate-500 hover:text-indigo-600 transition-colors">
+<span class="material-symbols-outlined text-lg">filter_list</span>
+</button>
+<button class="w-8 h-8 rounded-lg glass-card flex items-center justify-center text-slate-500 hover:text-indigo-600 transition-colors">
+<span class="material-symbols-outlined text-lg">refresh</span>
+</button>
+</div>
+</div>
+<div class="glass-card overflow-hidden">
+<div class="overflow-x-auto">
+<table class="w-full text-left border-collapse">
+<thead>
+<tr class="border-b border-slate-200/50 text-[10px] uppercase tracking-wider text-slate-500 font-bold bg-white/20">
+<th class="px-6 py-4">Perfil</th>
+<th class="px-6 py-4">Plataforma</th>
+<th class="px-6 py-4">Seguidores</th>
+<th class="px-6 py-4">Última Sync</th>
+<th class="px-6 py-4">Status</th>
+<th class="px-6 py-4 text-right">Ações</th>
+</tr>
+</thead>
+<tbody class="text-sm">
+<tr class="glass-table-row border-b border-slate-100/30">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="relative">
+<img alt="Avatar" class="w-10 h-10 rounded-full border border-white shadow-sm object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCwBt8q3Yfazn3k_8ff_7V_b58QC7t7YekZw1t4f5IiZpEahl_Dag-P0D1EMHZejsILHzddpnEH4lAz2WlDtlAKC_09GteTldCJldHNgZFYlwBtSsRzPYYxC35uDlHCWUhMRCGHEysOBEI0FO5rDJIaUyYNV_aXrXf9UO9KmPDMe50EH7uJNbZoxW808p4HPo1swjigVtikSHTDVWkSNdS4SGVt-Ktwx1bW7agXDc2B4RqkZxgzPtI5fD2I6nweTxroUGCtlsiXhcU"/>
+<div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+</div>
+<div>
+<p class="font-bold text-slate-700">TechDaily</p>
+<p class="text-xs text-slate-500">@techdaily_br</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-pink-500 text-lg">photo_camera</span>
+<span class="font-medium text-slate-600">Instagram</span>
+</div>
+</td>
+<td class="px-6 py-4 font-body font-medium text-slate-600">
+                                    124.5k
+                                </td>
+<td class="px-6 py-4 text-slate-500 text-xs">
+                                    15 min atrás
+                                </td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-[10px] font-bold uppercase tracking-wider border border-green-200">
+<span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                                        Ativo
+                                    </span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center justify-end gap-2">
+<button class="p-2 rounded-lg hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors" title="Analisar">
+<span class="material-symbols-outlined text-lg">analytics</span>
+</button>
+<button class="p-2 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors" title="Remover">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<tr class="glass-table-row border-b border-slate-100/30">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="relative">
+<img alt="Avatar" class="w-10 h-10 rounded-full border border-white shadow-sm object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAN6HF6j_jXNh1jxoBp89WOGXyb3PjXas34mCxG1RB2iFzx6os0H___Hvd6n5KgQsgROo-vnBZ2yugtyWw1YS9DdohknwQYGqTltcQVfaZHL8SAw-a7VtMizZ12sEv97NLyD1q7cVGDF0sX6hfDs9LgWTDtpYuY0vKq_BlBbmO_Wl711FNoZsLK5O6TDvx5rYD51cY10fkTgf7sWt7FAr81QcBYVmbZFj4AAGaRK-oEUQDHNojQ76CKje5SXdA7zowl4pwyw09y-jk"/>
+<div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-indigo-400 border-2 border-white rounded-full animate-pulse"></div>
+</div>
+<div>
+<p class="font-bold text-slate-700">Lifestyle Maria</p>
+<p class="text-xs text-slate-500">Maria Silva Vlogs</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-red-500 text-lg">smart_display</span>
+<span class="font-medium text-slate-600">YouTube</span>
+</div>
+</td>
+<td class="px-6 py-4 font-body font-medium text-slate-600">
+                                    890k
+                                </td>
+<td class="px-6 py-4 text-slate-500 text-xs">
+                                    Sincronizando...
+                                </td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-700 text-[10px] font-bold uppercase tracking-wider border border-indigo-200">
+<span class="material-symbols-outlined text-[10px] animate-spin">sync</span>
+                                        Syncing
+                                    </span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center justify-end gap-2">
+<button class="p-2 rounded-lg hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors" title="Analisar">
+<span class="material-symbols-outlined text-lg">analytics</span>
+</button>
+<button class="p-2 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors" title="Remover">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</td>
+</tr>
+<tr class="glass-table-row">
+<td class="px-6 py-4">
+<div class="flex items-center gap-3">
+<div class="relative">
+<img alt="Avatar" class="w-10 h-10 rounded-full border border-white shadow-sm object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBE3yWBdJyhak2d5FcY6zgOV14s7CPpZGoiDGbNL8F_6AVOSZFXBEoK5WD9JTbcn54fiI9JlkXzq5AeB2HICv0dIYmpTlMLCIGDQlcUzf3B1zgN5w6Rw8N4n-OtCcErYWArUaOQiSmCGbWvFSSMOCITA9lQtmr9O_hKcHbrpYCKCOxpzPelZljhBqtPX30GXupf-fb-jdCywOb7xHP_X5DhtefIiNbvUIYcNncf1SMXyo3z78uX65Z1zaFkIGV8wbEF7BVu2oKkW2c"/>
+<div class="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-green-500 border-2 border-white rounded-full"></div>
+</div>
+<div>
+<p class="font-bold text-slate-700">Café com Design</p>
+<p class="text-xs text-slate-500">@cafedesign</p>
+</div>
+</div>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-pink-500 text-lg">photo_camera</span>
+<span class="font-medium text-slate-600">Instagram</span>
+</div>
+</td>
+<td class="px-6 py-4 font-body font-medium text-slate-600">
+                                    45.2k
+                                </td>
+<td class="px-6 py-4 text-slate-500 text-xs">
+                                    1 hora atrás
+                                </td>
+<td class="px-6 py-4">
+<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-green-100 text-green-700 text-[10px] font-bold uppercase tracking-wider border border-green-200">
+<span class="w-1.5 h-1.5 rounded-full bg-green-500"></span>
+                                        Ativo
+                                    </span>
+</td>
+<td class="px-6 py-4">
+<div class="flex items-center justify-end gap-2">
+<button class="p-2 rounded-lg hover:bg-indigo-50 text-slate-400 hover:text-indigo-600 transition-colors" title="Analisar">
+<span class="material-symbols-outlined text-lg">analytics</span>
+</button>
+<button class="p-2 rounded-lg hover:bg-red-50 text-slate-400 hover:text-red-500 transition-colors" title="Remover">
+<span class="material-symbols-outlined text-lg">delete</span>
+</button>
+</div>
+</td>
+</tr>
+</tbody>
+</table>
+</div>
+<div class="bg-white/30 border-t border-white/40 px-6 py-3 flex items-center justify-between">
+<span class="text-xs text-slate-500 font-medium">Mostrando 3 de 8 perfis</span>
+<div class="flex gap-1">
+<button class="w-7 h-7 flex items-center justify-center rounded-md bg-white/50 hover:bg-white text-slate-500 transition-colors text-xs">
+<span class="material-symbols-outlined text-sm">chevron_left</span>
+</button>
+<button class="w-7 h-7 flex items-center justify-center rounded-md bg-indigo-500 text-white shadow-md text-xs font-bold">1</button>
+<button class="w-7 h-7 flex items-center justify-center rounded-md bg-white/50 hover:bg-white text-slate-500 transition-colors text-xs font-medium">2</button>
+<button class="w-7 h-7 flex items-center justify-center rounded-md bg-white/50 hover:bg-white text-slate-500 transition-colors text-xs">
+<span class="material-symbols-outlined text-sm">chevron_right</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+</main>
+<footer class="mt-20 pt-10 border-t border-white/20 text-center relative z-10 pb-10">
+<p class="text-[10px] text-slate-500 font-bold tracking-[0.3em] opacity-40 uppercase">Sentimenta • Aura Edition • 2026</p>
+</footer>
+
+</body></html>

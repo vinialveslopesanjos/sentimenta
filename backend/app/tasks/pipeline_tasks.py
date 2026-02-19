@@ -27,7 +27,7 @@ def _run_async(coro):
 
 
 @celery_app.task(bind=True)
-def task_ingest(self, connection_id: str, user_id: str) -> dict:
+def task_ingest(self, connection_id: str, user_id: str, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None) -> dict:
     """Ingest data from a social media platform.
 
     Determines the platform from the SocialConnection record and
@@ -63,9 +63,11 @@ def task_ingest(self, connection_id: str, user_id: str) -> dict:
             elif connection.platform == "instagram":
                 # Instagram uses public scraping (no OAuth)
                 from app.services.instagram_ingest_service import ingest_instagram_profile
+                from datetime import date as date_type
 
+                since = date_type.fromisoformat(since_date) if since_date else None
                 result = ingest_instagram_profile(
-                    db, connection, max_posts=10, max_comments_per_post=100
+                    db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since
                 )
 
                 connection.last_sync_at = datetime.now(timezone.utc)
@@ -122,7 +124,7 @@ def task_analyze(self, post_id: str, user_id: str) -> dict:
 
 
 @celery_app.task(bind=True)
-def task_full_pipeline(self, connection_id: str, user_id: str) -> dict:
+def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None) -> dict:
     """Run the full pipeline: ingest + analyze for all posts."""
     db = SessionLocal()
     try:
@@ -140,7 +142,7 @@ def task_full_pipeline(self, connection_id: str, user_id: str) -> dict:
         db.commit()
 
         # Step 1: Ingest
-        ingest_result = task_ingest(connection_id, user_id)
+        ingest_result = task_ingest(connection_id, user_id, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since_date)
         if "error" in ingest_result:
             run.status = "failed"
             run.notes = ingest_result["error"]

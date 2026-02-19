@@ -375,7 +375,7 @@ def _build_trends(user_id: str, connection_id_str: str | None, granularity: str,
 @router.get("/trends")
 def get_trends(
     connection_id: uuid.UUID | None = Query(None),
-    granularity: str = Query("day", regex="^(day|week|month)$"),
+    granularity: str = Query("day", pattern="^(day|week|month)$"),
     days: int = Query(30, ge=7, le=365),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -470,4 +470,148 @@ def get_health_report(
         "report_text": report_text,
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "data_summary": data_summary,
+    }
+
+
+@router.get("/compare")
+def get_platform_compare(
+    days: int = Query(30, ge=7, le=365),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    rows = (
+        db.query(
+            SocialConnection.platform.label("platform"),
+            func.count(Comment.id).label("total_comments"),
+            func.count(CommentAnalysis.id).label("total_analyzed"),
+            func.avg(CommentAnalysis.score_0_10).label("avg_score"),
+            func.sum(case((CommentAnalysis.score_0_10 > 6, 1), else_=0)).label("positive"),
+            func.sum(case((CommentAnalysis.score_0_10.between(4, 6), 1), else_=0)).label("neutral"),
+            func.sum(case((CommentAnalysis.score_0_10 < 4, 1), else_=0)).label("negative"),
+        )
+        .join(Comment, Comment.connection_id == SocialConnection.id)
+        .outerjoin(CommentAnalysis, CommentAnalysis.comment_id == Comment.id)
+        .filter(
+            SocialConnection.user_id == current_user.id,
+            Comment.published_at.isnot(None),
+            Comment.published_at >= cutoff,
+        )
+        .group_by(SocialConnection.platform)
+        .all()
+    )
+
+    platforms = []
+    for row in rows:
+        total_analyzed = int(row.total_analyzed or 0)
+        positive = int(row.positive or 0)
+        neutral = int(row.neutral or 0)
+        negative = int(row.negative or 0)
+        safe_total = total_analyzed if total_analyzed > 0 else 1
+        platforms.append(
+            {
+                "platform": row.platform,
+                "total_comments": int(row.total_comments or 0),
+                "total_analyzed": total_analyzed,
+                "avg_score": round(float(row.avg_score), 2) if row.avg_score is not None else None,
+                "sentiment_distribution": {
+                    "positive": positive,
+                    "neutral": neutral,
+                    "negative": negative,
+                },
+                "positive_rate": round((positive / safe_total) * 100, 2),
+                "negative_rate": round((negative / safe_total) * 100, 2),
+            }
+        )
+
+    platforms.sort(key=lambda p: p["positive_rate"], reverse=True)
+
+    return {
+        "days": days,
+        "platforms": platforms,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@router.get("/alerts")
+def get_reputation_alerts(
+    days: int = Query(7, ge=1, le=30),
+    min_analyzed: int = Query(20, ge=1, le=1000),
+    negative_threshold: float = Query(0.35, ge=0.0, le=1.0),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    rows = (
+        db.query(
+            SocialConnection.id.label("connection_id"),
+            SocialConnection.platform.label("platform"),
+            SocialConnection.username.label("username"),
+            func.count(CommentAnalysis.id).label("total_analyzed"),
+            func.avg(CommentAnalysis.score_0_10).label("avg_score"),
+            func.sum(case((CommentAnalysis.score_0_10 < 4, 1), else_=0)).label("negative"),
+            func.sum(case((CommentAnalysis.sarcasm.is_(True), 1), else_=0)).label("sarcasm"),
+        )
+        .join(Comment, Comment.connection_id == SocialConnection.id)
+        .join(CommentAnalysis, CommentAnalysis.comment_id == Comment.id)
+        .filter(
+            SocialConnection.user_id == current_user.id,
+            Comment.published_at.isnot(None),
+            Comment.published_at >= cutoff,
+        )
+        .group_by(SocialConnection.id, SocialConnection.platform, SocialConnection.username)
+        .all()
+    )
+
+    alerts = []
+    for row in rows:
+        total_analyzed = int(row.total_analyzed or 0)
+        if total_analyzed < min_analyzed:
+            continue
+
+        negative = int(row.negative or 0)
+        sarcasm = int(row.sarcasm or 0)
+        negative_rate = negative / total_analyzed if total_analyzed else 0.0
+        sarcasm_rate = sarcasm / total_analyzed if total_analyzed else 0.0
+
+        if negative_rate < negative_threshold:
+            continue
+
+        severity = "high"
+        if negative_rate >= 0.55:
+            severity = "critical"
+        elif negative_rate < 0.45:
+            severity = "medium"
+
+        alerts.append(
+            {
+                "connection_id": str(row.connection_id),
+                "platform": row.platform,
+                "username": row.username,
+                "severity": severity,
+                "negative_rate": round(negative_rate * 100, 2),
+                "sarcasm_rate": round(sarcasm_rate * 100, 2),
+                "total_analyzed": total_analyzed,
+                "avg_score": round(float(row.avg_score), 2) if row.avg_score is not None else None,
+                "message": (
+                    f"Pico de negatividade em @{row.username}: "
+                    f"{round(negative_rate * 100, 1)}% dos comentarios analisados estao negativos."
+                ),
+            }
+        )
+
+    alerts.sort(
+        key=lambda a: (
+            {"critical": 0, "high": 1, "medium": 2}.get(a["severity"], 3),
+            -a["negative_rate"],
+        )
+    )
+
+    return {
+        "days": days,
+        "total_alerts": len(alerts),
+        "alerts": alerts,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
     }

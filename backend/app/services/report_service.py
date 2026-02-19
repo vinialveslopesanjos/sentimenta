@@ -27,29 +27,33 @@ def generate_health_report(data_summary: dict) -> str:
     Returns:
         Markdown string with the report.
     """
-    prompt = f"""Você é um analista de reputação digital. Com base nos dados abaixo,
-escreva um relatório conciso (3-5 parágrafos) em português brasileiro sobre a
-saúde reputacional do usuário nas redes sociais.
+    prompt = f"""Você é a voz da Sentimenta — uma plataforma que ajuda criadores e marcas a entenderem seu público com empatia e clareza.
 
-Inclua:
-- Avaliação geral do sentimento (positivo, neutro, negativo)
-- Destaques positivos e pontos de atenção
-- Emoções predominantes e o que significam
-- Tópicos mais discutidos pelo público
-- Recomendações práticas para melhorar o engajamento
+Com base nos dados abaixo, escreva uma análise de saúde reputacional em português brasileiro.
 
-Dados:
+**Tom esperado:** Próximo, humano, como um amigo que entende de dados. Não é relatório corporativo. É conversa inteligente. Use frases curtas e diretas. Celebre o que está indo bem. Seja honesto sobre os desafios, mas sempre com um caminho a seguir.
+
+**Formato obrigatório (Markdown):**
+- Comece com uma linha de abertura impactante (1 frase que capture o momento atual da marca)
+- Use `## 🌟 O que está funcionando` para pontos positivos
+- Use `## ⚠️ Pontos de atenção` para alertas (só se houver dados negativos relevantes)
+- Use `## 💡 Insights do público` para emoções/tópicos mais relevantes
+- Use `## 🚀 Próximos passos` para 2–3 ações concretas e realizáveis
+- Use **negrito** para destacar números e métricas-chave dentro do texto
+- Cada seção: 2–4 frases. Sem listas longas. Sem jargão.
+
+**Dados disponíveis:**
 {json.dumps(data_summary, ensure_ascii=False, indent=2)}
 
-Responda APENAS com o relatório em markdown, sem explicações adicionais."""
+Responda APENAS com o relatório em Markdown. Não inclua explicações ou meta-comentários."""
 
     url = f"{GEMINI_BASE_URL}/{settings.GEMINI_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
 
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {
-            "temperature": 0.7,
-            "maxOutputTokens": 1500,
+            "temperature": 0.75,
+            "maxOutputTokens": 2000,
         },
     }
 

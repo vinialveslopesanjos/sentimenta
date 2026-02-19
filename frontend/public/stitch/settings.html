@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Sentimenta - Settings &amp; Account Management</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'], 
+                        body: ['"Satoshi"', 'sans-serif'],
+                    },
+                    colors: {
+                        aura: {
+                            base: '#6366f1',
+                            pink: '#f472b6',
+                            purple: '#a855f7',
+                            cyan: '#22d3ee',
+                            surface: 'rgba(255, 255, 255, 0.65)',
+                            surfaceHighlight: 'rgba(255, 255, 255, 0.85)',
+                            text: '#1e293b',
+                            muted: '#475569',
+                        }
+                    },
+                    boxShadow: {
+                        'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.07)',
+                        'glow': '0 0 20px rgba(168, 85, 247, 0.4)',
+                    },
+                    animation: {
+                        'blob': 'blob 10s infinite',
+                    },
+                    keyframes: {
+                        blob: {
+                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                            '100%': { transform: 'translate(0px, 0px) scale(1)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .bg-noise {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.08'/%3E%3C/svg%3E");
+            opacity: 0.6;
+            pointer-events: none;
+        }
+        .aura-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -2;
+            background-color: #e0e7ff;
+            background: 
+                radial-gradient(circle at 15% 50%, rgba(168, 85, 247, 0.4), transparent 50%),
+                radial-gradient(circle at 85% 30%, rgba(34, 211, 238, 0.4), transparent 50%),
+                radial-gradient(circle at 50% 80%, rgba(244, 114, 182, 0.5), transparent 50%);
+            filter: blur(40px);
+            background-size: 150% 150%;
+        }
+        .aura-shape {
+            position: fixed;
+            top: 20%;
+            left: 30%;
+            width: 80vw;
+            height: 80vh;
+            background: conic-gradient(from 180deg at 50% 50%, #C4B5FD 0deg, #F472B6 120deg, #6366F1 240deg, #C4B5FD 360deg);
+            filter: blur(90px);
+            opacity: 0.6;
+            border-radius: 50%;
+            z-index: -2;
+            animation: blob 20s infinite alternate;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+            border-radius: 24px;
+        }
+        .glass-card-danger {
+            background: rgba(254, 242, 242, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(252, 165, 165, 0.4);
+            box-shadow: 0 4px 30px rgba(220, 38, 38, 0.05);
+            border-radius: 24px;
+        }
+        .toggle-checkbox:checked {
+            right: 0;
+            border-color: #6366F1;
+        }
+        .toggle-checkbox:checked + .toggle-label {
+            background-color: #6366F1;
+        }::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(99, 102, 241, 0.3);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(99, 102, 241, 0.5);
+        }
+    </style>
+</head>
+<body class="p-6 md:p-12 min-h-screen font-body text-slate-700 selection:bg-pink-200 selection:text-pink-900 overflow-x-hidden">
+<div class="aura-background"></div>
+<div class="aura-shape"></div>
+<div class="bg-noise"></div>
+<header class="mb-10 flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pb-6 border-b border-white/30 relative z-10">
+<div>
+<div class="flex items-center gap-3 mb-1">
+<div class="w-11 h-11 rounded-2xl glass-card flex items-center justify-center text-indigo-600 shadow-glow">
+<svg fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" viewBox="0 0 24 24" width="24">
+<path d="M12 2a10 10 0 1 0 10 10H12V2z"></path>
+<path d="M12 2a10 10 0 0 1 10 10"></path>
+<path d="M12 12 2.1 12.05"></path>
+</svg>
+</div>
+<h1 class="text-3xl font-sans font-bold tracking-tight text-slate-800">sentimenta</h1>
+</div>
+<p class="text-slate-500 text-xs font-semibold tracking-[0.2em] pl-1 mix-blend-multiply uppercase">Configurações de Conta</p>
+</div>
+<div class="hidden md:flex gap-3">
+<div class="glass-card px-5 py-2.5 text-[10px] font-bold text-indigo-900 uppercase tracking-[0.15em] flex items-center gap-2 cursor-pointer hover:bg-white/40 transition-colors">
+<span class="material-symbols-outlined text-sm">arrow_back</span>
+                Voltar ao Dashboard
+             </div>
+</div>
+</header>
+<main class="grid grid-cols-1 lg:grid-cols-12 gap-8 relative z-10 max-w-7xl mx-auto">
+<div class="lg:col-span-3 space-y-6">
+<nav class="glass-card p-4 space-y-1 sticky top-24">
+<a class="flex items-center gap-3 px-4 py-3 bg-white/60 rounded-xl text-indigo-600 font-sans font-semibold text-sm shadow-sm transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">person</span>
+                    Perfil
+                </a>
+<a class="flex items-center gap-3 px-4 py-3 hover:bg-white/30 rounded-xl text-slate-600 font-sans font-medium text-sm transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">credit_card</span>
+                    Cobrança &amp; Planos
+                </a>
+<a class="flex items-center gap-3 px-4 py-3 hover:bg-white/30 rounded-xl text-slate-600 font-sans font-medium text-sm transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">notifications</span>
+                    Notificações
+                </a>
+<a class="flex items-center gap-3 px-4 py-3 hover:bg-white/30 rounded-xl text-slate-600 font-sans font-medium text-sm transition-all" href="#">
+<span class="material-symbols-outlined text-[20px]">lock</span>
+                    Segurança
+                </a>
+<div class="my-2 border-t border-slate-200/50"></div>
+<a class="flex items-center gap-3 px-4 py-3 hover:bg-red-50/50 rounded-xl text-red-500 font-sans font-medium text-sm transition-all group" href="#">
+<span class="material-symbols-outlined text-[20px] group-hover:text-red-600">logout</span>
+                    Sair da Conta
+                </a>
+</nav>
+</div>
+<div class="lg:col-span-9 space-y-8">
+<section class="glass-card p-8" id="profile">
+<div class="flex justify-between items-start mb-6">
+<div>
+<h2 class="text-xl font-sans font-bold text-slate-800">Perfil Público</h2>
+<p class="text-sm text-slate-500 font-body mt-1">Gerencie como você aparece para sua equipe.</p>
+</div>
+<button class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold uppercase tracking-wider rounded-lg shadow-lg shadow-indigo-200 transition-all">
+                        Salvar Alterações
+                    </button>
+</div>
+<div class="flex flex-col md:flex-row gap-8 items-start">
+<div class="relative group cursor-pointer shrink-0">
+<div class="w-24 h-24 rounded-full bg-gradient-to-br from-indigo-100 to-pink-100 p-1 shadow-inner">
+<img alt="Avatar" class="w-full h-full rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDXm742Ff2nxy9bXNY-f86KKwaYGVum4ajLJL2VCr2TUHB0WUU2O61XlRztosC-iT0d3THxKiSL9P1d_yslmFwckbjy8gXCw9i6xjwWPdrUKD4W9iyVXqO6uB6dKxvPaY4JfuEn-ApPFYFYa6voaBnKIPJjZhrb2mP4mTe8CnYG0tDGa2Q8NXw2ign1Mdd6lf1Weqz4B5YazrZLFzUxMU0h4SQckRNpDojOr1349o-fGu0kabPqsb3rUEMNDR7DKNvwdjGM1m7_ou4"/>
+</div>
+<div class="absolute inset-0 flex items-center justify-center bg-black/20 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-[2px]">
+<span class="material-symbols-outlined">edit</span>
+</div>
+</div>
+<div class="flex-1 grid grid-cols-1 md:grid-cols-2 gap-6 w-full">
+<div class="space-y-1.5">
+<label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Nome Completo</label>
+<input class="w-full bg-white/40 border border-white/50 rounded-xl px-4 py-2.5 text-sm text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all placeholder:text-slate-400" type="text" value="Julia Silva"/>
+</div>
+<div class="space-y-1.5">
+<label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Cargo</label>
+<input class="w-full bg-white/40 border border-white/50 rounded-xl px-4 py-2.5 text-sm text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all placeholder:text-slate-400" type="text" value="Senior Marketing Analyst"/>
+</div>
+<div class="space-y-1.5 md:col-span-2">
+<label class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Email Profissional</label>
+<div class="relative">
+<span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+<span class="material-symbols-outlined text-[18px]">mail</span>
+</span>
+<input class="w-full bg-white/40 border border-white/50 rounded-xl pl-10 pr-4 py-2.5 text-sm text-slate-700 font-medium focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-400 transition-all placeholder:text-slate-400" type="email" value="julia.silva@sentimenta.io"/>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="glass-card p-0 overflow-hidden" id="plan">
+<div class="p-8 pb-6 border-b border-white/30">
+<h2 class="text-xl font-sans font-bold text-slate-800">Plano Atual</h2>
+<p class="text-sm text-slate-500 font-body mt-1">Status da sua assinatura e uso de recursos.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 divide-y md:divide-y-0 md:divide-x divide-white/30">
+<div class="p-8 flex flex-col justify-between h-full bg-indigo-50/20">
+<div>
+<div class="flex items-center gap-2 mb-2">
+<span class="material-symbols-outlined text-indigo-500">diamond</span>
+<span class="text-xs font-bold text-indigo-600 uppercase tracking-widest">Plano Ativo</span>
+</div>
+<h3 class="text-3xl font-sans font-bold text-slate-800">Pro</h3>
+<p class="text-xs text-slate-500 mt-2">Renova em <span class="font-bold text-slate-700">12 Out, 2026</span></p>
+</div>
+<button class="mt-6 w-full py-2.5 bg-white/50 hover:bg-white text-indigo-600 text-xs font-bold uppercase tracking-wider rounded-xl border border-indigo-100 shadow-sm transition-all">
+                            Gerenciar Assinatura
+                        </button>
+</div>
+<div class="p-8 md:col-span-2 space-y-6">
+<div>
+<div class="flex justify-between items-end mb-2">
+<span class="text-sm font-semibold text-slate-700">Análises de Sentimento</span>
+<span class="text-xs font-bold text-slate-500 bg-white/40 px-2 py-1 rounded-md">847 / 1000</span>
+</div>
+<div class="w-full bg-white/30 h-2.5 rounded-full overflow-hidden border border-white/20">
+<div class="w-[84.7%] h-full bg-gradient-to-r from-indigo-500 to-pink-500 rounded-full shadow-[0_0_10px_rgba(99,102,241,0.5)]"></div>
+</div>
+<p class="text-[10px] text-slate-400 mt-2 font-body leading-relaxed">Você consumiu 85% do seu limite mensal. Considere fazer um upgrade para continuar analisando sem interrupções.</p>
+</div>
+<div class="flex items-center justify-between p-4 rounded-xl bg-gradient-to-r from-indigo-500/10 to-pink-500/5 border border-indigo-100">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-white flex items-center justify-center text-indigo-600 shadow-sm">
+<span class="material-symbols-outlined">rocket_launch</span>
+</div>
+<div>
+<p class="text-sm font-bold text-slate-800">Precisa de mais poder?</p>
+<p class="text-xs text-slate-500">Desbloqueie análises ilimitadas.</p>
+</div>
+</div>
+<button class="px-4 py-2 bg-slate-800 hover:bg-slate-900 text-white text-xs font-bold uppercase tracking-wider rounded-lg shadow-lg transition-all">
+                                Upgrade
+                            </button>
+</div>
+</div>
+</div>
+</section>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+<section class="glass-card p-8 flex flex-col h-full">
+<div class="mb-6">
+<h2 class="text-lg font-sans font-bold text-slate-800 flex items-center gap-2">
+<span class="material-symbols-outlined text-slate-400">notifications</span>
+                            Notificações
+                        </h2>
+</div>
+<div class="space-y-6 flex-1">
+<div class="flex items-center justify-between">
+<div>
+<p class="text-sm font-semibold text-slate-700">Alertas de Sentimento</p>
+<p class="text-xs text-slate-500 mt-0.5">Notificar quando negativo &gt; 70%</p>
+</div>
+<label class="flex items-center cursor-pointer relative" for="toggle1">
+<input checked="" class="sr-only peer" id="toggle1" type="checkbox"/>
+<div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+</label>
+</div>
+<div class="w-full h-px bg-slate-200/50"></div>
+<div class="flex items-center justify-between">
+<div>
+<p class="text-sm font-semibold text-slate-700">Relatório Semanal</p>
+<p class="text-xs text-slate-500 mt-0.5">Resumo enviado toda segunda.</p>
+</div>
+<label class="flex items-center cursor-pointer relative" for="toggle2">
+<input class="sr-only peer" id="toggle2" type="checkbox"/>
+<div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-500"></div>
+</label>
+</div>
+</div>
+</section>
+<section class="glass-card p-8 flex flex-col h-full">
+<div class="mb-6">
+<h2 class="text-lg font-sans font-bold text-slate-800 flex items-center gap-2">
+<span class="material-symbols-outlined text-slate-400">shield</span>
+                            Segurança
+                        </h2>
+</div>
+<div class="space-y-5 flex-1">
+<button class="w-full flex items-center justify-between p-3 rounded-xl bg-white/40 border border-white/60 hover:bg-white/60 transition-all group">
+<div class="flex items-center gap-3">
+<div class="p-2 bg-indigo-50 text-indigo-500 rounded-lg">
+<span class="material-symbols-outlined text-lg">key</span>
+</div>
+<div class="text-left">
+<p class="text-sm font-bold text-slate-700">Alterar Senha</p>
+<p class="text-[10px] text-slate-500">Última alteração há 3 meses</p>
+</div>
+</div>
+<span class="material-symbols-outlined text-slate-400 group-hover:text-indigo-500 text-sm">arrow_forward_ios</span>
+</button>
+<div class="p-3 rounded-xl bg-white/20 border border-white/40">
+<p class="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-2">Sessões Ativas</p>
+<div class="flex items-center gap-3">
+<span class="material-symbols-outlined text-green-500 text-lg">desktop_mac</span>
+<div>
+<p class="text-xs font-semibold text-slate-700">Macbook Pro - São Paulo, BR</p>
+<p class="text-[10px] text-slate-500">Atual (IP: 192.168.1.1)</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+<section class="glass-card-danger p-8 relative overflow-hidden">
+<div class="relative z-10 flex flex-col md:flex-row justify-between items-center gap-6">
+<div class="flex items-start gap-4">
+<div class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-red-500 shrink-0">
+<span class="material-symbols-outlined">warning</span>
+</div>
+<div>
+<h3 class="text-lg font-sans font-bold text-red-900">Zona de Perigo</h3>
+<p class="text-sm text-red-800/70 mt-1 font-body max-w-lg">
+                                Excluir sua conta é uma ação irreversível. Todos os dados de análise, relatórios e configurações serão perdidos permanentemente.
+                            </p>
+</div>
+</div>
+<button class="px-5 py-2.5 bg-red-500 hover:bg-red-600 text-white text-xs font-bold uppercase tracking-wider rounded-xl shadow-lg shadow-red-200 transition-all whitespace-nowrap">
+                        Excluir Minha Conta
+                    </button>
+</div>
+<div class="absolute -right-10 -bottom-20 w-64 h-64 bg-red-400/20 rounded-full blur-3xl pointer-events-none"></div>
+</section>
+</div>
+</main>
+<footer class="mt-20 pt-10 border-t border-white/20 text-center relative z-10 pb-10">
+<p class="text-[10px] text-slate-500 font-bold tracking-[0.3em] opacity-40 uppercase">Sentimenta • Aura Edition • 2026</p>
+</footer>
+
+</body></html>

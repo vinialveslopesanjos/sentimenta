@@ -1,0 +1,379 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Sentimenta - Análise de Sentimento com IA</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&amp;display=swap" rel="stylesheet"/>
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700,900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'], 
+                        body: ['"Satoshi"', 'sans-serif'],
+                    },
+                    colors: {
+                        aura: {
+                            base: '#6366f1',
+                            pink: '#f472b6',
+                            purple: '#a855f7',
+                            cyan: '#22d3ee',
+                        }
+                    },
+                    boxShadow: {
+                        'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.07)',
+                        'glow': '0 0 40px rgba(168, 85, 247, 0.3)',
+                        'glow-strong': '0 0 50px rgba(99, 102, 241, 0.5)',
+                    },
+                    animation: {
+                        'blob': 'blob 20s infinite alternate',
+                        'float': 'float 6s ease-in-out infinite',
+                    },
+                    keyframes: {
+                        blob: {
+                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                            '100%': { transform: 'translate(0px, 0px) scale(1)' },
+                        },
+                        float: {
+                            '0%, 100%': { transform: 'translateY(0)' },
+                            '50%': { transform: 'translateY(-20px)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .bg-noise {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.05'/%3E%3C/svg%3E");
+            opacity: 0.4;
+            pointer-events: none;
+        }
+        .aura-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -2;
+            background-color: #0f172a; 
+            background: 
+                radial-gradient(circle at 15% 50%, rgba(99, 102, 241, 0.15), transparent 50%),
+                radial-gradient(circle at 85% 30%, rgba(168, 85, 247, 0.15), transparent 50%),
+                radial-gradient(circle at 50% 80%, rgba(244, 114, 182, 0.1), transparent 50%);
+            filter: blur(60px);
+        }
+        .aura-shape {
+            position: fixed;
+            top: -10%;
+            left: 20%;
+            width: 60vw;
+            height: 60vh;
+            background: conic-gradient(from 180deg at 50% 50%, #4c1d95 0deg, #be185d 120deg, #4338ca 240deg, #4c1d95 360deg);
+            filter: blur(120px);
+            opacity: 0.25;
+            border-radius: 50%;
+            z-index: -2;
+            animation: blob 25s infinite alternate;
+        }
+        .glass-nav {
+            background: rgba(15, 23, 42, 0.6);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.4);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.1);
+            border-radius: 24px;
+        }
+        .glass-card-light {
+             background: rgba(255, 255, 255, 0.03);
+             border: 1px solid rgba(255, 255, 255, 0.05);
+             backdrop-filter: blur(8px);
+        }
+        .text-glow {
+            text-shadow: 0 0 20px rgba(255,255,255,0.3);
+        }
+        .btn-gradient {
+            background: linear-gradient(135deg, #6366f1 0%, #a855f7 100%);
+            box-shadow: 0 0 20px rgba(168, 85, 247, 0.4);
+            transition: all 0.3s ease;
+        }
+        .btn-gradient:hover {
+            box-shadow: 0 0 30px rgba(168, 85, 247, 0.6);
+            transform: translateY(-2px);
+        }
+    </style>
+</head>
+<body class="min-h-screen font-body text-slate-300 selection:bg-indigo-500/30 selection:text-indigo-200 overflow-x-hidden bg-[#0f172a]">
+<div class="aura-background"></div>
+<div class="aura-shape"></div>
+<div class="bg-noise"></div>
+<header class="fixed top-0 w-full z-50 glass-nav transition-all duration-300">
+<div class="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white shadow-glow">
+<span class="material-symbols-outlined text-[20px]">equalizer</span>
+</div>
+<h1 class="text-2xl font-sans font-bold tracking-tight text-white">sentimenta</h1>
+</div>
+<nav class="hidden md:flex gap-8 text-sm font-medium text-slate-400">
+<a class="hover:text-white transition-colors" href="#">Recursos</a>
+<a class="hover:text-white transition-colors" href="#">Integrações</a>
+<a class="hover:text-white transition-colors" href="#">Preços</a>
+<a class="hover:text-white transition-colors" href="#">Enterprise</a>
+</nav>
+<div class="flex gap-4 items-center">
+<a class="hidden md:block text-sm font-semibold text-white hover:text-indigo-400 transition-colors" href="#">Login</a>
+<a class="px-5 py-2.5 rounded-full bg-white/10 hover:bg-white/20 border border-white/10 text-white text-sm font-bold transition-all backdrop-blur-md" href="#">
+                    Começar Agora
+                 </a>
+</div>
+</div>
+</header>
+<main class="relative z-10 pt-32 pb-20">
+<section class="max-w-7xl mx-auto px-6 text-center flex flex-col items-center mb-24">
+<div class="inline-flex items-center gap-2 px-4 py-1.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 text-xs font-bold uppercase tracking-wider mb-8 animate-fade-in-up">
+<span class="relative flex h-2 w-2">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+</span>
+                Nova Integração com TikTok Disponível
+            </div>
+<h1 class="text-5xl md:text-7xl font-sans font-bold text-white tracking-tight leading-[1.1] mb-6 max-w-4xl text-glow">
+                Decifre o que o mundo <br/>
+<span class="bg-clip-text text-transparent bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400">sente sobre você</span>
+</h1>
+<p class="text-lg md:text-xl text-slate-400 max-w-2xl font-light mb-10 leading-relaxed">
+                Transforme comentários, menções e reações em insights estratégicos. Nossa IA analisa o sentimento da sua marca em tempo real através de todas as redes sociais.
+            </p>
+<div class="flex flex-col sm:flex-row gap-4 mb-16">
+<a class="btn-gradient px-8 py-4 rounded-full text-white font-bold text-sm tracking-wide flex items-center justify-center gap-2" href="#">
+                    Comece grátis 14 dias
+                    <span class="material-symbols-outlined text-sm">arrow_forward</span>
+</a>
+<a class="glass-card px-8 py-4 rounded-full text-white font-bold text-sm tracking-wide hover:bg-white/5 transition-colors flex items-center justify-center gap-2" href="#">
+<span class="material-symbols-outlined text-sm">play_circle</span>
+                    Ver demonstração
+                </a>
+</div>
+<div class="flex gap-6 opacity-60 grayscale hover:grayscale-0 transition-all duration-500 mb-20">
+<img alt="Instagram" class="w-6 h-6 hover:scale-110 transition-transform" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDRgGHRRTM0AM2SSZp4Ayqi1gudUGoEgqIkZrSBjAoNqaBYK7FKz7WCYoWi1MuKtsiKAItVoDnNitqXKZGW4_lsDBhjaqOI9eIRbXej9hzKSB_JfFREFZfp58HmjTc89aGWlius3q1_LSsaLMpekzbT6BTGMtafslQFMV45MBgNK6UFJLrKyquBl_D_mhamRdghiOUmCCZU0JunCRnZ6Y1vE0C553g4hdQcIEcAAYxZeDkLg0qwWnqQKxV7QjcbbvwotHqlKPIuh5k"/>
+<img alt="YouTube" class="w-6 h-6 hover:scale-110 transition-transform" src="https://lh3.googleusercontent.com/aida-public/AB6AXuDnIPi4JmGR-7BXcUO_wtRdIVDKULNdLeFNu4SISM1ln2NGfqLMTd4IDuP1P8vj6UHSpsxPc1JkxUMlJ343xeKWFGxhS_FenhorbEG-Ys1hq0OGIBeUWx7CMTeaM3keayGACgtFHIL7PqEs2EteYhFZ-8nrE41Zeh848GEu6NzPlXpxdj-4Qp0cqF5oOu10nCPfp9D982YaxkFyYlcIRtozKnemy5gMOJGnZXW-9dwJRvurwJql6BGUh7J9JFoNaSdsn4jKx-pHbtM"/>
+<img alt="TikTok" class="w-6 h-6 hover:scale-110 transition-transform" src="https://lh3.googleusercontent.com/aida-public/AB6AXuAk9cFjyxVeLfPMVF8MFz-FucMN91NUAXTFmajEysnb-9uraOoXB1DCc9G4KkKKeotT-uwrA8iOczl_RbncNnLw7A9KDf1q2zoX66ZCglsWd8_tJqsdyELGsFtVhcSMdo1zsGEnnXWvjyn2JCwEP17tkfx1oJ2x135RD_rRtKk89xgaxvxhvQKXAj7HjLGsnEj3WCm5sofH0VHSV8TFNzB9Blu1xm1ckmhgh742XUKa-G6BOTfQbhA_Onns9tEFxdvXVH8nQOtpY5I"/>
+<img alt="X (Twitter)" class="w-6 h-6 hover:scale-110 transition-transform" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCHOhQu5UCFxNns9mQw5Y8DXu2ZuTk34jEG3ee_2ax3g7hqnVIphjSqIRjSa3UB7nMOiBZDzDo5wNmdwj7bIqJr5zQoZfCC2foiuSBsLSDx_tz5r0xacbxKjG6Oyy1vmWItuqrah1cs1MbagCuVNNZR7vWxqXghNX7q8xKmBW6rB1N2k4NgUBTvhXxkDVkgcZN0V57XFxl7WWbb_I9xXEZGN69Lt0hiJsJOBE5g3bJs8zMfAhYFXJYA1iUWto5c-QrruiZqyDjY9i4"/>
+<img alt="LinkedIn" class="w-6 h-6 hover:scale-110 transition-transform" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCFI3FWO_PEyz_bNf-RM9CczUMDaURX2FX_7S1iwovu4Nx6VJQopqd1cBfHjLTrMiUbYO757ha7uFEE39JfD83jagdYR_wykLC9A8oJ1Y_E9XMFf4s5frmWCDjPYbiLDrV3jbY24J1zPF_FBDC1sZP0vpwBF74WTVofxJmhQGnl1bj-8wpddGUitsMLo1liIs9ByI2zCkRZyNJOnIYST64wmMAx1EQ9EoE6WoeiA6O0DkG0p5uzfXCERLaQSF7nZnx3s5Qa_mFHFoM"/>
+</div>
+<div class="relative w-full max-w-5xl mx-auto perspective-1000">
+<div class="absolute -inset-1 bg-gradient-to-r from-indigo-500 to-pink-600 rounded-2xl blur opacity-20"></div>
+<div class="glass-card border border-white/10 rounded-2xl overflow-hidden shadow-2xl relative animate-float">
+<div class="h-10 bg-slate-900/50 border-b border-white/5 flex items-center px-4 gap-2">
+<div class="flex gap-1.5">
+<div class="w-3 h-3 rounded-full bg-red-500/50"></div>
+<div class="w-3 h-3 rounded-full bg-yellow-500/50"></div>
+<div class="w-3 h-3 rounded-full bg-green-500/50"></div>
+</div>
+<div class="mx-auto bg-slate-800/50 h-5 w-64 rounded text-[10px] flex items-center justify-center text-slate-500 font-mono">sentimenta.app/dashboard</div>
+</div>
+<div class="p-6 grid grid-cols-12 gap-6 text-left bg-[#0B1121]/80 backdrop-blur-xl">
+<div class="col-span-2 hidden md:flex flex-col gap-6 border-r border-white/5 pr-4">
+<div class="space-y-1">
+<div class="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 flex items-center gap-3 text-xs font-bold">
+<span class="material-symbols-outlined text-sm">dashboard</span> Dashboard
+                                </div>
+<div class="p-2 rounded-lg text-slate-500 hover:text-slate-300 cursor-pointer flex items-center gap-3 text-xs font-medium">
+<span class="material-symbols-outlined text-sm">analytics</span> Análises
+                                </div>
+<div class="p-2 rounded-lg text-slate-500 hover:text-slate-300 cursor-pointer flex items-center gap-3 text-xs font-medium">
+<span class="material-symbols-outlined text-sm">campaign</span> Campanhas
+                                </div>
+</div>
+</div>
+<div class="col-span-12 md:col-span-10 space-y-6">
+<div class="flex justify-between items-center">
+<div>
+<h3 class="text-white font-sans font-semibold text-lg">Visão Geral</h3>
+<p class="text-slate-500 text-xs">Atualizado há 2 minutos</p>
+</div>
+<button class="bg-indigo-600 hover:bg-indigo-500 text-white text-xs px-3 py-1.5 rounded-md font-medium transition-colors">Exportar Relatório</button>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+<div class="p-4 rounded-xl border border-white/5 bg-white/5">
+<div class="flex justify-between items-start mb-2">
+<span class="text-slate-400 text-xs font-medium uppercase tracking-wider">Sentimento Positivo</span>
+<span class="text-emerald-400 bg-emerald-400/10 px-1.5 py-0.5 rounded text-[10px] font-bold">+12%</span>
+</div>
+<div class="text-2xl font-sans font-bold text-white">78%</div>
+<div class="mt-2 h-1.5 w-full bg-slate-700/50 rounded-full overflow-hidden">
+<div class="h-full bg-emerald-500 w-[78%] rounded-full"></div>
+</div>
+</div>
+<div class="p-4 rounded-xl border border-white/5 bg-white/5">
+<div class="flex justify-between items-start mb-2">
+<span class="text-slate-400 text-xs font-medium uppercase tracking-wider">Menções Totais</span>
+<span class="text-indigo-400 bg-indigo-400/10 px-1.5 py-0.5 rounded text-[10px] font-bold">+5.4%</span>
+</div>
+<div class="text-2xl font-sans font-bold text-white">12.4k</div>
+<div class="mt-2 h-10 flex items-end gap-1">
+<div class="w-full bg-indigo-500/30 h-[40%] rounded-sm"></div>
+<div class="w-full bg-indigo-500/40 h-[60%] rounded-sm"></div>
+<div class="w-full bg-indigo-500/60 h-[80%] rounded-sm"></div>
+<div class="w-full bg-indigo-500 h-[50%] rounded-sm"></div>
+<div class="w-full bg-indigo-500/50 h-[70%] rounded-sm"></div>
+</div>
+</div>
+<div class="p-4 rounded-xl border border-white/5 bg-white/5">
+<div class="flex justify-between items-start mb-2">
+<span class="text-slate-400 text-xs font-medium uppercase tracking-wider">Aura Score</span>
+<span class="text-pink-400 bg-pink-400/10 px-1.5 py-0.5 rounded text-[10px] font-bold">Alto</span>
+</div>
+<div class="text-2xl font-sans font-bold text-white">9.2</div>
+<div class="mt-2 text-xs text-slate-500 flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-pink-500 animate-pulse"></span>
+                                        Excelente reputação de marca
+                                    </div>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4">
+<div class="p-4 rounded-xl border border-white/5 bg-white/5 h-40 relative overflow-hidden">
+<h4 class="text-slate-300 text-xs font-bold mb-4">Palavras-chave em Alta</h4>
+<div class="flex flex-wrap gap-2">
+<span class="px-2 py-1 rounded bg-slate-700/50 text-slate-300 text-xs">inovação</span>
+<span class="px-2 py-1 rounded bg-indigo-500/20 text-indigo-300 text-xs border border-indigo-500/30">qualidade</span>
+<span class="px-2 py-1 rounded bg-pink-500/20 text-pink-300 text-xs border border-pink-500/30">rápido</span>
+<span class="px-2 py-1 rounded bg-slate-700/50 text-slate-300 text-xs">suporte</span>
+<span class="px-2 py-1 rounded bg-purple-500/20 text-purple-300 text-xs border border-purple-500/30">design</span>
+</div>
+</div>
+<div class="p-4 rounded-xl border border-white/5 bg-white/5 h-40 flex flex-col justify-center items-center text-center">
+<div class="w-12 h-12 rounded-full bg-gradient-to-tr from-indigo-500 to-purple-500 flex items-center justify-center mb-2 shadow-glow">
+<span class="material-symbols-outlined text-white">psychology</span>
+</div>
+<p class="text-xs text-slate-400">IA analisando novas menções...</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section class="max-w-7xl mx-auto px-6 py-20 relative">
+<div class="text-center mb-16">
+<h2 class="text-[10px] font-bold text-indigo-400 uppercase tracking-[0.2em] mb-4">Investimento</h2>
+<h3 class="text-4xl font-sans font-bold text-white mb-4">Planos que crescem com sua marca</h3>
+<p class="text-slate-400 max-w-lg mx-auto">Escolha o plano ideal para o tamanho da sua audiência e necessidades de monitoramento.</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-3 gap-8">
+<div class="glass-card p-8 flex flex-col hover:border-indigo-500/30 transition-colors duration-300">
+<div class="mb-6">
+<h4 class="text-lg font-bold text-white mb-2">Starter</h4>
+<p class="text-sm text-slate-400 h-10">Para criadores e pequenas marcas iniciando o monitoramento.</p>
+</div>
+<div class="flex items-baseline mb-6">
+<span class="text-3xl font-bold text-white">R$79</span>
+<span class="text-slate-500 text-sm ml-2">/mês</span>
+</div>
+<ul class="space-y-3 mb-8 flex-1">
+<li class="flex items-center gap-3 text-sm text-slate-300">
+<span class="material-symbols-outlined text-indigo-400 text-lg">check</span> 3 Perfis Sociais
+                        </li>
+<li class="flex items-center gap-3 text-sm text-slate-300">
+<span class="material-symbols-outlined text-indigo-400 text-lg">check</span> 1.000 Menções/mês
+                        </li>
+<li class="flex items-center gap-3 text-sm text-slate-300">
+<span class="material-symbols-outlined text-indigo-400 text-lg">check</span> Análise Básica de Sentimento
+                        </li>
+</ul>
+<a class="w-full py-3 rounded-xl border border-white/10 text-white font-semibold text-sm hover:bg-white/5 transition-colors text-center" href="#">Começar Grátis</a>
+</div>
+<div class="glass-card p-8 flex flex-col relative transform md:-translate-y-4 border-indigo-500/50 shadow-glow">
+<div class="absolute top-0 right-0 bg-indigo-500 text-white text-[10px] font-bold px-3 py-1 rounded-bl-xl rounded-tr-xl uppercase tracking-wider">Mais Popular</div>
+<div class="mb-6">
+<h4 class="text-lg font-bold text-white mb-2">Pro</h4>
+<p class="text-sm text-slate-400 h-10">Para empresas em crescimento que precisam de dados profundos.</p>
+</div>
+<div class="flex items-baseline mb-6">
+<span class="text-3xl font-bold text-white">R$199</span>
+<span class="text-slate-500 text-sm ml-2">/mês</span>
+</div>
+<ul class="space-y-3 mb-8 flex-1">
+<li class="flex items-center gap-3 text-sm text-slate-300">
+<span class="material-symbols-outlined text-indigo-400 text-lg">check</span> 10 Perfis Sociais
+                        </li>
+<li class="flex items-center gap-3 text-sm text-slate-300">
+<span class="material-symbols-outlined text-indigo-400 text-lg">check</span> 10.000 Menções/mês
+                        </li>
+<li class="flex items-center gap-3 text-sm text-slate-300">
+<span class="material-symbols-outlined text-indigo-400 text-lg">check</span> Análise de Emoções Detalhada
+                        </li>
+<li class="flex items-center gap-3 text-sm text-slate-300">
+<span class="material-symbols-outlined text-indigo-400 text-lg">check</span> Alertas em Tempo Real
+                        </li>
+</ul>
+<a class="w-full py-3 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm transition-colors text-center shadow-lg shadow-indigo-500/25" href="#">Assinar Pro</a>
+</div>
+<div class="glass-card p-8 flex flex-col hover:border-indigo-500/30 transition-colors duration-300">
+<div class="mb-6">
+<h4 class="text-lg font-bold text-white mb-2">Enterprise</h4>
+<p class="text-sm text-slate-400 h-10">Soluções personalizadas para grandes volumes de dados.</p>
+</div>
+<div class="flex items-baseline mb-6">
+<span class="text-3xl font-bold text-white">R$599</span>
+<span class="text-slate-500 text-sm ml-2">/mês</span>
+</div>
+<ul class="space-y-3 mb-8 flex-1">
+<li class="flex items-center gap-3 text-sm text-slate-300">
+<span class="material-symbols-outlined text-indigo-400 text-lg">check</span> Perfis Ilimitados
+                        </li>
+<li class="flex items-center gap-3 text-sm text-slate-300">
+<span class="material-symbols-outlined text-indigo-400 text-lg">check</span> Menções Ilimitadas
+                        </li>
+<li class="flex items-center gap-3 text-sm text-slate-300">
+<span class="material-symbols-outlined text-indigo-400 text-lg">check</span> API de Acesso Total
+                        </li>
+<li class="flex items-center gap-3 text-sm text-slate-300">
+<span class="material-symbols-outlined text-indigo-400 text-lg">check</span> Gerente de Conta Dedicado
+                        </li>
+</ul>
+<a class="w-full py-3 rounded-xl border border-white/10 text-white font-semibold text-sm hover:bg-white/5 transition-colors text-center" href="#">Falar com Vendas</a>
+</div>
+</div>
+</section>
+</main>
+<footer class="mt-20 py-10 border-t border-white/5 text-center relative z-10 bg-[#0B1121]/50 backdrop-blur-sm">
+<div class="max-w-7xl mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-6">
+<div class="flex items-center gap-2">
+<div class="w-6 h-6 rounded bg-indigo-500 flex items-center justify-center text-white text-[10px]">
+<span class="material-symbols-outlined text-[14px]">equalizer</span>
+</div>
+<span class="text-slate-300 font-bold text-sm">sentimenta</span>
+</div>
+<p class="text-[10px] text-slate-500 font-bold tracking-[0.2em] uppercase">
+                © 2026 Sentimenta Inc. • São Paulo, Brasil
+            </p>
+<div class="flex gap-4">
+<a class="text-slate-500 hover:text-white transition-colors" href="#"><img class="w-4 h-4" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBWPgDcTuuhuhgpYEM7W5B-j881tw8o_NbVzuHh8eBPFyUCEA8ZGRZFf1nN_ZejaOhrzqahZ6HEVD4pdkJLxjZ6fvRa5hHnyOqDQdgxwG9KuQArcXkqfMCbFRYw4mC4jMZTGoBQ21I1p8-uiGW1iKZGx31ehmMMaFpDJ-l2I0PygbYe7A7pm2wRYUyPPQodEuagHooRH6icKIcUfcwq92RUgazRaHoPqkKXnbqhfCUfNjS2uUpbnNEFXaLw63XfphQZXDWcOvegwgw"/></a>
+<a class="text-slate-500 hover:text-white transition-colors" href="#"><img class="w-4 h-4" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCYKwv0UdvkZ830VLxyps8LJ7befd6XhqmZf90CEdIx8h5-qULmeFjB52N9zA5lil-AHdY7w7GbczRCtXTuqsj-a25W1qkD08ZtRdjEXiLn-RjUSNbNOGa8nQAfbxCuJypiWb2jg1QvC6V8uSNIpFfr46rI1e6OUyWHTQu_x9NEbJCXetl1T76ljI7Fy6JUJPkuWJEjKCd1G6FuHGGTVL4cEw9UaGAjSzRtNvXW-6dRKsZEcsQbOn4IBLxrEGYLbLSuq2QRL8mm9AU"/></a>
+<a class="text-slate-500 hover:text-white transition-colors" href="#"><img class="w-4 h-4" src="https://lh3.googleusercontent.com/aida-public/AB6AXuBUuPvi3mgtJUaWmvWwk6vpHQAwDB7Gjin6mIofmPHRDz6kvcGzH0AzHQHw5klV8m4u5qejJA9mpmFYjjG9QScb0cay50eiI2marlnXP_19HA_AZewUgaubCNKTZR7GLBy159vzJ_CiglbOtWge_O-qJ-n2j_6lC6LsjFn7SesSGdCqMQPOAmRjUAFXVAJ0QU22YGRlW6fG0GkE3YvRIWbfY5nHrbAnc7AuL36jZH_aJl87sHxVu5AVmS_CnjJqbfQZAdjHbsyC7nc"/></a>
+</div>
+</div>
+</footer>
+
+</body></html>

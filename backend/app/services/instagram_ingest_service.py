@@ -6,7 +6,8 @@ Similar to youtube_service.py but for Instagram.
 
 import hashlib
 import logging
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
+from typing import Optional
 
 from sqlalchemy.orm import Session
 
@@ -26,6 +27,7 @@ def ingest_instagram_profile(
     connection: SocialConnection,
     max_posts: int = 10,
     max_comments_per_post: int = 100,
+    since_date: Optional[date] = None,
 ) -> dict:
     """
     Ingest recent posts and comments from an Instagram profile.
@@ -44,7 +46,7 @@ def ingest_instagram_profile(
 
     try:
         # Fetch recent posts
-        posts_data = fetch_recent_posts(username, max_posts=max_posts)
+        posts_data = fetch_recent_posts(username, max_posts=max_posts, since_date=since_date)
 
         for post_data in posts_data:
             try:

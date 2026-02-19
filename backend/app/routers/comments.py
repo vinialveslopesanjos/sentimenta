@@ -18,10 +18,10 @@ router = APIRouter(prefix="/comments", tags=["comments"])
 def list_comments(
     connection_id: uuid.UUID | None = Query(None),
     post_id: uuid.UUID | None = Query(None),
-    sentiment: str | None = Query(None, regex="^(positive|neutral|negative)$"),
+    sentiment: str | None = Query(None, pattern="^(positive|neutral|negative)$"),
     search: str | None = Query(None),
-    sort: str = Query("date", regex="^(score|likes|date)$"),
-    order: str = Query("desc", regex="^(asc|desc)$"),
+    sort: str = Query("date", pattern="^(score|likes|date)$"),
+    order: str = Query("desc", pattern="^(asc|desc)$"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     current_user: User = Depends(get_current_user),

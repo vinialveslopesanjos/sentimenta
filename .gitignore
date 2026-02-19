@@ -39,6 +39,13 @@ env/
 .DS_Store
 Thumbs.db
 nul
+null
+
+# Build artifacts
+frontend/tsconfig.tsbuildinfo
+
+# Downloaded assets / design scratch
+stitch_downloads/
 
 # Node / Frontend
 node_modules/

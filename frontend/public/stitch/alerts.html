@@ -1,0 +1,377 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>Sentimenta - Reputation Crisis Alert</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://api.fontshare.com/v2/css?f[]=satoshi@300,400,500,700,900&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'], 
+                        body: ['"Satoshi"', 'sans-serif'],
+                    },
+                    colors: {
+                        aura: {
+                            base: '#6366f1',
+                            pink: '#f472b6',
+                            purple: '#a855f7',
+                            cyan: '#22d3ee',
+                            alert: '#ef4444', 
+                            warning: '#f59e0b',
+                        }
+                    },
+                    boxShadow: {
+                        'glass': '0 8px 32px 0 rgba(31, 38, 135, 0.07)',
+                        'glow': '0 0 20px rgba(168, 85, 247, 0.4)',
+                        'alert-glow': '0 0 40px rgba(239, 68, 68, 0.25)',
+                    },
+                    animation: {
+                        'blob': 'blob 10s infinite',
+                        'pulse-fast': 'pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                    },
+                    keyframes: {
+                        blob: {
+                            '0%': { transform: 'translate(0px, 0px) scale(1)' },
+                            '33%': { transform: 'translate(30px, -50px) scale(1.1)' },
+                            '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
+                            '100%': { transform: 'translate(0px, 0px) scale(1)' },
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+<style>
+        .bg-noise {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -1;
+            background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)' opacity='0.08'/%3E%3C/svg%3E");
+            opacity: 0.6;
+            pointer-events: none;
+        }
+        .aura-background {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: -2;
+            background-color: #e0e7ff;
+            background: 
+                radial-gradient(circle at 15% 50%, rgba(168, 85, 247, 0.4), transparent 50%),
+                radial-gradient(circle at 85% 30%, rgba(34, 211, 238, 0.4), transparent 50%),
+                radial-gradient(circle at 50% 80%, rgba(244, 114, 182, 0.5), transparent 50%);
+            filter: blur(40px);
+            background-size: 150% 150%;
+        }
+        .aura-shape {
+            position: fixed;
+            top: 20%;
+            left: 30%;
+            width: 80vw;
+            height: 80vh;
+            background: conic-gradient(from 180deg at 50% 50%, #C4B5FD 0deg, #F472B6 120deg, #6366F1 240deg, #C4B5FD 360deg);
+            filter: blur(90px);
+            opacity: 0.6;
+            border-radius: 50%;
+            z-index: -2;
+            animation: blob 20s infinite alternate;
+        }
+        .glass-card {
+            background: rgba(255, 255, 255, 0.5);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.6);
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.05);
+            border-radius: 24px;
+        }
+        .glass-card-dark {
+             background: rgba(255, 255, 255, 0.7);
+             border: 1px solid rgba(255, 255, 255, 0.8);
+        }
+        .modal-overlay {
+            background: rgba(15, 23, 42, 0.65);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+        }
+        .glass-alert {
+            background: rgba(30, 41, 59, 0.85);backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(239, 68, 68, 0.3);box-shadow: 0 20px 60px -10px rgba(0, 0, 0, 0.5), 0 0 40px rgba(239, 68, 68, 0.15);
+        }
+    </style>
+</head>
+<body class="p-6 md:p-12 min-h-screen font-body text-slate-700 selection:bg-pink-200 selection:text-pink-900 overflow-x-hidden relative">
+<div class="aura-background"></div>
+<div class="aura-shape"></div>
+<div class="bg-noise"></div>
+<div class="fixed inset-0 z-50 flex items-center justify-center p-4 modal-overlay">
+<div class="glass-alert rounded-3xl w-full max-w-lg overflow-hidden relative shadow-alert-glow animate-[blob_5s_infinite_ease-in-out]">
+<div class="absolute -top-20 -right-20 w-64 h-64 bg-red-500 rounded-full blur-[80px] opacity-20 pointer-events-none"></div>
+<div class="absolute -bottom-20 -left-20 w-64 h-64 bg-orange-500 rounded-full blur-[80px] opacity-10 pointer-events-none"></div>
+<div class="p-8 relative z-10 text-white">
+<div class="flex items-center gap-4 mb-8">
+<div class="w-14 h-14 rounded-2xl bg-red-500/10 border border-red-500/30 flex items-center justify-center text-red-500 shadow-[0_0_15px_rgba(239,68,68,0.3)] animate-pulse-fast">
+<span class="material-symbols-outlined text-3xl">warning</span>
+</div>
+<div>
+<h2 class="text-sm font-bold text-red-400 uppercase tracking-[0.2em] mb-1">Ação Necessária</h2>
+<h1 class="text-2xl font-sans font-bold text-white tracking-tight">Alerta de Reputação</h1>
+</div>
+<div class="ml-auto text-right">
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-red-500/20 border border-red-500/30 text-[10px] font-bold text-red-200 uppercase tracking-wider">
+<span class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></span>
+                            Crítico
+                        </div>
+</div>
+</div>
+<div class="bg-slate-800/50 rounded-2xl p-5 border border-white/10 mb-6 flex items-center justify-between">
+<div class="flex items-center gap-3">
+<div class="w-10 h-10 rounded-full bg-indigo-500 border-2 border-slate-700 flex items-center justify-center text-white font-bold text-sm">
+                            JS
+                         </div>
+<div>
+<p class="text-xs text-slate-400 font-medium">Perfil Monitorado</p>
+<p class="text-sm font-bold text-white">@julia_silva</p>
+</div>
+</div>
+<div class="flex items-center gap-3">
+<div class="text-right">
+<span class="block text-2xl font-sans font-bold text-slate-400 line-through decoration-red-500/50 decoration-2">7.4</span>
+<span class="text-[10px] text-slate-500 uppercase tracking-wider font-bold">Anterior</span>
+</div>
+<span class="material-symbols-outlined text-slate-600">arrow_right_alt</span>
+<div class="text-right">
+<span class="block text-3xl font-sans font-bold text-red-500 drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]">3.2</span>
+<span class="text-[10px] text-red-400 uppercase tracking-wider font-bold">Atual</span>
+</div>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-4 mb-8">
+<div class="bg-red-500/10 rounded-2xl p-4 border border-red-500/20">
+<div class="flex items-center gap-2 mb-2 text-red-300">
+<span class="material-symbols-outlined text-lg">forum</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Comentários Negativos</span>
+</div>
+<p class="text-2xl font-bold text-white">+1,240 <span class="text-xs font-normal text-red-400 align-top ml-1">↑ 340%</span></p>
+<p class="text-[10px] text-slate-400 mt-1">Últimas 2 horas</p>
+</div>
+<div class="bg-slate-800/50 rounded-2xl p-4 border border-white/10">
+<div class="flex items-center gap-2 mb-3 text-slate-300">
+<span class="material-symbols-outlined text-lg">topic</span>
+<span class="text-[10px] font-bold uppercase tracking-wider">Tópicos em Crise</span>
+</div>
+<div class="flex flex-wrap gap-2">
+<span class="px-2 py-1 rounded bg-slate-700/50 border border-slate-600/50 text-xs text-slate-200">#polêmica</span>
+<span class="px-2 py-1 rounded bg-slate-700/50 border border-slate-600/50 text-xs text-slate-200">#preço</span>
+<span class="px-2 py-1 rounded bg-slate-700/50 border border-slate-600/50 text-xs text-slate-200">#atendimento</span>
+</div>
+</div>
+</div>
+<div class="flex gap-3">
+<button class="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3.5 px-4 rounded-xl shadow-[0_0_20px_rgba(239,68,68,0.4)] transition-all transform hover:scale-[1.02] flex items-center justify-center gap-2">
+<span>Ver análise completa</span>
+<span class="material-symbols-outlined text-sm">arrow_forward</span>
+</button>
+<button class="flex-none w-1/4 bg-white/5 hover:bg-white/10 text-white font-semibold py-3.5 px-4 rounded-xl border border-white/10 transition-colors">
+                        OK
+                    </button>
+</div>
+</div>
+</div>
+</div>
+<div class="opacity-20 pointer-events-none filter blur-[2px] transition-all duration-500">
+<header class="mb-12 flex flex-col md:flex-row justify-between items-start md:items-center gap-8 pb-6 border-b border-white/30 relative z-10">
+<div>
+<div class="flex items-center gap-3 mb-1">
+<div class="w-11 h-11 rounded-2xl glass-card flex items-center justify-center text-indigo-600 shadow-glow">
+<svg fill="none" height="24" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" viewBox="0 0 24 24" width="24">
+<path d="M12 2a10 10 0 1 0 10 10H12V2z"></path>
+<path d="M12 2a10 10 0 0 1 10 10"></path>
+<path d="M12 12 2.1 12.05"></path>
+</svg>
+</div>
+<h1 class="text-4xl font-sans font-bold tracking-tight text-slate-800">sentimenta</h1>
+</div>
+<p class="text-slate-500 text-xs font-semibold tracking-[0.2em] pl-1 mix-blend-multiply uppercase">Aura Noise • Soft Typography</p>
+</div>
+<div class="hidden md:flex gap-3">
+<div class="glass-card px-5 py-2.5 text-[10px] font-bold text-indigo-900 uppercase tracking-[0.15em] flex items-center gap-2">
+<span class="w-1.5 h-1.5 rounded-full bg-pink-500 animate-pulse"></span>
+                    Dream Mode Active
+                </div>
+</div>
+</header>
+<main class="grid grid-cols-1 lg:grid-cols-12 gap-10 relative z-10">
+<div class="lg:col-span-4 space-y-10">
+<section>
+<h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-4 flex items-center gap-2">
+<svg class="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"></circle></svg>
+                        Aura Palette
+                    </h2>
+<div class="space-y-4">
+<div class="h-32 rounded-3xl w-full border border-white/50 shadow-lg overflow-hidden relative group">
+<div class="absolute inset-0 bg-gradient-to-br from-indigo-200 via-purple-200 to-pink-100"></div>
+<div class="absolute top-[-50%] left-[-50%] w-[200%] h-[200%] bg-gradient-to-r from-transparent via-pink-400 to-transparent blur-3xl opacity-40 rotate-45 group-hover:rotate-90 transition-all duration-[3s]"></div>
+<div class="absolute inset-0 opacity-20 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjZmZmIi8+CjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiMwMDAiIG9wYWNpdHk9IjAuMSIvPgo8L3N2Zz4=')]"></div>
+</div>
+<div class="grid grid-cols-2 gap-3">
+<div class="glass-card p-3.5 flex items-center gap-3">
+<div class="w-7 h-7 rounded-full bg-indigo-500 shadow-lg shadow-indigo-200"></div>
+<div>
+<p class="font-sans font-bold text-slate-700 text-xs">Indigo</p>
+<p class="text-[9px] text-slate-500 font-mono">#6366F1</p>
+</div>
+</div>
+<div class="glass-card p-3.5 flex items-center gap-3">
+<div class="w-7 h-7 rounded-full bg-pink-400 shadow-lg shadow-pink-200"></div>
+<div>
+<p class="font-sans font-bold text-slate-700 text-xs">Pink</p>
+<p class="text-[9px] text-slate-500 font-mono">#F472B6</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section>
+<h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-4">Soft Typography</h2>
+<div class="glass-card p-7 space-y-6 group hover:bg-white/60 transition-all duration-500">
+<div class="flex justify-between items-end border-b border-slate-200/50 pb-5">
+<div>
+<span class="text-6xl font-sans font-semibold tracking-tighter bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-pink-500">Aa</span>
+<p class="mt-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Plus Jakarta Sans</p>
+</div>
+<div class="text-right">
+<span class="text-4xl font-body font-light text-slate-600">Aa</span>
+<p class="mt-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">Satoshi</p>
+</div>
+</div>
+<div>
+<p class="text-2xl font-sans font-medium text-slate-800 leading-[1.2] tracking-tight">
+                                A fluidez no design começa pela suavidade do olhar.
+                            </p>
+<p class="text-sm font-body text-slate-600 mt-4 leading-relaxed opacity-90">
+                                A Plus Jakarta Sans oferece um tom amigável e moderno para títulos, enquanto a Satoshi traz uma leveza equilibrada para o conteúdo denso.
+                            </p>
+</div>
+</div>
+</section>
+</div>
+<div class="lg:col-span-8 space-y-10">
+<section>
+<h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-4">UI Elements</h2>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+<div class="glass-card p-7 relative overflow-hidden flex flex-col justify-between min-h-[190px]">
+<div class="absolute -right-8 -top-8 w-32 h-32 bg-pink-300 rounded-full blur-2xl opacity-40"></div>
+<div class="relative z-10 flex justify-between items-start">
+<div>
+<p class="text-[9px] font-bold text-slate-400 uppercase tracking-[0.2em]">Insights</p>
+<h3 class="text-3xl font-sans font-semibold text-slate-800 mt-1">Vibrante</h3>
+</div>
+<span class="w-10 h-10 rounded-full bg-white/50 backdrop-blur-md flex items-center justify-center text-xl shadow-sm">🔮</span>
+</div>
+<div class="relative z-10 mt-6">
+<div class="w-full bg-white/30 h-1.5 rounded-full overflow-hidden">
+<div class="w-[85%] h-full bg-gradient-to-r from-indigo-500 to-pink-500 rounded-full"></div>
+</div>
+<div class="flex justify-between mt-2.5 text-[10px] font-bold text-slate-600 uppercase tracking-wider">
+<span>Energia Aura</span>
+<span>85%</span>
+</div>
+</div>
+</div>
+<div class="space-y-4">
+<div class="glass-card p-4 flex gap-4 items-center hover:translate-x-1 transition-all cursor-pointer">
+<div class="w-10 h-10 rounded-full bg-indigo-50 flex items-center justify-center text-indigo-500 border border-white">
+<svg fill="none" height="18" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" width="18"><polyline points="22 4 12 14.01 9 11.01"></polyline></svg>
+</div>
+<div>
+<h4 class="text-sm font-bold text-slate-700">Fluxo Estável</h4>
+<p class="text-xs text-slate-500">Design aplicado com sucesso.</p>
+</div>
+</div>
+<div class="glass-card p-4 flex gap-4 items-center opacity-80">
+<div class="w-10 h-10 rounded-full bg-pink-50 flex items-center justify-center text-pink-500 border border-white">
+<svg fill="none" height="18" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" width="18"><path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09"></path></svg>
+</div>
+<div>
+<h4 class="text-sm font-bold text-slate-700">Sentimento</h4>
+<p class="text-xs text-slate-500">Sincronizado com a marca.</p>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section>
+<h2 class="text-[10px] font-bold text-slate-500 uppercase tracking-[0.2em] mb-4">Mockup: "The Flow"</h2>
+<div class="w-full h-[500px] glass-card-dark rounded-[32px] overflow-hidden relative shadow-2xl border border-white/40">
+<div class="absolute inset-0 opacity-[0.03] bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI0IiBoZWlnaHQ9IjQiPgo8cmVjdCB3aWR0aD0iNCIgaGVpZ2h0PSI0IiBmaWxsPSIjMDAwIi8+CjxyZWN0IHdpZHRoPSIxIiBoZWlnaHQ9IjEiIGZpbGw9IiNmZmYiIG9wYWNpdHk9IjAuMSIvPgo8L3N2Zz4=')] pointer-events-none z-0"></div>
+<div class="absolute left-0 top-0 bottom-0 w-20 border-r border-white/20 flex flex-col items-center py-8 gap-8 z-10 bg-white/40 backdrop-blur-md">
+<div class="w-10 h-10 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 shadow-lg shadow-indigo-200"></div>
+<nav class="flex flex-col gap-7 items-center">
+<div class="w-10 h-10 rounded-xl bg-white text-indigo-600 flex items-center justify-center shadow-sm">
+<svg fill="none" height="18" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" width="18"><rect height="7" width="7" x="3" y="3"></rect><rect height="7" width="7" x="14" y="3"></rect><rect height="7" width="7" x="14" y="14"></rect><rect height="7" width="7" x="3" y="14"></rect></svg>
+</div>
+<div class="text-slate-400 hover:text-indigo-500 transition-colors cursor-pointer">
+<svg fill="none" height="18" stroke="currentColor" stroke-width="2.5" viewBox="0 0 24 24" width="18"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+</div>
+</nav>
+</div>
+<div class="pl-20 h-full flex flex-col relative z-10">
+<div class="h-20 flex items-center justify-between px-10 border-b border-white/20">
+<h2 class="text-lg font-sans font-semibold text-slate-800">Bom dia, <span class="text-indigo-600">Julia</span>.</h2>
+<div class="flex -space-x-1.5">
+<div class="w-7 h-7 rounded-full bg-pink-200 border-2 border-white"></div>
+<div class="w-7 h-7 rounded-full bg-indigo-200 border-2 border-white"></div>
+</div>
+</div>
+<div class="p-10 h-full">
+<div class="w-full h-44 mb-8 relative">
+<div class="absolute bottom-0 left-0 right-0 top-0 flex items-end justify-between px-2 gap-3">
+<div class="w-full bg-white/40 rounded-t-xl h-[40%]"></div>
+<div class="w-full bg-white/40 rounded-t-xl h-[65%]"></div>
+<div class="w-full relative group h-[85%]">
+<div class="absolute inset-0 bg-gradient-to-t from-indigo-500 to-pink-400 rounded-t-xl shadow-lg shadow-indigo-300/30"></div>
+</div>
+<div class="w-full bg-white/40 rounded-t-xl h-[55%]"></div>
+<div class="w-full bg-white/40 rounded-t-xl h-[45%]"></div>
+</div>
+<div class="absolute inset-0 flex flex-col justify-between pointer-events-none z-[-1] opacity-20">
+<div class="w-full h-px border-t border-slate-400"></div>
+<div class="w-full h-px border-t border-slate-400"></div>
+<div class="w-full h-px border-t border-slate-400"></div>
+</div>
+</div>
+<div class="grid grid-cols-2 gap-5">
+<div class="bg-white/60 p-5 rounded-2xl border border-white/50 backdrop-blur-sm">
+<p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Engajamento</p>
+<p class="text-3xl font-sans font-bold text-slate-800 tracking-tighter">+24%</p>
+</div>
+<div class="bg-white/60 p-5 rounded-2xl border border-white/50 backdrop-blur-sm">
+<p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest mb-1.5">Leads</p>
+<p class="text-3xl font-sans font-bold text-slate-800 tracking-tighter">850</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+</div>
+</main>
+<footer class="mt-20 pt-10 border-t border-white/20 text-center relative z-10">
+<p class="text-[10px] text-slate-500 font-bold tracking-[0.3em] opacity-40 uppercase">Sentimenta • Aura Edition • 2026</p>
+</footer>
+</div>
+
+</body></html>

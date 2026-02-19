@@ -45,6 +45,9 @@ class Settings(BaseSettings):
     # Token Encryption (AES-256)
     TOKEN_ENCRYPTION_KEY: str = os.getenv("TOKEN_ENCRYPTION_KEY", "")
 
+    # Apify (Instagram comments)
+    APIFY_API_TOKEN: str = os.getenv("APIFY_API_TOKEN", "")
+
     # Gemini LLM
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
