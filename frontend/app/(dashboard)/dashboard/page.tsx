@@ -1,8 +1,17 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from "recharts";
 import { dashboardApi, connectionsApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import type { DashboardSummary, TrendResponse, HealthReport, Connection, PostSummary } from "@/lib/types";
@@ -16,6 +25,21 @@ function buildThumbnailSrc(url?: string | null) {
     return `${API_URL}/posts/thumbnail?url=${encodeURIComponent(url)}`;
   }
   return url;
+}
+
+function parsePeriod(period: string) {
+  if (/^\d{4}-\d{2}$/.test(period)) return new Date(`${period}-01T00:00:00`);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(period)) return new Date(`${period}T00:00:00`);
+  const dt = new Date(period);
+  return Number.isNaN(dt.getTime()) ? new Date("1970-01-01T00:00:00") : dt;
+}
+
+function formatMonthYear(period: string) {
+  return parsePeriod(period).toLocaleDateString("pt-BR", { month: "2-digit", year: "numeric" });
+}
+
+function formatDayLabel(period: string) {
+  return parsePeriod(period).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 function ScoreBadge({ score }: { score: number | null }) {
@@ -40,57 +64,59 @@ function SkeletonCard() {
 function SentimentBarChart({ data }: { data: TrendResponse | null }) {
   if (!data || data.data_points.length === 0) {
     return (
-      <div className="h-48 flex items-center justify-center text-slate-200">
+      <div className="h-56 flex items-center justify-center text-slate-200">
         <span className="text-sm font-light">Sem dados de tendência</span>
       </div>
     );
   }
 
-  const pts = data.data_points.slice(-14);
-  const maxTotal = Math.max(...pts.map(p => p.positive + p.neutral + p.negative), 1);
-  const CHART_H = 144;
+  const pts = data.data_points.slice(-24).map((p) => ({
+    period: p.period,
+    positive: p.positive,
+    neutral: p.neutral,
+    negative: p.negative,
+    total_comments: p.total_comments,
+  }));
 
   return (
-    <div className="h-48 w-full">
-      <div className="flex items-end gap-px w-full" style={{ height: CHART_H }}>
-        {pts.map((p, i) => {
-          const total = p.positive + p.neutral + p.negative;
-          if (total === 0) {
-            return <div key={i} className="flex-1 bg-slate-50 rounded-sm" style={{ height: 4 }} />;
-          }
-          const posH = Math.round((p.positive / maxTotal) * CHART_H);
-          const neuH = Math.round((p.neutral / maxTotal) * CHART_H);
-          const negH = Math.round((p.negative / maxTotal) * CHART_H);
-          return (
-            <div key={i} className="flex-1 flex flex-col justify-end overflow-hidden rounded-sm">
-              <div style={{ height: posH, backgroundColor: "#34D399" }} title={`Positivo: ${p.positive}`} />
-              <div style={{ height: neuH, backgroundColor: "#FCD34D" }} title={`Neutro: ${p.neutral}`} />
-              <div style={{ height: negH, backgroundColor: "#FB7185" }} title={`Negativo: ${p.negative}`} />
-            </div>
-          );
-        })}
-      </div>
-      <div className="flex items-center gap-3 mt-3">
-        {[
-          { label: "Positivo", color: "#34D399" },
-          { label: "Neutro", color: "#FCD34D" },
-          { label: "Negativo", color: "#FB7185" },
-        ].map((s) => (
-          <div key={s.label} className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: s.color }} />
-            <span className="text-[10px] text-slate-300 font-light">{s.label}</span>
-          </div>
-        ))}
-        <div className="ml-auto flex justify-end text-[10px] text-slate-300 font-light uppercase tracking-wider gap-2">
-          {pts.filter((_, i) => i % Math.ceil(pts.length / 5) === 0).map((p, i) => (
-            <span key={i}>{p.period.slice(5)}</span>
-          ))}
-        </div>
-      </div>
+    <div className="h-56 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={pts} margin={{ top: 8, right: 8, left: -14, bottom: 8 }}>
+          <CartesianGrid stroke="#F1F5F9" strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey="period"
+            minTickGap={22}
+            tick={{ fill: "#94A3B8", fontSize: 10 }}
+            tickFormatter={(period: string) => formatMonthYear(period)}
+            axisLine={{ stroke: "#E2E8F0" }}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fill: "#94A3B8", fontSize: 10 }}
+            axisLine={{ stroke: "#E2E8F0" }}
+            tickLine={false}
+            allowDecimals={false}
+          />
+          <Tooltip
+            cursor={{ fill: "rgba(139, 92, 246, 0.08)" }}
+            labelFormatter={(period: string) => formatDayLabel(period)}
+            formatter={(value: number, name: string) => {
+              const labels: Record<string, string> = {
+                positive: "Positivo",
+                neutral: "Neutro",
+                negative: "Negativo",
+              };
+              return [Math.round(value), labels[name] ?? name];
+            }}
+          />
+          <Bar dataKey="positive" stackId="sent" fill="#34D399" radius={[2, 2, 0, 0]} />
+          <Bar dataKey="neutral" stackId="sent" fill="#FCD34D" radius={[2, 2, 0, 0]} />
+          <Bar dataKey="negative" stackId="sent" fill="#FB7185" radius={[2, 2, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
-
 function ConnectionCard({ conn, onSync }: { conn: Connection; onSync: (id: string) => void }) {
   const [syncing, setSyncing] = useState(false);
 
@@ -502,3 +528,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+

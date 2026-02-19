@@ -1,4 +1,4 @@
-import uuid
+﻿import uuid
 from collections import Counter
 from datetime import datetime, timezone, timedelta
 
@@ -449,7 +449,7 @@ def _build_trends(user_id: str, connection_id_str: str | None, granularity: str,
 def get_trends(
     connection_id: uuid.UUID | None = Query(None),
     granularity: str = Query("day", pattern="^(day|week|month)$"),
-    days: int = Query(30, ge=7, le=365),
+    days: int = Query(30, ge=7, le=3650),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -466,7 +466,7 @@ def get_trends(
 def get_trends_detailed(
     connection_id: uuid.UUID | None = Query(None),
     granularity: str = Query("day", pattern="^(day|week|month)$"),
-    days: int = Query(30, ge=7, le=365),
+    days: int = Query(30, ge=7, le=3650),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -576,7 +576,7 @@ def get_health_report(
 
     if not connections:
         return {
-            "report_text": "Nenhuma rede social conectada. Conecte suas contas para gerar o relatório.",
+            "report_text": "Nenhuma rede social conectada. Conecte suas contas para gerar o relatÃ³rio.",
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "data_summary": {},
         }
@@ -649,7 +649,7 @@ def get_health_report(
 
 @router.get("/compare")
 def get_platform_compare(
-    days: int = Query(30, ge=7, le=365),
+    days: int = Query(30, ge=7, le=3650),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -791,3 +791,4 @@ def get_reputation_alerts(
         "alerts": alerts,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
+

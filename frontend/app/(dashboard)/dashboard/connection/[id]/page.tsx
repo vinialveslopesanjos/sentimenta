@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
@@ -8,6 +8,8 @@ import {
   LineChart,
   Line,
   Area,
+  BarChart,
+  Bar,
   XAxis,
   YAxis,
   CartesianGrid,
@@ -104,7 +106,10 @@ function fmtDate(s: string | null) {
 }
 
 function parsePeriod(period: string) {
-  return new Date(`${period}T00:00:00`);
+  if (/^\d{4}-\d{2}$/.test(period)) return new Date(`${period}-01T00:00:00`);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(period)) return new Date(`${period}T00:00:00`);
+  const dt = new Date(period);
+  return Number.isNaN(dt.getTime()) ? new Date("1970-01-01T00:00:00") : dt;
 }
 
 function formatMonthYear(period: string) {
@@ -215,7 +220,7 @@ function TrendChart({ data, granularity }: { data: TrendResponse | null; granula
   }
 
   return (
-    <div className="h-52 w-full">
+    <div className="h-60 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <LineChart data={pts} margin={{ top: 8, right: 8, left: -14, bottom: 8 }}>
           <defs>
@@ -361,61 +366,119 @@ function StackedBarChart({
 }) {
   if (periods.length === 0 || series.length === 0) {
     return (
-      <div className="h-32 flex items-center justify-center text-slate-200">
+      <div className="h-44 flex items-center justify-center text-slate-200">
         <p className="text-sm font-light">Sem dados para o período</p>
       </div>
     );
   }
 
-  const H = 120;
-  const N = periods.length;
-  const VW = N * 28;
-
-  const totals = periods.map((_, i) =>
-    series.reduce((s, ser) => s + (ser.values[i] || 0), 0)
-  );
-  const maxTotal = Math.max(...totals, 1);
-
-  const rects: JSX.Element[] = [];
-  periods.forEach((_, i) => {
-    const total = totals[i];
-    if (total === 0) return;
-    const barH = mode === "pct" ? H : (total / maxTotal) * H;
-    let currentY = H;
-    series.forEach((ser) => {
-      const val = ser.values[i] || 0;
-      if (val === 0) return;
-      const segH = mode === "pct" ? (val / total) * barH : (val / maxTotal) * H;
-      currentY -= segH;
-      rects.push(
-        <rect
-          key={`${i}-${ser.key}`}
-          x={i * 28 + 4}
-          y={currentY}
-          width={20}
-          height={segH}
-          fill={ser.color}
-        />
-      );
-    });
+  const rows = periods.map((period, i) => {
+    const row: Record<string, number | string> = { period };
+    const total = series.reduce((s, ser) => s + (ser.values[i] || 0), 0);
+    for (const ser of series) {
+      const raw = ser.values[i] || 0;
+      row[ser.key] = mode === "pct" ? (total > 0 ? (raw / total) * 100 : 0) : raw;
+    }
+    return row;
   });
 
   return (
-    <div className="w-full">
-      <svg width="100%" height={H} viewBox={`0 0 ${VW} ${H}`} preserveAspectRatio="none">
-        {rects}
-      </svg>
-      <div className="flex justify-between text-[9px] text-slate-300 mt-1 font-light uppercase tracking-wider px-1">
-        {periods
-          .filter((_, i) => i % Math.ceil(N / 6) === 0)
-          .map((p, i) => (
-            <span key={i}>{formatMonthYear(p)}</span>
+    <div className="h-56 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={rows} margin={{ top: 4, right: 8, left: -14, bottom: 8 }}>
+          <CartesianGrid stroke="#F1F5F9" strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey="period"
+            minTickGap={24}
+            tick={{ fill: "#94A3B8", fontSize: 10 }}
+            tickFormatter={(period: string) => formatMonthYear(period)}
+            axisLine={{ stroke: "#E2E8F0" }}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fill: "#94A3B8", fontSize: 10 }}
+            axisLine={{ stroke: "#E2E8F0" }}
+            tickLine={false}
+            domain={mode === "pct" ? [0, 100] : [0, "auto"]}
+            tickFormatter={(v: number) => (mode === "pct" ? `${Math.round(v)}%` : String(Math.round(v)))}
+          />
+          <Tooltip
+            cursor={{ fill: "rgba(139, 92, 246, 0.08)" }}
+            formatter={(value: number, name: string) => {
+              const label = series.find((s) => s.key === name)?.label ?? name;
+              if (mode === "pct") return [`${value.toFixed(1)}%`, label];
+              return [Math.round(value), label];
+            }}
+            labelFormatter={(period: string) => formatDayLabel(period)}
+          />
+          {series.map((s) => (
+            <Bar key={s.key} dataKey={s.key} stackId="stack" fill={s.color} radius={[2, 2, 0, 0]} />
           ))}
-      </div>
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
 
+function MonthlyCommentsChart({ data }: { data: TrendResponse | null }) {
+  if (!data || data.data_points.length === 0) {
+    return (
+      <div className="h-44 flex items-center justify-center text-slate-200">
+        <p className="text-sm font-light">Sem dados mensais</p>
+      </div>
+    );
+  }
+
+  const pts = data.data_points.map((p) => ({
+    period: p.period,
+    total_comments: p.total_comments ?? 0,
+  }));
+
+  return (
+    <div className="h-56 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={pts} margin={{ top: 8, right: 8, left: -14, bottom: 8 }}>
+          <defs>
+            <linearGradient id="monthlyCommentsFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#22D3EE" stopOpacity={0.28} />
+              <stop offset="100%" stopColor="#22D3EE" stopOpacity={0.03} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke="#F1F5F9" strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey="period"
+            minTickGap={24}
+            tick={{ fill: "#94A3B8", fontSize: 10 }}
+            tickFormatter={(period: string) => formatMonthYear(period)}
+            axisLine={{ stroke: "#E2E8F0" }}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fill: "#94A3B8", fontSize: 10 }}
+            axisLine={{ stroke: "#E2E8F0" }}
+            tickLine={false}
+            allowDecimals={false}
+          />
+          <Tooltip
+            cursor={{ stroke: "#67E8F9", strokeDasharray: "4 4" }}
+            labelFormatter={(period: string) => formatMonthYear(period)}
+            formatter={(value: number) => [Math.round(value), "Comentários"]}
+          />
+          <Area type="monotone" dataKey="total_comments" stroke="none" fill="url(#monthlyCommentsFill)" isAnimationActive={false} />
+          <Line
+            type="monotone"
+            dataKey="total_comments"
+            stroke="#06B6D4"
+            strokeWidth={2.2}
+            dot={false}
+            activeDot={{ r: 3, strokeWidth: 0, fill: "#06B6D4" }}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
 function PostCard({ post }: { post: PostSummary }) {
   const score = post.summary?.avg_score ?? null;
   const [imgError, setImgError] = useState(false);
@@ -530,10 +593,12 @@ export default function ConnectionPage() {
 
   const [data, setData] = useState<ConnectionDashboard | null>(null);
   const [trends, setTrends] = useState<TrendResponse | null>(null);
+  const [monthlyTrends, setMonthlyTrends] = useState<TrendResponse | null>(null);
   const [detailedTrends, setDetailedTrends] = useState<TrendsDetailedResponse | null>(null);
   const [comments, setComments] = useState<CommentListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [trendsLoading, setTrendsLoading] = useState(false);
+  const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [detailedLoading, setDetailedLoading] = useState(false);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -618,6 +683,25 @@ export default function ConnectionPage() {
     [id]
   );
 
+  const loadMonthlyTrends = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    setMonthlyLoading(true);
+    try {
+      const t = await dashboardApi.trends(token, {
+        connection_id: id,
+        granularity: "month",
+        days: 3650,
+      });
+      setMonthlyTrends(t);
+    } catch (error) {
+      console.error("Falha ao carregar volume mensal", error);
+      setMonthlyTrends({ data_points: [], granularity: "month" });
+    } finally {
+      setMonthlyLoading(false);
+    }
+  }, [id]);
+
   const loadComments = useCallback(
     async (q: { search: string; sentiment: string; offset: number }) => {
       const token = getToken();
@@ -648,6 +732,7 @@ export default function ConnectionPage() {
     setSyncParams(loadSyncSettings());
     loadMain();
     loadTrends(granularity);
+    loadMonthlyTrends();
     loadDetailedTrends(granularity);
     loadComments({ search, sentiment, offset });
   }, [loadMain]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -688,6 +773,7 @@ export default function ConnectionPage() {
       setTimeout(() => {
         loadMain();
         loadTrends(granularity);
+        loadMonthlyTrends();
         loadDetailedTrends(granularity);
         loadComments({ search, sentiment, offset });
         setSyncing(false);
@@ -927,6 +1013,21 @@ export default function ConnectionPage() {
           )}
         </div>
 
+        {/* -- Monthly comments chart -- */}
+        <div className="dream-card p-6 md:p-8">
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-lg font-sans font-medium text-slate-700">Volume de Comentários</h2>
+              <p className="text-sm text-slate-400 font-light mt-0.5">Quantidade de comentários por mês</p>
+            </div>
+          </div>
+          {monthlyLoading ? (
+            <div className="h-56 bg-slate-50 rounded-2xl animate-pulse" />
+          ) : (
+            <MonthlyCommentsChart data={monthlyTrends} />
+          )}
+        </div>
+
         {/* -- Trend chart -- */}
         <div className="dream-card p-6 md:p-8">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
@@ -954,7 +1055,7 @@ export default function ConnectionPage() {
             </div>
           </div>
           {trendsLoading ? (
-            <div className="h-52 bg-slate-50 rounded-2xl animate-pulse" />
+            <div className="h-60 bg-slate-50 rounded-2xl animate-pulse" />
           ) : (
             <TrendChart data={trends} granularity={granularity} />
           )}
@@ -986,7 +1087,7 @@ export default function ConnectionPage() {
             </div>
           </div>
           {trendsLoading || detailedLoading ? (
-            <div className="h-32 bg-slate-50 rounded-2xl animate-pulse" />
+            <div className="h-56 bg-slate-50 rounded-2xl animate-pulse" />
           ) : (
             <>
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -1292,3 +1393,6 @@ export default function ConnectionPage() {
     </div>
   );
 }
+
+
+
