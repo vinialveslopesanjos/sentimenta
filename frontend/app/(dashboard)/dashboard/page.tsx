@@ -5,7 +5,18 @@ import Link from "next/link";
 import ReactMarkdown from "react-markdown";
 import { dashboardApi, connectionsApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
-import type { DashboardSummary, TrendResponse, HealthReport, Connection } from "@/lib/types";
+import type { DashboardSummary, TrendResponse, HealthReport, Connection, PostSummary } from "@/lib/types";
+import { loadSyncSettings, toSyncPayload } from "@/lib/syncSettings";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+
+function buildThumbnailSrc(url?: string | null) {
+  if (!url) return null;
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return `${API_URL}/posts/thumbnail?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
 
 function ScoreBadge({ score }: { score: number | null }) {
   if (score === null) return <span className="text-slate-300 font-sans font-semibold text-3xl">—</span>;
@@ -137,6 +148,54 @@ function ConnectionCard({ conn, onSync }: { conn: Connection; onSync: (id: strin
   );
 }
 
+function RecentPostItem({ post }: { post: PostSummary }) {
+  const score = post.summary?.avg_score;
+  const sentLabel = score == null ? "Pendente" : score >= 7 ? "Positivo" : score >= 4 ? "Neutro" : "Negativo";
+  const sentColor = score == null
+    ? "bg-slate-50 text-slate-400 border-slate-100"
+    : score >= 7
+      ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+      : score >= 4
+        ? "bg-amber-50 text-amber-600 border-amber-100"
+        : "bg-rose-50 text-rose-500 border-rose-100";
+  const [imgError, setImgError] = useState(false);
+  const thumbnailSrc = buildThumbnailSrc(post.thumbnail_url);
+  const showThumb = thumbnailSrc && !imgError;
+
+  return (
+    <Link
+      href={`/posts/${post.id}`}
+      className="flex items-center gap-3 p-3 rounded-2xl hover:bg-slate-50 transition-colors group"
+    >
+      <div className="w-10 h-10 rounded-xl overflow-hidden bg-gradient-to-br from-brand-lilacLight to-brand-cyanLight flex items-center justify-center shrink-0">
+        {showThumb ? (
+          <img
+            src={thumbnailSrc}
+            alt=""
+            className="w-full h-full object-cover"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <span className="material-symbols-outlined text-[16px] text-brand-lilacDark">
+            {post.platform === "youtube" ? "play_circle" : "image"}
+          </span>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-slate-700 truncate">
+          {post.content_text?.slice(0, 50) || "Post sem texto"}
+        </p>
+        <p className="text-xs text-slate-400 mt-0.5 capitalize">
+          {post.platform} · {post.comment_count} comentários
+        </p>
+      </div>
+      <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-lg border shrink-0 ${sentColor}`}>
+        {sentLabel}
+      </span>
+    </Link>
+  );
+}
+
 export default function DashboardPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [trends, setTrends] = useState<TrendResponse | null>(null);
@@ -155,6 +214,9 @@ export default function DashboardPage() {
       ]);
       setSummary(s);
       setTrends(t);
+    } catch (error) {
+      console.error("Falha ao carregar dashboard", error);
+      setTrends({ data_points: [], granularity: "day" });
     } finally {
       setLoading(false);
     }
@@ -174,6 +236,8 @@ export default function DashboardPage() {
     try {
       const h = await dashboardApi.healthReport(token);
       setHealth(h);
+    } catch (error) {
+      console.error("Falha ao carregar relatório de saúde", error);
     } finally {
       setLoadingHealth(false);
     }
@@ -182,7 +246,7 @@ export default function DashboardPage() {
   const handleSync = async (connectionId: string) => {
     const token = getToken();
     if (!token) return;
-    await connectionsApi.sync(token, connectionId);
+    await connectionsApi.sync(token, connectionId, toSyncPayload(loadSyncSettings()));
     setTimeout(loadData, 3000);
   };
 
@@ -398,35 +462,9 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    {(summary?.recent_posts ?? []).slice(0, 5).map((post) => {
-                      const score = post.summary?.avg_score;
-                      const sentLabel = score == null ? "Pendente" : score >= 7 ? "Positivo" : score >= 4 ? "Neutro" : "Negativo";
-                      const sentColor = score == null ? "bg-slate-50 text-slate-400 border-slate-100" : score >= 7 ? "bg-emerald-50 text-emerald-600 border-emerald-100" : score >= 4 ? "bg-amber-50 text-amber-600 border-amber-100" : "bg-rose-50 text-rose-500 border-rose-100";
-                      return (
-                        <Link
-                          key={post.id}
-                          href={`/posts/${post.id}`}
-                          className="flex items-center gap-3 p-3 rounded-2xl hover:bg-slate-50 transition-colors group"
-                        >
-                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-lilacLight to-brand-cyanLight flex items-center justify-center shrink-0">
-                            <span className="material-symbols-outlined text-[16px] text-brand-lilacDark">
-                              {post.platform === "youtube" ? "play_circle" : "image"}
-                            </span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-700 truncate">
-                              {post.content_text?.slice(0, 50) || "Post sem texto"}
-                            </p>
-                            <p className="text-xs text-slate-400 mt-0.5 capitalize">
-                              {post.platform} · {post.comment_count} comentários
-                            </p>
-                          </div>
-                          <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-lg border shrink-0 ${sentColor}`}>
-                            {sentLabel}
-                          </span>
-                        </Link>
-                      );
-                    })}
+                    {(summary?.recent_posts ?? []).slice(0, 5).map((post) => (
+                      <RecentPostItem key={post.id} post={post} />
+                    ))}
                   </div>
                 )}
               </div>

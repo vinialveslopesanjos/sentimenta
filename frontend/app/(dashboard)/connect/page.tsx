@@ -4,6 +4,13 @@ import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import { connectionsApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import {
+  DEFAULT_SYNC_SETTINGS,
+  loadSyncSettings,
+  saveSyncSettings,
+  toSyncPayload,
+  type SyncSettings,
+} from "@/lib/syncSettings";
 
 type Connection = {
   id: string;
@@ -48,12 +55,6 @@ function PlatformIcon({ platform, size = 24 }: { platform: string; size?: number
   );
 }
 
-type SyncParams = {
-  max_posts: number;
-  max_comments_per_post: number;
-  since_date: string;
-};
-
 export default function ConnectPage() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,11 +65,7 @@ export default function ConnectPage() {
   const [success, setSuccess] = useState<Record<string, string>>({});
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [showSyncParams, setShowSyncParams] = useState(false);
-  const [syncParams, setSyncParams] = useState<SyncParams>({
-    max_posts: 10,
-    max_comments_per_post: 100,
-    since_date: "",
-  });
+  const [syncParams, setSyncParams] = useState<SyncSettings>(DEFAULT_SYNC_SETTINGS);
 
   const loadConnections = useCallback(async () => {
     const token = getToken();
@@ -81,7 +78,15 @@ export default function ConnectPage() {
     }
   }, []);
 
-  useEffect(() => { loadConnections(); }, [loadConnections]);
+  useEffect(() => {
+    loadConnections();
+    setSyncParams(loadSyncSettings());
+  }, [loadConnections]);
+
+  const updateSyncParams = useCallback((next: SyncSettings) => {
+    const saved = saveSyncSettings(next);
+    setSyncParams(saved);
+  }, []);
 
   const handleConnect = async (platformId: PlatformId) => {
     const handle = inputs[platformId]?.trim();
@@ -113,13 +118,23 @@ export default function ConnectPage() {
     const token = getToken()!;
     setSyncing(s => ({ ...s, [connId]: true }));
     try {
-      await connectionsApi.sync(token, connId, {
-        max_posts: syncParams.max_posts,
-        max_comments_per_post: syncParams.max_comments_per_post,
-        since_date: syncParams.since_date || undefined,
-      });
+      await connectionsApi.sync(token, connId, toSyncPayload(syncParams));
     } finally {
       setTimeout(() => setSyncing(s => ({ ...s, [connId]: false })), 2500);
+    }
+  };
+
+  const handleSyncAll = async () => {
+    const token = getToken();
+    if (!token || connections.length === 0) return;
+    const payload = toSyncPayload(syncParams);
+    for (const conn of connections) {
+      setSyncing(s => ({ ...s, [conn.id]: true }));
+      try {
+        await connectionsApi.sync(token, conn.id, payload);
+      } finally {
+        setTimeout(() => setSyncing(s => ({ ...s, [conn.id]: false })), 2500);
+      }
     }
   };
 
@@ -229,7 +244,8 @@ export default function ConnectPage() {
                 <span className={`material-symbols-outlined text-[18px] text-slate-400 transition-transform ${showSyncParams ? "rotate-180" : ""}`}>expand_more</span>
               </button>
               {showSyncParams && (
-                <div className="px-6 pb-5 border-t border-slate-50 pt-4 grid grid-cols-1 sm:grid-cols-3 gap-6">
+                <div className="px-6 pb-5 border-t border-slate-50 pt-4 space-y-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
                   {/* Posts a analisar */}
                   <div>
                     <p className="text-xs font-medium text-slate-500 mb-2">Posts a analisar</p>
@@ -237,7 +253,7 @@ export default function ConnectPage() {
                       {[{ label: "Últimos 10", value: 10 }, { label: "Últimos 50", value: 50 }, { label: "Todos (200)", value: 200 }].map(opt => (
                         <button
                           key={opt.value}
-                          onClick={() => setSyncParams(p => ({ ...p, max_posts: opt.value }))}
+                          onClick={() => updateSyncParams({ ...syncParams, max_posts: opt.value })}
                           className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors border ${syncParams.max_posts === opt.value ? "bg-brand-lilacDark text-white border-brand-lilacDark" : "bg-white text-slate-500 border-slate-200 hover:border-brand-lilac"}`}
                         >
                           {opt.label}
@@ -252,7 +268,7 @@ export default function ConnectPage() {
                       {[{ label: "10", value: 10 }, { label: "100", value: 100 }, { label: "Todos (1000)", value: 1000 }].map(opt => (
                         <button
                           key={opt.value}
-                          onClick={() => setSyncParams(p => ({ ...p, max_comments_per_post: opt.value }))}
+                          onClick={() => updateSyncParams({ ...syncParams, max_comments_per_post: opt.value })}
                           className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors border ${syncParams.max_comments_per_post === opt.value ? "bg-brand-cyanDark text-white border-brand-cyanDark" : "bg-white text-slate-500 border-slate-200 hover:border-brand-cyan"}`}
                         >
                           {opt.label}
@@ -266,15 +282,24 @@ export default function ConnectPage() {
                     <input
                       type="date"
                       value={syncParams.since_date}
-                      onChange={e => setSyncParams(p => ({ ...p, since_date: e.target.value }))}
+                      onChange={e => updateSyncParams({ ...syncParams, since_date: e.target.value })}
                       className="w-full text-sm px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 focus:outline-none focus:border-brand-lilac transition-colors"
                       placeholder="Sem filtro de data"
                     />
                     {syncParams.since_date && (
-                      <button onClick={() => setSyncParams(p => ({ ...p, since_date: "" }))} className="text-[10px] text-slate-400 hover:text-rose-500 mt-1">
+                      <button onClick={() => updateSyncParams({ ...syncParams, since_date: "" })} className="text-[10px] text-slate-400 hover:text-rose-500 mt-1">
                         Limpar filtro de data
                       </button>
                     )}
+                  </div>
+                </div>
+                  <div className="flex items-center justify-end">
+                    <button
+                      onClick={handleSyncAll}
+                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white text-sm font-medium shadow-sm hover:shadow-float transition-all"
+                    >
+                      Adicionar novos dados
+                    </button>
                   </div>
                 </div>
               )}

@@ -1,6 +1,8 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.responses import FileResponse
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
@@ -10,6 +12,7 @@ from app.models.analysis import CommentAnalysis, PostAnalysisSummary
 from app.models.post import Post
 from app.models.social_connection import SocialConnection
 from app.models.user import User
+from app.services.media_cache_service import cache_remote_image
 from app.schemas.post import (
     AnalysisResponse,
     CommentResponse,
@@ -18,6 +21,62 @@ from app.schemas.post import (
 )
 
 router = APIRouter(prefix="/posts", tags=["posts"])
+
+
+def _latest_analysis_subquery():
+    ranked = (
+        select(
+            CommentAnalysis.id.label("id"),
+            CommentAnalysis.comment_id.label("comment_id"),
+            CommentAnalysis.score_0_10.label("score_0_10"),
+            CommentAnalysis.polarity.label("polarity"),
+            CommentAnalysis.intensity.label("intensity"),
+            CommentAnalysis.emotions.label("emotions"),
+            CommentAnalysis.topics.label("topics"),
+            CommentAnalysis.sarcasm.label("sarcasm"),
+            CommentAnalysis.summary_pt.label("summary_pt"),
+            CommentAnalysis.confidence.label("confidence"),
+            CommentAnalysis.analyzed_at.label("analyzed_at"),
+            func.row_number()
+            .over(
+                partition_by=CommentAnalysis.comment_id,
+                order_by=(
+                    CommentAnalysis.analyzed_at.desc().nullslast(),
+                    CommentAnalysis.id.desc(),
+                ),
+            )
+            .label("rn"),
+        ).subquery()
+    )
+    return (
+        select(
+            ranked.c.id,
+            ranked.c.comment_id,
+            ranked.c.score_0_10,
+            ranked.c.polarity,
+            ranked.c.intensity,
+            ranked.c.emotions,
+            ranked.c.topics,
+            ranked.c.sarcasm,
+            ranked.c.summary_pt,
+            ranked.c.confidence,
+            ranked.c.analyzed_at,
+        )
+        .where(ranked.c.rn == 1)
+        .subquery()
+    )
+
+
+@router.get("/thumbnail")
+def get_thumbnail_proxy(url: str = Query(..., min_length=5)):
+    cached = cache_remote_image(url)
+    if not cached or not cached.exists():
+        raise HTTPException(status_code=404, detail="Thumbnail not available")
+    return FileResponse(
+        cached,
+        media_type="image/*",
+        headers={"Cache-Control": "public, max-age=604800"},
+    )
 
 
 @router.get("/", response_model=list[PostResponse])
@@ -79,11 +138,28 @@ def get_post_detail(
     )
 
     comment_ids = [c.id for c in comments]
-    analyses = (
-        db.query(CommentAnalysis)
-        .filter(CommentAnalysis.comment_id.in_(comment_ids))
-        .all()
-    ) if comment_ids else []
+    analyses = []
+    if comment_ids:
+        latest_analysis = _latest_analysis_subquery()
+        rows = (
+            db.query(latest_analysis)
+            .filter(latest_analysis.c.comment_id.in_(comment_ids))
+            .all()
+        )
+        analyses = [
+            {
+                "comment_id": row.comment_id,
+                "score_0_10": row.score_0_10,
+                "polarity": row.polarity,
+                "intensity": row.intensity,
+                "emotions": row.emotions,
+                "topics": row.topics,
+                "sarcasm": row.sarcasm,
+                "summary_pt": row.summary_pt,
+                "confidence": row.confidence,
+            }
+            for row in rows
+        ]
 
     summary_row = (
         db.query(PostAnalysisSummary)
