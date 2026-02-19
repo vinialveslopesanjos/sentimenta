@@ -70,6 +70,7 @@ export interface PostSummary {
   view_count?: number;
   published_at: string | null;
   post_url: string | null;
+  thumbnail_url?: string | null;
   summary?: {
     avg_score: number | null;
     sentiment_distribution: SentimentDistribution | null;
@@ -144,6 +145,23 @@ export interface CommentListResponse {
   total: number;
   limit: number;
   offset: number;
+}
+
+// --- Trends Detailed ---
+
+export interface TrendsDetailedPeriod {
+  period: string;
+  total_comments: number;
+  positive: number;
+  neutral: number;
+  negative: number;
+  emotions: Record<string, number>;
+  topics: Record<string, number>;
+}
+
+export interface TrendsDetailedResponse {
+  data_points: TrendsDetailedPeriod[];
+  granularity: string;
 }
 
 // --- Health Report ---

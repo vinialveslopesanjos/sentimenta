@@ -8,10 +8,48 @@ import { getToken } from "@/lib/auth";
 import type {
   ConnectionDashboard,
   TrendResponse,
+  TrendsDetailedResponse,
+  TrendsDetailedPeriod,
   CommentWithAnalysis,
   CommentListResponse,
   PostSummary,
 } from "@/lib/types";
+
+// ─── temporal chart constants ────────────────────────────────────────────────
+
+const EMOTION_PALETTE = [
+  "#8B5CF6", "#06B6D4", "#10B981", "#F59E0B",
+  "#EF4444", "#3B82F6", "#EC4899", "#64748B",
+];
+
+const SENTIMENT_CHART_COLORS: Record<string, string> = {
+  positive: "#34D399",
+  neutral: "#FCD34D",
+  negative: "#FB7185",
+};
+
+function buildSeriesFromDetailed(
+  dataPoints: TrendsDetailedPeriod[],
+  field: "emotions" | "topics"
+): { key: string; label: string; color: string; values: number[] }[] {
+  const totals: Record<string, number> = {};
+  for (const dp of dataPoints) {
+    for (const [key, val] of Object.entries(dp[field])) {
+      totals[key] = (totals[key] || 0) + val;
+    }
+  }
+  const topKeys = Object.entries(totals)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([k]) => k);
+
+  return topKeys.map((key, idx) => ({
+    key,
+    label: key,
+    color: EMOTION_PALETTE[idx % EMOTION_PALETTE.length],
+    values: dataPoints.map((dp) => dp[field][key] || 0),
+  }));
+}
 
 // ─── helpers ────────────────────────────────────────────────────────────────
 
@@ -229,8 +267,75 @@ function HBarChart({
   );
 }
 
+function StackedBarChart({
+  periods,
+  series,
+  mode,
+}: {
+  periods: string[];
+  series: { key: string; label: string; color: string; values: number[] }[];
+  mode: "absolute" | "pct";
+}) {
+  if (periods.length === 0 || series.length === 0) {
+    return (
+      <div className="h-32 flex items-center justify-center text-slate-200">
+        <p className="text-sm font-light">Sem dados para o período</p>
+      </div>
+    );
+  }
+
+  const H = 120;
+  const N = periods.length;
+  const VW = N * 28;
+
+  const totals = periods.map((_, i) =>
+    series.reduce((s, ser) => s + (ser.values[i] || 0), 0)
+  );
+  const maxTotal = Math.max(...totals, 1);
+
+  const rects: JSX.Element[] = [];
+  periods.forEach((_, i) => {
+    const total = totals[i];
+    if (total === 0) return;
+    const barH = mode === "pct" ? H : (total / maxTotal) * H;
+    let currentY = H;
+    series.forEach((ser) => {
+      const val = ser.values[i] || 0;
+      if (val === 0) return;
+      const segH = mode === "pct" ? (val / total) * barH : (val / maxTotal) * H;
+      currentY -= segH;
+      rects.push(
+        <rect
+          key={`${i}-${ser.key}`}
+          x={i * 28 + 4}
+          y={currentY}
+          width={20}
+          height={segH}
+          fill={ser.color}
+        />
+      );
+    });
+  });
+
+  return (
+    <div className="w-full">
+      <svg width="100%" height={H} viewBox={`0 0 ${VW} ${H}`} preserveAspectRatio="none">
+        {rects}
+      </svg>
+      <div className="flex justify-between text-[9px] text-slate-300 mt-1 font-light uppercase tracking-wider px-1">
+        {periods
+          .filter((_, i) => i % Math.ceil(N / 6) === 0)
+          .map((p, i) => (
+            <span key={i}>{p.slice(5)}</span>
+          ))}
+      </div>
+    </div>
+  );
+}
+
 function PostCard({ post }: { post: PostSummary }) {
   const score = post.summary?.avg_score ?? null;
+  const [imgError, setImgError] = useState(false);
   const gradients = [
     "from-violet-200 to-cyan-200",
     "from-pink-200 to-violet-200",
@@ -240,16 +345,28 @@ function PostCard({ post }: { post: PostSummary }) {
     "from-indigo-200 to-blue-200",
   ];
   const grad = gradients[Math.abs(post.id.charCodeAt(0) % gradients.length)];
+  const showThumb = post.thumbnail_url && !imgError;
 
   return (
     <Link
       href={`/posts/${post.id}`}
       className="flex items-start gap-3 p-3 rounded-2xl hover:bg-slate-50 transition-colors group"
     >
-      <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${grad} flex items-center justify-center shrink-0 shadow-sm`}>
-        <span className="material-symbols-outlined text-[18px] text-white/80">
-          {post.platform === "youtube" ? "play_circle" : "image"}
-        </span>
+      <div className="w-12 h-12 rounded-xl shrink-0 shadow-sm overflow-hidden">
+        {showThumb ? (
+          <img
+            src={post.thumbnail_url!}
+            alt=""
+            className="w-full h-full object-cover"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <div className={`w-full h-full bg-gradient-to-br ${grad} flex items-center justify-center`}>
+            <span className="material-symbols-outlined text-[18px] text-white/80">
+              {post.platform === "youtube" ? "play_circle" : "image"}
+            </span>
+          </div>
+        )}
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-slate-700 truncate group-hover:text-brand-lilacDark transition-colors">
@@ -329,12 +446,18 @@ export default function ConnectionPage() {
 
   const [data, setData] = useState<ConnectionDashboard | null>(null);
   const [trends, setTrends] = useState<TrendResponse | null>(null);
+  const [detailedTrends, setDetailedTrends] = useState<TrendsDetailedResponse | null>(null);
   const [comments, setComments] = useState<CommentListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [trendsLoading, setTrendsLoading] = useState(false);
+  const [detailedLoading, setDetailedLoading] = useState(false);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [granularity, setGranularity] = useState("day");
+
+  // temporal chart tabs
+  const [temporalTab, setTemporalTab] = useState<"sentiment" | "emotions" | "topics">("sentiment");
+  const [temporalMode, setTemporalMode] = useState<"absolute" | "pct">("absolute");
 
   // comment filters
   const [search, setSearch] = useState("");
@@ -378,6 +501,25 @@ export default function ConnectionPage() {
     [id]
   );
 
+  const loadDetailedTrends = useCallback(
+    async (gran: string) => {
+      const token = getToken();
+      if (!token) return;
+      setDetailedLoading(true);
+      try {
+        const d = await dashboardApi.trendsDetailed(token, {
+          connection_id: id,
+          granularity: gran,
+          days: 30,
+        });
+        setDetailedTrends(d);
+      } finally {
+        setDetailedLoading(false);
+      }
+    },
+    [id]
+  );
+
   const loadComments = useCallback(
     async (q: { search: string; sentiment: string; offset: number }) => {
       const token = getToken();
@@ -404,12 +546,14 @@ export default function ConnectionPage() {
   useEffect(() => {
     loadMain();
     loadTrends(granularity);
+    loadDetailedTrends(granularity);
     loadComments({ search, sentiment, offset });
   }, [loadMain]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleGranularity = (g: string) => {
     setGranularity(g);
     loadTrends(g);
+    loadDetailedTrends(g);
   };
 
   const handleSearch = (v: string) => {
@@ -460,6 +604,22 @@ export default function ConnectionPage() {
     youtube: "from-red-50 to-red-100 text-red-500",
   };
   const ptColor = platformColors[conn?.platform ?? ""] ?? "from-violet-50 to-violet-100 text-violet-500";
+
+  // Temporal chart data
+  const temporalPeriods = temporalTab === "sentiment"
+    ? (trends?.data_points ?? []).map((p) => p.period)
+    : (detailedTrends?.data_points ?? []).map((p) => p.period);
+
+  const temporalSeries = temporalTab === "sentiment"
+    ? [
+        { key: "positive", label: "Positivo", color: SENTIMENT_CHART_COLORS.positive, values: (trends?.data_points ?? []).map((p) => p.positive) },
+        { key: "neutral", label: "Neutro", color: SENTIMENT_CHART_COLORS.neutral, values: (trends?.data_points ?? []).map((p) => p.neutral) },
+        { key: "negative", label: "Negativo", color: SENTIMENT_CHART_COLORS.negative, values: (trends?.data_points ?? []).map((p) => p.negative) },
+      ]
+    : buildSeriesFromDetailed(
+        detailedTrends?.data_points ?? [],
+        temporalTab === "emotions" ? "emotions" : "topics"
+      );
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -616,6 +776,68 @@ export default function ConnectionPage() {
             <div className="h-52 bg-slate-50 rounded-2xl animate-pulse" />
           ) : (
             <TrendChart data={trends} granularity={granularity} />
+          )}
+        </div>
+
+        {/* ── Análise Temporal ── */}
+        <div className="dream-card p-6 md:p-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-lg font-sans font-medium text-slate-700">Análise Temporal</h2>
+              <p className="text-sm text-slate-400 font-light mt-0.5">Distribuição por período</p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex rounded-xl border border-slate-100 overflow-hidden text-xs">
+                {([
+                  { label: "Sentimento", value: "sentiment" as const },
+                  { label: "Emoções", value: "emotions" as const },
+                  { label: "Tópicos", value: "topics" as const },
+                ] as const).map((t) => (
+                  <button
+                    key={t.value}
+                    onClick={() => setTemporalTab(t.value)}
+                    className={`px-3 py-1.5 font-medium transition-colors ${temporalTab === t.value ? "bg-brand-lilacDark text-white" : "bg-white text-slate-400 hover:text-slate-600"}`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex rounded-xl border border-slate-100 overflow-hidden text-xs">
+                {([
+                  { label: "Absoluto", value: "absolute" as const },
+                  { label: "100%", value: "pct" as const },
+                ] as const).map((m) => (
+                  <button
+                    key={m.value}
+                    onClick={() => setTemporalMode(m.value)}
+                    className={`px-3 py-1.5 font-medium transition-colors ${temporalMode === m.value ? "bg-brand-cyanDark text-white" : "bg-white text-slate-400 hover:text-slate-600"}`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          {trendsLoading || detailedLoading ? (
+            <div className="h-32 bg-slate-50 rounded-2xl animate-pulse" />
+          ) : (
+            <>
+              <StackedBarChart
+                periods={temporalPeriods}
+                series={temporalSeries}
+                mode={temporalMode}
+              />
+              {temporalSeries.length > 0 && (
+                <div className="flex flex-wrap gap-3 mt-3">
+                  {temporalSeries.map((s) => (
+                    <div key={s.key} className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: s.color }} />
+                      <span className="text-xs text-slate-400 font-light capitalize">{s.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </div>
 

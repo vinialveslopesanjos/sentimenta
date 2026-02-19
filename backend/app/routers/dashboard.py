@@ -118,6 +118,7 @@ def _build_dashboard_summary(user_id: str, db: Session) -> dict:
                 "comment_count": p.comment_count,
                 "published_at": p.published_at.isoformat() if p.published_at else None,
                 "post_url": p.post_url,
+                "thumbnail_url": p.media_urls.get("url") if isinstance(p.media_urls, dict) else None,
             }
             for p in recent_posts
         ],
@@ -239,6 +240,7 @@ def get_connection_dashboard(
             "view_count": p.view_count,
             "published_at": p.published_at.isoformat() if p.published_at else None,
             "post_url": p.post_url,
+            "thumbnail_url": p.media_urls.get("url") if isinstance(p.media_urls, dict) else None,
             "summary": {
                 "avg_score": s.avg_score,
                 "sentiment_distribution": s.sentiment_distribution,
@@ -387,6 +389,104 @@ def get_trends(
         days,
         db,
     )
+
+
+@router.get("/trends-detailed")
+def get_trends_detailed(
+    connection_id: uuid.UUID | None = Query(None),
+    granularity: str = Query("day", pattern="^(day|week|month)$"),
+    days: int = Query(30, ge=7, le=365),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return per-period emotion and topic distributions for temporal stacked charts."""
+    user_uuid = current_user.id
+
+    conn_query = db.query(SocialConnection.id).filter(
+        SocialConnection.user_id == user_uuid
+    )
+    if connection_id:
+        conn_query = conn_query.filter(SocialConnection.id == connection_id)
+    conn_ids = [c.id for c in conn_query.all()]
+
+    if not conn_ids:
+        return {"data_points": [], "granularity": granularity}
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+
+    rows = (
+        db.query(
+            Comment.published_at.label("published_at"),
+            CommentAnalysis.score_0_10.label("score"),
+            CommentAnalysis.emotions.label("emotions"),
+            CommentAnalysis.topics.label("topics"),
+        )
+        .outerjoin(CommentAnalysis, CommentAnalysis.comment_id == Comment.id)
+        .filter(
+            Comment.connection_id.in_(conn_ids),
+            Comment.published_at.isnot(None),
+            Comment.published_at >= cutoff,
+        )
+        .all()
+    )
+
+    data_points_map: dict = {}
+
+    for row in rows:
+        period_date = row.published_at.date()
+
+        if granularity == "day":
+            key = period_date.isoformat()
+        elif granularity == "week":
+            week_start = period_date - timedelta(days=period_date.weekday())
+            key = week_start.isoformat()
+        else:  # month
+            key = f"{period_date.year}-{period_date.month:02d}-01"
+
+        if key not in data_points_map:
+            data_points_map[key] = {
+                "period": key,
+                "total_comments": 0,
+                "positive": 0,
+                "neutral": 0,
+                "negative": 0,
+                "emotions": Counter(),
+                "topics": Counter(),
+            }
+
+        dp = data_points_map[key]
+        dp["total_comments"] += 1
+
+        score = row.score
+        if score is not None:
+            if score > 6:
+                dp["positive"] += 1
+            elif score >= 4:
+                dp["neutral"] += 1
+            else:
+                dp["negative"] += 1
+
+        if row.emotions and isinstance(row.emotions, list):
+            for e in row.emotions:
+                dp["emotions"][str(e)] += 1
+
+        if row.topics and isinstance(row.topics, list):
+            for t in row.topics:
+                dp["topics"][str(t)] += 1
+
+    data_points = []
+    for dp in sorted(data_points_map.values(), key=lambda x: x["period"]):
+        data_points.append({
+            "period": dp["period"],
+            "total_comments": dp["total_comments"],
+            "positive": dp["positive"],
+            "neutral": dp["neutral"],
+            "negative": dp["negative"],
+            "emotions": dict(dp["emotions"].most_common(10)),
+            "topics": dict(dp["topics"].most_common(10)),
+        })
+
+    return {"data_points": data_points, "granularity": granularity}
 
 
 @router.get("/health-report")

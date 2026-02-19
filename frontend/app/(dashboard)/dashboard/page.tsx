@@ -26,7 +26,7 @@ function SkeletonCard() {
   );
 }
 
-function MiniTrendChart({ data }: { data: TrendResponse | null }) {
+function SentimentBarChart({ data }: { data: TrendResponse | null }) {
   if (!data || data.data_points.length === 0) {
     return (
       <div className="h-48 flex items-center justify-center text-slate-200">
@@ -36,49 +36,45 @@ function MiniTrendChart({ data }: { data: TrendResponse | null }) {
   }
 
   const pts = data.data_points.slice(-14);
-  const maxScore = Math.max(...pts.map(p => p.avg_score ?? 0), 10);
+  const maxTotal = Math.max(...pts.map(p => p.positive + p.neutral + p.negative), 1);
+  const CHART_H = 144;
 
   return (
-    <div className="h-48 w-full relative">
-      <svg className="w-full h-full" viewBox={`0 0 ${pts.length * 70} 200`} preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="gradPos" x1="0%" x2="0%" y1="0%" y2="100%">
-            <stop offset="0%" style={{ stopColor: "#C4B5FD", stopOpacity: 0.5 }} />
-            <stop offset="100%" style={{ stopColor: "#C4B5FD", stopOpacity: 0 }} />
-          </linearGradient>
-        </defs>
-        {/* Area */}
-        <path
-          d={`M ${pts.map((p, i) => `${i * 70 + 35},${200 - ((p.avg_score ?? 0) / maxScore) * 180}`).join(" L ")} L ${(pts.length - 1) * 70 + 35},200 L 35,200 Z`}
-          fill="url(#gradPos)"
-        />
-        {/* Line */}
-        <polyline
-          points={pts.map((p, i) => `${i * 70 + 35},${200 - ((p.avg_score ?? 0) / maxScore) * 180}`).join(" ")}
-          fill="none"
-          stroke="#8B5CF6"
-          strokeWidth="3"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        {/* Dots */}
-        {pts.map((p, i) => (
-          <circle
-            key={i}
-            cx={i * 70 + 35}
-            cy={200 - ((p.avg_score ?? 0) / maxScore) * 180}
-            r="4"
-            fill="white"
-            stroke="#8B5CF6"
-            strokeWidth="2"
-          />
+    <div className="h-48 w-full">
+      <div className="flex items-end gap-px w-full" style={{ height: CHART_H }}>
+        {pts.map((p, i) => {
+          const total = p.positive + p.neutral + p.negative;
+          if (total === 0) {
+            return <div key={i} className="flex-1 bg-slate-50 rounded-sm" style={{ height: 4 }} />;
+          }
+          const posH = Math.round((p.positive / maxTotal) * CHART_H);
+          const neuH = Math.round((p.neutral / maxTotal) * CHART_H);
+          const negH = Math.round((p.negative / maxTotal) * CHART_H);
+          return (
+            <div key={i} className="flex-1 flex flex-col justify-end overflow-hidden rounded-sm">
+              <div style={{ height: posH, backgroundColor: "#34D399" }} title={`Positivo: ${p.positive}`} />
+              <div style={{ height: neuH, backgroundColor: "#FCD34D" }} title={`Neutro: ${p.neutral}`} />
+              <div style={{ height: negH, backgroundColor: "#FB7185" }} title={`Negativo: ${p.negative}`} />
+            </div>
+          );
+        })}
+      </div>
+      <div className="flex items-center gap-3 mt-3">
+        {[
+          { label: "Positivo", color: "#34D399" },
+          { label: "Neutro", color: "#FCD34D" },
+          { label: "Negativo", color: "#FB7185" },
+        ].map((s) => (
+          <div key={s.label} className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: s.color }} />
+            <span className="text-[10px] text-slate-300 font-light">{s.label}</span>
+          </div>
         ))}
-      </svg>
-      {/* Labels */}
-      <div className="flex justify-between text-[10px] text-slate-300 mt-1 font-light uppercase tracking-wider px-1">
-        {pts.filter((_, i) => i % Math.ceil(pts.length / 7) === 0).map((p, i) => (
-          <span key={i}>{p.period.slice(5)}</span>
-        ))}
+        <div className="ml-auto flex justify-end text-[10px] text-slate-300 font-light uppercase tracking-wider gap-2">
+          {pts.filter((_, i) => i % Math.ceil(pts.length / 5) === 0).map((p, i) => (
+            <span key={i}>{p.period.slice(5)}</span>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -302,18 +298,14 @@ export default function DashboardPage() {
               <div className="lg:col-span-2 dream-card p-6 md:p-8">
                 <div className="flex items-center justify-between mb-6">
                   <div>
-                    <h2 className="text-lg font-sans font-medium text-slate-700">Evolução de Sentimento</h2>
-                    <p className="text-sm text-slate-400 font-light mt-0.5">Score médio — últimos 30 dias</p>
-                  </div>
-                  <div className="flex items-center gap-2 text-xs text-slate-400">
-                    <span className="w-3 h-3 rounded-full bg-brand-lilac inline-block" />
-                    Score
+                    <h2 className="text-lg font-sans font-medium text-slate-700">Distribuição Temporal</h2>
+                    <p className="text-sm text-slate-400 font-light mt-0.5">Comentários por sentimento — 30 dias</p>
                   </div>
                 </div>
                 {loading ? (
                   <div className="h-48 bg-slate-50 rounded-2xl animate-pulse" />
                 ) : (
-                  <MiniTrendChart data={trends} />
+                  <SentimentBarChart data={trends} />
                 )}
               </div>
 

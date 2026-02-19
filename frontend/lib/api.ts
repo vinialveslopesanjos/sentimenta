@@ -4,6 +4,7 @@ import type {
   DashboardSummary,
   ConnectionDashboard,
   TrendResponse,
+  TrendsDetailedResponse,
   HealthReport,
   CommentListResponse,
 } from "./types";
@@ -183,6 +184,21 @@ export const dashboardApi = {
     const qs = query.toString();
     return apiFetch<TrendResponse>(
       `/dashboard/trends${qs ? `?${qs}` : ""}`,
+      { token }
+    );
+  },
+
+  trendsDetailed: (
+    token: string,
+    params: { connection_id?: string; granularity?: string; days?: number } = {}
+  ) => {
+    const query = new URLSearchParams();
+    if (params.connection_id) query.set("connection_id", params.connection_id);
+    if (params.granularity) query.set("granularity", params.granularity);
+    if (params.days) query.set("days", String(params.days));
+    const qs = query.toString();
+    return apiFetch<TrendsDetailedResponse>(
+      `/dashboard/trends-detailed${qs ? `?${qs}` : ""}`,
       { token }
     );
   },
