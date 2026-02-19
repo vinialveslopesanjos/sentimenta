@@ -1,10 +1,29 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import {
+  ResponsiveContainer,
+  LineChart,
+  Line,
+  Area,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from "recharts";
 import { dashboardApi, connectionsApi, commentsApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import {
+  DEFAULT_SYNC_SETTINGS,
+  loadSyncSettings,
+  saveSyncSettings,
+  toSyncPayload,
+  type SyncSettings,
+} from "@/lib/syncSettings";
 import type {
   ConnectionDashboard,
   TrendResponse,
@@ -15,7 +34,17 @@ import type {
   PostSummary,
 } from "@/lib/types";
 
-// ─── temporal chart constants ────────────────────────────────────────────────
+// Temporal chart constants
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+
+function buildThumbnailSrc(url?: string | null) {
+  if (!url) return null;
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return `${API_URL}/posts/thumbnail?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
 
 const EMOTION_PALETTE = [
   "#8B5CF6", "#06B6D4", "#10B981", "#F59E0B",
@@ -51,7 +80,7 @@ function buildSeriesFromDetailed(
   }));
 }
 
-// ─── helpers ────────────────────────────────────────────────────────────────
+// Helpers
 
 function scoreColor(s: number | null) {
   if (s === null) return "text-slate-300";
@@ -72,8 +101,23 @@ function fmt(n: number) {
 }
 
 function fmtDate(s: string | null) {
-  if (!s) return "—";
+  if (!s) return "?";
   return new Date(s).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function parsePeriod(period: string) {
+  if (/^\d{4}-\d{2}$/.test(period)) return new Date(`${period}-01T00:00:00`);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(period)) return new Date(`${period}T00:00:00`);
+  const dt = new Date(period);
+  return Number.isNaN(dt.getTime()) ? new Date("1970-01-01T00:00:00") : dt;
+}
+
+function formatMonthYear(period: string) {
+  return parsePeriod(period).toLocaleDateString("pt-BR", { month: "2-digit", year: "numeric" });
+}
+
+function formatDayLabel(period: string) {
+  return parsePeriod(period).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
 function platformIcon(platform: string, size = 18) {
@@ -94,7 +138,7 @@ function platformIcon(platform: string, size = 18) {
   );
 }
 
-// ─── sub-components ──────────────────────────────────────────────────────────
+// Sub-components
 
 function SkeletonKpi() {
   return (
@@ -161,80 +205,103 @@ function TrendChart({ data, granularity }: { data: TrendResponse | null; granula
   }
 
   const pts = data.data_points;
-  const allNull = pts.every((p) => p.avg_score === null);
+  const hasScore = pts.some((p) => p.avg_score !== null);
+  const granularityLabel =
+    granularity === "day" ? "dia" : granularity === "week" ? "semana" : "mês";
 
-  if (allNull) {
+  if (!hasScore) {
     return (
       <div className="h-52 flex flex-col items-center justify-center text-slate-200 gap-2">
         <span className="material-symbols-outlined text-[36px]">hourglass_top</span>
-        <p className="text-sm font-light">Análise em andamento…</p>
+        <p className="text-sm font-light">Análise em andamento...</p>
         <p className="text-xs text-slate-300">Os scores aparecerão quando a análise concluir</p>
       </div>
     );
   }
 
-  const scores = pts.map((p) => p.avg_score ?? 0);
-  const maxScore = Math.max(...scores, 10);
-  const W = pts.length * 60;
-  const H = 200;
-  const pad = 30;
-
-  const toY = (s: number) => H - pad - ((s / maxScore) * (H - pad * 2));
-  const toX = (i: number) => i * 60 + 30;
-
-  const linePts = pts.map((p, i) => `${toX(i)},${toY(p.avg_score ?? 0)}`).join(" ");
-  const areaPath = `M ${linePts.split(" ").join(" L ")} L ${toX(pts.length - 1)},${H - pad} L ${toX(0)},${H - pad} Z`;
-
   return (
-    <div className="h-52 w-full relative">
-      <svg className="w-full h-full" viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
-        <defs>
-          <linearGradient id="trendGrad" x1="0%" x2="0%" y1="0%" y2="100%">
-            <stop offset="0%" style={{ stopColor: "#C4B5FD", stopOpacity: 0.5 }} />
-            <stop offset="100%" style={{ stopColor: "#C4B5FD", stopOpacity: 0 }} />
-          </linearGradient>
-        </defs>
-        <path d={areaPath} fill="url(#trendGrad)" />
-        <polyline
-          points={linePts}
-          fill="none"
-          stroke="#8B5CF6"
-          strokeWidth="2.5"
-          strokeLinecap="round"
-          strokeLinejoin="round"
-        />
-        {pts.map((p, i) => (
-          <g key={i}>
-            <circle cx={toX(i)} cy={toY(p.avg_score ?? 0)} r="4" fill="white" stroke="#8B5CF6" strokeWidth="2" />
-          </g>
-        ))}
-        {/* Y axis labels */}
-        {[0, 5, 10].map((v) => (
-          <text key={v} x={4} y={toY(v) + 4} fontSize="9" fill="#CBD5E1" fontFamily="Inter">
-            {v}
-          </text>
-        ))}
-      </svg>
-      <div className="flex justify-between text-[9px] text-slate-300 mt-1 font-light uppercase tracking-wider px-1">
-        {pts
-          .filter((_, i) => i % Math.ceil(pts.length / 6) === 0)
-          .map((p, i) => (
-            <span key={i}>{p.period.slice(5)}</span>
-          ))}
-      </div>
+    <div className="h-60 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={pts} margin={{ top: 8, right: 8, left: -14, bottom: 8 }}>
+          <defs>
+            <linearGradient id="scoreFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#8B5CF6" stopOpacity={0.25} />
+              <stop offset="100%" stopColor="#8B5CF6" stopOpacity={0.02} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke="#F1F5F9" strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey="period"
+            minTickGap={26}
+            tick={{ fill: "#94A3B8", fontSize: 10 }}
+            tickFormatter={(period: string) => formatMonthYear(period)}
+            axisLine={{ stroke: "#E2E8F0" }}
+            tickLine={false}
+          />
+          <YAxis
+            domain={[0, 10]}
+            tick={{ fill: "#94A3B8", fontSize: 10 }}
+            axisLine={{ stroke: "#E2E8F0" }}
+            tickLine={false}
+          />
+          <Tooltip
+            cursor={{ stroke: "#C4B5FD", strokeDasharray: "4 4" }}
+            content={({ active, payload }) => {
+              if (!active || !payload?.length) return null;
+              const point = payload[0]?.payload as {
+                period: string;
+                avg_score: number | null;
+                total_comments: number;
+                positive: number;
+                neutral: number;
+                negative: number;
+              };
+
+              return (
+                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-lg min-w-[180px]">
+                  <p className="text-xs text-slate-400 mb-1">{formatDayLabel(point.period)} · {granularityLabel}</p>
+                  <p className="text-sm font-semibold text-slate-700 mb-2">
+                    Score médio: {point.avg_score != null ? point.avg_score.toFixed(2) : "—"}
+                  </p>
+                  <div className="space-y-1 text-xs text-slate-500">
+                    <p>Total comentários: {point.total_comments ?? 0}</p>
+                    <p>Positivo: {point.positive ?? 0}</p>
+                    <p>Neutro: {point.neutral ?? 0}</p>
+                    <p>Negativo: {point.negative ?? 0}</p>
+                  </div>
+                </div>
+              );
+            }}
+          />
+          <Area
+            type="monotone"
+            dataKey="avg_score"
+            stroke="none"
+            fill="url(#scoreFill)"
+            isAnimationActive={false}
+          />
+          <Line
+            type="monotone"
+            dataKey="avg_score"
+            stroke="#8B5CF6"
+            strokeWidth={2.2}
+            dot={false}
+            activeDot={{ r: 3, strokeWidth: 0, fill: "#8B5CF6" }}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
     </div>
   );
 }
 
 function HBarChart({
   data,
-  colorFrom,
-  colorTo,
+  palette,
   limit = 10,
 }: {
   data: Record<string, number> | null;
-  colorFrom: string;
-  colorTo: string;
+  palette: "emotion" | "topic";
   limit?: number;
 }) {
   if (!data || Object.keys(data).length === 0) {
@@ -247,22 +314,43 @@ function HBarChart({
   const max = entries[0][1];
   const total = entries.reduce((s, [, v]) => s + v, 0);
 
+  const gradients =
+    palette === "emotion"
+      ? [
+          ["#A78BFA", "#8B5CF6"],
+          ["#BFA9F9", "#A78BFA"],
+          ["#D4C4FB", "#C4B5FD"],
+          ["#E9DDFD", "#DDD6FE"],
+        ]
+      : [
+          ["#22D3EE", "#06B6D4"],
+          ["#67E8F9", "#22D3EE"],
+          ["#A5F3FC", "#67E8F9"],
+          ["#CFFAFE", "#A5F3FC"],
+        ];
+
   return (
     <div className="space-y-2.5">
-      {entries.map(([key, val]) => (
-        <div key={key}>
-          <div className="flex items-center justify-between mb-1">
-            <span className="text-xs text-slate-500 font-light capitalize truncate max-w-[55%]">{key}</span>
-            <span className="text-xs text-slate-400 font-light">{Math.round((val / total) * 100)}%</span>
+      {entries.map(([key, val], idx) => {
+        const [from, to] = gradients[Math.min(idx, gradients.length - 1)];
+        return (
+          <div key={key}>
+            <div className="flex items-center justify-between mb-1">
+              <span className="text-xs text-slate-500 font-light capitalize truncate max-w-[55%]">{key}</span>
+              <span className="text-xs text-slate-400 font-light">{Math.round((val / total) * 100)}%</span>
+            </div>
+            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+              <div
+                className="h-full rounded-full transition-all duration-700"
+                style={{
+                  width: `${(val / max) * 100}%`,
+                  backgroundImage: `linear-gradient(90deg, ${from}, ${to})`,
+                }}
+              />
+            </div>
           </div>
-          <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
-            <div
-              className={`h-full rounded-full bg-gradient-to-r ${colorFrom} ${colorTo} transition-all duration-700`}
-              style={{ width: `${(val / max) * 100}%` }}
-            />
-          </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -278,64 +366,123 @@ function StackedBarChart({
 }) {
   if (periods.length === 0 || series.length === 0) {
     return (
-      <div className="h-32 flex items-center justify-center text-slate-200">
+      <div className="h-44 flex items-center justify-center text-slate-200">
         <p className="text-sm font-light">Sem dados para o período</p>
       </div>
     );
   }
 
-  const H = 120;
-  const N = periods.length;
-  const VW = N * 28;
-
-  const totals = periods.map((_, i) =>
-    series.reduce((s, ser) => s + (ser.values[i] || 0), 0)
-  );
-  const maxTotal = Math.max(...totals, 1);
-
-  const rects: JSX.Element[] = [];
-  periods.forEach((_, i) => {
-    const total = totals[i];
-    if (total === 0) return;
-    const barH = mode === "pct" ? H : (total / maxTotal) * H;
-    let currentY = H;
-    series.forEach((ser) => {
-      const val = ser.values[i] || 0;
-      if (val === 0) return;
-      const segH = mode === "pct" ? (val / total) * barH : (val / maxTotal) * H;
-      currentY -= segH;
-      rects.push(
-        <rect
-          key={`${i}-${ser.key}`}
-          x={i * 28 + 4}
-          y={currentY}
-          width={20}
-          height={segH}
-          fill={ser.color}
-        />
-      );
-    });
+  const rows = periods.map((period, i) => {
+    const row: Record<string, number | string> = { period };
+    const total = series.reduce((s, ser) => s + (ser.values[i] || 0), 0);
+    for (const ser of series) {
+      const raw = ser.values[i] || 0;
+      row[ser.key] = mode === "pct" ? (total > 0 ? (raw / total) * 100 : 0) : raw;
+    }
+    return row;
   });
 
   return (
-    <div className="w-full">
-      <svg width="100%" height={H} viewBox={`0 0 ${VW} ${H}`} preserveAspectRatio="none">
-        {rects}
-      </svg>
-      <div className="flex justify-between text-[9px] text-slate-300 mt-1 font-light uppercase tracking-wider px-1">
-        {periods
-          .filter((_, i) => i % Math.ceil(N / 6) === 0)
-          .map((p, i) => (
-            <span key={i}>{p.slice(5)}</span>
+    <div className="h-56 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={rows} margin={{ top: 4, right: 8, left: -14, bottom: 8 }}>
+          <CartesianGrid stroke="#F1F5F9" strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey="period"
+            minTickGap={24}
+            tick={{ fill: "#94A3B8", fontSize: 10 }}
+            tickFormatter={(period: string) => formatMonthYear(period)}
+            axisLine={{ stroke: "#E2E8F0" }}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fill: "#94A3B8", fontSize: 10 }}
+            axisLine={{ stroke: "#E2E8F0" }}
+            tickLine={false}
+            domain={mode === "pct" ? [0, 100] : [0, "auto"]}
+            tickFormatter={(v: number) => (mode === "pct" ? `${Math.round(v)}%` : String(Math.round(v)))}
+          />
+          <Tooltip
+            cursor={{ fill: "rgba(139, 92, 246, 0.08)" }}
+            formatter={(value: number, name: string) => {
+              const label = series.find((s) => s.key === name)?.label ?? name;
+              if (mode === "pct") return [`${value.toFixed(1)}%`, label];
+              return [Math.round(value), label];
+            }}
+            labelFormatter={(period: string) => formatDayLabel(period)}
+          />
+          {series.map((s) => (
+            <Bar key={s.key} dataKey={s.key} stackId="stack" fill={s.color} radius={[2, 2, 0, 0]} />
           ))}
-      </div>
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
 
+function MonthlyCommentsChart({ data }: { data: TrendResponse | null }) {
+  if (!data || data.data_points.length === 0) {
+    return (
+      <div className="h-44 flex items-center justify-center text-slate-200">
+        <p className="text-sm font-light">Sem dados mensais</p>
+      </div>
+    );
+  }
+
+  const pts = data.data_points.map((p) => ({
+    period: p.period,
+    total_comments: p.total_comments ?? 0,
+  }));
+
+  return (
+    <div className="h-56 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <LineChart data={pts} margin={{ top: 8, right: 8, left: -14, bottom: 8 }}>
+          <defs>
+            <linearGradient id="monthlyCommentsFill" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#22D3EE" stopOpacity={0.28} />
+              <stop offset="100%" stopColor="#22D3EE" stopOpacity={0.03} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke="#F1F5F9" strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey="period"
+            minTickGap={24}
+            tick={{ fill: "#94A3B8", fontSize: 10 }}
+            tickFormatter={(period: string) => formatMonthYear(period)}
+            axisLine={{ stroke: "#E2E8F0" }}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fill: "#94A3B8", fontSize: 10 }}
+            axisLine={{ stroke: "#E2E8F0" }}
+            tickLine={false}
+            allowDecimals={false}
+          />
+          <Tooltip
+            cursor={{ stroke: "#67E8F9", strokeDasharray: "4 4" }}
+            labelFormatter={(period: string) => formatMonthYear(period)}
+            formatter={(value: number) => [Math.round(value), "Comentários"]}
+          />
+          <Area type="monotone" dataKey="total_comments" stroke="none" fill="url(#monthlyCommentsFill)" isAnimationActive={false} />
+          <Line
+            type="monotone"
+            dataKey="total_comments"
+            stroke="#06B6D4"
+            strokeWidth={2.2}
+            dot={false}
+            activeDot={{ r: 3, strokeWidth: 0, fill: "#06B6D4" }}
+            isAnimationActive={false}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
 function PostCard({ post }: { post: PostSummary }) {
   const score = post.summary?.avg_score ?? null;
   const [imgError, setImgError] = useState(false);
+  const thumbnailSrc = buildThumbnailSrc(post.thumbnail_url);
   const gradients = [
     "from-violet-200 to-cyan-200",
     "from-pink-200 to-violet-200",
@@ -345,7 +492,7 @@ function PostCard({ post }: { post: PostSummary }) {
     "from-indigo-200 to-blue-200",
   ];
   const grad = gradients[Math.abs(post.id.charCodeAt(0) % gradients.length)];
-  const showThumb = post.thumbnail_url && !imgError;
+  const showThumb = thumbnailSrc && !imgError;
 
   return (
     <Link
@@ -355,7 +502,7 @@ function PostCard({ post }: { post: PostSummary }) {
       <div className="w-12 h-12 rounded-xl shrink-0 shadow-sm overflow-hidden">
         {showThumb ? (
           <img
-            src={post.thumbnail_url!}
+            src={thumbnailSrc}
             alt=""
             className="w-full h-full object-cover"
             onError={() => setImgError(true)}
@@ -438,7 +585,7 @@ function CommentRow({ comment }: { comment: CommentWithAnalysis }) {
   );
 }
 
-// ─── page ────────────────────────────────────────────────────────────────────
+// Page
 
 export default function ConnectionPage() {
   const params = useParams();
@@ -446,18 +593,21 @@ export default function ConnectionPage() {
 
   const [data, setData] = useState<ConnectionDashboard | null>(null);
   const [trends, setTrends] = useState<TrendResponse | null>(null);
+  const [monthlyTrends, setMonthlyTrends] = useState<TrendResponse | null>(null);
   const [detailedTrends, setDetailedTrends] = useState<TrendsDetailedResponse | null>(null);
   const [comments, setComments] = useState<CommentListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [trendsLoading, setTrendsLoading] = useState(false);
+  const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [detailedLoading, setDetailedLoading] = useState(false);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [granularity, setGranularity] = useState("day");
+  const [showSyncSettings, setShowSyncSettings] = useState(false);
+  const [syncParams, setSyncParams] = useState<SyncSettings>(DEFAULT_SYNC_SETTINGS);
 
   // temporal chart tabs
   const [temporalTab, setTemporalTab] = useState<"sentiment" | "emotions" | "topics">("sentiment");
-  const [temporalMode, setTemporalMode] = useState<"absolute" | "pct">("absolute");
 
   // comment filters
   const [search, setSearch] = useState("");
@@ -471,12 +621,19 @@ export default function ConnectionPage() {
 
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const updateSyncParams = useCallback((next: SyncSettings) => {
+    const saved = saveSyncSettings(next);
+    setSyncParams(saved);
+  }, []);
+
   const loadMain = useCallback(async () => {
     const token = getToken();
     if (!token) return;
     try {
       const d = await dashboardApi.connectionDashboard(token, id);
       setData(d);
+    } catch (error) {
+      console.error("Falha ao carregar dashboard da conexão", error);
     } finally {
       setLoading(false);
     }
@@ -494,6 +651,9 @@ export default function ConnectionPage() {
           days: 30,
         });
         setTrends(t);
+      } catch (error) {
+        console.error("Falha ao carregar tendências", error);
+        setTrends({ data_points: [], granularity: gran });
       } finally {
         setTrendsLoading(false);
       }
@@ -513,12 +673,34 @@ export default function ConnectionPage() {
           days: 30,
         });
         setDetailedTrends(d);
+      } catch (error) {
+        console.error("Falha ao carregar tendências detalhadas", error);
+        setDetailedTrends({ data_points: [], granularity: gran });
       } finally {
         setDetailedLoading(false);
       }
     },
     [id]
   );
+
+  const loadMonthlyTrends = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    setMonthlyLoading(true);
+    try {
+      const t = await dashboardApi.trends(token, {
+        connection_id: id,
+        granularity: "month",
+        days: 3650,
+      });
+      setMonthlyTrends(t);
+    } catch (error) {
+      console.error("Falha ao carregar volume mensal", error);
+      setMonthlyTrends({ data_points: [], granularity: "month" });
+    } finally {
+      setMonthlyLoading(false);
+    }
+  }, [id]);
 
   const loadComments = useCallback(
     async (q: { search: string; sentiment: string; offset: number }) => {
@@ -536,6 +718,9 @@ export default function ConnectionPage() {
           order: "desc",
         });
         setComments(c);
+      } catch (error) {
+        console.error("Falha ao carregar comentários", error);
+        setComments({ items: [], total: 0, limit: LIMIT, offset: q.offset });
       } finally {
         setCommentsLoading(false);
       }
@@ -544,8 +729,10 @@ export default function ConnectionPage() {
   );
 
   useEffect(() => {
+    setSyncParams(loadSyncSettings());
     loadMain();
     loadTrends(granularity);
+    loadMonthlyTrends();
     loadDetailedTrends(granularity);
     loadComments({ search, sentiment, offset });
   }, [loadMain]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -582,11 +769,15 @@ export default function ConnectionPage() {
     if (!token) return;
     setSyncing(true);
     try {
-      await connectionsApi.sync(token, id);
+      await connectionsApi.sync(token, id, toSyncPayload(syncParams));
       setTimeout(() => {
         loadMain();
+        loadTrends(granularity);
+        loadMonthlyTrends();
+        loadDetailedTrends(granularity);
+        loadComments({ search, sentiment, offset });
         setSyncing(false);
-      }, 2000);
+      }, 4000);
     } catch {
       setSyncing(false);
     }
@@ -598,6 +789,7 @@ export default function ConnectionPage() {
   const posRate = dist ? Math.round((dist.positive / distTotal) * 100) : 0;
   const neuRate = dist ? Math.round((dist.neutral / distTotal) * 100) : 0;
   const negRate = dist ? Math.round((dist.negative / distTotal) * 100) : 0;
+  const negativeRate = dist ? Math.round((dist.negative / distTotal) * 100) : 0;
 
   const platformColors: Record<string, string> = {
     instagram: "from-orange-100 to-pink-100 text-pink-500",
@@ -623,7 +815,7 @@ export default function ConnectionPage() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      {/* ── Header ── */}
+      {/* -- Header -- */}
       <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-100 px-6 md:px-8 py-4 flex items-center gap-4">
         <Link
           href="/dashboard"
@@ -669,26 +861,101 @@ export default function ConnectionPage() {
           </div>
         ) : null}
 
-        <button
-          onClick={handleSync}
-          disabled={syncing}
-          className="ml-auto shrink-0 flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white text-sm font-medium shadow-sm hover:shadow-float transition-all disabled:opacity-60"
-        >
-          {syncing ? (
-            <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-            </svg>
-          ) : (
-            <span className="material-symbols-outlined text-[18px]">sync</span>
-          )}
-          {syncing ? "Analisando…" : "Analisar"}
-        </button>
+        <div className="ml-auto shrink-0 flex items-center gap-2">
+          <button
+            onClick={() => setShowSyncSettings((v) => !v)}
+            className="h-10 w-10 rounded-full border border-slate-100 text-slate-400 hover:text-brand-lilacDark hover:border-brand-lilac transition-colors flex items-center justify-center"
+            title="Ajustar coleta"
+          >
+            <span className="material-symbols-outlined text-[18px]">tune</span>
+          </button>
+          <button
+            onClick={handleSync}
+            disabled={syncing}
+            className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white text-sm font-medium shadow-sm hover:shadow-float transition-all disabled:opacity-60"
+          >
+            {syncing ? (
+              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+              </svg>
+            ) : (
+              <span className="material-symbols-outlined text-[18px]">sync</span>
+            )}
+            {syncing ? "Analisando..." : "Analisar"}
+          </button>
+        </div>
       </header>
 
       <main className="p-6 md:p-8 space-y-8 max-w-screen-xl mx-auto animate-fade-in">
+        {showSyncSettings && (
+          <div className="dream-card p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <p className="text-xs font-medium text-slate-500 mb-2">Posts por sync</p>
+              <div className="flex gap-1.5 flex-wrap">
+                {[10, 50, 200].map((value) => (
+                  <button
+                    key={value}
+                    onClick={() => updateSyncParams({ ...syncParams, max_posts: value })}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors border ${
+                      syncParams.max_posts === value
+                        ? "bg-brand-lilacDark text-white border-brand-lilacDark"
+                        : "bg-white text-slate-500 border-slate-200 hover:border-brand-lilac"
+                    }`}
+                  >
+                    {value === 200 ? "Todos (200)" : value}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-slate-500 mb-2">Comentários por post</p>
+              <div className="flex gap-1.5 flex-wrap">
+                {[10, 100, 1000].map((value) => (
+                  <button
+                    key={value}
+                    onClick={() => updateSyncParams({ ...syncParams, max_comments_per_post: value })}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors border ${
+                      syncParams.max_comments_per_post === value
+                        ? "bg-brand-cyanDark text-white border-brand-cyanDark"
+                        : "bg-white text-slate-500 border-slate-200 hover:border-brand-cyan"
+                    }`}
+                  >
+                    {value === 1000 ? "Todos (1000)" : value}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div>
+              <p className="text-xs font-medium text-slate-500 mb-2">A partir de</p>
+              <input
+                type="date"
+                value={syncParams.since_date}
+                onChange={(e) => updateSyncParams({ ...syncParams, since_date: e.target.value })}
+                className="w-full text-sm px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 focus:outline-none focus:border-brand-lilac transition-colors"
+              />
+              {syncParams.since_date && (
+                <button
+                  onClick={() => updateSyncParams({ ...syncParams, since_date: "" })}
+                  className="text-[10px] text-slate-400 hover:text-rose-500 mt-1"
+                >
+                  Limpar filtro de data
+                </button>
+              )}
+            </div>
+            <div className="md:col-span-3 flex justify-end">
+              <button
+                onClick={handleSync}
+                disabled={syncing}
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white text-sm font-medium shadow-sm hover:shadow-float transition-all disabled:opacity-60"
+              >
+                {syncing ? "Adicionando..." : "Adicionar novos dados"}
+              </button>
+            </div>
+          </div>
+        )}
 
-        {/* ── KPI cards ── */}
+        {/* -- KPI cards -- */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
           {loading ? (
             Array(6).fill(0).map((_, i) => <SkeletonKpi key={i} />)
@@ -701,16 +968,16 @@ export default function ConnectionPage() {
                 sub="Score médio"
                 iconBg="bg-violet-50 text-brand-lilacDark"
                 valueClass={scoreColor(data?.avg_score ?? null)}
-                tooltip="Média aritmética dos scores (0–10) de todos os comentários analisados. Acima de 7 = positivo, abaixo de 4 = negativo."
+                tooltip="Média aritmética dos scores (0-10) de todos os comentários analisados. Acima de 7 = positivo, abaixo de 4 = negativo."
               />
               <KpiCard
                 icon="bar_chart_4_bars"
-                label="Score ponderado"
-                value={data?.weighted_avg_score != null ? `${data.weighted_avg_score.toFixed(1)}/10` : "—"}
-                sub="Score ponderado"
+                label="Taxa negativa"
+                value={`${negativeRate}%`}
+                sub="Comentários negativos"
                 iconBg="bg-cyan-50 text-brand-cyanDark"
-                valueClass={scoreColor(data?.weighted_avg_score ?? null)}
-                tooltip="Média ponderada pela relevância de cada comentário (curtidas + engajamento). Reflete a opinião mais influente."
+                valueClass={negativeRate >= 35 ? "text-rose-500" : negativeRate >= 20 ? "text-amber-500" : "text-emerald-600"}
+                tooltip="Percentual de comentários classificados como negativos no período. Ajuda a monitorar risco reputacional com mais clareza."
               />
               <KpiCard
                 icon="ssid_chart"
@@ -719,7 +986,7 @@ export default function ConnectionPage() {
                 sub="Polaridade média"
                 iconBg="bg-indigo-50 text-indigo-500"
                 valueClass="text-slate-700"
-                tooltip="Escala de −1 (muito negativo) a +1 (muito positivo) baseada na análise semântica. Complementa o score numérico."
+                tooltip="Escala de -1 (muito negativo) a +1 (muito positivo) baseada na análise semântica. Complementa o score numérico."
               />
               <KpiCard
                 icon="forum"
@@ -746,7 +1013,22 @@ export default function ConnectionPage() {
           )}
         </div>
 
-        {/* ── Trend chart ── */}
+        {/* -- Monthly comments chart -- */}
+        <div className="dream-card p-6 md:p-8">
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-lg font-sans font-medium text-slate-700">Volume de Comentários</h2>
+              <p className="text-sm text-slate-400 font-light mt-0.5">Quantidade de comentários por mês</p>
+            </div>
+          </div>
+          {monthlyLoading ? (
+            <div className="h-56 bg-slate-50 rounded-2xl animate-pulse" />
+          ) : (
+            <MonthlyCommentsChart data={monthlyTrends} />
+          )}
+        </div>
+
+        {/* -- Trend chart -- */}
         <div className="dream-card p-6 md:p-8">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
@@ -773,13 +1055,13 @@ export default function ConnectionPage() {
             </div>
           </div>
           {trendsLoading ? (
-            <div className="h-52 bg-slate-50 rounded-2xl animate-pulse" />
+            <div className="h-60 bg-slate-50 rounded-2xl animate-pulse" />
           ) : (
             <TrendChart data={trends} granularity={granularity} />
           )}
         </div>
 
-        {/* ── Análise Temporal ── */}
+        {/* -- Análise Temporal -- */}
         <div className="dream-card p-6 md:p-8">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
@@ -802,31 +1084,30 @@ export default function ConnectionPage() {
                   </button>
                 ))}
               </div>
-              <div className="flex rounded-xl border border-slate-100 overflow-hidden text-xs">
-                {([
-                  { label: "Absoluto", value: "absolute" as const },
-                  { label: "100%", value: "pct" as const },
-                ] as const).map((m) => (
-                  <button
-                    key={m.value}
-                    onClick={() => setTemporalMode(m.value)}
-                    className={`px-3 py-1.5 font-medium transition-colors ${temporalMode === m.value ? "bg-brand-cyanDark text-white" : "bg-white text-slate-400 hover:text-slate-600"}`}
-                  >
-                    {m.label}
-                  </button>
-                ))}
-              </div>
             </div>
           </div>
           {trendsLoading || detailedLoading ? (
-            <div className="h-32 bg-slate-50 rounded-2xl animate-pulse" />
+            <div className="h-56 bg-slate-50 rounded-2xl animate-pulse" />
           ) : (
             <>
-              <StackedBarChart
-                periods={temporalPeriods}
-                series={temporalSeries}
-                mode={temporalMode}
-              />
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="rounded-2xl border border-slate-100 p-3">
+                  <p className="text-xs font-medium text-slate-500 mb-2">Intensidade absoluta</p>
+                  <StackedBarChart
+                    periods={temporalPeriods}
+                    series={temporalSeries}
+                    mode="absolute"
+                  />
+                </div>
+                <div className="rounded-2xl border border-slate-100 p-3">
+                  <p className="text-xs font-medium text-slate-500 mb-2">Distribuição 100%</p>
+                  <StackedBarChart
+                    periods={temporalPeriods}
+                    series={temporalSeries}
+                    mode="pct"
+                  />
+                </div>
+              </div>
               {temporalSeries.length > 0 && (
                 <div className="flex flex-wrap gap-3 mt-3">
                   {temporalSeries.map((s) => (
@@ -841,7 +1122,7 @@ export default function ConnectionPage() {
           )}
         </div>
 
-        {/* ── Emotions + Topics ── */}
+        {/* -- Emotions + Topics -- */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="dream-card p-6">
             <div className="flex items-center gap-2 mb-5">
@@ -858,7 +1139,7 @@ export default function ConnectionPage() {
                 ))}
               </div>
             ) : (
-              <HBarChart data={data?.emotions_distribution ?? null} colorFrom="from-violet-300" colorTo="to-brand-lilac" limit={7} />
+              <HBarChart data={data?.emotions_distribution ?? null} palette="emotion" limit={7} />
             )}
           </div>
           <div className="dream-card p-6">
@@ -876,12 +1157,12 @@ export default function ConnectionPage() {
                 ))}
               </div>
             ) : (
-              <HBarChart data={data?.topics_frequency ?? null} colorFrom="from-cyan-300" colorTo="to-brand-cyan" limit={10} />
+              <HBarChart data={data?.topics_frequency ?? null} palette="topic" limit={10} />
             )}
           </div>
         </div>
 
-        {/* ── Sentiment distribution + Engagement ── */}
+        {/* -- Sentiment distribution + Engagement -- */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           <div className="dream-card p-6">
             <h2 className="text-base font-sans font-medium text-slate-700 mb-5">Distribuição de Sentimento</h2>
@@ -944,7 +1225,7 @@ export default function ConnectionPage() {
           </div>
         </div>
 
-        {/* ── Posts list ── */}
+        {/* -- Posts list -- */}
         <div className="dream-card p-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-5">
             <div>
@@ -1018,7 +1299,7 @@ export default function ConnectionPage() {
           )}
         </div>
 
-        {/* ── Comments table ── */}
+        {/* -- Comments table -- */}
         <div className="dream-card overflow-hidden">
           <div className="p-6 border-b border-slate-50 flex flex-col sm:flex-row sm:items-center gap-4">
             <h2 className="text-base font-sans font-medium text-slate-700 shrink-0">Comentários</h2>
@@ -1032,7 +1313,7 @@ export default function ConnectionPage() {
                   type="text"
                   value={search}
                   onChange={(e) => handleSearch(e.target.value)}
-                  placeholder="Buscar comentários…"
+                  placeholder="Buscar comentários..."
                   className="w-full pl-9 pr-3 py-2 text-sm rounded-xl border border-slate-100 bg-slate-50 text-slate-600 placeholder-slate-300 focus:outline-none focus:border-brand-lilac focus:bg-white transition-colors"
                 />
               </div>
@@ -1112,3 +1393,6 @@ export default function ConnectionPage() {
     </div>
   );
 }
+
+
+

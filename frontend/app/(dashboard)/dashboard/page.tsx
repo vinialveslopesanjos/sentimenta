@@ -1,11 +1,46 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useState, useCallback } from "react";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from "recharts";
 import { dashboardApi, connectionsApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
-import type { DashboardSummary, TrendResponse, HealthReport, Connection } from "@/lib/types";
+import type { DashboardSummary, TrendResponse, HealthReport, Connection, PostSummary } from "@/lib/types";
+import { loadSyncSettings, toSyncPayload } from "@/lib/syncSettings";
+
+const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+
+function buildThumbnailSrc(url?: string | null) {
+  if (!url) return null;
+  if (url.startsWith("http://") || url.startsWith("https://")) {
+    return `${API_URL}/posts/thumbnail?url=${encodeURIComponent(url)}`;
+  }
+  return url;
+}
+
+function parsePeriod(period: string) {
+  if (/^\d{4}-\d{2}$/.test(period)) return new Date(`${period}-01T00:00:00`);
+  if (/^\d{4}-\d{2}-\d{2}$/.test(period)) return new Date(`${period}T00:00:00`);
+  const dt = new Date(period);
+  return Number.isNaN(dt.getTime()) ? new Date("1970-01-01T00:00:00") : dt;
+}
+
+function formatMonthYear(period: string) {
+  return parsePeriod(period).toLocaleDateString("pt-BR", { month: "2-digit", year: "numeric" });
+}
+
+function formatDayLabel(period: string) {
+  return parsePeriod(period).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
+}
 
 function ScoreBadge({ score }: { score: number | null }) {
   if (score === null) return <span className="text-slate-300 font-sans font-semibold text-3xl">—</span>;
@@ -29,57 +64,59 @@ function SkeletonCard() {
 function SentimentBarChart({ data }: { data: TrendResponse | null }) {
   if (!data || data.data_points.length === 0) {
     return (
-      <div className="h-48 flex items-center justify-center text-slate-200">
+      <div className="h-56 flex items-center justify-center text-slate-200">
         <span className="text-sm font-light">Sem dados de tendência</span>
       </div>
     );
   }
 
-  const pts = data.data_points.slice(-14);
-  const maxTotal = Math.max(...pts.map(p => p.positive + p.neutral + p.negative), 1);
-  const CHART_H = 144;
+  const pts = data.data_points.slice(-24).map((p) => ({
+    period: p.period,
+    positive: p.positive,
+    neutral: p.neutral,
+    negative: p.negative,
+    total_comments: p.total_comments,
+  }));
 
   return (
-    <div className="h-48 w-full">
-      <div className="flex items-end gap-px w-full" style={{ height: CHART_H }}>
-        {pts.map((p, i) => {
-          const total = p.positive + p.neutral + p.negative;
-          if (total === 0) {
-            return <div key={i} className="flex-1 bg-slate-50 rounded-sm" style={{ height: 4 }} />;
-          }
-          const posH = Math.round((p.positive / maxTotal) * CHART_H);
-          const neuH = Math.round((p.neutral / maxTotal) * CHART_H);
-          const negH = Math.round((p.negative / maxTotal) * CHART_H);
-          return (
-            <div key={i} className="flex-1 flex flex-col justify-end overflow-hidden rounded-sm">
-              <div style={{ height: posH, backgroundColor: "#34D399" }} title={`Positivo: ${p.positive}`} />
-              <div style={{ height: neuH, backgroundColor: "#FCD34D" }} title={`Neutro: ${p.neutral}`} />
-              <div style={{ height: negH, backgroundColor: "#FB7185" }} title={`Negativo: ${p.negative}`} />
-            </div>
-          );
-        })}
-      </div>
-      <div className="flex items-center gap-3 mt-3">
-        {[
-          { label: "Positivo", color: "#34D399" },
-          { label: "Neutro", color: "#FCD34D" },
-          { label: "Negativo", color: "#FB7185" },
-        ].map((s) => (
-          <div key={s.label} className="flex items-center gap-1.5">
-            <div className="w-2 h-2 rounded-sm" style={{ backgroundColor: s.color }} />
-            <span className="text-[10px] text-slate-300 font-light">{s.label}</span>
-          </div>
-        ))}
-        <div className="ml-auto flex justify-end text-[10px] text-slate-300 font-light uppercase tracking-wider gap-2">
-          {pts.filter((_, i) => i % Math.ceil(pts.length / 5) === 0).map((p, i) => (
-            <span key={i}>{p.period.slice(5)}</span>
-          ))}
-        </div>
-      </div>
+    <div className="h-56 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={pts} margin={{ top: 8, right: 8, left: -14, bottom: 8 }}>
+          <CartesianGrid stroke="#F1F5F9" strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey="period"
+            minTickGap={22}
+            tick={{ fill: "#94A3B8", fontSize: 10 }}
+            tickFormatter={(period: string) => formatMonthYear(period)}
+            axisLine={{ stroke: "#E2E8F0" }}
+            tickLine={false}
+          />
+          <YAxis
+            tick={{ fill: "#94A3B8", fontSize: 10 }}
+            axisLine={{ stroke: "#E2E8F0" }}
+            tickLine={false}
+            allowDecimals={false}
+          />
+          <Tooltip
+            cursor={{ fill: "rgba(139, 92, 246, 0.08)" }}
+            labelFormatter={(period: string) => formatDayLabel(period)}
+            formatter={(value: number, name: string) => {
+              const labels: Record<string, string> = {
+                positive: "Positivo",
+                neutral: "Neutro",
+                negative: "Negativo",
+              };
+              return [Math.round(value), labels[name] ?? name];
+            }}
+          />
+          <Bar dataKey="positive" stackId="sent" fill="#34D399" radius={[2, 2, 0, 0]} />
+          <Bar dataKey="neutral" stackId="sent" fill="#FCD34D" radius={[2, 2, 0, 0]} />
+          <Bar dataKey="negative" stackId="sent" fill="#FB7185" radius={[2, 2, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
     </div>
   );
 }
-
 function ConnectionCard({ conn, onSync }: { conn: Connection; onSync: (id: string) => void }) {
   const [syncing, setSyncing] = useState(false);
 
@@ -137,6 +174,54 @@ function ConnectionCard({ conn, onSync }: { conn: Connection; onSync: (id: strin
   );
 }
 
+function RecentPostItem({ post }: { post: PostSummary }) {
+  const score = post.summary?.avg_score;
+  const sentLabel = score == null ? "Pendente" : score >= 7 ? "Positivo" : score >= 4 ? "Neutro" : "Negativo";
+  const sentColor = score == null
+    ? "bg-slate-50 text-slate-400 border-slate-100"
+    : score >= 7
+      ? "bg-emerald-50 text-emerald-600 border-emerald-100"
+      : score >= 4
+        ? "bg-amber-50 text-amber-600 border-amber-100"
+        : "bg-rose-50 text-rose-500 border-rose-100";
+  const [imgError, setImgError] = useState(false);
+  const thumbnailSrc = buildThumbnailSrc(post.thumbnail_url);
+  const showThumb = thumbnailSrc && !imgError;
+
+  return (
+    <Link
+      href={`/posts/${post.id}`}
+      className="flex items-center gap-3 p-3 rounded-2xl hover:bg-slate-50 transition-colors group"
+    >
+      <div className="w-10 h-10 rounded-xl overflow-hidden bg-gradient-to-br from-brand-lilacLight to-brand-cyanLight flex items-center justify-center shrink-0">
+        {showThumb ? (
+          <img
+            src={thumbnailSrc}
+            alt=""
+            className="w-full h-full object-cover"
+            onError={() => setImgError(true)}
+          />
+        ) : (
+          <span className="material-symbols-outlined text-[16px] text-brand-lilacDark">
+            {post.platform === "youtube" ? "play_circle" : "image"}
+          </span>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-slate-700 truncate">
+          {post.content_text?.slice(0, 50) || "Post sem texto"}
+        </p>
+        <p className="text-xs text-slate-400 mt-0.5 capitalize">
+          {post.platform} · {post.comment_count} comentários
+        </p>
+      </div>
+      <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-lg border shrink-0 ${sentColor}`}>
+        {sentLabel}
+      </span>
+    </Link>
+  );
+}
+
 export default function DashboardPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [trends, setTrends] = useState<TrendResponse | null>(null);
@@ -155,6 +240,9 @@ export default function DashboardPage() {
       ]);
       setSummary(s);
       setTrends(t);
+    } catch (error) {
+      console.error("Falha ao carregar dashboard", error);
+      setTrends({ data_points: [], granularity: "day" });
     } finally {
       setLoading(false);
     }
@@ -174,6 +262,8 @@ export default function DashboardPage() {
     try {
       const h = await dashboardApi.healthReport(token);
       setHealth(h);
+    } catch (error) {
+      console.error("Falha ao carregar relatório de saúde", error);
     } finally {
       setLoadingHealth(false);
     }
@@ -182,7 +272,7 @@ export default function DashboardPage() {
   const handleSync = async (connectionId: string) => {
     const token = getToken();
     if (!token) return;
-    await connectionsApi.sync(token, connectionId);
+    await connectionsApi.sync(token, connectionId, toSyncPayload(loadSyncSettings()));
     setTimeout(loadData, 3000);
   };
 
@@ -398,35 +488,9 @@ export default function DashboardPage() {
                   </div>
                 ) : (
                   <div className="space-y-1">
-                    {(summary?.recent_posts ?? []).slice(0, 5).map((post) => {
-                      const score = post.summary?.avg_score;
-                      const sentLabel = score == null ? "Pendente" : score >= 7 ? "Positivo" : score >= 4 ? "Neutro" : "Negativo";
-                      const sentColor = score == null ? "bg-slate-50 text-slate-400 border-slate-100" : score >= 7 ? "bg-emerald-50 text-emerald-600 border-emerald-100" : score >= 4 ? "bg-amber-50 text-amber-600 border-amber-100" : "bg-rose-50 text-rose-500 border-rose-100";
-                      return (
-                        <Link
-                          key={post.id}
-                          href={`/posts/${post.id}`}
-                          className="flex items-center gap-3 p-3 rounded-2xl hover:bg-slate-50 transition-colors group"
-                        >
-                          <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-brand-lilacLight to-brand-cyanLight flex items-center justify-center shrink-0">
-                            <span className="material-symbols-outlined text-[16px] text-brand-lilacDark">
-                              {post.platform === "youtube" ? "play_circle" : "image"}
-                            </span>
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="text-sm font-medium text-slate-700 truncate">
-                              {post.content_text?.slice(0, 50) || "Post sem texto"}
-                            </p>
-                            <p className="text-xs text-slate-400 mt-0.5 capitalize">
-                              {post.platform} · {post.comment_count} comentários
-                            </p>
-                          </div>
-                          <span className={`text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded-lg border shrink-0 ${sentColor}`}>
-                            {sentLabel}
-                          </span>
-                        </Link>
-                      );
-                    })}
+                    {(summary?.recent_posts ?? []).slice(0, 5).map((post) => (
+                      <RecentPostItem key={post.id} post={post} />
+                    ))}
                   </div>
                 )}
               </div>
@@ -464,3 +528,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+

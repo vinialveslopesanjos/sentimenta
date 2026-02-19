@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { connectionsApi, pipelineApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import { useSSE } from "@/components/hooks/useSSE";
+import { loadSyncSettings, toSyncPayload } from "@/lib/syncSettings";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 
@@ -142,7 +143,11 @@ export default function SyncButton({ connectionId, onComplete }: Props) {
       description: "Buscando posts e comentarios.",
     });
     try {
-      const res = await connectionsApi.sync(token, connectionId);
+      const res = await connectionsApi.sync(
+        token,
+        connectionId,
+        toSyncPayload(loadSyncSettings())
+      );
       setTaskId(res.task_id);
     } catch (err: unknown) {
       setState("error");

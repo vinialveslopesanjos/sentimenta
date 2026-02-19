@@ -1,9 +1,9 @@
-import uuid
+﻿import uuid
 from collections import Counter
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, case, cast, Date
+from sqlalchemy import func, case, cast, Date, select
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
@@ -17,6 +17,46 @@ from app.models.user import User
 from app.services.report_service import generate_health_report
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
+
+
+def _latest_analysis_subquery():
+    ranked = (
+        select(
+            CommentAnalysis.id.label("id"),
+            CommentAnalysis.comment_id.label("comment_id"),
+            CommentAnalysis.score_0_10.label("score_0_10"),
+            CommentAnalysis.polarity.label("polarity"),
+            CommentAnalysis.intensity.label("intensity"),
+            CommentAnalysis.emotions.label("emotions"),
+            CommentAnalysis.topics.label("topics"),
+            CommentAnalysis.sarcasm.label("sarcasm"),
+            CommentAnalysis.analyzed_at.label("analyzed_at"),
+            func.row_number()
+            .over(
+                partition_by=CommentAnalysis.comment_id,
+                order_by=(
+                    CommentAnalysis.analyzed_at.desc().nullslast(),
+                    CommentAnalysis.id.desc(),
+                ),
+            )
+            .label("rn"),
+        ).subquery()
+    )
+    return (
+        select(
+            ranked.c.id,
+            ranked.c.comment_id,
+            ranked.c.score_0_10,
+            ranked.c.polarity,
+            ranked.c.intensity,
+            ranked.c.emotions,
+            ranked.c.topics,
+            ranked.c.sarcasm,
+            ranked.c.analyzed_at,
+        )
+        .where(ranked.c.rn == 1)
+        .subquery()
+    )
 
 
 @cached(prefix="dashboard_summary", ttl=300)
@@ -56,35 +96,52 @@ def _build_dashboard_summary(user_id: str, db: Session) -> dict:
         Comment.status == "processed",
     ).scalar() or 0
 
-    comment_ids_subquery = (
-        db.query(Comment.id)
+    latest_analysis = _latest_analysis_subquery()
+    avg_stats = (
+        db.query(
+            func.avg(latest_analysis.c.score_0_10),
+            func.avg(latest_analysis.c.polarity),
+        )
+        .join(Comment, Comment.id == latest_analysis.c.comment_id)
         .filter(Comment.connection_id.in_(conn_ids))
-        .subquery()
+        .first()
     )
-    avg_stats = db.query(
-        func.avg(CommentAnalysis.score_0_10),
-        func.avg(CommentAnalysis.polarity),
-    ).filter(
-        CommentAnalysis.comment_id.in_(comment_ids_subquery)
-    ).first()
 
     avg_score = round(avg_stats[0], 2) if avg_stats[0] else None
     avg_polarity = round(avg_stats[1], 2) if avg_stats[1] else None
 
     sentiment_distribution = None
     if total_analyzed > 0:
-        negative = db.query(func.count(CommentAnalysis.id)).filter(
-            CommentAnalysis.comment_id.in_(comment_ids_subquery),
-            CommentAnalysis.score_0_10 < 4,
-        ).scalar() or 0
-        neutral = db.query(func.count(CommentAnalysis.id)).filter(
-            CommentAnalysis.comment_id.in_(comment_ids_subquery),
-            CommentAnalysis.score_0_10.between(4, 6),
-        ).scalar() or 0
-        positive = db.query(func.count(CommentAnalysis.id)).filter(
-            CommentAnalysis.comment_id.in_(comment_ids_subquery),
-            CommentAnalysis.score_0_10 > 6,
-        ).scalar() or 0
+        negative = (
+            db.query(func.count(latest_analysis.c.id))
+            .join(Comment, Comment.id == latest_analysis.c.comment_id)
+            .filter(
+                Comment.connection_id.in_(conn_ids),
+                latest_analysis.c.score_0_10 < 4,
+            )
+            .scalar()
+            or 0
+        )
+        neutral = (
+            db.query(func.count(latest_analysis.c.id))
+            .join(Comment, Comment.id == latest_analysis.c.comment_id)
+            .filter(
+                Comment.connection_id.in_(conn_ids),
+                latest_analysis.c.score_0_10.between(4, 6),
+            )
+            .scalar()
+            or 0
+        )
+        positive = (
+            db.query(func.count(latest_analysis.c.id))
+            .join(Comment, Comment.id == latest_analysis.c.comment_id)
+            .filter(
+                Comment.connection_id.in_(conn_ids),
+                latest_analysis.c.score_0_10 > 6,
+            )
+            .scalar()
+            or 0
+        )
         sentiment_distribution = {
             "negative": negative,
             "neutral": neutral,
@@ -118,7 +175,10 @@ def _build_dashboard_summary(user_id: str, db: Session) -> dict:
                 "comment_count": p.comment_count,
                 "published_at": p.published_at.isoformat() if p.published_at else None,
                 "post_url": p.post_url,
-                "thumbnail_url": p.media_urls.get("url") if isinstance(p.media_urls, dict) else None,
+                "thumbnail_url": (
+                    p.media_urls.get("thumbnail_url")
+                    or p.media_urls.get("url")
+                ) if isinstance(p.media_urls, dict) else None,
             }
             for p in recent_posts
         ],
@@ -240,7 +300,10 @@ def get_connection_dashboard(
             "view_count": p.view_count,
             "published_at": p.published_at.isoformat() if p.published_at else None,
             "post_url": p.post_url,
-            "thumbnail_url": p.media_urls.get("url") if isinstance(p.media_urls, dict) else None,
+            "thumbnail_url": (
+                p.media_urls.get("thumbnail_url")
+                or p.media_urls.get("url")
+            ) if isinstance(p.media_urls, dict) else None,
             "summary": {
                 "avg_score": s.avg_score,
                 "sentiment_distribution": s.sentiment_distribution,
@@ -292,36 +355,42 @@ def _build_trends(user_id: str, connection_id_str: str | None, granularity: str,
         return {"data_points": [], "granularity": granularity}
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    latest_analysis = _latest_analysis_subquery()
 
-    # Query comments with their analysis, grouped by date
-    query = (
-        db.query(
+    def trends_query(with_cutoff: bool):
+        query = db.query(
             cast(Comment.published_at, Date).label("period"),
             func.count(Comment.id).label("total_comments"),
+            func.count(latest_analysis.c.id).label("analyzed_comments"),
             func.sum(Comment.like_count).label("total_likes"),
-            func.avg(CommentAnalysis.score_0_10).label("avg_score"),
+            func.avg(latest_analysis.c.score_0_10).label("avg_score"),
             func.sum(
-                case((CommentAnalysis.score_0_10 > 6, 1), else_=0)
+                case((latest_analysis.c.score_0_10 > 6, 1), else_=0)
             ).label("positive"),
             func.sum(
                 case(
-                    (CommentAnalysis.score_0_10.between(4, 6), 1), else_=0
+                    (latest_analysis.c.score_0_10.between(4, 6), 1), else_=0
                 )
             ).label("neutral_count"),
             func.sum(
-                case((CommentAnalysis.score_0_10 < 4, 1), else_=0)
+                case((latest_analysis.c.score_0_10 < 4, 1), else_=0)
             ).label("negative"),
-        )
-        .outerjoin(CommentAnalysis, CommentAnalysis.comment_id == Comment.id)
-        .filter(
+        ).outerjoin(latest_analysis, latest_analysis.c.comment_id == Comment.id).filter(
             Comment.connection_id.in_(conn_ids),
             Comment.published_at.isnot(None),
-            Comment.published_at >= cutoff,
         )
-        .group_by(cast(Comment.published_at, Date))
-        .order_by(cast(Comment.published_at, Date))
-        .all()
-    )
+        if with_cutoff:
+            query = query.filter(Comment.published_at >= cutoff)
+        return (
+            query.group_by(cast(Comment.published_at, Date))
+            .order_by(cast(Comment.published_at, Date))
+            .all()
+        )
+
+    # Query comments grouped by date. If there is no data in recent window, fallback to all-time.
+    query = trends_query(with_cutoff=True)
+    if not query:
+        query = trends_query(with_cutoff=False)
 
     # Aggregate by granularity
     data_points_map = {}
@@ -359,8 +428,10 @@ def _build_trends(user_id: str, connection_id_str: str | None, granularity: str,
         dp["total_comments"] += int(row.total_comments or 0)
         dp["total_likes"] += int(row.total_likes or 0)
         if row.avg_score is not None:
-            dp["_score_sum"] += float(row.avg_score) * int(row.total_comments or 1)
-            dp["_score_count"] += int(row.total_comments or 1)
+            analyzed_count = int(row.analyzed_comments or 0)
+            if analyzed_count > 0:
+                dp["_score_sum"] += float(row.avg_score) * analyzed_count
+                dp["_score_count"] += analyzed_count
 
     # Finalize avg scores
     data_points = []
@@ -378,7 +449,7 @@ def _build_trends(user_id: str, connection_id_str: str | None, granularity: str,
 def get_trends(
     connection_id: uuid.UUID | None = Query(None),
     granularity: str = Query("day", pattern="^(day|week|month)$"),
-    days: int = Query(30, ge=7, le=365),
+    days: int = Query(30, ge=7, le=3650),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -395,7 +466,7 @@ def get_trends(
 def get_trends_detailed(
     connection_id: uuid.UUID | None = Query(None),
     granularity: str = Query("day", pattern="^(day|week|month)$"),
-    days: int = Query(30, ge=7, le=365),
+    days: int = Query(30, ge=7, le=3650),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -413,22 +484,25 @@ def get_trends_detailed(
         return {"data_points": [], "granularity": granularity}
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    latest_analysis = _latest_analysis_subquery()
 
-    rows = (
-        db.query(
+    def detailed_rows(with_cutoff: bool):
+        query = db.query(
             Comment.published_at.label("published_at"),
-            CommentAnalysis.score_0_10.label("score"),
-            CommentAnalysis.emotions.label("emotions"),
-            CommentAnalysis.topics.label("topics"),
-        )
-        .outerjoin(CommentAnalysis, CommentAnalysis.comment_id == Comment.id)
-        .filter(
+            latest_analysis.c.score_0_10.label("score"),
+            latest_analysis.c.emotions.label("emotions"),
+            latest_analysis.c.topics.label("topics"),
+        ).outerjoin(latest_analysis, latest_analysis.c.comment_id == Comment.id).filter(
             Comment.connection_id.in_(conn_ids),
             Comment.published_at.isnot(None),
-            Comment.published_at >= cutoff,
         )
-        .all()
-    )
+        if with_cutoff:
+            query = query.filter(Comment.published_at >= cutoff)
+        return query.all()
+
+    rows = detailed_rows(with_cutoff=True)
+    if not rows:
+        rows = detailed_rows(with_cutoff=False)
 
     data_points_map: dict = {}
 
@@ -502,7 +576,7 @@ def get_health_report(
 
     if not connections:
         return {
-            "report_text": "Nenhuma rede social conectada. Conecte suas contas para gerar o relatório.",
+            "report_text": "Nenhuma rede social conectada. Conecte suas contas para gerar o relatÃ³rio.",
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "data_summary": {},
         }
@@ -575,24 +649,25 @@ def get_health_report(
 
 @router.get("/compare")
 def get_platform_compare(
-    days: int = Query(30, ge=7, le=365),
+    days: int = Query(30, ge=7, le=3650),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    latest_analysis = _latest_analysis_subquery()
 
     rows = (
         db.query(
             SocialConnection.platform.label("platform"),
             func.count(Comment.id).label("total_comments"),
-            func.count(CommentAnalysis.id).label("total_analyzed"),
-            func.avg(CommentAnalysis.score_0_10).label("avg_score"),
-            func.sum(case((CommentAnalysis.score_0_10 > 6, 1), else_=0)).label("positive"),
-            func.sum(case((CommentAnalysis.score_0_10.between(4, 6), 1), else_=0)).label("neutral"),
-            func.sum(case((CommentAnalysis.score_0_10 < 4, 1), else_=0)).label("negative"),
+            func.count(latest_analysis.c.id).label("total_analyzed"),
+            func.avg(latest_analysis.c.score_0_10).label("avg_score"),
+            func.sum(case((latest_analysis.c.score_0_10 > 6, 1), else_=0)).label("positive"),
+            func.sum(case((latest_analysis.c.score_0_10.between(4, 6), 1), else_=0)).label("neutral"),
+            func.sum(case((latest_analysis.c.score_0_10 < 4, 1), else_=0)).label("negative"),
         )
         .join(Comment, Comment.connection_id == SocialConnection.id)
-        .outerjoin(CommentAnalysis, CommentAnalysis.comment_id == Comment.id)
+        .outerjoin(latest_analysis, latest_analysis.c.comment_id == Comment.id)
         .filter(
             SocialConnection.user_id == current_user.id,
             Comment.published_at.isnot(None),
@@ -643,19 +718,20 @@ def get_reputation_alerts(
     db: Session = Depends(get_db),
 ):
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    latest_analysis = _latest_analysis_subquery()
 
     rows = (
         db.query(
             SocialConnection.id.label("connection_id"),
             SocialConnection.platform.label("platform"),
             SocialConnection.username.label("username"),
-            func.count(CommentAnalysis.id).label("total_analyzed"),
-            func.avg(CommentAnalysis.score_0_10).label("avg_score"),
-            func.sum(case((CommentAnalysis.score_0_10 < 4, 1), else_=0)).label("negative"),
-            func.sum(case((CommentAnalysis.sarcasm.is_(True), 1), else_=0)).label("sarcasm"),
+            func.count(latest_analysis.c.id).label("total_analyzed"),
+            func.avg(latest_analysis.c.score_0_10).label("avg_score"),
+            func.sum(case((latest_analysis.c.score_0_10 < 4, 1), else_=0)).label("negative"),
+            func.sum(case((latest_analysis.c.sarcasm.is_(True), 1), else_=0)).label("sarcasm"),
         )
         .join(Comment, Comment.connection_id == SocialConnection.id)
-        .join(CommentAnalysis, CommentAnalysis.comment_id == Comment.id)
+        .join(latest_analysis, latest_analysis.c.comment_id == Comment.id)
         .filter(
             SocialConnection.user_id == current_user.id,
             Comment.published_at.isnot(None),
@@ -715,3 +791,4 @@ def get_reputation_alerts(
         "alerts": alerts,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
+

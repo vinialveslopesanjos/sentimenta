@@ -27,7 +27,19 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
     headers["Authorization"] = `Bearer ${token}`;
   }
 
-  const res = await fetch(`${API_URL}${path}`, { headers, ...rest });
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, { headers, ...rest });
+  } catch (error) {
+    // Retry once for transient backend reload/network blips in local dev.
+    try {
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      res = await fetch(`${API_URL}${path}`, { headers, ...rest });
+    } catch {
+      const message = error instanceof Error ? error.message : "Failed to fetch";
+      throw new Error(`Falha de conexão com API (${API_URL}). ${message}`);
+    }
+  }
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: res.statusText }));

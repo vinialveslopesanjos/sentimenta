@@ -1,7 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import desc, asc
+from sqlalchemy import desc, asc, and_, select, func
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
@@ -12,6 +12,50 @@ from app.models.social_connection import SocialConnection
 from app.models.user import User
 
 router = APIRouter(prefix="/comments", tags=["comments"])
+
+
+def _latest_analysis_subquery():
+    ranked = (
+        select(
+            CommentAnalysis.id.label("id"),
+            CommentAnalysis.comment_id.label("comment_id"),
+            CommentAnalysis.score_0_10.label("score_0_10"),
+            CommentAnalysis.polarity.label("polarity"),
+            CommentAnalysis.intensity.label("intensity"),
+            CommentAnalysis.emotions.label("emotions"),
+            CommentAnalysis.topics.label("topics"),
+            CommentAnalysis.sarcasm.label("sarcasm"),
+            CommentAnalysis.summary_pt.label("summary_pt"),
+            CommentAnalysis.confidence.label("confidence"),
+            CommentAnalysis.analyzed_at.label("analyzed_at"),
+            func.row_number()
+            .over(
+                partition_by=CommentAnalysis.comment_id,
+                order_by=(
+                    CommentAnalysis.analyzed_at.desc().nullslast(),
+                    CommentAnalysis.id.desc(),
+                ),
+            )
+            .label("rn"),
+        ).subquery()
+    )
+    return (
+        select(
+            ranked.c.id,
+            ranked.c.comment_id,
+            ranked.c.score_0_10,
+            ranked.c.polarity,
+            ranked.c.intensity,
+            ranked.c.emotions,
+            ranked.c.topics,
+            ranked.c.sarcasm,
+            ranked.c.summary_pt,
+            ranked.c.confidence,
+            ranked.c.analyzed_at,
+        )
+        .where(ranked.c.rn == 1)
+        .subquery()
+    )
 
 
 @router.get("/")
@@ -39,9 +83,26 @@ def list_comments(
         return {"items": [], "total": 0, "limit": limit, "offset": offset}
 
     # Base query: comments with analysis LEFT JOIN
+    latest_analysis = _latest_analysis_subquery()
     query = (
-        db.query(Comment, CommentAnalysis)
-        .outerjoin(CommentAnalysis, CommentAnalysis.comment_id == Comment.id)
+        db.query(
+            Comment,
+            latest_analysis.c.id.label("analysis_id"),
+            latest_analysis.c.score_0_10.label("analysis_score_0_10"),
+            latest_analysis.c.polarity.label("analysis_polarity"),
+            latest_analysis.c.intensity.label("analysis_intensity"),
+            latest_analysis.c.emotions.label("analysis_emotions"),
+            latest_analysis.c.topics.label("analysis_topics"),
+            latest_analysis.c.sarcasm.label("analysis_sarcasm"),
+            latest_analysis.c.summary_pt.label("analysis_summary_pt"),
+            latest_analysis.c.confidence.label("analysis_confidence"),
+        )
+        .outerjoin(
+            latest_analysis,
+            and_(
+                latest_analysis.c.comment_id == Comment.id,
+            ),
+        )
         .filter(Comment.connection_id.in_(conn_ids))
     )
 
@@ -50,11 +111,11 @@ def list_comments(
 
     # Sentiment filter
     if sentiment == "positive":
-        query = query.filter(CommentAnalysis.score_0_10 > 6)
+        query = query.filter(latest_analysis.c.score_0_10 > 6)
     elif sentiment == "neutral":
-        query = query.filter(CommentAnalysis.score_0_10.between(4, 6))
+        query = query.filter(latest_analysis.c.score_0_10.between(4, 6))
     elif sentiment == "negative":
-        query = query.filter(CommentAnalysis.score_0_10 < 4)
+        query = query.filter(latest_analysis.c.score_0_10 < 4)
 
     # Text search
     if search:
@@ -66,7 +127,8 @@ def list_comments(
     # Sorting
     order_fn = desc if order == "desc" else asc
     if sort == "score":
-        query = query.order_by(order_fn(CommentAnalysis.score_0_10).nullslast())
+        score_sort = func.coalesce(latest_analysis.c.score_0_10, -1)
+        query = query.order_by(order_fn(score_sort))
     elif sort == "likes":
         query = query.order_by(order_fn(Comment.like_count))
     else:  # date
@@ -75,7 +137,18 @@ def list_comments(
     results = query.offset(offset).limit(limit).all()
 
     items = []
-    for comment, analysis in results:
+    for (
+        comment,
+        analysis_id,
+        analysis_score_0_10,
+        analysis_polarity,
+        analysis_intensity,
+        analysis_emotions,
+        analysis_topics,
+        analysis_sarcasm,
+        analysis_summary_pt,
+        analysis_confidence,
+    ) in results:
         item = {
             "id": str(comment.id),
             "author_name": comment.author_name,
@@ -88,16 +161,16 @@ def list_comments(
             "status": comment.status,
             "analysis": None,
         }
-        if analysis:
+        if analysis_id is not None:
             item["analysis"] = {
-                "score_0_10": analysis.score_0_10,
-                "polarity": analysis.polarity,
-                "intensity": analysis.intensity,
-                "emotions": analysis.emotions,
-                "topics": analysis.topics,
-                "sarcasm": analysis.sarcasm,
-                "summary_pt": analysis.summary_pt,
-                "confidence": analysis.confidence,
+                "score_0_10": analysis_score_0_10,
+                "polarity": analysis_polarity,
+                "intensity": analysis_intensity,
+                "emotions": analysis_emotions,
+                "topics": analysis_topics,
+                "sarcasm": analysis_sarcasm,
+                "summary_pt": analysis_summary_pt,
+                "confidence": analysis_confidence,
             }
         items.append(item)
 
