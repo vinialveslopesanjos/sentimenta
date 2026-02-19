@@ -33,11 +33,11 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS
+# CORS - em modo DEBUG libera todas as origens (facilita acesso via celular na rede local)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.CORS_ORIGINS,
-    allow_credentials=True,
+    allow_origins=["*"] if settings.DEBUG else settings.CORS_ORIGINS,
+    allow_credentials=not settings.DEBUG,
     allow_methods=["*"],
     allow_headers=["*"],
 )

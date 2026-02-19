@@ -78,7 +78,8 @@ services:
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000/api/v1
+      # IP da rede local - permite acesso via celular
+      NEXT_PUBLIC_API_URL: http://21.0.0.196:8000/api/v1
     volumes:
       - ./frontend:/app
       - /app/node_modules
