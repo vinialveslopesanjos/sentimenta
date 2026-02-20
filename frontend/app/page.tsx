@@ -1,7 +1,8 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import Script from "next/script";
+import { useEffect, useRef, useState } from "react";
 import {
   ResponsiveContainer,
   BarChart,
@@ -12,6 +13,15 @@ import {
   Tooltip,
 } from "recharts";
 import { landingLatestTotals, landingMonthlySentiment } from "@/lib/landingMockData";
+
+declare global {
+  interface Window {
+    VANTA?: {
+      NET: (config: Record<string, unknown>) => { destroy?: () => void };
+      FOG: (config: Record<string, unknown>) => { destroy?: () => void };
+    };
+  }
+}
 
 function formatMonthYear(period: string) {
   const [year, month] = period.split("-");
@@ -195,19 +205,72 @@ const faqs = [
 
 export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const vantaRef = useRef<{ destroy?: () => void } | null>(null);
+  const fogScriptLoadedRef = useRef(false);
+  const threeScriptLoadedRef = useRef(false);
+
+  const initFog = () => {
+    if (!threeScriptLoadedRef.current || !fogScriptLoadedRef.current) return;
+    if (!window.VANTA?.FOG || vantaRef.current) return;
+    vantaRef.current = window.VANTA.FOG({
+      el: "#landing-vanta-bg",
+      mouseControls: true,
+      touchControls: true,
+      gyroControls: false,
+      minHeight: 200,
+      minWidth: 200,
+      highlightColor: 0x00e5ff,
+      midtoneColor: 0x6721bb,
+      blurFactor: 0.36,
+      speed: 0.7,
+      zoom: 1.5,
+      scale: 1,
+      scaleMobile: 1,
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      if (vantaRef.current?.destroy) vantaRef.current.destroy();
+      vantaRef.current = null;
+    };
+  }, []);
 
   return (
-    <div className="font-body antialiased overflow-x-hidden">
+    <div className="font-body antialiased overflow-x-hidden relative">
+      <Script
+        src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js"
+        strategy="afterInteractive"
+        onLoad={() => {
+          threeScriptLoadedRef.current = true;
+          initFog();
+        }}
+      />
+      <Script
+        src="https://cdn.jsdelivr.net/npm/vanta@latest/dist/vanta.fog.min.js"
+        strategy="afterInteractive"
+        onLoad={() => {
+          fogScriptLoadedRef.current = true;
+          initFog();
+        }}
+      />
+      <div
+        id="landing-vanta-bg"
+        className="fixed inset-0 z-0 pointer-events-none"
+        aria-hidden="true"
+      />
+      <div className="fixed inset-0 z-[1] pointer-events-none bg-[radial-gradient(ellipse_at_top,rgba(255,255,255,0.38)_0%,rgba(255,255,255,0.18)_38%,rgba(255,255,255,0.08)_100%)]" />
+      <div className="relative z-10">
 
       {/* NAV */}
       <nav className="fixed top-0 w-full z-50 glass-nav">
         <div className="max-w-7xl mx-auto px-6 h-20 flex items-center justify-between">
           <Logo />
-          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-500">
+          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
             <a href="#features" className="hover:text-brand-lilacDark transition-colors">Recursos</a>
             <a href="#pricing" className="hover:text-brand-lilacDark transition-colors">Preços</a>
             <a href="#testimonials" className="hover:text-brand-lilacDark transition-colors">Depoimentos</a>
-            <Link href="/login" className="text-slate-700 hover:text-brand-lilacDark transition-colors">Login</Link>
+            <Link href="/login" className="text-slate-800 hover:text-brand-lilacDark transition-colors">Login</Link>
             <Link
               href="/login"
               className="px-5 py-2.5 rounded-full bg-slate-900 text-white hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 text-sm"
@@ -223,7 +286,7 @@ export default function LandingPage() {
       </nav>
 
       {/* HERO */}
-      <header className="pt-36 pb-24 px-6 relative overflow-hidden bg-gradient-hero">
+      <header className="pt-36 pb-24 px-6 relative overflow-hidden">
         {/* Glow */}
         <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[900px] h-[700px] bg-gradient-to-b from-violet-100/50 to-transparent rounded-full blur-3xl -z-10 pointer-events-none" />
 
@@ -233,20 +296,20 @@ export default function LandingPage() {
             Entenda o que eles sentem, não apenas o que escrevem.
           </h1>
 
-          <p className="text-lg md:text-xl text-slate-400 font-light max-w-3xl mx-auto leading-relaxed">
+          <p className="text-lg md:text-xl text-slate-700 font-light max-w-3xl mx-auto leading-relaxed">
             Nossos Agentes de IA analisam cada post e comentário das suas redes para gerar um direcionamento claro. Saiba o que seu público ama, o que detesta e o que ele está pedindo para você postar amanhã.
           </p>
 
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
             <Link
               href="/login"
-              className="px-8 py-4 rounded-full bg-gradient-to-r from-brand-lilacDark to-violet-600 text-white font-medium text-lg hover:shadow-glow hover:scale-105 transition-all duration-300 subtle-glow"
+              className="px-8 py-4 rounded-full liquid-btn bg-gradient-to-r from-brand-lilacDark to-violet-600 text-white font-medium text-lg hover:shadow-glow hover:scale-105 transition-all duration-300 subtle-glow"
             >
               Comece grátis 14 dias
             </Link>
             <a
               href="#features"
-              className="px-8 py-4 rounded-full bg-white text-slate-600 font-medium text-lg border border-slate-200 hover:border-brand-lilac hover:text-brand-lilacDark transition-all duration-300 flex items-center gap-2"
+              className="px-8 py-4 rounded-full liquid-btn bg-white/82 text-slate-700 font-medium text-lg border border-white/70 hover:border-brand-lilac hover:text-brand-lilacDark transition-all duration-300 flex items-center gap-2"
             >
               <svg fill="none" height="18" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="18"><polygon points="5 3 19 12 5 21 5 3"/></svg>
               Ver demonstração
@@ -254,19 +317,19 @@ export default function LandingPage() {
           </div>
 
           {/* Social proof numbers */}
-          <div className="flex items-center justify-center gap-8 pt-4 text-sm text-slate-400">
+          <div className="flex items-center justify-center gap-8 pt-4 text-sm text-slate-700">
             <div className="flex items-center gap-2">
-              <span className="font-sans font-semibold text-slate-700 text-lg">2.000+</span>
+              <span className="font-sans font-semibold text-slate-900 text-lg">2.000+</span>
               <span>perfis analisados</span>
             </div>
             <div className="w-1 h-1 rounded-full bg-slate-200" />
             <div className="flex items-center gap-2">
-              <span className="font-sans font-semibold text-slate-700 text-lg">8,4M</span>
+              <span className="font-sans font-semibold text-slate-900 text-lg">8,4M</span>
               <span>comentários este mês</span>
             </div>
             <div className="w-1 h-1 rounded-full bg-slate-200 hidden sm:block" />
             <div className="hidden sm:flex items-center gap-2">
-              <span className="font-sans font-semibold text-slate-700 text-lg">14 dias</span>
+              <span className="font-sans font-semibold text-slate-900 text-lg">14 dias</span>
               <span>grátis</span>
             </div>
           </div>
@@ -283,12 +346,12 @@ export default function LandingPage() {
           <div className="absolute -right-16 top-16 w-64 h-64 bg-violet-200 rounded-full blur-[100px] opacity-40 pointer-events-none" />
           <div className="absolute -left-16 bottom-16 w-64 h-64 bg-cyan-200 rounded-full blur-[100px] opacity-40 pointer-events-none" />
           <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_1fr] gap-5 relative">
-            <div className="relative bg-white/80 backdrop-blur-xl rounded-[32px] shadow-dream-lg border border-white p-2 md:p-4">
-              <div className="bg-brand-bg rounded-[24px] border border-slate-100 overflow-hidden">
-                <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-50">
+            <div className="relative bg-white/68 backdrop-blur-xl rounded-[32px] shadow-dream-lg p-2 md:p-4">
+              <div className="bg-brand-bg/70 rounded-[24px] overflow-hidden">
+                <div className="flex items-center justify-between px-6 py-4 bg-white/70">
                   <div>
-                    <h2 className="text-lg font-sans font-medium text-slate-700">Bom dia, Julia.</h2>
-                    <p className="text-xs text-slate-400 font-light">Resumo da percepção do público em tempo real.</p>
+                    <h2 className="text-lg font-sans font-medium text-slate-800">Bom dia, Julia.</h2>
+                    <p className="text-xs text-slate-600 font-light">Resumo da percepção do público em tempo real.</p>
                   </div>
                   <div className="flex items-center gap-2">
                     <div className="w-8 h-8 rounded-full bg-gradient-to-r from-pink-200 to-rose-200 border-2 border-white shadow-sm" />
@@ -301,22 +364,22 @@ export default function LandingPage() {
                     ["forum", "10.812", "comentários/mês", "bg-rose-50 text-rose-400"],
                     ["favorite", `${landingLatestTotals.score.toFixed(1)} / 10`, "▲ +0.4", "bg-gradient-to-br from-brand-lilac to-brand-lilacDark text-white"],
                   ].map(([icon, val, sub, cls]) => (
-                    <div key={String(val)} className={`rounded-2xl p-4 ${String(cls).includes("from-") ? cls : "bg-white border border-slate-50"}`}>
+                    <div key={String(val)} className={`rounded-2xl p-4 ${String(cls).includes("from-") ? cls : "bg-white/80"}`}>
                       <div className={`w-8 h-8 rounded-xl flex items-center justify-center mb-3 ${String(cls).includes("from-") ? "bg-white/20" : cls}`}>
                         <span className="material-symbols-outlined text-[18px]">{icon}</span>
                       </div>
-                      <div className={`font-sans font-semibold text-base xl:text-lg leading-tight ${String(cls).includes("from-") ? "text-white" : "text-slate-700"}`}>{val}</div>
-                      <div className={`text-xs mt-0.5 ${String(cls).includes("from-") ? "text-violet-100" : "text-slate-400"}`}>{sub}</div>
+                      <div className={`font-sans font-semibold text-base xl:text-lg leading-tight ${String(cls).includes("from-") ? "text-white" : "text-slate-800"}`}>{val}</div>
+                      <div className={`text-xs mt-0.5 ${String(cls).includes("from-") ? "text-violet-100" : "text-slate-600"}`}>{sub}</div>
                     </div>
                   ))}
                 </div>
                 <div className="px-6 pb-6">
                   <div className="flex items-center justify-between mb-2">
-                    <h3 className="text-sm font-medium text-slate-600">Distribuição mensal (stacked 100%)</h3>
-                    <span className="text-[11px] text-slate-400">01/2023 a 01/2026</span>
+                    <h3 className="text-sm font-medium text-slate-800">Distribuição mensal (stacked 100%)</h3>
+                    <span className="text-[11px] text-slate-600">01/2023 a 01/2026</span>
                   </div>
                   <LandingSentimentTrendChart />
-                  <div className="flex items-center gap-4 text-[11px] text-slate-400 mt-3">
+                  <div className="flex items-center gap-4 text-[11px] text-slate-700 mt-3">
                     <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-emerald-400" />Positivo</span>
                     <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-amber-300" />Neutro</span>
                     <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-rose-400" />Negativo</span>
@@ -325,24 +388,24 @@ export default function LandingPage() {
               </div>
             </div>
 
-            <div className="relative bg-white/80 backdrop-blur-xl rounded-[32px] shadow-dream-lg border border-white p-2 md:p-4">
-              <div className="bg-brand-bg rounded-[24px] border border-slate-100 p-6 md:p-7 h-full">
+            <div className="relative bg-white/68 backdrop-blur-xl rounded-[32px] shadow-dream-lg p-2 md:p-4">
+              <div className="bg-brand-bg/70 rounded-[24px] p-6 md:p-7 h-full">
                 <div className="flex items-center justify-between mb-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-brand-lilac to-brand-cyan text-white flex items-center justify-center shadow-sm">
                       <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
                     </div>
                     <div>
-                      <h3 className="text-xl font-sans font-semibold text-slate-800">Saúde da Reputação (IA)</h3>
-                      <p className="text-xs text-slate-400 font-light">Perfil: @julia_brand | Período: Últimas 24h</p>
+                      <h3 className="text-xl font-sans font-semibold text-slate-900">Saúde da Reputação (IA)</h3>
+                      <p className="text-xs text-slate-600 font-light">Perfil: @julia_brand | Período: Últimas 24h</p>
                     </div>
                   </div>
                   <span className="text-xs text-brand-lilacDark font-medium">Atualizado agora</span>
                 </div>
 
-                <div className="space-y-5 text-slate-600">
+                <div className="space-y-5 text-slate-800">
                   <div>
-                    <p className="text-sm font-semibold text-slate-700 mb-1">✨ O resumo da vez</p>
+                    <p className="text-sm font-semibold text-slate-900 mb-1">✨ O resumo da vez</p>
                     <p className="text-sm leading-relaxed">
                       Sua audiência está em clima de celebração. O lançamento de ontem gerou pico de alegria (72%) e admiração.
                       O tom é de proximidade, com leve confusão sobre o prazo de entrega nos comentários.
@@ -362,7 +425,7 @@ export default function LandingPage() {
                       Há 3 comentários ironizando preço, ainda sem força de crise.
                     </p>
                   </div>
-                  <div className="rounded-2xl border border-violet-100 bg-violet-50/70 p-4">
+                  <div className="rounded-2xl bg-violet-50/70 p-4">
                     <p className="text-sm font-semibold text-brand-lilacDark mb-1">🚀 Próximo passo sugerido</p>
                     <p className="text-sm leading-relaxed">
                       Julia, grave um Story rápido de 15 segundos reforçando onde está o link do frete e agradecendo os elogios
@@ -377,15 +440,15 @@ export default function LandingPage() {
       </header>
 
       {/* FEATURES */}
-      <section id="features" className="py-24 px-6 bg-white border-y border-slate-50">
+      <section id="features" className="py-24 px-6">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-sans font-semibold text-slate-700 mb-4">Simples de usar. Profundo na análise.</h2>
-            <p className="text-slate-400 font-light max-w-xl mx-auto text-lg">Três passos simples para transformar comentário em direção prática.</p>
+            <h2 className="text-4xl font-sans font-semibold text-slate-900 mb-4">Simples de usar. Profundo na análise.</h2>
+            <p className="text-slate-700 font-light max-w-xl mx-auto text-lg">Três passos simples para transformar comentário em direção prática.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {features.map((f, i) => (
-              <div key={f.title} className="dream-card p-8 hover:-translate-y-1 transition-all duration-300">
+              <div key={f.title} className="liquid-panel rounded-3xl p-8 hover:-translate-y-1 transition-all duration-300">
                 <div className={`w-12 h-12 rounded-2xl ${f.color} flex items-center justify-center mb-6`}>
                   <span className="material-symbols-outlined text-[24px]">{f.icon}</span>
                 </div>
@@ -398,9 +461,9 @@ export default function LandingPage() {
 
           {/* Feature details */}
           <div className="mt-20 grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-            <div className="space-y-6">
-              <h3 className="text-3xl font-sans font-semibold text-slate-700">IA que entende seu público em profundidade.</h3>
-              <p className="text-slate-400 font-light leading-relaxed">
+            <div className="space-y-6 liquid-copy p-6">
+              <h3 className="text-3xl font-sans font-semibold text-slate-900">IA que entende seu público em profundidade.</h3>
+              <p className="text-slate-700 font-light leading-relaxed">
                 Nosso modelo vai além de positivo e negativo. Ele captura variações de sentimento, identifica emoções dominantes e mostra os temas que movem sua audiência para você entender o lado mais subjetivo da conversa.
               </p>
               <div className="space-y-3">
@@ -421,7 +484,7 @@ export default function LandingPage() {
                 { score: 4.8, user: "@analitico_user", text: "Bom post, mas senti a mensagem um pouco corrida no final.", emotions: ["curiosidade", "atenção"], sarcasm: false, color: "text-amber-600 bg-amber-50" },
                 { score: 6.2, user: "@curioso_br", text: "Interessante, mas faltou explicar melhor a parte técnica.", emotions: ["curiosidade", "neutro"], sarcasm: false, color: "text-amber-600 bg-amber-50" },
               ].map((c) => (
-                <div key={c.user} className="dream-card p-4">
+                <div key={c.user} className="liquid-panel rounded-3xl p-4">
                   <div className="flex items-start gap-3">
                     <span className={`text-sm font-sans font-bold px-2 py-0.5 rounded-lg shrink-0 ${c.color}`}>{c.score}</span>
                     <div className="flex-1 min-w-0">
@@ -448,12 +511,12 @@ export default function LandingPage() {
       <section id="testimonials" className="py-24 px-6">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-sans font-semibold text-slate-700 mb-4">Confiança que transmite calma</h2>
-            <p className="text-slate-400 font-light max-w-xl mx-auto">Junte-se a mais de 2.000 marcas que monitoram suas comunidades sem perder a tranquilidade.</p>
+            <h2 className="text-4xl font-sans font-semibold text-slate-900 mb-4">Confiança que transmite calma</h2>
+            <p className="text-slate-700 font-light max-w-xl mx-auto">Junte-se a mais de 2.000 marcas que monitoram suas comunidades sem perder a tranquilidade.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
             {testimonials.map((t, i) => (
-              <div key={t.name} className={`dream-card p-8 hover:-translate-y-1 transition-all duration-300 ${i === 1 ? "bg-gradient-to-br from-white to-cyan-50 border-cyan-100" : ""}`}>
+              <div key={t.name} className={`liquid-panel rounded-3xl p-8 hover:-translate-y-1 transition-all duration-300 ${i === 1 ? "bg-gradient-to-br from-white/75 to-cyan-50/65 border-cyan-100/70" : ""}`}>
                 <div className="text-4xl text-brand-lilac font-serif opacity-30 mb-4">"</div>
                 <p className="text-slate-500 font-light leading-relaxed mb-6">{t.text}</p>
                 <div className="flex items-center gap-3 border-t border-slate-50 pt-6">
@@ -472,11 +535,11 @@ export default function LandingPage() {
       </section>
 
       {/* PRICING */}
-      <section id="pricing" className="py-24 px-6 bg-white border-t border-slate-50">
+      <section id="pricing" className="py-24 px-6">
         <div className="max-w-6xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-sans font-semibold text-slate-700 mb-4">Planos simples e transparentes</h2>
-            <p className="text-slate-400 font-light">14 dias grátis em qualquer plano. Sem cartão de crédito.</p>
+            <h2 className="text-4xl font-sans font-semibold text-slate-900 mb-4">Planos simples e transparentes</h2>
+            <p className="text-slate-700 font-light">14 dias grátis em qualquer plano. Sem cartão de crédito.</p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-8 items-start">
             {plans.map((plan) => (
@@ -485,7 +548,7 @@ export default function LandingPage() {
                 className={`rounded-[28px] p-8 relative overflow-hidden transition-all duration-300 hover:-translate-y-1 ${
                   plan.highlight
                     ? "bg-gradient-to-br from-brand-lilacDark to-violet-800 text-white shadow-glow"
-                    : "bg-white border border-slate-100 shadow-card"
+                    : "liquid-panel border border-white/45"
                 }`}
               >
                 {plan.highlight && (
@@ -532,11 +595,11 @@ export default function LandingPage() {
       <section className="py-24 px-6">
         <div className="max-w-3xl mx-auto">
           <div className="text-center mb-16">
-            <h2 className="text-4xl font-sans font-semibold text-slate-700 mb-4">Perguntas frequentes</h2>
+            <h2 className="text-4xl font-sans font-semibold text-slate-900 mb-4">Perguntas frequentes</h2>
           </div>
           <div className="space-y-3">
             {faqs.map((faq, i) => (
-              <div key={i} className="dream-card overflow-hidden">
+              <div key={i} className="liquid-panel rounded-3xl overflow-hidden">
                 <button
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
                   className="w-full flex items-center justify-between px-6 py-5 text-left"
@@ -587,7 +650,7 @@ export default function LandingPage() {
       </section>
 
       {/* FOOTER */}
-      <footer className="py-12 px-6 bg-white border-t border-slate-50">
+      <footer className="py-12 px-6">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="flex items-center gap-3">
             <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-cyan-200 to-violet-300 flex items-center justify-center shadow-md">
@@ -603,9 +666,10 @@ export default function LandingPage() {
             <a href="#" className="hover:text-brand-lilacDark transition-colors">Suporte</a>
             <Link href="/login" className="hover:text-brand-lilacDark transition-colors">Login</Link>
           </div>
-          <p className="text-xs text-slate-300">Â© 2026 Sentimenta Inc. Todos os direitos reservados.</p>
+          <p className="text-xs text-slate-300">© 2026 Sentimenta Inc. Todos os direitos reservados.</p>
         </div>
       </footer>
+      </div>
     </div>
   );
 }
