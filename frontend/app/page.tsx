@@ -1,7 +1,86 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useState } from "react";
+import {
+  ResponsiveContainer,
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+} from "recharts";
+import { landingLatestTotals, landingMonthlySentiment } from "@/lib/landingMockData";
+
+function formatMonthYear(period: string) {
+  const [year, month] = period.split("-");
+  return `${month}/${year}`;
+}
+
+function formatMonthTooltip(period: string) {
+  const [year, month] = period.split("-");
+  return `${month}/${year}`;
+}
+
+function LandingSentimentTrendChart() {
+  const chartData = landingMonthlySentiment.map((row) => ({
+    month: row.month,
+    positivePct: (row.positive / row.total) * 100,
+    neutralPct: (row.neutral / row.total) * 100,
+    negativePct: (row.negative / row.total) * 100,
+    positive: row.positive,
+    neutral: row.neutral,
+    negative: row.negative,
+    total: row.total,
+  }));
+
+  return (
+    <div className="h-56 w-full">
+      <ResponsiveContainer width="100%" height="100%">
+        <BarChart data={chartData} margin={{ top: 8, right: 8, left: -18, bottom: 8 }}>
+          <CartesianGrid stroke="#EEF2FF" strokeDasharray="3 3" vertical={false} />
+          <XAxis
+            dataKey="month"
+            minTickGap={26}
+            tick={{ fill: "#94A3B8", fontSize: 10 }}
+            tickFormatter={formatMonthYear}
+            axisLine={{ stroke: "#E2E8F0" }}
+            tickLine={false}
+          />
+          <YAxis
+            domain={[0, 100]}
+            tick={{ fill: "#94A3B8", fontSize: 10 }}
+            tickFormatter={(value: number) => `${Math.round(value)}%`}
+            axisLine={{ stroke: "#E2E8F0" }}
+            tickLine={false}
+          />
+          <Tooltip
+            cursor={{ fill: "rgba(139, 92, 246, 0.08)" }}
+            labelFormatter={formatMonthTooltip}
+            formatter={(value: number, name: string, payload) => {
+              const row = payload?.payload;
+              const map: Record<string, string> = {
+                positivePct: "Positivo",
+                neutralPct: "Neutro",
+                negativePct: "Negativo",
+              };
+              const rawMap: Record<string, number> = {
+                positivePct: row?.positive ?? 0,
+                neutralPct: row?.neutral ?? 0,
+                negativePct: row?.negative ?? 0,
+              };
+              return [`${value.toFixed(1)}% - ${rawMap[name].toLocaleString("pt-BR")}`, map[name] || name];
+            }}
+          />
+          <Bar dataKey="positivePct" stackId="pct" fill="#34D399" radius={[2, 2, 0, 0]} />
+          <Bar dataKey="neutralPct" stackId="pct" fill="#FCD34D" radius={[2, 2, 0, 0]} />
+          <Bar dataKey="negativePct" stackId="pct" fill="#FB7185" radius={[2, 2, 0, 0]} />
+        </BarChart>
+      </ResponsiveContainer>
+    </div>
+  );
+}
 
 function Logo() {
   return (
@@ -151,7 +230,7 @@ export default function LandingPage() {
         <div className="max-w-4xl mx-auto text-center space-y-8 relative z-10">
 
           <h1 className="text-5xl md:text-7xl font-sans font-semibold text-brand-heading leading-[1.1] tracking-tight animate-slide-up">
-            Chega de passar o olho em mil comentários para saber se gostaram do post.
+            Entenda o que eles sentem, não apenas o que escrevem.
           </h1>
 
           <p className="text-lg md:text-xl text-slate-400 font-light max-w-3xl mx-auto leading-relaxed">
@@ -199,50 +278,97 @@ export default function LandingPage() {
           </div>
         </div>
 
-        {/* Dashboard mockup */}
-        <div className="max-w-5xl mx-auto mt-20 relative">
+        {/* Dashboard + IA report mockup */}
+        <div className="max-w-7xl mx-auto mt-20 relative">
           <div className="absolute -right-16 top-16 w-64 h-64 bg-violet-200 rounded-full blur-[100px] opacity-40 pointer-events-none" />
           <div className="absolute -left-16 bottom-16 w-64 h-64 bg-cyan-200 rounded-full blur-[100px] opacity-40 pointer-events-none" />
-          <div className="relative bg-white/80 backdrop-blur-xl rounded-[32px] shadow-dream-lg border border-white p-2 md:p-4">
-            <div className="bg-brand-bg rounded-[24px] border border-slate-100 overflow-hidden">
-              {/* Header */}
-              <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-50">
-                <div>
-                  <h2 className="text-lg font-sans font-medium text-slate-700">Bom dia, Julia.</h2>
-                  <p className="text-xs text-slate-400 font-light">Aqui está o resumo dos seus sentimentos hoje.</p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-gradient-to-r from-pink-200 to-rose-200 border-2 border-white shadow-sm" />
-                </div>
-              </div>
-              {/* KPI cards */}
-              <div className="p-6 grid grid-cols-2 md:grid-cols-4 gap-4">
-                {[
-                  ["group", "3 Conexões", "+1 nova", "bg-violet-50 text-brand-lilacDark"],
-                  ["article", "47 Posts", "+5 esta semana", "bg-cyan-50 text-brand-cyanDark"],
-                  ["forum", "8.420 Coment.", "Este período", "bg-rose-50 text-rose-400"],
-                  ["favorite", "7.4 / 10", "▲ +0.3", "bg-gradient-to-br from-brand-lilac to-brand-lilacDark text-white"],
-                ].map(([icon, val, sub, cls]) => (
-                  <div key={val} className={`rounded-2xl p-4 ${cls.includes("from-") ? cls : "bg-white border border-slate-50"}`}>
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center mb-3 ${cls.includes("from-") ? "bg-white/20" : cls}`}>
-                      <span className="material-symbols-outlined text-[18px]">{icon}</span>
-                    </div>
-                    <div className={`font-sans font-semibold text-lg ${cls.includes("from-") ? "text-white" : "text-slate-700"}`}>{val}</div>
-                    <div className={`text-xs mt-0.5 ${cls.includes("from-") ? "text-violet-100" : "text-slate-400"}`}>{sub}</div>
+          <div className="grid grid-cols-1 xl:grid-cols-[1.2fr_1fr] gap-5 relative">
+            <div className="relative bg-white/80 backdrop-blur-xl rounded-[32px] shadow-dream-lg border border-white p-2 md:p-4">
+              <div className="bg-brand-bg rounded-[24px] border border-slate-100 overflow-hidden">
+                <div className="flex items-center justify-between px-6 py-4 bg-white border-b border-slate-50">
+                  <div>
+                    <h2 className="text-lg font-sans font-medium text-slate-700">Bom dia, Julia.</h2>
+                    <p className="text-xs text-slate-400 font-light">Resumo da percepção do público em tempo real.</p>
                   </div>
-                ))}
-              </div>
-              {/* Sentiment bar */}
-              <div className="px-6 pb-6">
-                <div className="h-3 rounded-full overflow-hidden flex gap-0.5">
-                  <div className="h-full rounded-l-full bg-emerald-400" style={{ width: "62%" }} />
-                  <div className="h-full bg-amber-300" style={{ width: "28%" }} />
-                  <div className="h-full rounded-r-full bg-rose-400" style={{ width: "10%" }} />
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-r from-pink-200 to-rose-200 border-2 border-white shadow-sm" />
+                  </div>
                 </div>
-                <div className="flex justify-between text-xs text-slate-400 mt-2">
-                  <span>62% positivo</span>
-                  <span>28% neutro</span>
-                  <span>10% negativo</span>
+                <div className="p-5 grid grid-cols-2 lg:grid-cols-4 gap-3">
+                  {[
+                    ["group", "3 Conexões", "+1 nova", "bg-violet-50 text-brand-lilacDark"],
+                    ["article", "47 Posts", "+5 esta semana", "bg-cyan-50 text-brand-cyanDark"],
+                    ["forum", "10.812", "comentários/mês", "bg-rose-50 text-rose-400"],
+                    ["favorite", `${landingLatestTotals.score.toFixed(1)} / 10`, "▲ +0.4", "bg-gradient-to-br from-brand-lilac to-brand-lilacDark text-white"],
+                  ].map(([icon, val, sub, cls]) => (
+                    <div key={String(val)} className={`rounded-2xl p-4 ${String(cls).includes("from-") ? cls : "bg-white border border-slate-50"}`}>
+                      <div className={`w-8 h-8 rounded-xl flex items-center justify-center mb-3 ${String(cls).includes("from-") ? "bg-white/20" : cls}`}>
+                        <span className="material-symbols-outlined text-[18px]">{icon}</span>
+                      </div>
+                      <div className={`font-sans font-semibold text-base xl:text-lg leading-tight ${String(cls).includes("from-") ? "text-white" : "text-slate-700"}`}>{val}</div>
+                      <div className={`text-xs mt-0.5 ${String(cls).includes("from-") ? "text-violet-100" : "text-slate-400"}`}>{sub}</div>
+                    </div>
+                  ))}
+                </div>
+                <div className="px-6 pb-6">
+                  <div className="flex items-center justify-between mb-2">
+                    <h3 className="text-sm font-medium text-slate-600">Distribuição mensal (stacked 100%)</h3>
+                    <span className="text-[11px] text-slate-400">01/2023 a 01/2026</span>
+                  </div>
+                  <LandingSentimentTrendChart />
+                  <div className="flex items-center gap-4 text-[11px] text-slate-400 mt-3">
+                    <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-emerald-400" />Positivo</span>
+                    <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-amber-300" />Neutro</span>
+                    <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-rose-400" />Negativo</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="relative bg-white/80 backdrop-blur-xl rounded-[32px] shadow-dream-lg border border-white p-2 md:p-4">
+              <div className="bg-brand-bg rounded-[24px] border border-slate-100 p-6 md:p-7 h-full">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-xl bg-gradient-to-r from-brand-lilac to-brand-cyan text-white flex items-center justify-center shadow-sm">
+                      <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-sans font-semibold text-slate-800">Saúde da Reputação (IA)</h3>
+                      <p className="text-xs text-slate-400 font-light">Perfil: @julia_brand | Período: Últimas 24h</p>
+                    </div>
+                  </div>
+                  <span className="text-xs text-brand-lilacDark font-medium">Atualizado agora</span>
+                </div>
+
+                <div className="space-y-5 text-slate-600">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-700 mb-1">✨ O resumo da vez</p>
+                    <p className="text-sm leading-relaxed">
+                      Sua audiência está em clima de celebração. O lançamento de ontem gerou pico de alegria (72%) e admiração.
+                      O tom é de proximidade, com leve confusão sobre o prazo de entrega nos comentários.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-emerald-700 mb-1">✅ O que funcionou</p>
+                    <p className="text-sm leading-relaxed">
+                      Humanização forte: o vídeo de bastidores teve 0% de sarcasmo percebido.
+                      A nova paleta de cores foi o tópico mais elogiado, com 142 menções positivas.
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-amber-700 mb-1">⚠️ Pontos de atenção</p>
+                    <p className="text-sm leading-relaxed">
+                      Dúvida recorrente: 15 comentários pedem o link do frete.
+                      Há 3 comentários ironizando preço, ainda sem força de crise.
+                    </p>
+                  </div>
+                  <div className="rounded-2xl border border-violet-100 bg-violet-50/70 p-4">
+                    <p className="text-sm font-semibold text-brand-lilacDark mb-1">🚀 Próximo passo sugerido</p>
+                    <p className="text-sm leading-relaxed">
+                      Julia, grave um Story rápido de 15 segundos reforçando onde está o link do frete e agradecendo os elogios
+                      sobre a nova identidade. Momento ideal para converter essa energia em vendas.
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>
@@ -477,9 +603,14 @@ export default function LandingPage() {
             <a href="#" className="hover:text-brand-lilacDark transition-colors">Suporte</a>
             <Link href="/login" className="hover:text-brand-lilacDark transition-colors">Login</Link>
           </div>
-          <p className="text-xs text-slate-300">© 2026 Sentimenta Inc. Todos os direitos reservados.</p>
+          <p className="text-xs text-slate-300">Â© 2026 Sentimenta Inc. Todos os direitos reservados.</p>
         </div>
       </footer>
     </div>
   );
 }
+
+
+
+
+
