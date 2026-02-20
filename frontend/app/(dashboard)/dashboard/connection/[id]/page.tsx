@@ -264,10 +264,10 @@ function TrendChart({ data, granularity }: { data: TrendResponse | null; granula
                     Score médio: {point.avg_score != null ? point.avg_score.toFixed(2) : "—"}
                   </p>
                   <div className="space-y-1 text-xs text-slate-500">
-                    <p>Total comentários: {point.total_comments ?? 0}</p>
-                    <p>Positivo: {point.positive ?? 0}</p>
-                    <p>Neutro: {point.neutral ?? 0}</p>
-                    <p>Negativo: {point.negative ?? 0}</p>
+                    <p>Total comentários: {point.total_comments}</p>
+                    <p>Positivo: {point.positive}</p>
+                    <p>Neutro: {point.neutral}</p>
+                    <p>Negativo: {point.negative}</p>
                   </div>
                 </div>
               );
@@ -405,7 +405,7 @@ function StackedBarChart({
           <Tooltip
             cursor={{ fill: "rgba(139, 92, 246, 0.08)" }}
             formatter={(value: number, name: string) => {
-              const label = series.find((s) => s.key === name)?.label ?? name;
+              const label = series.find((s) => s.key === name)?.label || name;
               if (mode === "pct") return [`${value.toFixed(1)}%`, label];
               return [Math.round(value), label];
             }}
