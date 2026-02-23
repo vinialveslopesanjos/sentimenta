@@ -89,6 +89,7 @@ def connect_instagram_public(
 ):
     """Connect Instagram via public scraping (no OAuth needed)."""
     from app.services.instagram_scrape_service import create_instagram_connection
+    from app.services.plan_service import enforce_connection_limit, PlanLimitError
 
     username = data.channel_handle.strip()
     if username.startswith("@"):
@@ -106,6 +107,12 @@ def connect_instagram_public(
     )
     if existing:
         return existing
+
+    # Enforce plan connection limit
+    try:
+        enforce_connection_limit(db, current_user)
+    except PlanLimitError as e:
+        raise HTTPException(status_code=403, detail=e.message)
 
     connection = create_instagram_connection(db, str(current_user.id), username)
     if not connection:
@@ -222,9 +229,16 @@ def trigger_sync(
     db: Session = Depends(get_db),
 ):
     from app.middleware.rate_limiter import rate_limiter
+    from app.services.plan_service import enforce_sync_limits, PlanLimitError
 
     # Rate limit: 1 sync per connection per 5 minutes
     rate_limiter.check(f"sync:{connection_id}", max_requests=1, window_seconds=300)
+
+    # Enforce plan limits (syncs/month, Apify budget)
+    try:
+        plan_limits = enforce_sync_limits(db, current_user)
+    except PlanLimitError as e:
+        raise HTTPException(status_code=403, detail=e.message)
 
     conn = (
         db.query(SocialConnection)
@@ -240,13 +254,19 @@ def trigger_sync(
     params = body or SyncRequest()
     since_date_str = str(params.since_date) if params.since_date else None
 
+    # Cap params to plan limits (user can't exceed their plan tier)
+    effective_max_posts = min(params.max_posts, plan_limits["max_posts"])
+    effective_max_comments = min(
+        params.max_comments_per_post, plan_limits["max_comments_per_post"]
+    )
+
     from app.tasks.pipeline_tasks import task_full_pipeline
 
     result = task_full_pipeline.delay(
         str(connection_id),
         str(current_user.id),
-        max_posts=params.max_posts,
-        max_comments_per_post=params.max_comments_per_post,
+        max_posts=effective_max_posts,
+        max_comments_per_post=effective_max_comments,
         since_date=since_date_str,
     )
 
