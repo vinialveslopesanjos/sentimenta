@@ -13,6 +13,7 @@ from app.models.social_connection import SocialConnection
 from app.models.user import User
 from app.schemas.connection import (
     ConnectionResponse,
+    ConnectionUpdateRequest,
     OAuthURLResponse,
     SyncResponse,
     YouTubeConnectRequest,
@@ -25,6 +26,41 @@ class SyncRequest(BaseModel):
     since_date: Optional[date] = None
 
 router = APIRouter(prefix="/connections", tags=["connections"])
+
+from app.services.xpoz_service import get_instagram_profile
+
+@router.get("/check-profile")
+def check_profile(
+    platform: str,
+    username: str,
+    current_user: User = Depends(get_current_user)
+):
+    if platform.lower() != "instagram":
+        raise HTTPException(status_code=400, detail="Apenas a plataforma Instagram possui verificação rápida atualmente.")
+    
+    prof = get_instagram_profile(username)
+    if not prof:
+        raise HTTPException(status_code=404, detail="Perfil não encontrado.")
+    
+    # Cast counters from string
+    def safe_int(val):
+        try:
+            return int(val)
+        except:
+            return 0
+
+    return {
+        "platform_user_id": prof.get("id"),
+        "username": prof.get("username", username),
+        "fullName": prof.get("fullName"),
+        "biography": prof.get("biography"),
+        "followers_count": safe_int(prof.get("followerCount")),
+        "following_count": safe_int(prof.get("followingCount")),
+        "media_count": safe_int(prof.get("mediaCount")),
+        "is_private": prof.get("isPrivate", "false").lower() == "true",
+        "is_verified": prof.get("isVerified", "false").lower() == "true",
+        "profile_pic_url": prof.get("profilePicUrl")
+    }
 
 
 @router.get("/", response_model=list[ConnectionResponse])
@@ -59,6 +95,34 @@ def get_connection(
         raise HTTPException(status_code=404, detail="Connection not found")
     return conn
 
+@router.patch("/{connection_id}", response_model=ConnectionResponse)
+def update_connection(
+    connection_id: uuid.UUID,
+    params: ConnectionUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    conn = (
+        db.query(SocialConnection)
+        .filter(
+            SocialConnection.id == connection_id,
+            SocialConnection.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not conn:
+        raise HTTPException(status_code=404, detail="Connection not found")
+    
+    if params.persona is not None:
+        conn.persona = params.persona
+        
+    if params.ignore_author_comments is not None:
+        conn.ignore_author_comments = params.ignore_author_comments
+        
+    db.commit()
+    db.refresh(conn)
+    return conn
+
 
 @router.delete("/{connection_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_connection(
@@ -89,6 +153,7 @@ def connect_instagram_public(
 ):
     """Connect Instagram via public scraping (no OAuth needed)."""
     from app.services.instagram_scrape_service import create_instagram_connection
+    from app.services.plan_service import enforce_connection_limit, PlanLimitError
 
     username = data.channel_handle.strip()
     if username.startswith("@"):
@@ -106,6 +171,12 @@ def connect_instagram_public(
     )
     if existing:
         return existing
+
+    # Enforce plan connection limit
+    try:
+        enforce_connection_limit(db, current_user)
+    except PlanLimitError as e:
+        raise HTTPException(status_code=403, detail=e.message)
 
     connection = create_instagram_connection(db, str(current_user.id), username)
     if not connection:
@@ -222,9 +293,16 @@ def trigger_sync(
     db: Session = Depends(get_db),
 ):
     from app.middleware.rate_limiter import rate_limiter
+    from app.services.plan_service import enforce_sync_limits, PlanLimitError
 
     # Rate limit: 1 sync per connection per 5 minutes
     rate_limiter.check(f"sync:{connection_id}", max_requests=1, window_seconds=300)
+
+    # Enforce plan limits (syncs/month, Apify budget)
+    try:
+        plan_limits = enforce_sync_limits(db, current_user)
+    except PlanLimitError as e:
+        raise HTTPException(status_code=403, detail=e.message)
 
     conn = (
         db.query(SocialConnection)
@@ -240,13 +318,19 @@ def trigger_sync(
     params = body or SyncRequest()
     since_date_str = str(params.since_date) if params.since_date else None
 
+    # Cap params to plan limits (user can't exceed their plan tier)
+    effective_max_posts = min(params.max_posts, plan_limits["max_posts"])
+    effective_max_comments = min(
+        params.max_comments_per_post, plan_limits["max_comments_per_post"]
+    )
+
     from app.tasks.pipeline_tasks import task_full_pipeline
 
     result = task_full_pipeline.delay(
         str(connection_id),
         str(current_user.id),
-        max_posts=params.max_posts,
-        max_comments_per_post=params.max_comments_per_post,
+        max_posts=effective_max_posts,
+        max_comments_per_post=effective_max_comments,
         since_date=since_date_str,
     )
 

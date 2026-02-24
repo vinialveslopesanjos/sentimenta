@@ -23,6 +23,8 @@ class SocialConnection(Base):
     profile_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     profile_image_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     followers_count: Mapped[int] = mapped_column(Integer, default=0)
+    following_count: Mapped[int] = mapped_column(Integer, default=0)
+    media_count: Mapped[int] = mapped_column(Integer, default=0)
     access_token_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
     refresh_token_enc: Mapped[str | None] = mapped_column(Text, nullable=True)
     token_expires_at: Mapped[datetime | None] = mapped_column(
@@ -31,11 +33,15 @@ class SocialConnection(Base):
     scopes: Mapped[list | None] = mapped_column(JSON, nullable=True)
     status: Mapped[str] = mapped_column(String(50), default="active")
     raw_profile_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    persona: Mapped[str | None] = mapped_column(Text, nullable=True)
     connected_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
     last_sync_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
+    )
+    ignore_author_comments: Mapped[bool] = mapped_column(
+        default=True, server_default="true", nullable=False
     )
 
     __table_args__ = (

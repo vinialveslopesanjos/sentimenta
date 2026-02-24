@@ -22,6 +22,7 @@ class Post(Base):
     post_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
     content_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     content_clean: Mapped[str | None] = mapped_column(Text, nullable=True)
+    image_context: Mapped[str | None] = mapped_column(Text, nullable=True)
     media_urls: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     like_count: Mapped[int] = mapped_column(Integer, default=0)
     comment_count: Mapped[int] = mapped_column(Integer, default=0)

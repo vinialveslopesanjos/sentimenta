@@ -112,8 +112,16 @@ export const connectionsApi = {
         status: string;
         connected_at: string;
         last_sync_at: string | null;
+        persona: string | null;
       }>
     >("/connections", { token }),
+
+  updateConnection: (token: string, connectionId: string, params: { persona?: string | null, ignore_author_comments?: boolean }) =>
+    apiFetch(`/connections/${connectionId}`, {
+      method: "PATCH",
+      token,
+      body: JSON.stringify(params),
+    }),
 
   connectYoutube: (token: string, channelHandle: string) =>
     apiFetch("/connections/youtube", {
@@ -131,6 +139,9 @@ export const connectionsApi = {
 
   getInstagramAuthUrl: (token: string) =>
     apiFetch<{ auth_url: string }>("/connections/instagram/auth-url", { token }),
+
+  checkProfile: (token: string, platform: string, username: string) =>
+    apiFetch<any>(`/connections/check-profile?platform=${platform}&username=${username}`, { token }),
 
   sync: (
     token: string,
