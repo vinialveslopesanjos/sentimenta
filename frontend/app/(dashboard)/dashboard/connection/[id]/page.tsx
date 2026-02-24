@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   ResponsiveContainer,
   LineChart,
@@ -15,6 +16,7 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
+import SyncButton from "@/components/SyncButton";
 import { dashboardApi, connectionsApi, commentsApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import {
@@ -317,17 +319,17 @@ function HBarChart({
   const gradients =
     palette === "emotion"
       ? [
-          ["#A78BFA", "#8B5CF6"],
-          ["#BFA9F9", "#A78BFA"],
-          ["#D4C4FB", "#C4B5FD"],
-          ["#E9DDFD", "#DDD6FE"],
-        ]
+        ["#A78BFA", "#8B5CF6"],
+        ["#BFA9F9", "#A78BFA"],
+        ["#D4C4FB", "#C4B5FD"],
+        ["#E9DDFD", "#DDD6FE"],
+      ]
       : [
-          ["#22D3EE", "#06B6D4"],
-          ["#67E8F9", "#22D3EE"],
-          ["#A5F3FC", "#67E8F9"],
-          ["#CFFAFE", "#A5F3FC"],
-        ];
+        ["#22D3EE", "#06B6D4"],
+        ["#67E8F9", "#22D3EE"],
+        ["#A5F3FC", "#67E8F9"],
+        ["#CFFAFE", "#A5F3FC"],
+      ];
 
   return (
     <div className="space-y-2.5">
@@ -536,6 +538,7 @@ function PostCard({ post }: { post: PostSummary }) {
 function CommentRow({ comment }: { comment: CommentWithAnalysis }) {
   const score = comment.analysis?.score_0_10 ?? null;
   const emotions = comment.analysis?.emotions ?? [];
+  const topics = comment.analysis?.topics ?? [];
   const sarcasm = comment.analysis?.sarcasm ?? false;
 
   return (
@@ -567,19 +570,35 @@ function CommentRow({ comment }: { comment: CommentWithAnalysis }) {
           </p>
         )}
       </td>
-      <td className="py-3 pl-2 pr-4 w-40">
-        <div className="flex flex-wrap gap-1">
-          {sarcasm && (
-            <span className="text-[10px] bg-amber-50 text-amber-600 border border-amber-100 px-1.5 py-0.5 rounded-md font-medium">
-              🎭 sarcasmo
-            </span>
-          )}
-          {emotions.slice(0, 3).map((e) => (
-            <span key={e} className="text-[10px] bg-violet-50 text-violet-600 px-1.5 py-0.5 rounded-md font-light capitalize">
-              {e}
-            </span>
-          ))}
-        </div>
+      <td className="py-3 pl-2 pr-2 w-24 text-center">
+        {score !== null ? (
+          <span className={`text-[10px] px-2 py-1 rounded-md font-medium ${score > 6 ? "text-emerald-600 bg-emerald-50" : score < 4 ? "text-rose-600 bg-rose-50" : "text-amber-600 bg-amber-50"}`}>
+            {score > 6 ? "Positivo" : score < 4 ? "Negativo" : "Neutro"}
+          </span>
+        ) : (
+          <span className="text-[10px] text-slate-400">—</span>
+        )}
+      </td>
+      <td className="py-3 pl-2 pr-4 w-40 flex flex-col gap-1">
+        {topics.length > 0 && (
+          <div className="flex flex-wrap gap-1">
+            <span className="text-[9px] uppercase tracking-wider text-slate-300 mt-0.5 shrink-0">Tópico:</span>
+            {topics.slice(0, 2).map((t) => (
+              <span key={t} className="text-[10px] bg-cyan-50 text-cyan-600 px-1.5 py-0.5 rounded-md font-light capitalize">{t}</span>
+            ))}
+          </div>
+        )}
+        {(emotions.length > 0 || sarcasm) && (
+          <div className="flex flex-wrap gap-1">
+            <span className="text-[9px] uppercase tracking-wider text-slate-300 mt-0.5 shrink-0">Emoção:</span>
+            {sarcasm && (
+              <span className="text-[10px] bg-amber-50 text-amber-600 border border-amber-100 px-1.5 py-0.5 rounded-md font-medium">🎭 sarcasmo</span>
+            )}
+            {emotions.slice(0, 2).map((e) => (
+              <span key={e} className="text-[10px] bg-violet-50 text-violet-600 px-1.5 py-0.5 rounded-md font-light capitalize">{e}</span>
+            ))}
+          </div>
+        )}
       </td>
     </tr>
   );
@@ -605,6 +624,10 @@ export default function ConnectionPage() {
   const [granularity, setGranularity] = useState("day");
   const [showSyncSettings, setShowSyncSettings] = useState(false);
   const [syncParams, setSyncParams] = useState<SyncSettings>(DEFAULT_SYNC_SETTINGS);
+  const [showPersonaPrompt, setShowPersonaPrompt] = useState(false);
+  const [personaText, setPersonaText] = useState("");
+  const [savingPersona, setSavingPersona] = useState(false);
+  const [savingIgnore, setSavingIgnore] = useState(false);
 
   // temporal chart tabs
   const [temporalTab, setTemporalTab] = useState<"sentiment" | "emotions" | "topics">("sentiment");
@@ -615,11 +638,24 @@ export default function ConnectionPage() {
   const [offset, setOffset] = useState(0);
   const LIMIT = 20;
 
+  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleToggleIgnoreAuthor = async (currentVal: boolean) => {
+    const token = getToken();
+    if (!token || !data?.connection) return;
+    setSavingIgnore(true);
+    try {
+      await connectionsApi.updateConnection(token, id, { ignore_author_comments: !currentVal });
+      await loadMain();
+      await loadComments({ search, sentiment, offset: 0 }); // reset offset on setting push
+    } catch (e) { console.error(e) } finally { setSavingIgnore(false); }
+  };
+
   // post sort/limit
   const [postSort, setPostSort] = useState<"score_desc" | "score_asc" | "date_desc">("score_desc");
   const [postLimit, setPostLimit] = useState<number | null>(10);
 
-  const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+
 
   const updateSyncParams = useCallback((next: SyncSettings) => {
     const saved = saveSyncSettings(next);
@@ -632,6 +668,10 @@ export default function ConnectionPage() {
     try {
       const d = await dashboardApi.connectionDashboard(token, id);
       setData(d);
+      // Auto-prompt persona if empty
+      if (d?.connection && !d.connection.persona) {
+        setShowPersonaPrompt(true);
+      }
     } catch (error) {
       console.error("Falha ao carregar dashboard da conexão", error);
     } finally {
@@ -797,6 +837,21 @@ export default function ConnectionPage() {
   };
   const ptColor = platformColors[conn?.platform ?? ""] ?? "from-violet-50 to-violet-100 text-violet-500";
 
+  const handleSavePersona = async () => {
+    const token = getToken();
+    if (!token) return;
+    setSavingPersona(true);
+    try {
+      await connectionsApi.updateConnection(token, id, { persona: personaText });
+      setShowPersonaPrompt(false);
+      loadMain(); // reload to get new persona
+    } catch (error) {
+      console.error("Erro ao salvar persona", error);
+    } finally {
+      setSavingPersona(false);
+    }
+  };
+
   // Temporal chart data
   const temporalPeriods = temporalTab === "sentiment"
     ? (trends?.data_points ?? []).map((p) => p.period)
@@ -804,14 +859,14 @@ export default function ConnectionPage() {
 
   const temporalSeries = temporalTab === "sentiment"
     ? [
-        { key: "positive", label: "Positivo", color: SENTIMENT_CHART_COLORS.positive, values: (trends?.data_points ?? []).map((p) => p.positive) },
-        { key: "neutral", label: "Neutro", color: SENTIMENT_CHART_COLORS.neutral, values: (trends?.data_points ?? []).map((p) => p.neutral) },
-        { key: "negative", label: "Negativo", color: SENTIMENT_CHART_COLORS.negative, values: (trends?.data_points ?? []).map((p) => p.negative) },
-      ]
+      { key: "positive", label: "Positivo", color: SENTIMENT_CHART_COLORS.positive, values: (trends?.data_points ?? []).map((p) => p.positive) },
+      { key: "neutral", label: "Neutro", color: SENTIMENT_CHART_COLORS.neutral, values: (trends?.data_points ?? []).map((p) => p.neutral) },
+      { key: "negative", label: "Negativo", color: SENTIMENT_CHART_COLORS.negative, values: (trends?.data_points ?? []).map((p) => p.negative) },
+    ]
     : buildSeriesFromDetailed(
-        detailedTrends?.data_points ?? [],
-        temporalTab === "emotions" ? "emotions" : "topics"
-      );
+      detailedTrends?.data_points ?? [],
+      temporalTab === "emotions" ? "emotions" : "topics"
+    );
 
   return (
     <div className="flex-1 overflow-y-auto">
@@ -851,11 +906,38 @@ export default function ConnectionPage() {
                 >
                   {conn.status === "active" ? "Ativo" : conn.status}
                 </span>
+                {conn.ignore_author_comments !== false && (
+                  <span className="text-[10px] bg-amber-50 text-amber-600 border border-amber-100 px-2 py-0.5 rounded-full font-medium" title="Comentários do autor estão sendo ignorados na análise">
+                    Autor Ignorado
+                  </span>
+                )}
               </div>
-              <p className="text-xs text-slate-400 capitalize">
-                {conn.platform}
-                {conn.followers_count > 0 && ` · ${fmt(conn.followers_count)} seguidores`}
-                {conn.last_sync_at && ` · Sync ${fmtDate(conn.last_sync_at)}`}
+              <p className="text-xs text-slate-400 capitalize flex flex-wrap items-center gap-2 mt-1">
+                <span>{conn.platform}</span>
+                {conn.followers_count > 0 && (
+                  <>
+                    <span>·</span>
+                    <span>{fmt(conn.followers_count)} seguidores</span>
+                  </>
+                )}
+                {conn.following_count != null && conn.following_count > 0 && (
+                  <>
+                    <span>·</span>
+                    <span>{fmt(conn.following_count)} seguindo</span>
+                  </>
+                )}
+                {conn.media_count != null && conn.media_count > 0 && (
+                  <>
+                    <span>·</span>
+                    <span>{fmt(conn.media_count)} posts no perfil</span>
+                  </>
+                )}
+                {conn.last_sync_at && (
+                  <>
+                    <span>·</span>
+                    <span>Sync {fmtDate(conn.last_sync_at)}</span>
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -869,91 +951,140 @@ export default function ConnectionPage() {
           >
             <span className="material-symbols-outlined text-[18px]">tune</span>
           </button>
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className="flex items-center gap-2 px-4 py-2 rounded-full bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white text-sm font-medium shadow-sm hover:shadow-float transition-all disabled:opacity-60"
-          >
-            {syncing ? (
-              <svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
-              </svg>
-            ) : (
-              <span className="material-symbols-outlined text-[18px]">sync</span>
-            )}
-            {syncing ? "Analisando..." : "Analisar"}
-          </button>
+          <SyncButton
+            connectionId={id}
+            onComplete={() => {
+              loadMain();
+              loadTrends(granularity);
+              loadMonthlyTrends();
+              loadDetailedTrends(granularity);
+              loadComments({ search, sentiment, offset });
+            }}
+          />
         </div>
       </header>
 
-      <main className="p-6 md:p-8 space-y-8 max-w-screen-xl mx-auto animate-fade-in">
-        {showSyncSettings && (
-          <div className="dream-card p-5 grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div>
-              <p className="text-xs font-medium text-slate-500 mb-2">Posts por sync</p>
-              <div className="flex gap-1.5 flex-wrap">
-                {[10, 50, 200].map((value) => (
-                  <button
-                    key={value}
-                    onClick={() => updateSyncParams({ ...syncParams, max_posts: value })}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors border ${
-                      syncParams.max_posts === value
-                        ? "bg-brand-lilacDark text-white border-brand-lilacDark"
-                        : "bg-white text-slate-500 border-slate-200 hover:border-brand-lilac"
-                    }`}
-                  >
-                    {value === 200 ? "Todos (200)" : value}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-slate-500 mb-2">Comentários por post</p>
-              <div className="flex gap-1.5 flex-wrap">
-                {[10, 100, 1000].map((value) => (
-                  <button
-                    key={value}
-                    onClick={() => updateSyncParams({ ...syncParams, max_comments_per_post: value })}
-                    className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors border ${
-                      syncParams.max_comments_per_post === value
-                        ? "bg-brand-cyanDark text-white border-brand-cyanDark"
-                        : "bg-white text-slate-500 border-slate-200 hover:border-brand-cyan"
-                    }`}
-                  >
-                    {value === 1000 ? "Todos (1000)" : value}
-                  </button>
-                ))}
-              </div>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-slate-500 mb-2">A partir de</p>
-              <input
-                type="date"
-                value={syncParams.since_date}
-                onChange={(e) => updateSyncParams({ ...syncParams, since_date: e.target.value })}
-                className="w-full text-sm px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 focus:outline-none focus:border-brand-lilac transition-colors"
-              />
-              {syncParams.since_date && (
-                <button
-                  onClick={() => updateSyncParams({ ...syncParams, since_date: "" })}
-                  className="text-[10px] text-slate-400 hover:text-rose-500 mt-1"
-                >
-                  Limpar filtro de data
-                </button>
-              )}
-            </div>
-            <div className="md:col-span-3 flex justify-end">
+      {/* Persona Prompt Modal */}
+      {showPersonaPrompt && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in">
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden relative p-6">
+            <h3 className="text-xl font-semibold text-slate-800 mb-2">Conhecendo seu perfil</h3>
+            <p className="text-sm text-slate-500 mb-4">
+              Para analisarmos seus comentários com mais precisão, precisamos saber um pouco mais sobre quem você é e sobre o que é este perfil. Escreva em 1 ou 2 frases.
+            </p>
+            <textarea
+              value={personaText}
+              onChange={(e) => setPersonaText(e.target.value)}
+              placeholder="Ex: Sou influenciador de finanças e falo sobre investimentos para iniciantes."
+              className="w-full text-sm p-3 rounded-xl border border-slate-200 bg-slate-50 text-slate-700 min-h-[100px] focus:outline-none focus:border-brand-lilac focus:bg-white resize-none mb-4"
+            />
+            <div className="flex justify-end gap-3">
               <button
-                onClick={handleSync}
-                disabled={syncing}
-                className="px-4 py-2 rounded-xl bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white text-sm font-medium shadow-sm hover:shadow-float transition-all disabled:opacity-60"
+                onClick={() => setShowPersonaPrompt(false)}
+                className="px-4 py-2 text-sm font-medium text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+                disabled={savingPersona}
               >
-                {syncing ? "Adicionando..." : "Adicionar novos dados"}
+                Agora não
+              </button>
+              <button
+                onClick={handleSavePersona}
+                disabled={savingPersona || personaText.trim().length < 5}
+                className="px-4 py-2 rounded-lg bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white text-sm font-medium shadow-sm hover:shadow-float transition-all disabled:opacity-60"
+              >
+                {savingPersona ? "Salvando..." : "Salvar Persona"}
               </button>
             </div>
           </div>
-        )}
+        </div>
+      )}
+
+      <main className="p-6 md:p-8 space-y-8 max-w-screen-xl mx-auto animate-fade-in">
+        <AnimatePresence>
+          {showSyncSettings && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              className="overflow-hidden"
+            >
+              <div className="dream-card p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 items-end relative overflow-visible">
+                <div>
+                  <label className="text-[11px] uppercase tracking-wider font-semibold text-slate-400 mb-2 block">Posts por sync</label>
+                  <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-100">
+                    {[10, 50, 200].map((value) => (
+                      <button
+                        key={value}
+                        onClick={() => updateSyncParams({ ...syncParams, max_posts: value })}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${syncParams.max_posts === value
+                          ? "bg-white text-brand-lilacDark shadow-sm"
+                          : "text-slate-500 hover:text-slate-700"
+                          }`}
+                      >
+                        {value === 200 ? "Todos (200)" : value}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[11px] uppercase tracking-wider font-semibold text-slate-400 mb-2 block">Comentários por post</label>
+                  <div className="flex bg-slate-50 p-1 rounded-xl border border-slate-100">
+                    {[10, 100, 1000].map((value) => (
+                      <button
+                        key={value}
+                        onClick={() => updateSyncParams({ ...syncParams, max_comments_per_post: value })}
+                        className={`flex-1 py-1.5 rounded-lg text-xs font-medium transition-colors ${syncParams.max_comments_per_post === value
+                          ? "bg-white text-brand-cyanDark shadow-sm"
+                          : "text-slate-500 hover:text-slate-700"
+                          }`}
+                      >
+                        {value === 1000 ? "Todos (1000)" : value}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <label className="text-[11px] uppercase tracking-wider font-semibold text-slate-400 mb-2 block flex items-center justify-between">
+                    A partir de
+                    {syncParams.since_date && (
+                      <button
+                        onClick={() => updateSyncParams({ ...syncParams, since_date: "" })}
+                        className="text-[9px] text-rose-400 hover:text-rose-500 normal-case tracking-normal"
+                      >
+                        Limpar
+                      </button>
+                    )}
+                  </label>
+                  <input
+                    type="date"
+                    value={syncParams.since_date}
+                    onChange={(e) => updateSyncParams({ ...syncParams, since_date: e.target.value })}
+                    className="w-full text-sm px-3 pt-2 pb-2 h-[34px] rounded-xl border border-slate-200 bg-white text-slate-600 focus:outline-none focus:border-brand-lilac transition-colors"
+                  />
+                </div>
+                {data?.connection && (
+                  <div>
+                    <label className="text-[11px] uppercase tracking-wider font-semibold text-slate-400 mb-2 block">Comentar Autor</label>
+                    <button
+                      onClick={() => handleToggleIgnoreAuthor(data?.connection.ignore_author_comments ?? true)}
+                      disabled={savingIgnore}
+                      className={`w-full flex items-center justify-between px-3 py-1.5 h-[34px] rounded-xl text-xs font-medium transition-colors border ${data?.connection.ignore_author_comments !== false
+                        ? "bg-amber-50 text-amber-600 border-amber-100 hover:bg-amber-100"
+                        : "bg-slate-50 text-slate-500 border-slate-200 hover:bg-slate-100"
+                        }`}
+                    >
+                      <span>
+                        {savingIgnore ? "Salvando..." : (data?.connection.ignore_author_comments !== false ? "Ignorar" : "Não ignorar")}
+                      </span>
+                      <div className={`w-8 h-4 rounded-full p-0.5 transition-colors ${data?.connection.ignore_author_comments !== false ? "bg-amber-400" : "bg-slate-300"}`}>
+                        <div className={`w-3 h-3 rounded-full bg-white shadow-sm transition-transform ${data?.connection.ignore_author_comments !== false ? "translate-x-4" : "translate-x-0"}`} />
+                      </div>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* -- KPI cards -- */}
         <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
@@ -1005,9 +1136,10 @@ export default function ConnectionPage() {
               <KpiCard
                 icon="article"
                 label="Posts"
-                value={fmt(data?.total_posts ?? 0)}
+                value={`${fmt(data?.total_posts ?? 0)}${data?.connection.media_count ? ` / ${fmt(data.connection.media_count)}` : ""}`}
                 sub={`${fmt(data?.total_analyzed ?? 0)} analisados`}
                 iconBg="bg-emerald-50 text-emerald-500"
+                tooltip="Esquerda: Posts coletados no banco de dados. Direita: Total de posts publicados no perfil."
               />
             </>
           )}
@@ -1351,7 +1483,8 @@ export default function ConnectionPage() {
                       <th className="py-3 pl-4 pr-2 text-[10px] text-slate-300 uppercase tracking-wider font-medium w-16">Score</th>
                       <th className="py-3 px-2 text-[10px] text-slate-300 uppercase tracking-wider font-medium w-32">Autor</th>
                       <th className="py-3 px-2 text-[10px] text-slate-300 uppercase tracking-wider font-medium">Comentário</th>
-                      <th className="py-3 pl-2 pr-4 text-[10px] text-slate-300 uppercase tracking-wider font-medium w-40">Tags</th>
+                      <th className="py-3 px-2 text-[10px] text-slate-300 uppercase tracking-wider font-medium w-24 text-center">Sentimento</th>
+                      <th className="py-3 pl-2 pr-4 text-[10px] text-slate-300 uppercase tracking-wider font-medium w-40">Tópico & Emoção</th>
                     </tr>
                   </thead>
                   <tbody>

@@ -9,6 +9,7 @@ import math
 import sys
 import uuid
 import logging
+import json
 from pathlib import Path
 from collections import Counter
 from datetime import datetime, timezone
@@ -23,6 +24,8 @@ from analysis.llm_client import LLMClient
 from app.core.config import settings
 from app.models.analysis import CommentAnalysis, PostAnalysisSummary
 from app.models.comment import Comment
+from app.models.post import Post
+from app.models.social_connection import SocialConnection
 
 logger = logging.getLogger(__name__)
 
@@ -65,16 +68,28 @@ def analyze_post_comments(
         comment.status = "processed"
         comment.last_error = None
 
-    pending = (
+    post = db.get(Post, post_id)
+    if not post:
+        return {"analyzed": 0, "errors": 0, "llm_calls": 0}
+        
+    connection = db.get(SocialConnection, post.connection_id)
+    ignore_author = connection.ignore_author_comments if connection else False
+
+    pending_query = (
         db.query(Comment)
         .filter(
             Comment.post_id == post_id,
             Comment.status == "pending",
             ~analysis_exists,
         )
-        .order_by(Comment.like_count.desc())
-        .all()
     )
+    
+    if ignore_author and connection:
+        pending_query = pending_query.filter(
+            func.lower(Comment.author_username) != func.lower(connection.username)
+        )
+        
+    pending = pending_query.order_by(Comment.like_count.desc()).all()
 
     if not pending:
         db.commit()
@@ -86,6 +101,52 @@ def analyze_post_comments(
     )
 
     stats = {"analyzed": 0, "errors": 0, "llm_calls": 0}
+
+    post_context = {}
+    persona_text = None
+
+    if post:
+        if post.content_text:
+            post_context["post_caption"] = post.content_text
+        
+        # Auto-generate image context via Vision LLM if missing
+        if not post.image_context and isinstance(post.media_urls, dict):
+            image_url = post.media_urls.get("url") or post.media_urls.get("thumbnail_url")
+            if image_url:
+                logger.info("Generating visual context for post %s using Vision LLM...", str(post.id))
+                try:
+                    generated_context = llm.analyze_image(image_url, post.content_text)
+                    if generated_context and not generated_context.startswith("Erro"):
+                        post.image_context = generated_context
+                        db.commit()
+                        logger.info("Visual context successfully generated and saved.")
+                    else:
+                        logger.warning("Failed to generate useful visual context: %s", generated_context)
+                except Exception as e:
+                    logger.error("Error generating visual context for image: %s", e)
+
+        if post.image_context:
+            post_context["post_image_context"] = post.image_context
+        
+        # Prefer the DB-stored persona
+        if post.connection and post.connection.persona:
+            persona_text = post.connection.persona
+
+    # Fallback to file if not in DB yet
+    if not persona_text:
+        context_file = Path(__file__).resolve().parent.parent.parent.parent / "user_context_post.json"
+        if context_file.exists():
+            try:
+                with open(context_file, "r", encoding="utf-8") as f:
+                    file_data = json.load(f)
+                    persona_text = file_data.get("persona")
+            except Exception as e:
+                logger.error("Erro ao carregar contexto da persona: %s", e)
+
+    analysis_context = {}
+    if persona_text:
+        analysis_context["persona"] = persona_text
+    analysis_context.update(post_context)
 
     for i in range(0, len(pending), batch_size):
         batch = pending[i : i + batch_size]
@@ -105,7 +166,11 @@ def analyze_post_comments(
         ]
 
         try:
-            results = list(llm.analyze_comments(comments_payload, prompt_version))
+            results = list(llm.analyze_comments(
+                comments_payload,
+                prompt_version=prompt_version,
+                context=analysis_context if analysis_context else None
+            ))
             stats["llm_calls"] += 1
 
             for result in results:
@@ -175,7 +240,11 @@ def generate_post_summary(
     prompt_version: str = "v1",
 ) -> PostAnalysisSummary | None:
     """Calculate and store aggregated analysis for one post."""
-    analyses = (
+    post = db.get(Post, post_id)
+    connection = db.get(SocialConnection, post.connection_id) if post else None
+    ignore_author = connection.ignore_author_comments if connection else False
+
+    analyses_query = (
         db.query(CommentAnalysis)
         .join(Comment, Comment.id == CommentAnalysis.comment_id)
         .filter(
@@ -183,18 +252,29 @@ def generate_post_summary(
             CommentAnalysis.model == settings.GEMINI_MODEL,
             CommentAnalysis.prompt_version == prompt_version,
         )
-        .all()
     )
+    
+    if ignore_author and connection:
+        analyses_query = analyses_query.filter(
+            func.lower(Comment.author_username) != func.lower(connection.username)
+        )
+        
+    analyses = analyses_query.all()
 
     if not analyses:
         return None
 
-    total_comments = (
+    total_comments_query = (
         db.query(func.count(Comment.id))
         .filter(Comment.post_id == post_id)
-        .scalar()
-        or 0
     )
+    
+    if ignore_author and connection:
+        total_comments_query = total_comments_query.filter(
+            func.lower(Comment.author_username) != func.lower(connection.username)
+        )
+
+    total_comments = total_comments_query.scalar() or 0
 
     scores = [a.score_0_10 for a in analyses if a.score_0_10 is not None]
     polarities = [a.polarity for a in analyses if a.polarity is not None]

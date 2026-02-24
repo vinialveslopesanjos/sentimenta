@@ -132,6 +132,12 @@ export function createApiClient(config: ClientConfig) {
     const connections = {
         list: () => apiFetch<Connection[]>("/connections"),
 
+        updateConnection: (connectionId: string, params: { persona?: string | null, ignore_author_comments?: boolean }) =>
+            apiFetch<Connection>(`/connections/${connectionId}`, {
+                method: "PATCH",
+                body: JSON.stringify(params),
+            }),
+
         connectInstagram: (username: string) =>
             apiFetch<Connection>("/connections/instagram", {
                 method: "POST",
@@ -143,6 +149,9 @@ export function createApiClient(config: ClientConfig) {
                 method: "POST",
                 body: JSON.stringify({ channel_handle: channelHandle }),
             }),
+
+        checkProfile: (platform: string, username: string) =>
+            apiFetch<any>(`/connections/check-profile?platform=${platform}&username=${username}`),
 
         sync: (
             connectionId: string,

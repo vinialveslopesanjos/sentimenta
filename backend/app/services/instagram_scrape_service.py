@@ -34,49 +34,30 @@ def discover_profile_info(username: str) -> Optional[dict]:
     """
     Fetch public Instagram profile info using instaloader.
     """
-    if username.startswith("@"):
-        username = username[1:]
-
-    try:
-        loader = instaloader.Instaloader(
-            quiet=True,
-            download_pictures=False,
-            download_videos=False,
-            download_video_thumbnails=False,
-            download_geotags=False,
-            download_comments=False,
-            save_metadata=False,
-            compress_json=False,
-        )
-
-        profile = instaloader.Profile.from_username(loader.context, username)
-
-        if profile.is_private:
-            logger.warning(f"Instagram profile @{username} is private")
-            return None
-
-        return {
-            "username": profile.username,
-            "full_name": profile.full_name or profile.username,
-            "biography": profile.biography or "",
-            "followers": profile.followers,
-            "following": profile.followees,
-            "post_count": profile.mediacount,
-            "profile_pic_url": profile.profile_pic_url,
-            "is_private": profile.is_private,
-            "is_verified": profile.is_verified,
-            "external_url": profile.external_url or "",
-        }
-
-    except instaloader.exceptions.ProfileNotExistsException:
-        logger.error(f"Instagram profile @{username} not found")
+    from app.services.xpoz_service import get_instagram_profile
+    prof = get_instagram_profile(username)
+    if not prof:
+        logger.error(f"Instagram profile @{username} not found via XPoz")
         return None
-    except instaloader.exceptions.ConnectionException as e:
-        logger.error(f"Instagram connection error for @{username}: {e}")
-        return None
-    except Exception as e:
-        logger.error(f"Unexpected error fetching Instagram profile @{username}: {e}")
-        return None
+    
+    def safe_int(val):
+        try:
+            return int(val)
+        except:
+            return 0
+
+    return {
+        "username": prof.get("username", username),
+        "full_name": prof.get("fullName", username),
+        "biography": prof.get("biography", ""),
+        "followers": safe_int(prof.get("followerCount")),
+        "following": safe_int(prof.get("followingCount")),
+        "post_count": safe_int(prof.get("mediaCount")),
+        "profile_pic_url": prof.get("profilePicUrl"),
+        "is_private": prof.get("isPrivate", "false").lower() == "true",
+        "is_verified": prof.get("isVerified", "false").lower() == "true",
+        "external_url": prof.get("externalUrl", ""),
+    }
 
 
 def create_instagram_connection(
@@ -105,6 +86,8 @@ def create_instagram_connection(
     if existing:
         existing.display_name = profile_info["full_name"]
         existing.followers_count = profile_info["followers"]
+        existing.following_count = profile_info["following"]
+        existing.media_count = profile_info["post_count"]
         existing.profile_image_url = profile_info["profile_pic_url"]
         existing.raw_profile_json = profile_info
         existing.status = "active"
@@ -121,6 +104,8 @@ def create_instagram_connection(
         profile_url=f"https://www.instagram.com/{profile_info['username']}/",
         profile_image_url=profile_info["profile_pic_url"],
         followers_count=profile_info["followers"],
+        following_count=profile_info["following"],
+        media_count=profile_info["post_count"],
         status="active",
         raw_profile_json=profile_info,
         connected_at=datetime.now(timezone.utc),
