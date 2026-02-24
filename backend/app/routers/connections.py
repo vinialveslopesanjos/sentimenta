@@ -13,6 +13,7 @@ from app.models.social_connection import SocialConnection
 from app.models.user import User
 from app.schemas.connection import (
     ConnectionResponse,
+    ConnectionUpdateRequest,
     OAuthURLResponse,
     SyncResponse,
     YouTubeConnectRequest,
@@ -25,6 +26,41 @@ class SyncRequest(BaseModel):
     since_date: Optional[date] = None
 
 router = APIRouter(prefix="/connections", tags=["connections"])
+
+from app.services.xpoz_service import get_instagram_profile
+
+@router.get("/check-profile")
+def check_profile(
+    platform: str,
+    username: str,
+    current_user: User = Depends(get_current_user)
+):
+    if platform.lower() != "instagram":
+        raise HTTPException(status_code=400, detail="Apenas a plataforma Instagram possui verificação rápida atualmente.")
+    
+    prof = get_instagram_profile(username)
+    if not prof:
+        raise HTTPException(status_code=404, detail="Perfil não encontrado.")
+    
+    # Cast counters from string
+    def safe_int(val):
+        try:
+            return int(val)
+        except:
+            return 0
+
+    return {
+        "platform_user_id": prof.get("id"),
+        "username": prof.get("username", username),
+        "fullName": prof.get("fullName"),
+        "biography": prof.get("biography"),
+        "followers_count": safe_int(prof.get("followerCount")),
+        "following_count": safe_int(prof.get("followingCount")),
+        "media_count": safe_int(prof.get("mediaCount")),
+        "is_private": prof.get("isPrivate", "false").lower() == "true",
+        "is_verified": prof.get("isVerified", "false").lower() == "true",
+        "profile_pic_url": prof.get("profilePicUrl")
+    }
 
 
 @router.get("/", response_model=list[ConnectionResponse])
@@ -57,6 +93,34 @@ def get_connection(
     )
     if not conn:
         raise HTTPException(status_code=404, detail="Connection not found")
+    return conn
+
+@router.patch("/{connection_id}", response_model=ConnectionResponse)
+def update_connection(
+    connection_id: uuid.UUID,
+    params: ConnectionUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    conn = (
+        db.query(SocialConnection)
+        .filter(
+            SocialConnection.id == connection_id,
+            SocialConnection.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not conn:
+        raise HTTPException(status_code=404, detail="Connection not found")
+    
+    if params.persona is not None:
+        conn.persona = params.persona
+        
+    if params.ignore_author_comments is not None:
+        conn.ignore_author_comments = params.ignore_author_comments
+        
+    db.commit()
+    db.refresh(conn)
     return conn
 
 

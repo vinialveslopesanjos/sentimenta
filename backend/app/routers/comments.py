@@ -1,7 +1,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import desc, asc, and_, select, func
+from sqlalchemy import desc, asc, and_, or_, select, func
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
@@ -10,6 +10,7 @@ from app.models.comment import Comment
 from app.models.analysis import CommentAnalysis
 from app.models.social_connection import SocialConnection
 from app.models.user import User
+import sqlalchemy.types as types
 
 router = APIRouter(prefix="/comments", tags=["comments"])
 
@@ -103,7 +104,15 @@ def list_comments(
                 latest_analysis.c.comment_id == Comment.id,
             ),
         )
+        .join(SocialConnection, Comment.connection_id == SocialConnection.id)
         .filter(Comment.connection_id.in_(conn_ids))
+        .filter(
+            or_(
+                SocialConnection.ignore_author_comments == False,
+                func.lower(Comment.author_username) != func.lower(SocialConnection.username),
+                Comment.author_username == None
+            )
+        )
     )
 
     if post_id:
@@ -119,7 +128,24 @@ def list_comments(
 
     # Text search
     if search:
-        query = query.filter(Comment.text_original.ilike(f"%{search}%"))
+        search_lower = search.lower()
+        sentiment_conds = []
+        if "positiv" in search_lower:
+            sentiment_conds.append(latest_analysis.c.score_0_10 > 6)
+        if "neutro" in search_lower or "neutra" in search_lower:
+            sentiment_conds.append(latest_analysis.c.score_0_10.between(4, 6))
+        if "negativ" in search_lower:
+            sentiment_conds.append(latest_analysis.c.score_0_10 < 4)
+            
+        from sqlalchemy.sql.expression import cast
+        query = query.filter(
+            or_(
+                Comment.text_original.ilike(f"%{search}%"),
+                cast(latest_analysis.c.emotions, types.String).ilike(f"%{search}%"),
+                cast(latest_analysis.c.topics, types.String).ilike(f"%{search}%"),
+                *sentiment_conds
+            )
+        )
 
     # Count total before pagination
     total = query.count()

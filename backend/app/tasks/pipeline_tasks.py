@@ -61,14 +61,23 @@ def task_ingest(self, connection_id: str, user_id: str, max_posts: int = 10, max
                 )
 
             elif connection.platform == "instagram":
-                # Instagram uses public scraping (no OAuth)
-                from app.services.instagram_ingest_service import ingest_instagram_profile
-                from datetime import date as date_type
+                if getattr(connection, "ingest_source", None) == "xpoz":
+                    # XPoz ingestion currently handled via separate external script, 
+                    # so we just mark it as successful and proceed to analysis.
+                    result = {
+                        "posts_fetched": 0, 
+                        "comments_fetched": 0, 
+                        "message": "XPoz ingestion is manual/external for now."
+                    }
+                else:
+                    # Instagram uses public scraping (no OAuth)
+                    from app.services.instagram_ingest_service import ingest_instagram_profile
+                    from datetime import date as date_type
 
-                since = date_type.fromisoformat(since_date) if since_date else None
-                result = ingest_instagram_profile(
-                    db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since
-                )
+                    since = date_type.fromisoformat(since_date) if since_date else None
+                    result = ingest_instagram_profile(
+                        db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since
+                    )
 
                 connection.last_sync_at = datetime.now(timezone.utc)
                 db.commit()

@@ -7,6 +7,9 @@ from pydantic import BaseModel
 class YouTubeConnectRequest(BaseModel):
     channel_handle: str  # e.g. "@RaiamSantos"
 
+class ConnectionUpdateRequest(BaseModel):
+    persona: str | None = None
+    ignore_author_comments: bool | None = None
 
 class ConnectionResponse(BaseModel):
     id: uuid.UUID
@@ -16,9 +19,13 @@ class ConnectionResponse(BaseModel):
     profile_url: str | None
     profile_image_url: str | None
     followers_count: int
+    following_count: int
+    media_count: int
     status: str
     connected_at: datetime
     last_sync_at: datetime | None
+    persona: str | None
+    ignore_author_comments: bool
 
     model_config = {"from_attributes": True}
 

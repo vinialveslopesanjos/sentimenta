@@ -47,8 +47,22 @@ Start-Sleep -Seconds 2
 
 # --- Frontend (Next.js) ---
 Write-Host "[START] Frontend Next.js em http://localhost:3000 ..." -ForegroundColor Cyan
+
+# Libera porta 3000 se estiver em uso
+$port3000 = netstat -ano | Select-String ":3000 " | Select-String "LISTENING"
+if ($port3000) {
+    Write-Host "       Liberando porta 3000..." -ForegroundColor Yellow
+    $port3000 | ForEach-Object {
+        $pid_ = ($_ -split '\s+')[-1]
+        if ($pid_ -match '^\d+$' -and $pid_ -ne '0') {
+            Stop-Process -Id $pid_ -Force -ErrorAction SilentlyContinue
+        }
+    }
+    Start-Sleep -Seconds 1
+}
+
 Start-Process powershell -ArgumentList "-NoExit", "-Command",
-    "cd '$ROOT\frontend'; npm run dev"
+    "cd '$ROOT\frontend'; Remove-Item -Recurse -Force .next -ErrorAction SilentlyContinue; npm run dev"
 
 # --- Resumo ---
 Write-Host ""

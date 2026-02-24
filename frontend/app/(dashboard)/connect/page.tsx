@@ -41,16 +41,16 @@ function PlatformIcon({ platform, size = 24 }: { platform: string; size?: number
   if (platform === "instagram") {
     return (
       <svg fill="none" height={size} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width={size}>
-        <rect height="20" rx="5" ry="5" width="20" x="2" y="2"/>
-        <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z"/>
-        <line x1="17.5" x2="17.51" y1="6.5" y2="6.5"/>
+        <rect height="20" rx="5" ry="5" width="20" x="2" y="2" />
+        <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
+        <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
       </svg>
     );
   }
   return (
     <svg fill="none" height={size} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width={size}>
-      <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z"/>
-      <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02"/>
+      <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z" />
+      <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" />
     </svg>
   );
 }
@@ -60,6 +60,8 @@ export default function ConnectPage() {
   const [loading, setLoading] = useState(true);
   const [inputs, setInputs] = useState<Record<string, string>>({ instagram: "", youtube: "" });
   const [connecting, setConnecting] = useState<Record<string, boolean>>({});
+  const [checking, setChecking] = useState<Record<string, boolean>>({});
+  const [potentials, setPotentials] = useState<Record<string, any>>({});
   const [syncing, setSyncing] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [success, setSuccess] = useState<Record<string, string>>({});
@@ -88,12 +90,35 @@ export default function ConnectPage() {
     setSyncParams(saved);
   }, []);
 
-  const handleConnect = async (platformId: PlatformId) => {
+  const handleCheck = async (platformId: PlatformId) => {
     const handle = inputs[platformId]?.trim();
     if (!handle) {
       setErrors(e => ({ ...e, [platformId]: "Informe o usuário ou URL." }));
       return;
     }
+
+    if (platformId !== "instagram") {
+      // Direct connect if not Instagram
+      return handleConnect(platformId);
+    }
+
+    setErrors(e => ({ ...e, [platformId]: "" }));
+    setChecking(c => ({ ...c, [platformId]: true }));
+    try {
+      const token = getToken()!;
+      const data = await connectionsApi.checkProfile(token, platformId, handle.replace("@", ""));
+      setPotentials(p => ({ ...p, [platformId]: data }));
+    } catch (err) {
+      setErrors(e => ({ ...e, [platformId]: err instanceof Error ? err.message : "Falha ao verificar perfil." }));
+    } finally {
+      setChecking(c => ({ ...c, [platformId]: false }));
+    }
+  };
+
+  const handleConnect = async (platformId: PlatformId) => {
+    const handle = inputs[platformId]?.trim();
+    if (!handle) return;
+
     setErrors(e => ({ ...e, [platformId]: "" }));
     setConnecting(c => ({ ...c, [platformId]: true }));
     try {
@@ -104,6 +129,7 @@ export default function ConnectPage() {
         await connectionsApi.connectYoutube(token, handle);
       }
       setInputs(i => ({ ...i, [platformId]: "" }));
+      setPotentials(p => ({ ...p, [platformId]: null }));
       setSuccess(s => ({ ...s, [platformId]: "Perfil conectado!" }));
       setTimeout(() => setSuccess(s => ({ ...s, [platformId]: "" })), 3000);
       await loadConnections();
@@ -181,23 +207,69 @@ export default function ConnectPage() {
                   <input
                     type="text"
                     value={inputs[p.id] ?? ""}
-                    onChange={(e) => setInputs(i => ({ ...i, [p.id]: e.target.value }))}
-                    onKeyDown={(e) => { if (e.key === "Enter") handleConnect(p.id); }}
+                    onChange={(e) => {
+                      setInputs(i => ({ ...i, [p.id]: e.target.value }));
+                      if (potentials[p.id]) setPotentials(pt => ({ ...pt, [p.id]: null }));
+                    }}
+                    onKeyDown={(e) => { if (e.key === "Enter") handleCheck(p.id); }}
                     placeholder={p.placeholder}
-                    disabled={connecting[p.id]}
+                    disabled={connecting[p.id] || checking[p.id]}
                     className="w-full text-center text-sm px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100 text-slate-600 placeholder:text-slate-300 focus:bg-white focus:border-brand-lilac focus:ring-4 focus:ring-brand-lilac/10 outline-none transition-all disabled:opacity-50"
                   />
                   {errors[p.id] && <p className="text-[11px] text-rose-500">{errors[p.id]}</p>}
                   {success[p.id] && <p className="text-[11px] text-emerald-600">{success[p.id]}</p>}
-                  <button
-                    onClick={() => handleConnect(p.id)}
-                    disabled={connecting[p.id]}
-                    className="w-full py-2.5 rounded-xl bg-slate-900 text-white text-sm font-medium hover:bg-gradient-to-r hover:from-brand-lilacDark hover:to-brand-cyanDark transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                  >
-                    {connecting[p.id] ? (
-                      <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Conectando...</>
-                    ) : "Conectar"}
-                  </button>
+
+                  {potentials[p.id] && (
+                    <div className="bg-slate-50 border border-brand-cyan/20 rounded-xl p-3 text-left space-y-2 relative overflow-hidden">
+                      <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-brand-cyanLight to-transparent rounded-bl-full opacity-50 pointer-events-none" />
+                      <div className="flex items-center gap-2 mb-1">
+                        {potentials[p.id].profile_pic_url ? (
+                          <img src={potentials[p.id].profile_pic_url} className="w-8 h-8 rounded-full shadow-sm" alt="Foto" />
+                        ) : (
+                          <div className="w-8 h-8 rounded-full bg-slate-200" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-800 text-xs truncate">{potentials[p.id].fullName || potentials[p.id].username}</p>
+                          <p className="text-[10px] text-slate-400">@{potentials[p.id].username}</p>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-2 gap-2 text-[10px]">
+                        <div>
+                          <p className="text-slate-400">Seguidores</p>
+                          <p className="font-semibold text-slate-700">{potentials[p.id].followers_count?.toLocaleString()}</p>
+                        </div>
+                        <div>
+                          <p className="text-slate-400">Posts</p>
+                          <p className="font-semibold text-slate-700">{potentials[p.id].media_count?.toLocaleString()}</p>
+                        </div>
+                      </div>
+                      <p className="text-[9px] text-slate-400 font-light mt-1 pt-2 border-t border-slate-200/50 leading-tight">
+                        Curtidas e comentários totais serão dimensionados após a primeira sincronização de posts.
+                      </p>
+                    </div>
+                  )}
+
+                  {!potentials[p.id] ? (
+                    <button
+                      onClick={() => handleCheck(p.id)}
+                      disabled={checking[p.id]}
+                      className="w-full py-2.5 rounded-xl bg-slate-900 border border-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {checking[p.id] ? (
+                        <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Verificando...</>
+                      ) : p.id === "instagram" ? "Verificar Perfil" : "Conectar"}
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleConnect(p.id)}
+                      disabled={connecting[p.id]}
+                      className="w-full py-2.5 rounded-xl bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white text-sm font-medium hover:shadow-float transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    >
+                      {connecting[p.id] ? (
+                        <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Conectando...</>
+                      ) : "Confirmar Conexão"}
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -209,7 +281,7 @@ export default function ConnectPage() {
               </div>
               <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-4">
                 <svg fill="none" height="26" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="26">
-                  <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5"/>
+                  <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" />
                 </svg>
               </div>
               <h4 className="font-sans font-medium text-slate-400 mb-1">TikTok</h4>
@@ -246,53 +318,53 @@ export default function ConnectPage() {
               {showSyncParams && (
                 <div className="px-6 pb-5 border-t border-slate-50 pt-4 space-y-4">
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                  {/* Posts a analisar */}
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 mb-2">Posts a analisar</p>
-                    <div className="flex gap-1.5 flex-wrap">
-                      {[{ label: "Últimos 10", value: 10 }, { label: "Últimos 50", value: 50 }, { label: "Todos (200)", value: 200 }].map(opt => (
-                        <button
-                          key={opt.value}
-                          onClick={() => updateSyncParams({ ...syncParams, max_posts: opt.value })}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors border ${syncParams.max_posts === opt.value ? "bg-brand-lilacDark text-white border-brand-lilacDark" : "bg-white text-slate-500 border-slate-200 hover:border-brand-lilac"}`}
-                        >
-                          {opt.label}
+                    {/* Posts a analisar */}
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 mb-2">Posts a analisar</p>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {[{ label: "Últimos 10", value: 10 }, { label: "Últimos 50", value: 50 }, { label: "Todos (200)", value: 200 }].map(opt => (
+                          <button
+                            key={opt.value}
+                            onClick={() => updateSyncParams({ ...syncParams, max_posts: opt.value })}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors border ${syncParams.max_posts === opt.value ? "bg-brand-lilacDark text-white border-brand-lilacDark" : "bg-white text-slate-500 border-slate-200 hover:border-brand-lilac"}`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* Comentários por post */}
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 mb-2">Comentários por post</p>
+                      <div className="flex gap-1.5 flex-wrap">
+                        {[{ label: "10", value: 10 }, { label: "100", value: 100 }, { label: "Todos (1000)", value: 1000 }].map(opt => (
+                          <button
+                            key={opt.value}
+                            onClick={() => updateSyncParams({ ...syncParams, max_comments_per_post: opt.value })}
+                            className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors border ${syncParams.max_comments_per_post === opt.value ? "bg-brand-cyanDark text-white border-brand-cyanDark" : "bg-white text-slate-500 border-slate-200 hover:border-brand-cyan"}`}
+                          >
+                            {opt.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    {/* A partir de */}
+                    <div>
+                      <p className="text-xs font-medium text-slate-500 mb-2">A partir de</p>
+                      <input
+                        type="date"
+                        value={syncParams.since_date}
+                        onChange={e => updateSyncParams({ ...syncParams, since_date: e.target.value })}
+                        className="w-full text-sm px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 focus:outline-none focus:border-brand-lilac transition-colors"
+                        placeholder="Sem filtro de data"
+                      />
+                      {syncParams.since_date && (
+                        <button onClick={() => updateSyncParams({ ...syncParams, since_date: "" })} className="text-[10px] text-slate-400 hover:text-rose-500 mt-1">
+                          Limpar filtro de data
                         </button>
-                      ))}
+                      )}
                     </div>
                   </div>
-                  {/* Comentários por post */}
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 mb-2">Comentários por post</p>
-                    <div className="flex gap-1.5 flex-wrap">
-                      {[{ label: "10", value: 10 }, { label: "100", value: 100 }, { label: "Todos (1000)", value: 1000 }].map(opt => (
-                        <button
-                          key={opt.value}
-                          onClick={() => updateSyncParams({ ...syncParams, max_comments_per_post: opt.value })}
-                          className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors border ${syncParams.max_comments_per_post === opt.value ? "bg-brand-cyanDark text-white border-brand-cyanDark" : "bg-white text-slate-500 border-slate-200 hover:border-brand-cyan"}`}
-                        >
-                          {opt.label}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  {/* A partir de */}
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 mb-2">A partir de</p>
-                    <input
-                      type="date"
-                      value={syncParams.since_date}
-                      onChange={e => updateSyncParams({ ...syncParams, since_date: e.target.value })}
-                      className="w-full text-sm px-3 py-2 rounded-xl border border-slate-200 bg-white text-slate-600 focus:outline-none focus:border-brand-lilac transition-colors"
-                      placeholder="Sem filtro de data"
-                    />
-                    {syncParams.since_date && (
-                      <button onClick={() => updateSyncParams({ ...syncParams, since_date: "" })} className="text-[10px] text-slate-400 hover:text-rose-500 mt-1">
-                        Limpar filtro de data
-                      </button>
-                    )}
-                  </div>
-                </div>
                   <div className="flex items-center justify-end">
                     <button
                       onClick={handleSyncAll}
@@ -309,7 +381,7 @@ export default function ConnectPage() {
 
           {loading ? (
             <div className="dream-card p-6 space-y-4 animate-pulse">
-              {[0,1,2].map(i => <div key={i} className="h-14 bg-slate-50 rounded-2xl" />)}
+              {[0, 1, 2].map(i => <div key={i} className="h-14 bg-slate-50 rounded-2xl" />)}
             </div>
           ) : connections.length === 0 ? (
             <div className="dream-card p-16 flex flex-col items-center text-center">

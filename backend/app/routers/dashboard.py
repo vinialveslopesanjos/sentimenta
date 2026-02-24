@@ -191,6 +191,7 @@ def _build_dashboard_summary(user_id: str, db: Session) -> dict:
                 "profile_image_url": c.profile_image_url,
                 "followers_count": c.followers_count,
                 "status": c.status,
+                "persona": c.persona,
                 "last_sync_at": c.last_sync_at.isoformat() if c.last_sync_at else None,
             }
             for c in connections
@@ -320,7 +321,10 @@ def get_connection_dashboard(
             "profile_url": conn.profile_url,
             "profile_image_url": conn.profile_image_url,
             "followers_count": conn.followers_count,
+            "following_count": conn.following_count,
+            "media_count": conn.media_count,
             "status": conn.status,
+            "persona": conn.persona,
             "connected_at": conn.connected_at.isoformat() if conn.connected_at else None,
             "last_sync_at": conn.last_sync_at.isoformat() if conn.last_sync_at else None,
         },
