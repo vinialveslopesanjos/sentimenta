@@ -13,7 +13,7 @@ REDIS_PASSWORD="REDIS_SENHA_FORTE_AQUI"
 GITHUB_REPO="https://github.com/vinialveslopesanjos/sentimenta.git"
 GIT_BRANCH="main"
 APP_DIR="/opt/sentimenta"
-DOMAIN_API="api.sentimenta.com.br"   # Configurar DNS antes de rodar certbot
+DOMAIN="sentimenta.com.br"   # Configurar DNS antes de rodar certbot
 
 # Chaves de API (ou configure depois via .env)
 SECRET_KEY=$(python3 -c "import secrets; print(secrets.token_hex(32))" 2>/dev/null || openssl rand -hex 32)
@@ -117,6 +117,8 @@ CELERY_RESULT_BACKEND=redis://:${REDIS_PASSWORD}@localhost:6379/1
 
 # App
 DEBUG=false
+APP_URL=https://${DOMAIN}
+INSTAGRAM_REDIRECT_URI=https://${DOMAIN}/api/v1/connections/instagram/callback
 EOF
 
 # ─── 7. Migrations ────────────────────────────────────────────
@@ -126,7 +128,24 @@ cd "$APP_DIR/backend"
 source .venv/bin/activate
 alembic upgrade head || log "Migrations falhou — verifique o banco e rode manualmente"
 
-# ─── 8. Supervisor ────────────────────────────────────────────
+# ─── 8. Node.js — instalar dependências e buildar ─────────────
+
+log "Instalando dependências Node.js..."
+cd "$APP_DIR"
+npm install
+
+log "Buildando packages compartilhadas..."
+npm run build:packages
+
+log "Buildando frontend Next.js..."
+cd "$APP_DIR/frontend"
+npm run build
+
+log "Buildando mobile PWA..."
+cd "$APP_DIR"
+npm run build --workspace=@sentimenta/mobile
+
+# ─── 9. Supervisor ────────────────────────────────────────────
 
 log "Configurando Supervisor..."
 cat > /etc/supervisor/conf.d/sentimenta.conf << EOF
@@ -151,46 +170,34 @@ stdout_logfile=/var/log/sentimenta-celery.log
 stderr_logfile=/var/log/sentimenta-celery-error.log
 user=root
 stopwaitsecs=30
+
+[program:sentimenta-web]
+command=/usr/bin/node_modules/.bin/next start --port 3000
+directory=${APP_DIR}/frontend
+environment=NODE_ENV="production",PORT="3000"
+autostart=true
+autorestart=true
+stdout_logfile=/var/log/sentimenta-web.log
+stderr_logfile=/var/log/sentimenta-web-error.log
+user=root
+stopwaitsecs=30
 EOF
 
 supervisorctl reread
 supervisorctl update
-supervisorctl start sentimenta-api sentimenta-celery || true
+supervisorctl start sentimenta-api sentimenta-celery sentimenta-web || true
 
-# ─── 9. Nginx ─────────────────────────────────────────────────
+# ─── 10. Nginx ────────────────────────────────────────────────
 
 log "Configurando Nginx..."
-cat > /etc/nginx/sites-available/sentimenta << EOF
-server {
-    listen 80;
-    server_name ${DOMAIN_API};
-
-    # API
-    location / {
-        proxy_pass http://127.0.0.1:8000;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_read_timeout 300s;
-        proxy_connect_timeout 75s;
-    }
-
-    # Health check sem auth
-    location /health {
-        proxy_pass http://127.0.0.1:8000/health;
-        access_log off;
-    }
-}
-EOF
-
+cp "$APP_DIR/nginx_sentimenta.conf" /etc/nginx/sites-available/sentimenta
 ln -sf /etc/nginx/sites-available/sentimenta /etc/nginx/sites-enabled/
 rm -f /etc/nginx/sites-enabled/default
 nginx -t
 systemctl enable nginx
 systemctl restart nginx
 
-# ─── 10. Firewall ─────────────────────────────────────────────
+# ─── 11. Firewall ─────────────────────────────────────────────
 
 log "Configurando firewall..."
 ufw allow 22/tcp
@@ -198,25 +205,44 @@ ufw allow 80/tcp
 ufw allow 443/tcp
 ufw --force enable
 
-# ─── 11. SSL ──────────────────────────────────────────────────
+# ─── 12. SSL ──────────────────────────────────────────────────
 
 warn "Para habilitar HTTPS, configure o DNS primeiro e então rode:"
-warn "  certbot --nginx -d ${DOMAIN_API}"
+warn "  certbot --nginx -d ${DOMAIN} -d www.${DOMAIN}"
 warn ""
 warn "Verifique se o domínio já aponta para $(curl -s ifconfig.me) antes de rodar certbot."
 
-# ─── 12. Script de atualização ────────────────────────────────
+# ─── 13. Script de atualização ────────────────────────────────
 
 cat > /opt/sentimenta/scripts/deploy.sh << 'DEPLOY'
 #!/bin/bash
 # Atualizar Sentimenta na VPS — rodar como root
+set -e
 cd /opt/sentimenta
-git pull origin sentimenta_turbo
+
+echo "🔄 Atualizando código..."
+git pull origin main
+
+echo "🐍 Atualizando backend..."
 cd backend
 source .venv/bin/activate
 pip install -q -r requirements.txt
 alembic upgrade head
-supervisorctl restart sentimenta-api sentimenta-celery
+cd ..
+
+echo "📦 Buildando packages..."
+npm install
+npm run build:packages
+
+echo "📱 Buildando mobile PWA..."
+npm run build --workspace=@sentimenta/mobile
+
+echo "🌐 Buildando frontend web..."
+cd frontend && npm run build && cd ..
+
+echo "🔁 Reiniciando serviços..."
+supervisorctl restart sentimenta-api sentimenta-celery sentimenta-web
+
 echo "✅ Deploy concluído!"
 DEPLOY
 
@@ -230,17 +256,21 @@ echo "========================================="
 echo " Sentimenta está rodando na VPS!"
 echo "========================================="
 echo ""
-echo " → API:        http://${DOMAIN_API}"
-echo " → Health:     http://${DOMAIN_API}/health"
-echo " → API Docs:   http://${DOMAIN_API}/docs"
+echo " → Web:        http://${DOMAIN}"
+echo " → Mobile:     http://${DOMAIN}/app/"
+echo " → API Docs:   http://${DOMAIN}/docs"
+echo " → Health:     http://${DOMAIN}/health"
 echo ""
-echo " → Logs API:   tail -f /var/log/sentimenta-api.log"
+echo " → Logs API:    tail -f /var/log/sentimenta-api.log"
+echo " → Logs Web:    tail -f /var/log/sentimenta-web.log"
 echo " → Logs Celery: tail -f /var/log/sentimenta-celery.log"
-echo " → Status:     supervisorctl status"
+echo " → Status:      supervisorctl status"
 echo ""
 echo " Para atualizar: /opt/sentimenta/scripts/deploy.sh"
 echo ""
 warn "IMPORTANTE: edite /opt/sentimenta/.env e adicione:"
 warn "  GEMINI_API_KEY=..."
 warn "  APIFY_API_TOKEN=..."
+warn "  INSTAGRAM_APP_ID=..."
+warn "  INSTAGRAM_APP_SECRET=..."
 warn "Depois reinicie: supervisorctl restart all"

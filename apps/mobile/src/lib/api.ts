@@ -11,6 +11,6 @@ export const api = createApiClient({
     onUnauthorized: () => {
         localStorage.removeItem("sentimenta_access_token");
         localStorage.removeItem("sentimenta_refresh_token");
-        window.location.href = "/login";
+        window.location.href = "/app/login";
     }
 });
