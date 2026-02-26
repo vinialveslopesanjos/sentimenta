@@ -11,7 +11,7 @@ set -e  # Para imediatamente se qualquer comando falhar
 DB_PASSWORD="MUDE_ESTA_SENHA_FORTE_12345"
 REDIS_PASSWORD="REDIS_SENHA_FORTE_AQUI"
 GITHUB_REPO="https://github.com/vinialveslopesanjos/sentimenta.git"
-GIT_BRANCH="sentimenta_turbo"
+GIT_BRANCH="main"
 APP_DIR="/opt/sentimenta"
 DOMAIN_API="api.sentimenta.com.br"   # Configurar DNS antes de rodar certbot
 
