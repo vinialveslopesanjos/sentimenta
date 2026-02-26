@@ -9,7 +9,7 @@ import type {
   CommentListResponse,
 } from "./types";
 
-const API_URL = "http://localhost:8000/api/v1";
+const API_URL = "/api/v1";
 
 interface FetchOptions extends RequestInit {
   token?: string;

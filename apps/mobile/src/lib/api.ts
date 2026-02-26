@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import { createApiClient } from "@sentimenta/api-client";
 
-const API_URL = import.meta.env.VITE_API_URL || "http://192.168.15.6:8000/api/v1";
+const API_URL = import.meta.env.VITE_API_URL || "/api/v1";
 
 export const api = createApiClient({
     baseUrl: API_URL,

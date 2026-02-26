@@ -30,4 +30,4 @@ export const router = createBrowserRouter([
       { path: "settings", Component: SettingsScreen },
     ],
   },
-]);
+], { basename: '/app' });
