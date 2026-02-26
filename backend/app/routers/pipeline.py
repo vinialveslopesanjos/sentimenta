@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sse_starlette.sse import EventSourceResponse
 
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_current_user_token_or_query
 from app.db.session import get_db
 from app.models.pipeline_run import PipelineRun
 from app.models.social_connection import SocialConnection
@@ -124,7 +124,7 @@ def get_pipeline_status(
 async def stream_run_progress(
     run_id: uuid.UUID,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_token_or_query),
 ):
     """SSE endpoint to stream pipeline run progress."""
 

@@ -66,8 +66,8 @@ export function ConnectScreen() {
           <div className="grid grid-cols-2 gap-3">
             {/* Instagram */}
             <DreamCard className="p-5 flex flex-col items-center">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-pink-400 to-purple-500 flex items-center justify-center mb-3">
-                <Instagram size={22} className="text-white" />
+              <div className="w-12 h-12 rounded-2xl bg-white border border-slate-50 shadow-sm flex items-center justify-center mb-3 overflow-hidden flex-shrink-0">
+                <img src="/icons/instagram.svg" alt="Instagram" className="w-7 h-7" />
               </div>
               <span
                 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "14px", fontWeight: 500, color: "#334155" }}
@@ -96,8 +96,8 @@ export function ConnectScreen() {
 
             {/* YouTube */}
             <DreamCard className="p-5 flex flex-col items-center">
-              <div className="w-12 h-12 rounded-2xl bg-red-500 flex items-center justify-center mb-3">
-                <Youtube size={22} className="text-white" />
+              <div className="w-12 h-12 rounded-2xl bg-white border border-slate-50 shadow-sm flex items-center justify-center mb-3 overflow-hidden flex-shrink-0">
+                <img src="/icons/youtube.svg" alt="YouTube" className="w-7 h-7" />
               </div>
               <span
                 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "14px", fontWeight: 500, color: "#334155" }}
@@ -163,11 +163,10 @@ export function ConnectScreen() {
                     <button
                       key={opt}
                       onClick={() => setPostsOption(opt)}
-                      className={`px-3 py-1.5 rounded-xl transition-colors ${
-                        postsOption === opt
+                      className={`px-3 py-1.5 rounded-xl transition-colors ${postsOption === opt
                           ? "bg-violet-500 text-white"
                           : "bg-slate-50 text-slate-500"
-                      }`}
+                        }`}
                       style={{ fontSize: "11px", fontWeight: 500 }}
                     >
                       {opt}
@@ -185,11 +184,10 @@ export function ConnectScreen() {
                     <button
                       key={opt}
                       onClick={() => setCommentsOption(opt)}
-                      className={`px-3 py-1.5 rounded-xl transition-colors ${
-                        commentsOption === opt
+                      className={`px-3 py-1.5 rounded-xl transition-colors ${commentsOption === opt
                           ? "bg-cyan-500 text-white"
                           : "bg-slate-50 text-slate-500"
-                      }`}
+                        }`}
                       style={{ fontSize: "11px", fontWeight: 500 }}
                     >
                       {opt}
@@ -242,18 +240,8 @@ export function ConnectScreen() {
             {connections.map((conn) => (
               <DreamCard key={conn.id} className="p-4">
                 <div className="flex items-center gap-3 mb-3">
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center ${
-                      conn.platform === "instagram"
-                        ? "bg-gradient-to-br from-pink-400 to-purple-500"
-                        : "bg-red-500"
-                    }`}
-                  >
-                    {conn.platform === "instagram" ? (
-                      <Instagram size={18} className="text-white" />
-                    ) : (
-                      <Youtube size={18} className="text-white" />
-                    )}
+                  <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-white border border-slate-50 shadow-sm overflow-hidden flex-shrink-0">
+                    <img src={`/icons/${conn.platform === "twitter" ? "twitter-x" : conn.platform}.svg`} alt={conn.platform} className="w-6 h-6" />
                   </div>
                   <div className="flex-1">
                     <p className="text-slate-700" style={{ fontSize: "14px", fontWeight: 500 }}>

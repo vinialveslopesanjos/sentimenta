@@ -145,7 +145,7 @@ export function CompareScreen() {
         {/* Detail comparison cards */}
         <div className="space-y-3">
           {[
-            { label: "Score Medio", a: "6.8/10", b: "7.5/10", winner: "b" },
+            { label: "Score Medio", a: "6.8", b: "7.5", winner: "b" },
             { label: "Taxa Positiva", a: "63%", b: "72%", winner: "b" },
             { label: "Taxa Negativa", a: "8%", b: "5%", winner: "b" },
             { label: "Comentarios", a: "330", b: "1.240", winner: "b" },

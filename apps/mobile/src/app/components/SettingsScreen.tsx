@@ -186,7 +186,7 @@ export function SettingsScreen() {
               {section.items.map((item, idx) => (
                 <button
                   key={item.label}
-                  onClick={item.action}
+                  onClick={() => "action" in item ? (item as any).action() : null}
                   className="w-full p-4 flex items-center gap-3 active:bg-slate-50 transition-colors"
                 >
                   <div className={`w-9 h-9 rounded-xl ${item.bg} flex items-center justify-center ${item.color}`}>
@@ -196,26 +196,24 @@ export function SettingsScreen() {
                     <p className="text-slate-700" style={{ fontSize: "14px", fontWeight: 500 }}>
                       {item.label}
                     </p>
-                    {item.sublabel && (
+                    {"sublabel" in item && (item as any).sublabel && (
                       <p className="text-slate-400" style={{ fontSize: "11px" }}>
-                        {item.sublabel}
+                        {(item as any).sublabel}
                       </p>
                     )}
                   </div>
-                  {item.toggle ? (
+                  {"toggle" in item && item.toggle ? (
                     <div
                       onClick={(e) => {
                         e.stopPropagation();
                         setNotifications(!notifications);
                       }}
-                      className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${
-                        notifications ? "bg-violet-500" : "bg-slate-200"
-                      }`}
+                      className={`w-11 h-6 rounded-full transition-colors relative cursor-pointer ${notifications ? "bg-violet-500" : "bg-slate-200"
+                        }`}
                     >
                       <div
-                        className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-transform shadow-sm ${
-                          notifications ? "translate-x-5.5" : "translate-x-0.5"
-                        }`}
+                        className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-transform shadow-sm ${notifications ? "translate-x-5.5" : "translate-x-0.5"
+                          }`}
                         style={{ transform: notifications ? "translateX(22px)" : "translateX(2px)" }}
                       />
                     </div>

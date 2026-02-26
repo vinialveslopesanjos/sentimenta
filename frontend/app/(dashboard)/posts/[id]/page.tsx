@@ -39,21 +39,10 @@ function fmtDate(s: string | null | undefined) {
 }
 
 function platformIcon(platform: string, size = 16) {
-  if (String(platform).toLowerCase() === "instagram") {
-    return (
-      <svg fill="none" height={size} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width={size}>
-        <rect height="20" rx="5" ry="5" width="20" x="2" y="2" />
-        <path d="M16 11.37A4 4 0 1 1 12.63 8 4 4 0 0 1 16 11.37z" />
-        <line x1="17.5" x2="17.51" y1="6.5" y2="6.5" />
-      </svg>
-    );
-  }
-  return (
-    <svg fill="none" height={size} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width={size}>
-      <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z" />
-      <polygon points="9.75 15.02 15.5 11.75 9.75 8.48 9.75 15.02" />
-    </svg>
-  );
+  const isInstagram = String(platform).toLowerCase() === "instagram";
+  const isTwitter = String(platform).toLowerCase() === "twitter";
+  const src = isInstagram ? "/icons/instagram.svg" : isTwitter ? "/icons/twitter-x.svg" : "/icons/youtube.svg";
+  return <img src={src} alt={platform} style={{ width: size, height: size }} />;
 }
 
 // ─── types ───────────────────────────────────────────────────────────────────
@@ -385,7 +374,7 @@ export default function PostDetailPage() {
             <>
               {/* Platform + type row */}
               <div className="flex items-center gap-3 mb-4">
-                <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${post.platform === "instagram" ? "bg-pink-50 text-pink-500" : "bg-red-50 text-red-500"}`}>
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center bg-white border border-slate-50 shadow-sm overflow-hidden`}>
                   {platformIcon(post.platform)}
                 </div>
                 <span className="text-xs font-medium text-slate-400 uppercase tracking-wide capitalize">
@@ -462,14 +451,14 @@ export default function PostDetailPage() {
               <KpiCard
                 icon="favorite"
                 label="Score médio"
-                value={avgScore != null ? `${avgScore.toFixed(1)}/10` : "—"}
+                value={avgScore != null ? avgScore.toFixed(1) : "—"}
                 iconBg="bg-violet-50 text-brand-lilacDark"
                 valueClass={scoreColor(avgScore)}
               />
               <KpiCard
                 icon="bar_chart_4_bars"
                 label="Score ponderado"
-                value={weightedScore != null ? `${weightedScore.toFixed(1)}/10` : "—"}
+                value={weightedScore != null ? weightedScore.toFixed(1) : "—"}
                 iconBg="bg-cyan-50 text-brand-cyanDark"
                 valueClass={scoreColor(weightedScore)}
               />

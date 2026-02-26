@@ -232,32 +232,38 @@ function ConnectionCard({ conn, onSync }: { conn: Connection; onSync: (id: strin
     }
   };
 
-  const isInstagram = conn.platform === "instagram";
-  const platformGrad = isInstagram
-    ? "from-pink-400 via-rose-400 to-orange-400"
-    : "from-red-500 to-red-600";
+  const iconSrc = conn.platform === "instagram" ? "/icons/instagram.svg" : conn.platform === "twitter" ? "/icons/twitter-x.svg" : "/icons/youtube.svg";
 
   return (
     <div className="dream-card p-5 hover:-translate-y-0.5 transition-all duration-300">
       <div className="flex items-center gap-3 mb-4">
-        <div className={`w-11 h-11 rounded-2xl bg-gradient-to-tr ${platformGrad} flex items-center justify-center shrink-0 shadow-md`}>
-          {isInstagram ? (
-            <svg fill="white" height="20" viewBox="0 0 24 24" width="20"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0 2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 3.674c-2.403 0-4.35 1.948-4.35 4.35s1.947 4.35 4.35 4.35 4.35-1.948 4.35-4.35-1.947-4.35-4.35-4.35zm0 7.175c-1.566 0-2.826-1.26-2.826-2.825s1.26-2.826 2.826-2.826 2.826 1.26 2.826 2.826-1.26 2.825-2.826 2.825zm4.406-7.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z" /></svg>
-          ) : (
-            <svg fill="white" height="18" viewBox="0 0 24 24" width="18"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z" /></svg>
-          )}
+        <div className="w-11 h-11 rounded-2xl bg-white flex items-center justify-center shrink-0 shadow-md border border-slate-50 overflow-hidden">
+          <img src={iconSrc} alt={conn.platform} className="w-7 h-7" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="font-sans font-semibold text-slate-800 text-sm truncate">@{conn.username}</p>
+          <p className="font-sans font-semibold text-slate-800 text-sm truncate">{conn.username.startsWith('@') ? conn.username : `@${conn.username}`}</p>
           <p className="text-xs text-slate-400 capitalize">{conn.platform}</p>
         </div>
         <div className={`w-2 h-2 rounded-full shrink-0 ${conn.status === "active" ? "bg-emerald-400 shadow-sm shadow-emerald-200" : "bg-rose-400"}`} />
       </div>
-      {conn.followers_count > 0 && (
-        <p className="text-xs text-slate-400 mb-4">
-          {conn.followers_count.toLocaleString("pt-BR")} seguidores
-        </p>
-      )}
+      <div className="flex justify-between items-center mb-4 gap-2">
+        <div>
+          <p className="text-[10px] text-slate-400 uppercase font-semibold">Seguidores</p>
+          <p className="text-sm font-semibold text-slate-700">
+            {conn.followers_count > 0
+              ? (conn.followers_count >= 10000 ? (conn.followers_count / 1000).toFixed(1) + 'k' : conn.followers_count.toLocaleString("pt-BR"))
+              : "—"}
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] text-slate-400 uppercase font-semibold">Posts</p>
+          <p className="text-sm font-semibold text-slate-700">{conn.total_posts ?? "—"}</p>
+        </div>
+        <div className="text-right">
+          <p className="text-[10px] text-slate-400 uppercase font-semibold">Comentários</p>
+          <p className="text-sm font-semibold text-slate-700">{conn.total_analyzed ?? "—"}</p>
+        </div>
+      </div>
       <div className="flex gap-2">
         <Link
           href={`/dashboard/connection/${conn.id}`}

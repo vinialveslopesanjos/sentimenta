@@ -95,7 +95,7 @@ export function PostDetailScreen() {
               <Heart size={14} className="text-violet-500" />
             </div>
             <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "22px", fontWeight: 500, color: "#06B6D4" }}>
-              {postDetail.scoreMedio}/10
+              {postDetail.scoreMedio}
             </p>
             <p className="text-slate-400" style={{ fontSize: "10px" }}>Score medio</p>
           </DreamCard>
@@ -247,13 +247,12 @@ export function PostDetailScreen() {
               <DreamCard key={c.id} className="p-3">
                 <div className="flex items-start gap-3">
                   <span
-                    className={`flex-shrink-0 mt-0.5 ${
-                      c.score >= 9
+                    className={`flex-shrink-0 mt-0.5 ${c.score >= 9
                         ? "text-emerald-500"
                         : c.score >= 7
-                        ? "text-cyan-500"
-                        : "text-amber-500"
-                    }`}
+                          ? "text-cyan-500"
+                          : "text-amber-500"
+                      }`}
                     style={{ fontFamily: "'Outfit', sans-serif", fontSize: "14px", fontWeight: 600 }}
                   >
                     {c.score.toFixed(1)}

@@ -75,18 +75,12 @@ export function ConnectionDetailScreen() {
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div
-              className={`w-11 h-11 rounded-xl flex items-center justify-center ${
-                conn.platform === "instagram"
-                  ? "bg-gradient-to-br from-pink-400 to-purple-500"
-                  : "bg-red-500"
-              }`}
-            >
-              {conn.platform === "instagram" ? (
-                <Instagram size={20} className="text-white" />
-              ) : (
-                <Youtube size={20} className="text-white" />
-              )}
+            <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-white border border-slate-50 shadow-sm overflow-hidden flex-shrink-0">
+              <img
+                src={`/icons/${conn.platform === "twitter" ? "twitter-x" : conn.platform}.svg`}
+                alt={conn.platform}
+                className="w-7 h-7"
+              />
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -114,11 +108,10 @@ export function ConnectionDetailScreen() {
         {/* Analyze button */}
         <button
           onClick={handleAnalyze}
-          className={`w-full mt-4 py-3.5 rounded-2xl text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-all ${
-            analyzing
-              ? "bg-gradient-to-r from-cyan-400 to-cyan-300"
-              : "bg-gradient-to-r from-violet-500 to-cyan-400 shadow-lg shadow-violet-200/50"
-          }`}
+          className={`w-full mt-4 py-3.5 rounded-2xl text-white flex items-center justify-center gap-2 active:scale-[0.98] transition-all ${analyzing
+            ? "bg-gradient-to-r from-cyan-400 to-cyan-300"
+            : "bg-gradient-to-r from-violet-500 to-cyan-400 shadow-lg shadow-violet-200/50"
+            }`}
           style={{ fontFamily: "'Outfit', sans-serif", fontSize: "15px", fontWeight: 500 }}
         >
           <Zap size={18} />
@@ -134,7 +127,7 @@ export function ConnectionDetailScreen() {
               <Heart size={14} className="text-violet-500" />
             </div>
             <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "20px", fontWeight: 500, color: "#06B6D4" }}>
-              {connectionKPIs.scoreMedio}/10
+              {connectionKPIs.scoreMedio}
             </p>
             <p className="text-slate-400" style={{ fontSize: "9px" }}>Score medio</p>
           </DreamCard>
@@ -262,11 +255,10 @@ export function ConnectionDetailScreen() {
                 <button
                   key={p}
                   onClick={() => setScorePeriod(p)}
-                  className={`px-3 py-1 rounded-lg transition-colors ${
-                    scorePeriod === p
-                      ? "bg-violet-500 text-white"
-                      : "text-slate-400"
-                  }`}
+                  className={`px-3 py-1 rounded-lg transition-colors ${scorePeriod === p
+                    ? "bg-violet-500 text-white"
+                    : "text-slate-400"
+                    }`}
                   style={{ fontSize: "10px", fontWeight: 500 }}
                 >
                   {p}
@@ -329,11 +321,10 @@ export function ConnectionDetailScreen() {
                 <button
                   key={v}
                   onClick={() => setTemporalView(v)}
-                  className={`px-2.5 py-1 rounded-lg transition-colors ${
-                    temporalView === v
-                      ? "bg-violet-500 text-white"
-                      : "text-slate-400"
-                  }`}
+                  className={`px-2.5 py-1 rounded-lg transition-colors ${temporalView === v
+                    ? "bg-violet-500 text-white"
+                    : "text-slate-400"
+                    }`}
                   style={{ fontSize: "9px", fontWeight: 500 }}
                 >
                   {v}
@@ -603,13 +594,12 @@ export function ConnectionDetailScreen() {
             {["↓ Score", "↑ Score", "Recentes", "10", "25", "50", "Todos"].map((f, i) => (
               <button
                 key={f}
-                className={`px-3 py-1.5 rounded-xl flex-shrink-0 transition-colors ${
-                  i === 0
-                    ? "bg-violet-500 text-white"
-                    : i === 3
+                className={`px-3 py-1.5 rounded-xl flex-shrink-0 transition-colors ${i === 0
+                  ? "bg-violet-500 text-white"
+                  : i === 3
                     ? "bg-cyan-500 text-white"
                     : "bg-slate-50 text-slate-500"
-                }`}
+                  }`}
                 style={{ fontSize: "11px", fontWeight: 500 }}
               >
                 {f}
@@ -625,8 +615,8 @@ export function ConnectionDetailScreen() {
                 post.score >= 8
                   ? "#059669"
                   : post.score >= 6.5
-                  ? "#7C3AED"
-                  : "#D97706";
+                    ? "#7C3AED"
+                    : "#D97706";
               return (
                 <DreamCard
                   key={post.id}
@@ -717,8 +707,8 @@ export function ConnectionDetailScreen() {
                 c.score >= 8.5
                   ? "rgba(52,211,153,0.1)"
                   : c.score >= 6.5
-                  ? "rgba(34,211,238,0.1)"
-                  : "rgba(251,191,36,0.1)";
+                    ? "rgba(34,211,238,0.1)"
+                    : "rgba(251,191,36,0.1)";
               const tagColor =
                 c.score >= 8.5 ? "#059669" : c.score >= 6.5 ? "#0891B2" : "#D97706";
 

@@ -8,7 +8,7 @@ interface AvatarProps extends HTMLAttributes<HTMLDivElement> {
   alt?: string;
   fallback?: string;
   size?: "sm" | "md" | "lg";
-  platform?: "youtube" | "instagram" | null;
+  platform?: "youtube" | "instagram" | "twitter" | null;
 }
 
 function getInitials(name: string): string {
@@ -23,6 +23,7 @@ function getInitials(name: string): string {
 const platformRingColors: Record<string, string> = {
   youtube: "ring-[#FF0000]",
   instagram: "ring-[#E4405F]",
+  twitter: "ring-[#1D9BF0]",
 };
 
 const Avatar = forwardRef<HTMLDivElement, AvatarProps>(

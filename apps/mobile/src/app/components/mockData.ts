@@ -377,7 +377,7 @@ export const alerts = [
     id: "a3",
     type: "success",
     title: "Score em alta!",
-    description: "Seu score medio subiu para 8.5/10 esta semana.",
+    description: "Seu score medio subiu para 8.5 esta semana.",
     date: "Ha 1d",
     read: true,
   },

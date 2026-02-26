@@ -4,6 +4,7 @@ import { motion } from "motion/react";
 import { StatusBar } from "./StatusBar";
 import { FogBackground } from "./FogBackground";
 import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react";
+import { api } from "../../lib/api";
 
 const ease = [0.22, 1, 0.36, 1] as const;
 
@@ -13,8 +14,27 @@ export function LoginScreen() {
   const [showPassword, setShowPassword] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-  const handleSubmit = () => navigate("/dashboard");
+  const handleSubmit = async () => {
+    try {
+      setLoading(true);
+      setError("");
+      if (isLogin) {
+        const res = await api.auth.login(email, password);
+        localStorage.setItem("sentimenta_access_token", res.access_token);
+      } else {
+        const res = await api.auth.register(email, password, "");
+        localStorage.setItem("sentimenta_access_token", res.access_token);
+      }
+      navigate("/dashboard");
+    } catch (err: any) {
+      setError(err.message || "Something went wrong.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="w-full min-h-screen flex justify-center bg-[#FDFBFF]">

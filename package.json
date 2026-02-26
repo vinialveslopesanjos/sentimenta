@@ -9,8 +9,7 @@
     ],
     "scripts": {
         "dev:web": "npm run dev --workspace=frontend",
-        "dev:mobile": "npm run start --workspace=@sentimenta/mobile",
-        "dev:mobile:tunnel": "npm run start:tunnel --workspace=@sentimenta/mobile",
+        "dev:mobile": "npm run dev --workspace=@sentimenta/mobile",
         "build:web": "npm run build --workspace=frontend",
         "build:types": "npm run build --workspace=@sentimenta/types",
         "build:api-client": "npm run build --workspace=@sentimenta/api-client",

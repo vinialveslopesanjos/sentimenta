@@ -3,13 +3,9 @@ import { useNavigate } from "react-router";
 import { motion } from "motion/react";
 import { StatusBar } from "./StatusBar";
 import { DreamCard } from "./DreamCard";
-import {
-  dashboardKPIs,
-  connections,
-  monthlyDistribution,
-  recentPosts,
-  aiReport,
-} from "./mockData";
+import { api } from "../../lib/api";
+import { type DashboardSummary, type Connection } from "@sentimenta/types";
+import { aiReport, monthlyDistribution } from "./mockData";
 import {
   Instagram,
   Youtube,
@@ -47,19 +43,19 @@ function ScoreHero({ score }: { score: number }) {
     score >= 8.5
       ? "excelente"
       : score >= 7
-      ? "otimo"
-      : score >= 5.5
-      ? "regular"
-      : "em alerta";
+        ? "otimo"
+        : score >= 5.5
+          ? "regular"
+          : "em alerta";
 
   const color =
     score >= 8.5
       ? "#34D399"
       : score >= 7
-      ? "#8B5CF6"
-      : score >= 5.5
-      ? "#FBBF24"
-      : "#F472B6";
+        ? "#8B5CF6"
+        : score >= 5.5
+          ? "#FBBF24"
+          : "#F472B6";
 
   return (
     <div className="flex items-center gap-5">
@@ -139,15 +135,13 @@ function ScoreHero({ score }: { score: number }) {
         </p>
         <div className="flex items-center gap-2 mt-2.5">
           <span
-            className="px-2.5 py-1 rounded-full"
+            className="px-2.5 py-1 rounded-full text-emerald-600 bg-emerald-50"
             style={{
               fontSize: "11px",
               fontWeight: 500,
-              background: "rgba(52,211,153,0.12)",
-              color: "#059669",
             }}
           >
-            + {dashboardKPIs.scoreDelta} esta semana
+            + 0.5 esta semana
           </span>
           <span
             className="px-2.5 py-1 rounded-full capitalize"
@@ -170,6 +164,24 @@ export function DashboardScreen() {
   const navigate = useNavigate();
   const [aiExpanded, setAiExpanded] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [conns, setConns] = useState<Connection[]>([]);
+
+  React.useEffect(() => {
+    async function loadData() {
+      try {
+        const [sumRes, connRes] = await Promise.all([
+          api.dashboard.summary(),
+          api.connections.list(),
+        ]);
+        setSummary(sumRes);
+        setConns(connRes);
+      } catch (err) {
+        console.error("Failed to load dashboard data", err);
+      }
+    }
+    loadData();
+  }, []);
 
   const handleRefreshAI = () => {
     setRefreshing(true);
@@ -221,363 +233,378 @@ export function DashboardScreen() {
       </div>
 
       <div className="px-5 mt-4 space-y-4">
-
-        {/* HERO: Score + Narrative */}
-        <motion.div {...stagger(2)}>
-          <DreamCard className="p-5 relative overflow-hidden" glow>
-            <div
-              className="absolute -right-12 -top-12 w-48 h-48 rounded-full blur-3xl"
-              style={{ background: "radial-gradient(circle, rgba(103,232,249,0.2) 0%, rgba(196,181,253,0.15) 60%, transparent 100%)" }}
-            />
-            <ScoreHero score={dashboardKPIs.score} />
-          </DreamCard>
-        </motion.div>
-
-        {/* Quick KPIs */}
-        <div className="grid grid-cols-3 gap-2.5">
-          {[
-            {
-              icon: <MessageSquare size={15} className="text-cyan-500" />,
-              bg: "rgba(103,232,249,0.12)",
-              value: dashboardKPIs.comments.toLocaleString(),
-              label: "comentarios",
-              color: "#0891B2",
-            },
-            {
-              icon: <FileText size={15} className="text-violet-500" />,
-              bg: "rgba(139,92,246,0.1)",
-              value: dashboardKPIs.posts,
-              label: "posts",
-              color: "#7C3AED",
-            },
-            {
-              icon: <Link2 size={15} className="text-emerald-500" />,
-              bg: "rgba(52,211,153,0.1)",
-              value: dashboardKPIs.connections,
-              label: "conexoes",
-              color: "#059669",
-            },
-          ].map((k, i) => (
-            <motion.div key={k.label} {...stagger(3 + i)}>
-              <DreamCard className="p-3.5">
+        {!summary ? (
+          <div className="p-10 text-center text-slate-400">Carregando painel...</div>
+        ) : (
+          <>
+            {/* HERO: Score + Narrative */}
+            <motion.div {...stagger(2)}>
+              <DreamCard className="p-5 relative overflow-hidden" glow>
                 <div
-                  className="w-8 h-8 rounded-xl flex items-center justify-center mb-2.5"
-                  style={{ background: k.bg }}
-                >
-                  {k.icon}
-                </div>
-                <p
-                  style={{
-                    fontFamily: "'Outfit', sans-serif",
-                    fontSize: "22px",
-                    fontWeight: 700,
-                    color: k.color,
-                    lineHeight: 1,
-                  }}
-                >
-                  {k.value}
-                </p>
-                <p style={{ fontSize: "10px", color: "#64748B", marginTop: "3px" }}>
-                  {k.label}
-                </p>
+                  className="absolute -right-12 -top-12 w-48 h-48 rounded-full blur-3xl"
+                  style={{ background: "radial-gradient(circle, rgba(103,232,249,0.2) 0%, rgba(196,181,253,0.15) 60%, transparent 100%)" }}
+                />
+                <ScoreHero score={summary.avg_score ?? 0} />
               </DreamCard>
             </motion.div>
-          ))}
-        </div>
 
-        {/* Seus Perfis */}
-        <motion.div {...stagger(6)}>
-          <div className="flex items-center justify-between mb-3">
-            <h2
-              style={{
-                fontFamily: "'Outfit', sans-serif",
-                fontSize: "17px",
-                fontWeight: 600,
-                color: "#1E293B",
-              }}
-            >
-              Seus Perfis
-            </h2>
-            <button
-              onClick={() => navigate("/connect")}
-              className="flex items-center gap-1"
-              style={{ fontSize: "12px", fontWeight: 500, color: "#8B5CF6" }}
-            >
-              <Link2 size={13} /> Adicionar
-            </button>
-          </div>
-
-          <div className="flex gap-3 overflow-x-auto pb-2 -mx-5 px-5 scrollbar-hide">
-            {connections.map((conn) => (
-              <DreamCard
-                key={conn.id}
-                className="min-w-[200px] p-4 flex-shrink-0"
-                onClick={() => navigate(`/dashboard/connection/${conn.id}`)}
-              >
-                <div className="flex items-center gap-3 mb-3">
-                  <div
-                    className="w-10 h-10 rounded-xl flex items-center justify-center"
-                    style={{
-                      background:
-                        conn.platform === "instagram"
-                          ? "linear-gradient(135deg, #F472B6 0%, #8B5CF6 100%)"
-                          : "#EF4444",
-                    }}
-                  >
-                    {conn.platform === "instagram" ? (
-                      <Instagram size={18} className="text-white" />
-                    ) : (
-                      <Youtube size={18} className="text-white" />
-                    )}
-                  </div>
-                  <div>
-                    <p style={{ fontSize: "13px", fontWeight: 600, color: "#1E293B" }}>
-                      {conn.username}
-                    </p>
-                    <p style={{ fontSize: "11px", color: "#64748B" }}>
-                      {conn.followers.toLocaleString()} seguidores
-                    </p>
-                  </div>
-                </div>
-                <div className="flex items-center gap-1" style={{ fontSize: "12px", fontWeight: 500, color: "#8B5CF6" }}>
-                  Ver analise detalhada
-                  <ChevronRight size={13} />
-                </div>
-              </DreamCard>
-            ))}
-
-            <DreamCard
-              className="min-w-[120px] p-4 flex-shrink-0 flex flex-col items-center justify-center"
-              style={{ background: "rgba(248,250,252,0.7)", border: "1.5px dashed rgba(196,181,253,0.3)" } as React.CSSProperties}
-              onClick={() => navigate("/connect")}
-            >
-              <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center mb-2">
-                <span style={{ fontSize: "22px", color: "#C4B5FD", fontWeight: 300 }}>+</span>
-              </div>
-              <span style={{ fontSize: "11px", color: "#94A3B8" }}>Adicionar</span>
-            </DreamCard>
-          </div>
-        </motion.div>
-
-        {/* Distribuicao Temporal */}
-        <motion.div {...stagger(7)}>
-          <DreamCard className="p-5">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <p style={{ fontSize: "10px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                  Distribuicao Temporal
-                </p>
-                <p style={{ fontSize: "12px", color: "#475569", marginTop: "2px" }}>
-                  Sentimento mensal ao longo do tempo
-                </p>
-              </div>
-              <div
-                className="px-2.5 py-1 rounded-lg"
-                style={{ background: "rgba(196,181,253,0.12)" }}
-              >
-                <span style={{ fontSize: "10px", fontWeight: 500, color: "#7C3AED" }}>30 dias</span>
-              </div>
-            </div>
-
-            <div className="h-[160px]">
-              <ResponsiveContainer width="99%" height="100%">
-                <AreaChart data={monthlyDistribution}>
-                  <defs>
-                    <linearGradient id="colorPos" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#34D399" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#34D399" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="colorNeu" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#FBBF24" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#FBBF24" stopOpacity={0} />
-                    </linearGradient>
-                    <linearGradient id="colorNeg" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#F472B6" stopOpacity={0.4} />
-                      <stop offset="95%" stopColor="#F472B6" stopOpacity={0} />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#94A3B8" }} interval={1} />
-                  <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#94A3B8" }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
-                  <Tooltip
-                    contentStyle={{
-                      background: "rgba(255,255,255,0.92)",
-                      backdropFilter: "blur(12px)",
-                      border: "1px solid rgba(196,181,253,0.2)",
-                      borderRadius: "16px",
-                      boxShadow: "0 4px 20px rgba(196,181,253,0.15)",
-                      fontSize: "11px",
-                    }}
-                  />
-                  <Area type="monotone" dataKey="negativo" stackId="1" stroke="#F472B6" fill="#F472B6" fillOpacity={0.55} strokeWidth={0} />
-                  <Area type="monotone" dataKey="neutro" stackId="1" stroke="#FBBF24" fill="#FBBF24" fillOpacity={0.55} strokeWidth={0} />
-                  <Area type="monotone" dataKey="positivo" stackId="1" stroke="#34D399" fill="#34D399" fillOpacity={0.55} strokeWidth={0} />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-
-            <div className="flex items-center gap-5 mt-3 justify-center">
+            {/* Quick KPIs */}
+            <div className="grid grid-cols-3 gap-2.5">
               {[
-                { color: "#34D399", label: "Positivo" },
-                { color: "#FBBF24", label: "Neutro" },
-                { color: "#F472B6", label: "Negativo" },
-              ].map((l) => (
-                <div key={l.label} className="flex items-center gap-1.5">
-                  <div className="w-2 h-2 rounded-full" style={{ background: l.color }} />
-                  <span style={{ fontSize: "10px", color: "#64748B" }}>{l.label}</span>
-                </div>
-              ))}
-            </div>
-          </DreamCard>
-        </motion.div>
-
-        {/* IA Report */}
-        <motion.div {...stagger(8)}>
-          <DreamCard className="p-5 relative overflow-hidden" glow>
-            <div
-              className="absolute -right-10 -top-10 w-40 h-40 rounded-full blur-2xl"
-              style={{ background: "radial-gradient(circle, rgba(103,232,249,0.22) 0%, rgba(196,181,253,0.18) 60%, transparent 100%)" }}
-            />
-
-            <div className="flex items-center justify-between mb-3 relative z-10">
-              <div className="flex items-center gap-2">
-                <Sparkles size={17} style={{ color: "#8B5CF6" }} />
-                <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "15px", fontWeight: 600, color: "#1E293B" }}>
-                  Saude da Reputacao (IA)
-                </span>
-              </div>
-              <button
-                onClick={handleRefreshAI}
-                className="flex items-center gap-1 px-3 py-1.5 rounded-xl"
-                style={{
-                  fontSize: "11px",
-                  fontWeight: 500,
-                  background: "rgba(139,92,246,0.1)",
+                {
+                  icon: <MessageSquare size={15} className="text-cyan-500" />,
+                  bg: "rgba(103,232,249,0.12)",
+                  value: summary.total_comments.toLocaleString(),
+                  label: "comentarios",
+                  color: "#0891B2",
+                },
+                {
+                  icon: <FileText size={15} className="text-violet-500" />,
+                  bg: "rgba(139,92,246,0.1)",
+                  value: summary.total_posts.toLocaleString(),
+                  label: "posts",
                   color: "#7C3AED",
-                }}
-              >
-                <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
-                {refreshing ? "" : "Atualizar"}
-              </button>
-            </div>
-
-            <p style={{ fontSize: "11px", color: "#94A3B8", marginBottom: "12px" }} className="relative z-10">
-              Perfil: {aiReport.profile} · {aiReport.period}
-            </p>
-
-            <div className="space-y-3 relative z-10">
-              <div>
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <span style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>O resumo da vez</span>
-                </div>
-                <p style={{ fontSize: "13px", color: "#475569", lineHeight: 1.55 }}>
-                  {aiReport.summary}
-                </p>
-              </div>
-
-              {aiExpanded && (
-                <>
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <span style={{ fontSize: "12px", fontWeight: 600, color: "#059669" }}>O que funcionou</span>
-                    </div>
-                    <p style={{ fontSize: "13px", color: "#475569", lineHeight: 1.55 }}>{aiReport.strengths}</p>
-                  </div>
-
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <span style={{ fontSize: "12px", fontWeight: 600, color: "#D97706" }}>Pontos de atencao</span>
-                    </div>
-                    <p style={{ fontSize: "13px", color: "#475569", lineHeight: 1.55 }}>{aiReport.attention}</p>
-                  </div>
-
-                  <DreamCard className="p-3.5" tint="violet">
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <span style={{ fontSize: "12px", fontWeight: 600, color: "#7C3AED" }}>Proximo passo sugerido</span>
-                    </div>
-                    <p style={{ fontSize: "13px", color: "#475569", lineHeight: 1.55 }}>{aiReport.nextStep}</p>
-                  </DreamCard>
-                </>
-              )}
-
-              <button
-                onClick={() => setAiExpanded(!aiExpanded)}
-                className="flex items-center gap-1"
-                style={{ fontSize: "13px", fontWeight: 500, color: "#8B5CF6" }}
-              >
-                {aiExpanded ? "Ver menos" : "Ver relatorio completo"}
-                <ChevronRight
-                  size={14}
-                  className={`transition-transform ${aiExpanded ? "rotate-90" : ""}`}
-                />
-              </button>
-            </div>
-          </DreamCard>
-        </motion.div>
-
-        {/* Posts Recentes */}
-        <motion.div {...stagger(9)}>
-          <div className="flex items-center justify-between mb-3">
-            <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "17px", fontWeight: 600, color: "#1E293B" }}>
-              Posts Recentes
-            </h2>
-            <span style={{ fontSize: "12px", fontWeight: 500, color: "#8B5CF6" }}>Ver tudo</span>
-          </div>
-
-          <div className="space-y-2.5">
-            {recentPosts.slice(0, 5).map((post, i) => {
-              const tint =
-                post.score >= 8 ? "emerald" : post.score >= 6.5 ? "none" : "amber";
-              return (
-                <motion.div
-                  key={post.id}
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: 0.05 * i + 0.5, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
-                >
-                  <DreamCard
-                    className="p-4 flex items-center gap-3"
-                    tint={tint as any}
-                    onClick={() => navigate(`/posts/${post.id}`)}
-                  >
+                },
+                {
+                  icon: <Link2 size={15} className="text-emerald-500" />,
+                  bg: "rgba(52,211,153,0.1)",
+                  value: summary.total_connections.toLocaleString(),
+                  label: "conexoes",
+                  color: "#059669",
+                },
+              ].map((k, i) => (
+                <motion.div key={k.label} {...stagger(3 + i)}>
+                  <DreamCard className="p-3.5">
                     <div
-                      className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                      style={{ background: "rgba(196,181,253,0.12)" }}
+                      className="w-8 h-8 rounded-xl flex items-center justify-center mb-2.5"
+                      style={{ background: k.bg }}
                     >
-                      <FileText size={16} style={{ color: "#C4B5FD" }} />
+                      {k.icon}
                     </div>
-                    <div className="flex-1 min-w-0">
-                      <p style={{ fontSize: "13px", fontWeight: 500, color: "#1E293B" }} className="truncate">
-                        {post.title}
-                      </p>
-                      <p style={{ fontSize: "11px", color: "#64748B" }}>
-                        {post.platform} · {post.comments} comentarios
-                      </p>
-                    </div>
-                    <div className="flex flex-col items-end flex-shrink-0">
-                      <span
-                        style={{
-                          fontFamily: "'Outfit', sans-serif",
-                          fontSize: "17px",
-                          fontWeight: 700,
-                          color:
-                            post.score >= 8
-                              ? "#059669"
-                              : post.score >= 6.5
-                              ? "#7C3AED"
-                              : "#D97706",
-                        }}
-                      >
-                        {post.score}
-                      </span>
-                      <ChevronRight size={13} style={{ color: "#CBD5E1" }} />
-                    </div>
+                    <p
+                      style={{
+                        fontFamily: "'Outfit', sans-serif",
+                        fontSize: "22px",
+                        fontWeight: 700,
+                        color: k.color,
+                        lineHeight: 1,
+                      }}
+                    >
+                      {k.value}
+                    </p>
+                    <p style={{ fontSize: "10px", color: "#64748B", marginTop: "3px" }}>
+                      {k.label}
+                    </p>
                   </DreamCard>
                 </motion.div>
-              );
-            })}
-          </div>
-        </motion.div>
+              ))}
+            </div>
+
+            {/* Seus Perfis */}
+            <motion.div {...stagger(6)}>
+              <div className="flex items-center justify-between mb-3">
+                <h2
+                  style={{
+                    fontFamily: "'Outfit', sans-serif",
+                    fontSize: "17px",
+                    fontWeight: 600,
+                    color: "#1E293B",
+                  }}
+                >
+                  Seus Perfis
+                </h2>
+                <button
+                  onClick={() => navigate("/connect")}
+                  className="flex items-center gap-1"
+                  style={{ fontSize: "12px", fontWeight: 500, color: "#8B5CF6" }}
+                >
+                  <Link2 size={13} /> Adicionar
+                </button>
+              </div>
+
+              <div className="flex gap-3 overflow-x-auto pb-2 -mx-5 px-5 scrollbar-hide">
+                {conns.map((conn) => (
+                  <DreamCard
+                    key={conn.id}
+                    className="min-w-[200px] p-4 flex-shrink-0"
+                    onClick={() => navigate(`/dashboard/connection/${conn.id}`)}
+                  >
+                    <div className="flex items-center gap-3 mb-3">
+                      <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-white border border-slate-50 shadow-sm overflow-hidden flex-shrink-0">
+                        <img
+                          src={`/icons/${conn.platform === "twitter" ? "twitter-x" : conn.platform}.svg`}
+                          alt={conn.platform}
+                          className="w-6 h-6"
+                        />
+                      </div>
+                      <div>
+                        <p style={{ fontSize: "14px", fontWeight: 600, color: "#1E293B" }}>
+                          {conn.display_name || conn.username}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex justify-between items-center mb-4 gap-2 border-t border-slate-50 pt-3">
+                      <div>
+                        <p className="text-[9px] text-slate-400 uppercase font-semibold">Seguidores</p>
+                        <p className="text-xs font-semibold text-slate-700">
+                          {conn.followers_count && conn.followers_count > 0
+                            ? (conn.followers_count >= 10000 ? (conn.followers_count / 1000).toFixed(1) + 'k' : conn.followers_count.toLocaleString("pt-BR"))
+                            : "—"}
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-[9px] text-slate-400 uppercase font-semibold">Posts</p>
+                        <p className="text-xs font-semibold text-slate-700">{(conn as any).total_posts ?? "—"}</p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-[9px] text-slate-400 uppercase font-semibold">Coments</p>
+                        <p className="text-xs font-semibold text-slate-700">{(conn as any).total_analyzed ?? "—"}</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1" style={{ fontSize: "12px", fontWeight: 500, color: "#8B5CF6" }}>
+                      Ver analise detalhada
+                      <ChevronRight size={13} />
+                    </div>
+                  </DreamCard>
+                ))}
+
+                <DreamCard
+                  className="min-w-[120px] p-4 flex-shrink-0 flex flex-col items-center justify-center"
+                  style={{ background: "rgba(248,250,252,0.7)", border: "1.5px dashed rgba(196,181,253,0.3)" } as React.CSSProperties}
+                  onClick={() => navigate("/connect")}
+                >
+                  <div className="w-10 h-10 rounded-xl bg-violet-50 flex items-center justify-center mb-2">
+                    <span style={{ fontSize: "22px", color: "#C4B5FD", fontWeight: 300 }}>+</span>
+                  </div>
+                  <span style={{ fontSize: "11px", color: "#94A3B8" }}>Adicionar</span>
+                </DreamCard>
+              </div>
+            </motion.div>
+
+            {/* Distribuicao Temporal */}
+            <motion.div {...stagger(7)}>
+              <DreamCard className="p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p style={{ fontSize: "10px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>
+                      Distribuicao Temporal
+                    </p>
+                    <p style={{ fontSize: "12px", color: "#475569", marginTop: "2px" }}>
+                      Sentimento mensal ao longo do tempo
+                    </p>
+                  </div>
+                  <div
+                    className="px-2.5 py-1 rounded-lg"
+                    style={{ background: "rgba(196,181,253,0.12)" }}
+                  >
+                    <span style={{ fontSize: "10px", fontWeight: 500, color: "#7C3AED" }}>30 dias</span>
+                  </div>
+                </div>
+
+                <div className="h-[160px]">
+                  <ResponsiveContainer width="99%" height="100%">
+                    <AreaChart data={monthlyDistribution}>
+                      <defs>
+                        <linearGradient id="colorPos" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#34D399" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#34D399" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="colorNeu" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#FBBF24" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#FBBF24" stopOpacity={0} />
+                        </linearGradient>
+                        <linearGradient id="colorNeg" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#F472B6" stopOpacity={0.4} />
+                          <stop offset="95%" stopColor="#F472B6" stopOpacity={0} />
+                        </linearGradient>
+                      </defs>
+                      <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#94A3B8" }} interval={1} />
+                      <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#94A3B8" }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                      <Tooltip
+                        contentStyle={{
+                          background: "rgba(255,255,255,0.92)",
+                          backdropFilter: "blur(12px)",
+                          border: "1px solid rgba(196,181,253,0.2)",
+                          borderRadius: "16px",
+                          boxShadow: "0 4px 20px rgba(196,181,253,0.15)",
+                          fontSize: "11px",
+                        }}
+                      />
+                      <Area type="monotone" dataKey="negativo" stackId="1" stroke="#F472B6" fill="#F472B6" fillOpacity={0.55} strokeWidth={0} />
+                      <Area type="monotone" dataKey="neutro" stackId="1" stroke="#FBBF24" fill="#FBBF24" fillOpacity={0.55} strokeWidth={0} />
+                      <Area type="monotone" dataKey="positivo" stackId="1" stroke="#34D399" fill="#34D399" fillOpacity={0.55} strokeWidth={0} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                </div>
+
+                <div className="flex items-center gap-5 mt-3 justify-center">
+                  {[
+                    { color: "#34D399", label: "Positivo" },
+                    { color: "#FBBF24", label: "Neutro" },
+                    { color: "#F472B6", label: "Negativo" },
+                  ].map((l) => (
+                    <div key={l.label} className="flex items-center gap-1.5">
+                      <div className="w-2 h-2 rounded-full" style={{ background: l.color }} />
+                      <span style={{ fontSize: "10px", color: "#64748B" }}>{l.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </DreamCard>
+            </motion.div>
+
+            {/* IA Report */}
+            <motion.div {...stagger(8)}>
+              <DreamCard className="p-5 relative overflow-hidden" glow>
+                <div
+                  className="absolute -right-10 -top-10 w-40 h-40 rounded-full blur-2xl"
+                  style={{ background: "radial-gradient(circle, rgba(103,232,249,0.22) 0%, rgba(196,181,253,0.18) 60%, transparent 100%)" }}
+                />
+
+                <div className="flex items-center justify-between mb-3 relative z-10">
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={17} style={{ color: "#8B5CF6" }} />
+                    <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "15px", fontWeight: 600, color: "#1E293B" }}>
+                      Saude da Reputacao (IA)
+                    </span>
+                  </div>
+                  <button
+                    onClick={handleRefreshAI}
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-xl"
+                    style={{
+                      fontSize: "11px",
+                      fontWeight: 500,
+                      background: "rgba(139,92,246,0.1)",
+                      color: "#7C3AED",
+                    }}
+                  >
+                    <RefreshCw size={12} className={refreshing ? "animate-spin" : ""} />
+                    {refreshing ? "" : "Atualizar"}
+                  </button>
+                </div>
+
+                <p style={{ fontSize: "11px", color: "#94A3B8", marginBottom: "12px" }} className="relative z-10">
+                  Perfil: {aiReport.profile} · {aiReport.period}
+                </p>
+
+                <div className="space-y-3 relative z-10">
+                  <div>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <span style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>O resumo da vez</span>
+                    </div>
+                    <p style={{ fontSize: "13px", color: "#475569", lineHeight: 1.55 }}>
+                      {aiReport.summary}
+                    </p>
+                  </div>
+
+                  {aiExpanded && (
+                    <>
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <span style={{ fontSize: "12px", fontWeight: 600, color: "#059669" }}>O que funcionou</span>
+                        </div>
+                        <p style={{ fontSize: "13px", color: "#475569", lineHeight: 1.55 }}>{aiReport.strengths}</p>
+                      </div>
+
+                      <div>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <span style={{ fontSize: "12px", fontWeight: 600, color: "#D97706" }}>Pontos de atencao</span>
+                        </div>
+                        <p style={{ fontSize: "13px", color: "#475569", lineHeight: 1.55 }}>{aiReport.attention}</p>
+                      </div>
+
+                      <DreamCard className="p-3.5" tint="violet">
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <span style={{ fontSize: "12px", fontWeight: 600, color: "#7C3AED" }}>Proximo passo sugerido</span>
+                        </div>
+                        <p style={{ fontSize: "13px", color: "#475569", lineHeight: 1.55 }}>{aiReport.nextStep}</p>
+                      </DreamCard>
+                    </>
+                  )}
+
+                  <button
+                    onClick={() => setAiExpanded(!aiExpanded)}
+                    className="flex items-center gap-1"
+                    style={{ fontSize: "13px", fontWeight: 500, color: "#8B5CF6" }}
+                  >
+                    {aiExpanded ? "Ver menos" : "Ver relatorio completo"}
+                    <ChevronRight
+                      size={14}
+                      className={`transition-transform ${aiExpanded ? "rotate-90" : ""}`}
+                    />
+                  </button>
+                </div>
+              </DreamCard>
+            </motion.div>
+
+            {/* Posts Recentes */}
+            <motion.div {...stagger(9)}>
+              <div className="flex items-center justify-between mb-3">
+                <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "17px", fontWeight: 600, color: "#1E293B" }}>
+                  Posts Recentes
+                </h2>
+                <span style={{ fontSize: "12px", fontWeight: 500, color: "#8B5CF6" }}>Ver tudo</span>
+              </div>
+
+              <div className="space-y-2.5">
+                {summary.recent_posts?.slice(0, 5).map((post, i) => {
+                  const score = post.summary?.avg_score ?? 0;
+                  const tint =
+                    score >= 8 ? "emerald" : score >= 6.5 ? "none" : "amber";
+                  return (
+                    <motion.div
+                      key={post.id}
+                      initial={{ opacity: 0, x: -10 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: 0.05 * i + 0.5, duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                    >
+                      <DreamCard
+                        className="p-4 flex items-center gap-3"
+                        tint={tint as any}
+                        onClick={() => navigate(`/posts/${post.id}`)}
+                      >
+                        <div
+                          className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                          style={{ background: "rgba(196,181,253,0.12)" }}
+                        >
+                          <FileText size={16} style={{ color: "#C4B5FD" }} />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p style={{ fontSize: "13px", fontWeight: 500, color: "#1E293B" }} className="truncate">
+                            {post.content_text ? post.content_text.substring(0, 30) + "..." : "Sem texto"}
+                          </p>
+                          <p style={{ fontSize: "11px", color: "#64748B" }}>
+                            {post.platform} · {post.comment_count} comentarios
+                          </p>
+                        </div>
+                        <div className="flex flex-col items-end flex-shrink-0">
+                          <span
+                            style={{
+                              fontFamily: "'Outfit', sans-serif",
+                              fontSize: "17px",
+                              fontWeight: 700,
+                              color:
+                                score >= 8
+                                  ? "#059669"
+                                  : score >= 6.5
+                                    ? "#7C3AED"
+                                    : "#D97706",
+                            }}
+                          >
+                            {score.toFixed(1)}
+                          </span>
+                          <ChevronRight size={13} style={{ color: "#CBD5E1" }} />
+                        </div>
+                      </DreamCard>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </motion.div>
+
+          </>
+        )}
       </div>
-    </div>
+    </div >
   );
 }

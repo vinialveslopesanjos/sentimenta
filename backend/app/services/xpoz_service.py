@@ -57,6 +57,28 @@ def get_instagram_profile(username: str) -> dict:
         s = line.strip()
         if ':' in s and not s.startswith('success') and not s.startswith('data'):
             k, _, v = s.partition(':')
-            prof[k.strip()] = v.strip().strip('"')
+            v_clean = v.strip().strip('"')
+            if v_clean and v_clean != "null":
+                prof[k.strip()] = v_clean
+                
+    # Fallback to Instaloader if critical public stats are missing or null
+    try:
+        follower_count = prof.get("followerCount")
+        media_count = prof.get("mediaCount")
+        if follower_count is None or str(follower_count) == "null" or str(media_count) == "null":
+            import instaloader
+            L = instaloader.Instaloader()
+            ipf = instaloader.Profile.from_username(L.context, username)
+            prof["followerCount"] = str(ipf.followers)
+            prof["mediaCount"] = str(ipf.mediacount)
+            prof["followingCount"] = prof.get("followingCount", str(ipf.followees))
+            if "profilePicUrl" not in prof or str(prof["profilePicUrl"]) == "null":
+                prof["profilePicUrl"] = ipf.profile_pic_url
+            if "fullName" not in prof or str(prof["fullName"]) == "null":
+                prof["fullName"] = ipf.full_name
+            if "biography" not in prof or str(prof["biography"]) == "null":
+                prof["biography"] = ipf.biography
+    except Exception as e:
+        logger.error(f"Instaloader fallback failed for {username}: {e}")
             
     return prof
