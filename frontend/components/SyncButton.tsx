@@ -9,7 +9,7 @@ import { getToken } from "@/lib/auth";
 import { useSSE } from "@/components/hooks/useSSE";
 import { loadSyncSettings, toSyncPayload } from "@/lib/syncSettings";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const API_URL = "/api/v1";
 
 interface Props {
   connectionId: string;

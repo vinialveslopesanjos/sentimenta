@@ -1,5 +1,7 @@
 import json
 import logging
+import re
+import time
 import requests
 from app.core.config import settings
 
@@ -36,6 +38,29 @@ def _get_text(res: dict) -> str:
         return res.get("result", {}).get("content", [])[0].get("text", "")
     except Exception:
         return ""
+
+def _call_mcp_with_polling(name: str, arguments: dict, max_polls: int = 12, poll_interval: float = 5.0) -> dict:
+    """Call XPoz MCP and poll for async operations that return an operationId."""
+    res = _call_mcp(name, arguments)
+    text = _get_text(res)
+
+    match = re.search(r'operationId:\s*(\S+)', text)
+    if not match:
+        return res
+
+    op_id = match.group(1)
+    logger.info(f"XPoz async operation {op_id} for {name}, polling...")
+
+    for i in range(max_polls):
+        time.sleep(poll_interval)
+        poll_res = _call_mcp("checkOperationStatus", {"operationId": op_id})
+        poll_text = _get_text(poll_res)
+        if "status: running" not in poll_text[:200]:
+            logger.info(f"XPoz operation {op_id} completed after {i+1} polls")
+            return poll_res
+
+    logger.warning(f"XPoz operation {op_id} timed out after {max_polls} polls")
+    return res
 
 def get_instagram_profile(username: str) -> dict:
     """Gets quick profile statistics from XPoz for Instagram"""

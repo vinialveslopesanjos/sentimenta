@@ -200,7 +200,7 @@ def connect_twitter(
         )
     return connection
 
-@router.get("/", response_model=list[ConnectionResponse])
+@router.get("", response_model=list[ConnectionResponse])
 def list_connections(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),

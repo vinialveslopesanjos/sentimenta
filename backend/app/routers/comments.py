@@ -59,7 +59,7 @@ def _latest_analysis_subquery():
     )
 
 
-@router.get("/")
+@router.get("")
 def list_comments(
     connection_id: uuid.UUID | None = Query(None),
     post_id: uuid.UUID | None = Query(None),

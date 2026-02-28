@@ -18,9 +18,12 @@ from app.models.social_connection import SocialConnection
 
 logger = logging.getLogger(__name__)
 
-def _xpoz_call(name: str, arguments: dict) -> dict:
-    from app.services.xpoz_service import _call_mcp, _get_text
-    res = _call_mcp(name, arguments)
+def _xpoz_call(name: str, arguments: dict, async_poll: bool = False) -> dict:
+    from app.services.xpoz_service import _call_mcp, _call_mcp_with_polling, _get_text
+    if async_poll:
+        res = _call_mcp_with_polling(name, arguments)
+    else:
+        res = _call_mcp(name, arguments)
     return {"raw": res, "text": _get_text(res)}
 
 def _safe_int(val) -> int:
@@ -154,7 +157,7 @@ def fetch_post_comments(post_id: str, max_comments: int = 100) -> list[dict]:
         "postId": post_id,
         "limit": max_comments,
         "userPrompt": f"Get comments for instagram post {post_id}"
-    })
+    }, async_poll=True)
     
     text = res.get("text", "")
     from app.services.xpoz_parser_llm import parse_xpoz_data_with_llm, ListOfComments

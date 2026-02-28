@@ -79,7 +79,7 @@ def get_thumbnail_proxy(url: str = Query(..., min_length=5)):
     )
 
 
-@router.get("/", response_model=list[PostResponse])
+@router.get("", response_model=list[PostResponse])
 def list_posts(
     connection_id: uuid.UUID | None = Query(None),
     platform: str | None = Query(None),
