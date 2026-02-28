@@ -17,9 +17,7 @@ from datetime import datetime, timezone
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-# Allow importing from src/
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent.parent / "src"))
-from analysis.llm_client import LLMClient
+from app.services.llm_client import LLMClient
 
 from app.core.config import settings
 from app.models.analysis import CommentAnalysis, PostAnalysisSummary

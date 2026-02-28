@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Query
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
@@ -38,3 +38,18 @@ def get_current_user(
         )
 
     return user
+
+async def get_current_user_token_or_query(
+    token: str = Depends(OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)),
+    query_token: str | None = Query(None, alias="token"),
+    db: Session = Depends(get_db),
+) -> User:
+    """Gets the current user using either Auth header or query token (for SSE/WS)."""
+    actual_token = token or query_token
+    if not actual_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    return get_current_user(actual_token, db)

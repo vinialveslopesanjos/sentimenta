@@ -57,30 +57,25 @@ def task_ingest(self, connection_id: str, user_id: str, max_posts: int = 10, max
                 from app.services.youtube_service import ingest_youtube_channel
 
                 result = _run_async(
-                    ingest_youtube_channel(db, conn_uuid, max_comments=500)
+                    ingest_youtube_channel(db, conn_uuid, max_comments=max_comments_per_post)
                 )
 
             elif connection.platform == "instagram":
-                if getattr(connection, "ingest_source", None) == "xpoz":
-                    # XPoz ingestion currently handled via separate external script, 
-                    # so we just mark it as successful and proceed to analysis.
-                    result = {
-                        "posts_fetched": 0, 
-                        "comments_fetched": 0, 
-                        "message": "XPoz ingestion is manual/external for now."
-                    }
-                else:
-                    # Instagram uses public scraping (no OAuth)
-                    from app.services.instagram_ingest_service import ingest_instagram_profile
-                    from datetime import date as date_type
+                from app.services.instagram_ingest_service import ingest_instagram_profile
+                from datetime import date as date_type
 
-                    since = date_type.fromisoformat(since_date) if since_date else None
-                    result = ingest_instagram_profile(
-                        db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since
-                    )
+                since = date_type.fromisoformat(since_date) if since_date else None
+                result = ingest_instagram_profile(
+                    db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since
+                )
 
-                connection.last_sync_at = datetime.now(timezone.utc)
-                db.commit()
+            elif connection.platform == "twitter":
+                from app.services.twitter_service import ingest_twitter_profile
+
+                result = ingest_twitter_profile(
+                    db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post
+                )
+
             else:
                 result = {"error": f"Unsupported platform: {connection.platform}"}
 
@@ -180,7 +175,10 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         )
 
         total_posts = len(posts)
+        logger.info(f"Starting analysis for {total_posts} posts on connection {connection_id}")
+        
         for idx, post in enumerate(posts, 1):
+            logger.info(f"Analyzing post {idx}/{total_posts}: {post.platform_post_id}")
             # Update progress in notes
             progress_info = {
                 "step": "analyzing",
@@ -197,6 +195,11 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
             total_errors += stats.get("errors", 0)
 
             generate_post_summary(db, post.id)
+            
+            # Inform SSE continuously
+            run.comments_analyzed = total_analyzed
+            db.commit()
+            logger.info(f"Post {idx}/{total_posts} done. Total analyzed: {total_analyzed}")
 
         # Update run
         run.comments_analyzed = total_analyzed

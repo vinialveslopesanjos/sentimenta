@@ -63,7 +63,144 @@ def check_profile(
     }
 
 
-@router.get("/", response_model=list[ConnectionResponse])
+# --- Instagram (Public Scraping) ---
+@router.post("/instagram", response_model=ConnectionResponse, status_code=status.HTTP_201_CREATED)
+def connect_instagram_public(
+    data: YouTubeConnectRequest,  # Reuse schema (just needs username)
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Connect Instagram via public scraping (no OAuth needed)."""
+    from app.services.instagram_scrape_service import create_instagram_connection
+    from app.services.plan_service import enforce_connection_limit, PlanLimitError
+
+    username = data.channel_handle.strip()
+    if username.startswith("@"):
+        username = username[1:]
+
+    # Check if already connected
+    existing = (
+        db.query(SocialConnection)
+        .filter(
+            SocialConnection.user_id == current_user.id,
+            SocialConnection.platform == "instagram",
+            SocialConnection.username == username,
+        )
+        .first()
+    )
+    if existing:
+        return existing
+
+    # Enforce plan connection limit
+    try:
+        enforce_connection_limit(db, current_user, "instagram")
+    except PlanLimitError as e:
+        raise HTTPException(status_code=403, detail=e.message)
+
+    connection = create_instagram_connection(db, str(current_user.id), username)
+    if not connection:
+        raise HTTPException(
+            status_code=404,
+            detail="Instagram profile not found or is private. Only public profiles can be analyzed.",
+        )
+
+    return connection
+
+
+# --- YouTube ---
+@router.post("/youtube", response_model=ConnectionResponse, status_code=status.HTTP_201_CREATED)
+def connect_youtube(
+    data: YouTubeConnectRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    from app.services.youtube_service import discover_channel_info
+
+    channel_handle = data.channel_handle.strip()
+    if not channel_handle.startswith("@"):
+        channel_handle = f"@{channel_handle}"
+
+    # Check if already connected
+    existing = (
+        db.query(SocialConnection)
+        .filter(
+            SocialConnection.user_id == current_user.id,
+            SocialConnection.platform == "youtube",
+            SocialConnection.username == channel_handle,
+        )
+        .first()
+    )
+    if existing:
+        return existing
+
+    # Enforce plan connection limit
+    from app.services.plan_service import enforce_connection_limit, PlanLimitError
+    try:
+        enforce_connection_limit(db, current_user, "youtube")
+    except PlanLimitError as e:
+        raise HTTPException(status_code=403, detail=e.message)
+
+    # Discover channel info via yt-dlp
+    info = discover_channel_info(channel_handle)
+    if not info:
+        raise HTTPException(status_code=404, detail="Channel not found")
+
+    conn = SocialConnection(
+        user_id=current_user.id,
+        platform="youtube",
+        platform_user_id=info.get("channel_id"),
+        username=channel_handle,
+        display_name=info.get("channel_title", channel_handle),
+        profile_url=f"https://youtube.com/{channel_handle}",
+        status="active",
+    )
+    db.add(conn)
+    db.commit()
+    db.refresh(conn)
+    return conn
+
+
+# --- Twitter ---
+@router.post("/twitter", response_model=ConnectionResponse, status_code=status.HTTP_201_CREATED)
+def connect_twitter(
+    data: YouTubeConnectRequest,  # reuses same {channel_handle} schema
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Connect a Twitter/X profile via XPoz public scraping."""
+    from app.services.twitter_service import create_twitter_connection
+    from app.services.plan_service import enforce_connection_limit, PlanLimitError
+
+    username = data.channel_handle.strip().lstrip("@")
+
+    # Check if already connected
+    existing = (
+        db.query(SocialConnection)
+        .filter(
+            SocialConnection.user_id == current_user.id,
+            SocialConnection.platform == "twitter",
+            SocialConnection.username == username,
+        )
+        .first()
+    )
+    if existing:
+        return existing
+
+    # Enforce plan limit
+    try:
+        enforce_connection_limit(db, current_user, "twitter")
+    except PlanLimitError as e:
+        raise HTTPException(status_code=403, detail=e.message)
+
+    connection = create_twitter_connection(db, str(current_user.id), username)
+    if not connection:
+        raise HTTPException(
+            status_code=404,
+            detail="Twitter profile not found. Make sure the username is correct.",
+        )
+    return connection
+
+@router.get("", response_model=list[ConnectionResponse])
 def list_connections(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -144,94 +281,7 @@ def delete_connection(
     db.commit()
 
 
-# --- Instagram (Public Scraping) ---
-@router.post("/instagram", response_model=ConnectionResponse, status_code=status.HTTP_201_CREATED)
-def connect_instagram_public(
-    data: YouTubeConnectRequest,  # Reuse schema (just needs username)
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    """Connect Instagram via public scraping (no OAuth needed)."""
-    from app.services.instagram_scrape_service import create_instagram_connection
-    from app.services.plan_service import enforce_connection_limit, PlanLimitError
 
-    username = data.channel_handle.strip()
-    if username.startswith("@"):
-        username = username[1:]
-
-    # Check if already connected
-    existing = (
-        db.query(SocialConnection)
-        .filter(
-            SocialConnection.user_id == current_user.id,
-            SocialConnection.platform == "instagram",
-            SocialConnection.username == username,
-        )
-        .first()
-    )
-    if existing:
-        return existing
-
-    # Enforce plan connection limit
-    try:
-        enforce_connection_limit(db, current_user)
-    except PlanLimitError as e:
-        raise HTTPException(status_code=403, detail=e.message)
-
-    connection = create_instagram_connection(db, str(current_user.id), username)
-    if not connection:
-        raise HTTPException(
-            status_code=404,
-            detail="Instagram profile not found or is private. Only public profiles can be analyzed.",
-        )
-
-    return connection
-
-
-# --- YouTube ---
-@router.post("/youtube", response_model=ConnectionResponse, status_code=status.HTTP_201_CREATED)
-def connect_youtube(
-    data: YouTubeConnectRequest,
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
-    from app.services.youtube_service import discover_channel_info
-
-    channel_handle = data.channel_handle.strip()
-    if not channel_handle.startswith("@"):
-        channel_handle = f"@{channel_handle}"
-
-    # Check if already connected
-    existing = (
-        db.query(SocialConnection)
-        .filter(
-            SocialConnection.user_id == current_user.id,
-            SocialConnection.platform == "youtube",
-            SocialConnection.username == channel_handle,
-        )
-        .first()
-    )
-    if existing:
-        return existing
-
-    # Discover channel info via yt-dlp
-    info = discover_channel_info(channel_handle)
-    if not info:
-        raise HTTPException(status_code=404, detail="Channel not found")
-
-    conn = SocialConnection(
-        user_id=current_user.id,
-        platform="youtube",
-        platform_user_id=info.get("channel_id"),
-        username=channel_handle,
-        display_name=info.get("channel_title", channel_handle),
-        profile_url=f"https://youtube.com/{channel_handle}",
-        status="active",
-    )
-    db.add(conn)
-    db.commit()
-    db.refresh(conn)
-    return conn
 
 
 # --- Instagram OAuth ---

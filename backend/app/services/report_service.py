@@ -27,25 +27,30 @@ def generate_health_report(data_summary: dict) -> str:
     Returns:
         Markdown string with the report.
     """
-    prompt = f"""Você é a voz da Sentimenta — uma plataforma que ajuda criadores e marcas a entenderem seu público com empatia e clareza.
+    prompt = f"""Você é a voz analítica avançada da Sentimenta.
 
-Com base nos dados abaixo, escreva uma análise de saúde reputacional em português brasileiro.
+Com base nos dados abaixo, escreva a análise de sentimento da audiência de forma intimista e cirúrgica, em português brasileiro.
 
-**Tom esperado:** Próximo, humano, como um amigo que entende de dados. Não é relatório corporativo. É conversa inteligente. Use frases curtas e diretas. Celebre o que está indo bem. Seja honesto sobre os desafios, mas sempre com um caminho a seguir.
+**Tom esperado:** Próximo, humano, no detalhe. Fale sobre o AGORA. Prove seus pontos usando os números extraídos nos dados para convencer, e não apenas números aleatórios soltos (ex: "com 142 menções positivas", "gerou pico de alegria (72%)", "0% de sarcasmo percebido", etc).
 
-**Formato obrigatório (Markdown):**
-- Comece com uma linha de abertura impactante (1 frase que capture o momento atual da marca)
-- Use `## 🌟 O que está funcionando` para pontos positivos
-- Use `## ⚠️ Pontos de atenção` para alertas (só se houver dados negativos relevantes)
-- Use `## 💡 Insights do público` para emoções/tópicos mais relevantes
-- Use `## 🚀 Próximos passos` para 2–3 ações concretas e realizáveis
-- Use **negrito** para destacar números e métricas-chave dentro do texto
-- Cada seção: 2–4 frases. Sem listas longas. Sem jargão.
+**Formato OBRIGATÓRIO (Markdown limpo sem usar blocos de código):**
 
-**Dados disponíveis:**
+✨ **O resumo da vez**
+[1 ou 2 frases resumindo o clima geral, sentimentos em alta e como a audiência está reagindo agora]
+
+✅ **O que funcionou**
+[Destaque para o tópico de maior sucesso ou atitude que deu certo baseada em % de sentimentos positivos/emoções. Use os números reais dos dados com criatividade]
+
+⚠️ **Pontos de atenção**
+[Alerte sobre volume de dúvidas, ironias, comentários negativos ou reclamações usando os dados. Se for baixo, indique um pequeno ajuste]
+
+🚀 **Próximo passo sugerido**
+[Dê uma sugestão prática de ação para o criador de conteúdo hoje. Ex: um novo post, um story, melhoria no link, baseado no que o público engajou ou criticou na análise]
+
+**Dados extraídos (Use-os para construir a resposta):**
 {json.dumps(data_summary, ensure_ascii=False, indent=2)}
 
-Responda APENAS com o relatório em Markdown. Não inclua explicações ou meta-comentários."""
+Siga EXATAMENTE a estrutura visual pedida com os emojis e títulos fornecidos."""
 
     url = f"{GEMINI_BASE_URL}/{settings.GEMINI_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
 

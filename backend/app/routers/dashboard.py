@@ -96,6 +96,20 @@ def _build_dashboard_summary(user_id: str, db: Session) -> dict:
         Comment.status == "processed",
     ).scalar() or 0
 
+    post_counts = {
+        row[0]: row[1]
+        for row in db.query(Post.connection_id, func.count(Post.id))
+        .filter(Post.connection_id.in_(conn_ids))
+        .group_by(Post.connection_id).all()
+    }
+
+    analyzed_counts = {
+        row[0]: row[1]
+        for row in db.query(Comment.connection_id, func.count(Comment.id))
+        .filter(Comment.connection_id.in_(conn_ids), Comment.status == "processed")
+        .group_by(Comment.connection_id).all()
+    }
+
     latest_analysis = _latest_analysis_subquery()
     avg_stats = (
         db.query(
@@ -193,6 +207,8 @@ def _build_dashboard_summary(user_id: str, db: Session) -> dict:
                 "status": c.status,
                 "persona": c.persona,
                 "last_sync_at": c.last_sync_at.isoformat() if c.last_sync_at else None,
+                "total_posts": post_counts.get(c.id, 0),
+                "total_analyzed": analyzed_counts.get(c.id, 0),
             }
             for c in connections
         ],

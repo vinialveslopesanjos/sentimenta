@@ -23,10 +23,10 @@ logger = logging.getLogger(__name__)
 
 PLAN_LIMITS = {
     "free": {
-        "max_connections": 1,
-        "max_posts_per_sync": 5,
-        "max_comments_per_post": 50,
-        "syncs_per_month": 1,
+        "max_connections": 3,  # Max 3 total (1 insta, 1 youtube, 1 tiktok limit enforced per platform)
+        "max_posts_per_sync": 10,
+        "max_comments_per_post": 500,  # Max 500
+        "syncs_per_month": 5,
         "apify_budget_brl": 10.0,
         "health_report": False,
         "pdf_export": False,
@@ -35,7 +35,7 @@ PLAN_LIMITS = {
     "creator": {
         "max_connections": 3,
         "max_posts_per_sync": 20,
-        "max_comments_per_post": 300,
+        "max_comments_per_post": 500,
         "syncs_per_month": 10,
         "apify_budget_brl": 80.0,
         "health_report": True,
@@ -43,7 +43,7 @@ PLAN_LIMITS = {
         "comparison": False,
     },
     "pro": {
-        "max_connections": 10,
+        "max_connections": 3,
         "max_posts_per_sync": 50,
         "max_comments_per_post": 500,
         "syncs_per_month": 30,
@@ -53,9 +53,9 @@ PLAN_LIMITS = {
         "comparison": True,
     },
     "agency": {
-        "max_connections": 30,
+        "max_connections": 3,
         "max_posts_per_sync": 100,
-        "max_comments_per_post": 1000,
+        "max_comments_per_post": 500,
         "syncs_per_month": 100,
         "apify_budget_brl": 800.0,
         "health_report": True,
@@ -95,17 +95,15 @@ def count_syncs_this_month(db: Session, user_id) -> int:
     )
 
 
-def count_connections(db: Session, user_id) -> int:
-    """Count active connections for a user."""
-    return (
-        db.query(func.count(SocialConnection.id))
-        .filter(
-            SocialConnection.user_id == user_id,
-            SocialConnection.status == "active",
-        )
-        .scalar()
-        or 0
+def count_connections(db: Session, user_id, platform: str = None) -> int:
+    """Count active connections for a user, filtering by platform if provided."""
+    query = db.query(func.count(SocialConnection.id)).filter(
+        SocialConnection.user_id == user_id,
+        SocialConnection.status == "active",
     )
+    if platform:
+        query = query.filter(SocialConnection.platform == platform)
+    return query.scalar() or 0
 
 
 def get_apify_spend_this_month(db: Session, user_id) -> float:
@@ -158,15 +156,21 @@ class PlanLimitError(Exception):
         super().__init__(self.message)
 
 
-def enforce_connection_limit(db: Session, user: User) -> None:
-    """Check if user can add another connection."""
+def enforce_connection_limit(db: Session, user: User, platform: str) -> None:
+    """Check if user can add another connection, with max 1 per platform."""
     limits = get_plan_limits(user.plan)
-    current = count_connections(db, user.id)
-    if current >= limits["max_connections"]:
+    current_total = count_connections(db, user.id)
+    if current_total >= limits["max_connections"]:
         raise PlanLimitError(
-            f"Seu plano ({user.plan}) permite no máximo {limits['max_connections']} "
-            f"conexão(ões). Você já tem {current}. Faça upgrade para adicionar mais.",
+            f"Seu plano permite no máximo {limits['max_connections']} conexões no total.",
             code="max_connections",
+        )
+    
+    current_platform = count_connections(db, user.id, platform=platform)
+    if current_platform >= 1:
+        raise PlanLimitError(
+            f"Você já conectou 1 perfil do {platform.capitalize()}. Atualmente, o limite é de 1 conta por plataforma.",
+            code="max_connections_platform",
         )
 
 

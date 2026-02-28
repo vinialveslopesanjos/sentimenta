@@ -24,7 +24,7 @@ type Connection = {
   last_sync_at: string | null;
 };
 
-type PlatformId = "instagram" | "youtube";
+type PlatformId = "instagram" | "youtube" | "twitter";
 
 function relativeTime(iso: string | null) {
   if (!iso) return "—";
@@ -47,6 +47,13 @@ function PlatformIcon({ platform, size = 24 }: { platform: string; size?: number
       </svg>
     );
   }
+  if (platform === "twitter") {
+    return (
+      <svg height={size} viewBox="0 0 24 24" width={size} fill="currentColor">
+        <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.258 5.63L18.244 2.25zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+      </svg>
+    );
+  }
   return (
     <svg fill="none" height={size} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width={size}>
       <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z" />
@@ -58,7 +65,7 @@ function PlatformIcon({ platform, size = 24 }: { platform: string; size?: number
 export default function ConnectPage() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [loading, setLoading] = useState(true);
-  const [inputs, setInputs] = useState<Record<string, string>>({ instagram: "", youtube: "" });
+  const [inputs, setInputs] = useState<Record<string, string>>({ instagram: "", youtube: "", twitter: "" });
   const [connecting, setConnecting] = useState<Record<string, boolean>>({});
   const [checking, setChecking] = useState<Record<string, boolean>>({});
   const [potentials, setPotentials] = useState<Record<string, any>>({});
@@ -98,7 +105,7 @@ export default function ConnectPage() {
     }
 
     if (platformId !== "instagram") {
-      // Direct connect if not Instagram
+      // Direct connect for YouTube and Twitter
       return handleConnect(platformId);
     }
 
@@ -125,6 +132,8 @@ export default function ConnectPage() {
       const token = getToken()!;
       if (platformId === "instagram") {
         await connectionsApi.connectInstagram(token, handle.replace("@", ""));
+      } else if (platformId === "twitter") {
+        await connectionsApi.connectTwitter(token, handle.replace("@", ""));
       } else {
         await connectionsApi.connectYoutube(token, handle);
       }
@@ -177,6 +186,7 @@ export default function ConnectPage() {
   const platforms = [
     { id: "instagram" as PlatformId, name: "Instagram", desc: "Perfil público funciona sem login", placeholder: "@usuario", colorBg: "from-orange-100 to-pink-100", colorText: "text-pink-500" },
     { id: "youtube" as PlatformId, name: "YouTube", desc: "Análise de comentários em vídeos", placeholder: "@canal ou URL", colorBg: "from-red-50 to-red-100", colorText: "text-red-500" },
+    { id: "twitter" as PlatformId, name: "Twitter / X", desc: "Tweets e replies via XPoz", placeholder: "@usuario", colorBg: "from-slate-100 to-blue-50", colorText: "text-slate-700" },
   ];
 
   return (
@@ -274,23 +284,7 @@ export default function ConnectPage() {
               </div>
             ))}
 
-            {/* TikTok — em breve */}
-            <div className="dream-card p-6 flex flex-col items-center text-center relative overflow-hidden">
-              <div className="absolute inset-0 bg-white/70 backdrop-blur-[2px] z-10 flex items-center justify-center rounded-[24px]">
-                <span className="px-3 py-1 bg-white rounded-full text-xs font-medium text-slate-400 shadow-sm border border-slate-100">Em Breve</span>
-              </div>
-              <div className="w-14 h-14 rounded-2xl bg-slate-100 text-slate-400 flex items-center justify-center mb-4">
-                <svg fill="none" height="26" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="26">
-                  <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" />
-                </svg>
-              </div>
-              <h4 className="font-sans font-medium text-slate-400 mb-1">TikTok</h4>
-              <p className="text-xs text-slate-300 font-light mb-5">Tendências virais</p>
-              <div className="w-full space-y-3 opacity-50">
-                <input disabled placeholder="@usuario" className="w-full text-center text-sm px-4 py-2.5 rounded-xl bg-white border border-slate-100" readOnly />
-                <button disabled className="w-full py-2.5 rounded-xl bg-slate-200 text-slate-400 text-sm font-medium cursor-not-allowed">Conectar</button>
-              </div>
-            </div>
+
           </div>
         </section>
 
@@ -399,7 +393,7 @@ export default function ConnectPage() {
               </div>
               <div className="divide-y divide-slate-50">
                 {connections.map((conn) => {
-                  const colorBg = conn.platform === "instagram" ? "from-orange-100 to-pink-100 text-pink-500" : "from-red-50 to-red-100 text-red-500";
+                  const colorBg = conn.platform === "instagram" ? "from-orange-100 to-pink-100 text-pink-500" : conn.platform === "twitter" ? "from-slate-100 to-blue-50 text-slate-700" : "from-red-50 to-red-100 text-red-500";
                   const isSyncing = syncing[conn.id];
                   return (
                     <div key={conn.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-slate-50/50 transition-colors">
@@ -408,7 +402,7 @@ export default function ConnectPage() {
                           <PlatformIcon platform={conn.platform} size={18} />
                         </div>
                         <div className="min-w-0">
-                          <p className="font-medium text-slate-700 text-sm">@{conn.username}</p>
+                          <p className="font-medium text-slate-700 text-sm">{conn.username.startsWith('@') ? conn.username : `@${conn.username}`}</p>
                           {conn.display_name && <p className="text-xs text-slate-400 truncate">{conn.display_name}</p>}
                         </div>
                       </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { connectionsApi, pipelineApi } from "@/lib/api";
@@ -8,7 +9,7 @@ import { getToken } from "@/lib/auth";
 import { useSSE } from "@/components/hooks/useSSE";
 import { loadSyncSettings, toSyncPayload } from "@/lib/syncSettings";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const API_URL = "/api/v1";
 
 interface Props {
   connectionId: string;
@@ -21,18 +22,32 @@ export default function SyncButton({ connectionId, onComplete }: Props) {
   const [statusText, setStatusText] = useState("");
   const [progress, setProgress] = useState(0);
 
+  const [mounted, setMounted] = useState(false);
+  const [useFallback, setUseFallback] = useState(false);
   const sseUrl = taskId ? `${API_URL}/pipeline/runs/${taskId}/stream` : null;
 
-  const { data: sseData, status: sseStatus, connect: sseConnect } = useSSE(sseUrl, {
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const { data: sseData, status: sseStatus, connect: sseConnect, disconnect: sseDisconnect } = useSSE(sseUrl, {
     onMessage: (_event, data) => {
+      let status = "Acessando rede...";
       if (data.posts_fetched !== undefined) {
-        setStatusText(
-          `Posts: ${data.posts_fetched} | Comentários: ${data.comments_fetched} | Analisados: ${data.comments_analyzed}`
-        );
-        // Estimate progress
+        if (data.comments_fetched > 0) {
+          const remaining = data.comments_fetched - (data.comments_analyzed || 0);
+          const mins = Math.ceil((remaining * 1.5) / 60);
+          status = `Puxando ${data.comments_fetched} comentários de ${data.posts_fetched} posts. Tempo para finalizar: ~${mins} min.`;
+        } else if (data.posts_fetched > 0) {
+          status = `Obtendo comentários... ${data.posts_fetched} posts encontrados.`;
+        }
+        setStatusText(status);
+
         if (data.comments_fetched > 0) {
           const pct = Math.min(95, Math.round((data.comments_analyzed / Math.max(data.comments_fetched, 1)) * 100));
           setProgress(pct);
+        } else if (data.posts_fetched > 0) {
+          setProgress(10);
         }
       }
     },
@@ -46,10 +61,8 @@ export default function SyncButton({ connectionId, onComplete }: Props) {
       onComplete?.();
     },
     onError: () => {
-      // SSE failed, fall back to polling
-      if (taskId) {
-        startPolling(taskId);
-      }
+      // SSE failed, enable fallback to polling
+      setUseFallback(true);
     },
   });
 
@@ -60,12 +73,21 @@ export default function SyncButton({ connectionId, onComplete }: Props) {
       const runs = await pipelineApi.listRuns(token);
       const run = runs.find((r) => r.connection_id === connectionId && r.status === "running");
       if (run) {
-        setStatusText(
-          `Posts: ${run.posts_fetched} | Comentarios: ${run.comments_fetched} | Analisados: ${run.comments_analyzed}`
-        );
+        let status = "Acessando rede...";
+        if (run.comments_fetched > 0) {
+          const remaining = run.comments_fetched - (run.comments_analyzed || 0);
+          const mins = Math.ceil((remaining * 1.5) / 60);
+          status = `Puxando ${run.comments_fetched} comentários de ${run.posts_fetched} posts. Tempo para finalizar: ~${mins} min.`;
+        } else if (run.posts_fetched > 0) {
+          status = `Obtendo comentários... ${run.posts_fetched} posts encontrados.`;
+        }
+        setStatusText(status);
+
         if (run.comments_fetched > 0) {
           const pct = Math.min(95, Math.round((run.comments_analyzed / Math.max(run.comments_fetched, 1)) * 100));
           setProgress(pct);
+        } else if (run.posts_fetched > 0) {
+          setProgress(10);
         }
         if (run.status === "running") return true;
       }
@@ -96,41 +118,41 @@ export default function SyncButton({ connectionId, onComplete }: Props) {
     }
   }, [connectionId, onComplete]);
 
-  function startPolling(tid: string) {
-    let active = true;
-    const interval = setInterval(async () => {
-      if (!active) return;
-      const keepPolling = await pollStatus(tid);
-      if (!keepPolling) {
-        active = false;
-        clearInterval(interval);
-      }
-    }, 3000);
-    return () => {
-      active = false;
-      clearInterval(interval);
-    };
-  }
-
   useEffect(() => {
     if (state !== "syncing" || !taskId) return;
 
     // Try SSE first
     sseConnect();
 
-    // Fallback: start polling after a delay in case SSE doesn't connect
-    const fallbackTimeout = setTimeout(() => {
-      if (sseStatus !== "connected") {
-        const cleanup = startPolling(taskId);
-        return cleanup;
-      }
+    // After 5s if not connected, use fallback
+    const t = setTimeout(() => {
+      setUseFallback(true);
     }, 5000);
 
     return () => {
-      clearTimeout(fallbackTimeout);
+      clearTimeout(t);
+      sseDisconnect();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state, taskId]);
+  }, [state, taskId, sseConnect, sseDisconnect]);
+
+  useEffect(() => {
+    if (state !== "syncing" || !taskId || !useFallback) return;
+
+    let active = true;
+    const tick = async () => {
+      if (!active) return;
+      const keepPolling = await pollStatus(taskId);
+      if (keepPolling && active) {
+        setTimeout(tick, 4000);
+      }
+    };
+
+    tick();
+
+    return () => {
+      active = false;
+    };
+  }, [state, taskId, useFallback, pollStatus]);
 
   async function handleSync() {
     const token = getToken();
@@ -216,14 +238,15 @@ export default function SyncButton({ connectionId, onComplete }: Props) {
         </button>
       </div>
 
-      <AnimatePresence>
-        {state === "syncing" && (
-          <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4">
+      {mounted && createPortal(
+        <AnimatePresence>
+          {state === "syncing" && (
             <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.95 }}
-              className="bg-white rounded-3xl p-8 max-w-sm w-full shadow-2xl flex flex-col items-center text-center relative overflow-hidden"
+              initial={{ opacity: 0, y: 50, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 50, scale: 0.95 }}
+              className="fixed bottom-6 right-6 z-[99999] bg-white rounded-3xl p-6 sm:p-8 max-w-sm w-[calc(100vw-3rem)] sm:w-full shadow-2xl border border-slate-100 flex flex-col items-center text-center overflow-hidden"
+              style={{ position: 'fixed' }}
             >
               <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-brand-cyanLight to-transparent rounded-bl-full opacity-50" />
               <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-brand-lilacLight to-transparent rounded-tr-full opacity-50" />
@@ -265,9 +288,10 @@ export default function SyncButton({ connectionId, onComplete }: Props) {
                 </div>
               </div>
             </motion.div>
-          </div>
-        )}
-      </AnimatePresence>
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
     </>
   );
 }

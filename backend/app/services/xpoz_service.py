@@ -1,5 +1,7 @@
 import json
 import logging
+import re
+import time
 import requests
 from app.core.config import settings
 
@@ -37,6 +39,29 @@ def _get_text(res: dict) -> str:
     except Exception:
         return ""
 
+def _call_mcp_with_polling(name: str, arguments: dict, max_polls: int = 12, poll_interval: float = 5.0) -> dict:
+    """Call XPoz MCP and poll for async operations that return an operationId."""
+    res = _call_mcp(name, arguments)
+    text = _get_text(res)
+
+    match = re.search(r'operationId:\s*(\S+)', text)
+    if not match:
+        return res
+
+    op_id = match.group(1)
+    logger.info(f"XPoz async operation {op_id} for {name}, polling...")
+
+    for i in range(max_polls):
+        time.sleep(poll_interval)
+        poll_res = _call_mcp("checkOperationStatus", {"operationId": op_id})
+        poll_text = _get_text(poll_res)
+        if "status: running" not in poll_text[:200]:
+            logger.info(f"XPoz operation {op_id} completed after {i+1} polls")
+            return poll_res
+
+    logger.warning(f"XPoz operation {op_id} timed out after {max_polls} polls")
+    return res
+
 def get_instagram_profile(username: str) -> dict:
     """Gets quick profile statistics from XPoz for Instagram"""
     args = {
@@ -57,6 +82,28 @@ def get_instagram_profile(username: str) -> dict:
         s = line.strip()
         if ':' in s and not s.startswith('success') and not s.startswith('data'):
             k, _, v = s.partition(':')
-            prof[k.strip()] = v.strip().strip('"')
+            v_clean = v.strip().strip('"')
+            if v_clean and v_clean != "null":
+                prof[k.strip()] = v_clean
+                
+    # Fallback to Instaloader if critical public stats are missing or null
+    try:
+        follower_count = prof.get("followerCount")
+        media_count = prof.get("mediaCount")
+        if follower_count is None or str(follower_count) == "null" or str(media_count) == "null":
+            import instaloader
+            L = instaloader.Instaloader()
+            ipf = instaloader.Profile.from_username(L.context, username)
+            prof["followerCount"] = str(ipf.followers)
+            prof["mediaCount"] = str(ipf.mediacount)
+            prof["followingCount"] = prof.get("followingCount", str(ipf.followees))
+            if "profilePicUrl" not in prof or str(prof["profilePicUrl"]) == "null":
+                prof["profilePicUrl"] = ipf.profile_pic_url
+            if "fullName" not in prof or str(prof["fullName"]) == "null":
+                prof["fullName"] = ipf.full_name
+            if "biography" not in prof or str(prof["biography"]) == "null":
+                prof["biography"] = ipf.biography
+    except Exception as e:
+        logger.error(f"Instaloader fallback failed for {username}: {e}")
             
     return prof

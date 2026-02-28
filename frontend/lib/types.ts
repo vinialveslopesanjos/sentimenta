@@ -49,6 +49,8 @@ export interface Connection {
   last_sync_at: string | null;
   persona?: string | null;
   ignore_author_comments?: boolean;
+  total_posts?: number;
+  total_analyzed?: number;
 }
 
 export interface DashboardSummary {

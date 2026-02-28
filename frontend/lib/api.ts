@@ -9,7 +9,7 @@ import type {
   CommentListResponse,
 } from "./types";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const API_URL = "/api/v1";
 
 interface FetchOptions extends RequestInit {
   token?: string;
@@ -44,6 +44,10 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(error.detail || `API error: ${res.status}`);
+  }
+
+  if (res.status === 204 || res.headers.get("content-length") === "0") {
+    return null as any;
   }
 
   return res.json();
@@ -135,6 +139,13 @@ export const connectionsApi = {
       method: "POST",
       token,
       body: JSON.stringify({ channel_handle: username }), // Reuses same schema
+    }),
+
+  connectTwitter: (token: string, username: string) =>
+    apiFetch("/connections/twitter", {
+      method: "POST",
+      token,
+      body: JSON.stringify({ channel_handle: username }),
     }),
 
   getInstagramAuthUrl: (token: string) =>

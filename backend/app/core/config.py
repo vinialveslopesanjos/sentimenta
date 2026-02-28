@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+from pydantic import field_validator
 from pydantic_settings import BaseSettings
 from dotenv import load_dotenv
 
@@ -63,7 +64,21 @@ class Settings(BaseSettings):
         "http://localhost:3001",
         "http://localhost:3002",
         "http://localhost:8000",
+        "http://147.93.13.49",
+        "http://147.93.13.49:3000",
+        "http://147.93.13.49:8080",
+        "http://sentimenta.com.br",
+        "https://sentimenta.com.br",
+        "http://www.sentimenta.com.br",
+        "https://www.sentimenta.com.br",
     ]
+
+    @field_validator("CORS_ORIGINS", mode="before")
+    @classmethod
+    def parse_cors_origins(cls, v: str | list) -> list[str]:
+        if isinstance(v, str):
+            return [origin.strip() for origin in v.split(",")]
+        return v
 
     # Celery
     CELERY_BROKER_URL: str = os.getenv("CELERY_BROKER_URL", "redis://localhost:6379/0")
