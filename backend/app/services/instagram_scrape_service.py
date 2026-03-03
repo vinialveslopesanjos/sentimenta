@@ -9,6 +9,7 @@ Uses XPoz MCP tools for reliable post and comment extraction.
 
 import logging
 import re
+import time
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -150,6 +151,42 @@ def fetch_recent_posts(username: str, max_posts: int = 10, since_date=None) -> l
             "view_count": _safe_int(item.get("views", 0)),
         })
     return posts
+
+def fetch_post_thumbnail(platform_post_id: str) -> Optional[str]:
+    """Fetch the thumbnail URL for an Instagram post using Instaloader.
+
+    Args:
+        platform_post_id: The platform_post_id in format 'mediaid_userid'
+
+    Returns:
+        The image URL string, or None if not available.
+    """
+    try:
+        import instaloader
+        media_id = int(platform_post_id.split("_")[0])
+        L = instaloader.Instaloader()
+        post = instaloader.Post.from_mediaid(L.context, media_id)
+        return post.url
+    except Exception as exc:
+        logger.warning("Failed to fetch thumbnail for %s: %s", platform_post_id, exc)
+        return None
+
+
+def fetch_post_thumbnails(platform_post_ids: list[str], delay: float = 2.5) -> dict[str, str]:
+    """Fetch thumbnail URLs for multiple posts with rate limiting.
+
+    Returns:
+        Dict mapping platform_post_id -> image URL
+    """
+    results = {}
+    for i, post_id in enumerate(platform_post_ids):
+        url = fetch_post_thumbnail(post_id)
+        if url:
+            results[post_id] = url
+        if i < len(platform_post_ids) - 1:
+            time.sleep(delay)
+    return results
+
 
 def fetch_post_comments(post_id: str, max_comments: int = 100) -> list[dict]:
     """Fetch comments using XPoz getInstagramCommentsByPostId, parsed by LLM."""

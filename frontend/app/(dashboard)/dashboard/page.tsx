@@ -17,7 +17,7 @@ import { getToken } from "@/lib/auth";
 import type { DashboardSummary, TrendResponse, HealthReport, Connection, PostSummary } from "@/lib/types";
 import { loadSyncSettings, toSyncPayload } from "@/lib/syncSettings";
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const API_URL = "/api/v1";
 
 function buildThumbnailSrc(url?: string | null) {
   if (!url) return null;
@@ -180,14 +180,14 @@ function SentimentBarChart({ data }: { data: TrendResponse | null }) {
           <XAxis
             dataKey="period"
             minTickGap={22}
-            tick={{ fill: "#94A3B8", fontSize: 10 }}
+            tick={{ fill: "#94a3b8", fontSize: 11 }}
             tickFormatter={(period: string) => formatMonthYear(period)}
-            axisLine={{ stroke: "#E2E8F0" }}
+            axisLine={false}
             tickLine={false}
           />
           <YAxis
-            tick={{ fill: "#94A3B8", fontSize: 10 }}
-            axisLine={{ stroke: "#E2E8F0" }}
+            tick={{ fill: "#94a3b8", fontSize: 11 }}
+            axisLine={false}
             tickLine={false}
             allowDecimals={false}
           />
@@ -203,17 +203,15 @@ function SentimentBarChart({ data }: { data: TrendResponse | null }) {
               return [Math.round(value), labels[name] || name];
             }}
             contentStyle={{
-              background: "rgba(255,255,255,0.9)",
-              backdropFilter: "blur(12px)",
-              border: "1px solid rgba(196,181,253,0.35)",
-              borderRadius: 14,
-              boxShadow: "0 4px 16px -4px rgba(139,92,246,0.2)",
+              borderRadius: 12,
+              border: "1px solid #e2e8f0",
               fontSize: 12,
+              boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
             }}
           />
-          <Bar dataKey="positive" stackId="sent" fill="#34D399" radius={[3, 3, 0, 0]} />
-          <Bar dataKey="neutral" stackId="sent" fill="#FCD34D" radius={[3, 3, 0, 0]} />
-          <Bar dataKey="negative" stackId="sent" fill="#FB7185" radius={[3, 3, 0, 0]} />
+          <Bar dataKey="positive" stackId="sent" fill="#34D399" radius={[6, 6, 0, 0]} />
+          <Bar dataKey="neutral" stackId="sent" fill="#FCD34D" radius={[6, 6, 0, 0]} />
+          <Bar dataKey="negative" stackId="sent" fill="#FB7185" radius={[6, 6, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -395,12 +393,6 @@ export default function DashboardPage() {
     setTimeout(loadData, 3000);
   };
 
-  const dist = summary?.sentiment_distribution;
-  const total = dist ? (dist.positive + dist.neutral + dist.negative) || 1 : 1;
-  const posRate = dist ? Math.round((dist.positive / total) * 100) : 0;
-  const neuRate = dist ? Math.round((dist.neutral / total) * 100) : 0;
-  const negRate = dist ? Math.round((dist.negative / total) * 100) : 0;
-
   const greeting = () => {
     const h = new Date().getHours();
     if (h < 12) return "Bom dia";
@@ -469,7 +461,7 @@ export default function DashboardPage() {
         {!isEmpty && (
           <>
             {/* ── HERO: Score + Narrative ── */}
-            <div className="dream-card p-6 md:p-8 animate-fade-in-up-1">
+            <div className="dream-card p-8 md:p-10 animate-fade-in-up-1">
               <p className="text-xs font-bold text-slate-300 uppercase tracking-widest mb-4">Reputação Geral</p>
               <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
                 {loading ? (
@@ -489,26 +481,79 @@ export default function DashboardPage() {
                         {scoreNarrative(avgScore)}
                       </h2>
                       <div className="flex flex-wrap items-center gap-2 justify-center sm:justify-start">
-                        <span className="px-3 py-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 rounded-full text-xs font-semibold">
-                          ↑ +0.4 esta semana
-                        </span>
                         {badge && (
                           <span className={`px-3 py-1.5 border rounded-full text-xs font-semibold ${badge.cls}`}>
                             {badge.text}
                           </span>
                         )}
                       </div>
+{summary?.sentiment_distribution && (() => {
+  const dist = summary.sentiment_distribution;
+  const total = dist.positive + dist.neutral + dist.negative;
+  if (total === 0) return null;
+  const pPos = ((dist.positive / total) * 100).toFixed(0);
+  const pNeu = ((dist.neutral / total) * 100).toFixed(0);
+  const pNeg = ((dist.negative / total) * 100).toFixed(0);
+  return (
+    <div className="mt-5 w-full max-w-sm">
+      <div className="flex text-[10px] text-slate-400 mb-1.5 justify-between">
+        <span>😊 {pPos}% positivo</span>
+        <span>😐 {pNeu}% neutro</span>
+        <span>😡 {pNeg}% negativo</span>
+      </div>
+      <div className="h-2.5 w-full rounded-full overflow-hidden flex">
+        <div className="h-full bg-emerald-400 transition-all" style={{ width: `${pPos}%` }} />
+        <div className="h-full bg-slate-300 transition-all" style={{ width: `${pNeu}%` }} />
+        <div className="h-full bg-rose-400 transition-all" style={{ width: `${pNeg}%` }} />
+      </div>
+    </div>
+  );
+})()}
                     </>
                   )}
                 </div>
               </div>
             </div>
 
+            {/* ── Health Report (IA) ── */}
+            <div className="dream-card p-6 md:p-8 relative overflow-hidden animate-fade-in-up-2">
+              <div className="absolute -left-10 -top-10 w-40 h-40 bg-cyan-100 rounded-full blur-3xl opacity-40 pointer-events-none" />
+              <div className="relative z-10">
+                <div className="flex items-center justify-between mb-5">
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-brand-lilac to-brand-cyan flex items-center justify-center text-white shadow-sm">
+                      <span className="material-symbols-outlined text-[16px]">auto_awesome</span>
+                    </div>
+                    <h2 className="text-base font-sans font-bold text-slate-700">Saúde da Reputação (IA)</h2>
+                  </div>
+                  <button
+                    onClick={loadHealth}
+                    disabled={loadingHealth}
+                    className="text-xs text-brand-lilacDark font-semibold hover:underline disabled:opacity-50 flex items-center gap-1"
+                  >
+                    {loadingHealth && <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                    Atualizar
+                  </button>
+                </div>
+                {health ? (
+                  <div className="prose prose-sm prose-slate max-w-none text-brand-text leading-relaxed">
+                    <p className="text-xs text-slate-400 font-light mb-3">Último relatório disponível.</p>
+                    <ReactMarkdown>{health.report_text}</ReactMarkdown>
+                  </div>
+                ) : (
+                  <div className="py-8 text-center text-slate-300">
+                    <span className="material-symbols-outlined text-[40px] block mb-3">auto_awesome</span>
+                    <p className="text-sm font-light">Clique em &quot;Atualizar&quot; para gerar um relatório com IA.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* ── KPIs compactos ── */}
-            <div className="grid grid-cols-3 gap-4 animate-fade-in-up-2">
+            <div className="grid grid-cols-3 gap-5 animate-fade-in-up-2">
               {loading ? (
                 Array(3).fill(0).map((_, i) => (
-                  <div key={i} className="dream-card p-4 animate-pulse flex gap-3 items-center">
+                  <div key={i} className="dream-card p-5 shadow-sm animate-pulse flex gap-3 items-center">
                     <div className="w-10 h-10 rounded-xl bg-slate-100 shrink-0" />
                     <div className="space-y-2 flex-1">
                       <div className="h-5 w-16 bg-slate-100 rounded" />
@@ -518,17 +563,18 @@ export default function DashboardPage() {
                 ))
               ) : (
                 [
-                  { icon: "forum", value: (summary?.total_comments ?? 0).toLocaleString("pt-BR"), label: "comentários", bg: "bg-cyan-50 text-brand-cyanDark" },
+                  { icon: "forum", value: (summary?.total_analyzed ?? 0).toLocaleString("pt-BR"), label: "analisados", sub: `de ${(summary?.total_comments ?? 0).toLocaleString("pt-BR")} coletados`, bg: "bg-cyan-50 text-brand-cyanDark" },
                   { icon: "article", value: summary?.total_posts ?? 0, label: "posts", bg: "bg-violet-50 text-brand-lilacDark" },
                   { icon: "add_link", value: summary?.total_connections ?? 0, label: "conexões", bg: "bg-emerald-50 text-emerald-600" },
                 ].map((kpi) => (
-                  <div key={kpi.label} className="dream-card p-4 flex gap-3 items-center hover:-translate-y-0.5 transition-all">
+                  <div key={kpi.label} className="dream-card p-5 flex shadow-sm gap-3 items-center hover:-translate-y-0.5 transition-all">
                     <div className={`w-10 h-10 rounded-xl ${kpi.bg} flex items-center justify-center shrink-0`}>
                       <span className="material-symbols-outlined text-[20px]">{kpi.icon}</span>
                     </div>
                     <div>
                       <p className="font-sans font-bold text-xl text-slate-800">{kpi.value}</p>
                       <p className="text-xs text-slate-400">{kpi.label}</p>
+                      {(kpi as any).sub && <p className="text-[10px] text-slate-300">{(kpi as any).sub}</p>}
                     </div>
                   </div>
                 ))
@@ -562,124 +608,51 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* ── Charts row ── */}
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 animate-fade-in-up-4">
-              {/* Trend chart */}
-              <div className="lg:col-span-2 dream-card p-6 md:p-8">
-                <div className="flex items-center justify-between mb-6">
-                  <div>
-                    <h2 className="text-base font-sans font-bold text-slate-700">Distribuição Temporal</h2>
-                    <p className="text-xs text-slate-400 font-light mt-0.5">Comentários por sentimento — 30 dias</p>
-                  </div>
-                </div>
-                {loading ? (
-                  <div className="h-48 bg-slate-50 rounded-2xl animate-pulse" />
-                ) : (
-                  <SentimentBarChart data={trends} />
-                )}
-                <div className="flex items-center gap-4 text-[11px] text-slate-500 mt-3">
-                  <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-emerald-400" />Positivo</span>
-                  <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-amber-300" />Neutro</span>
-                  <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-rose-400" />Negativo</span>
+            {/* ── Temporal distribution chart ── */}
+            <div className="dream-card p-6 md:p-8 animate-fade-in-up-4">
+              <div className="flex items-center justify-between mb-6">
+                <div>
+                  <h2 className="text-base font-sans font-bold text-slate-700">Distribuição Temporal</h2>
+                  <p className="text-xs text-slate-400 font-light mt-0.5">Comentários por sentimento — 30 dias</p>
                 </div>
               </div>
-
-              {/* Sentiment donut */}
-              <div className="dream-card p-6">
-                <h2 className="text-base font-sans font-bold text-slate-700 mb-5">Distribuição</h2>
-                {loading ? (
-                  <div className="h-40 bg-slate-50 rounded-2xl animate-pulse" />
-                ) : dist ? (
-                  <div className="space-y-4">
-                    <div className="h-3 rounded-full overflow-hidden flex gap-0.5">
-                      <div className="h-full rounded-l-full bg-emerald-400 transition-all" style={{ width: `${posRate}%` }} />
-                      <div className="h-full bg-amber-300 transition-all" style={{ width: `${neuRate}%` }} />
-                      <div className="h-full rounded-r-full bg-rose-400 transition-all" style={{ width: `${negRate}%` }} />
-                    </div>
-                    <div className="space-y-3 mt-4">
-                      {[
-                        { label: "Positivo", pct: posRate, color: "bg-emerald-400", textColor: "text-emerald-600" },
-                        { label: "Neutro", pct: neuRate, color: "bg-amber-300", textColor: "text-amber-600" },
-                        { label: "Negativo", pct: negRate, color: "bg-rose-400", textColor: "text-rose-600" },
-                      ].map((item) => (
-                        <div key={item.label} className="flex items-center justify-between">
-                          <div className="flex items-center gap-2">
-                            <div className={`w-2.5 h-2.5 rounded-full ${item.color}`} />
-                            <span className="text-sm text-slate-500 font-light">{item.label}</span>
-                          </div>
-                          <span className={`text-sm font-sans font-bold ${item.textColor}`}>{item.pct}%</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center py-10 text-slate-200 text-sm">Sem dados ainda</div>
-                )}
+              {loading ? (
+                <div className="h-48 bg-slate-50 rounded-2xl animate-pulse" />
+              ) : (
+                <SentimentBarChart data={trends} />
+              )}
+              <div className="flex items-center gap-4 text-[11px] text-slate-500 mt-3">
+                <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-emerald-400" />Positivo</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-amber-300" />Neutro</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-rose-400" />Negativo</span>
               </div>
             </div>
 
-            {/* ── Health Report + Recent Posts ── */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* AI Health Report */}
-              <div className="dream-card p-6 md:p-8 relative overflow-hidden">
-                <div className="absolute -left-10 -top-10 w-40 h-40 bg-cyan-100 rounded-full blur-3xl opacity-40 pointer-events-none" />
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-5">
-                    <div className="flex items-center gap-3">
-                      <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-brand-lilac to-brand-cyan flex items-center justify-center text-white shadow-sm">
-                        <span className="material-symbols-outlined text-[16px]">auto_awesome</span>
-                      </div>
-                      <h2 className="text-base font-sans font-bold text-slate-700">Saúde da Reputação (IA)</h2>
-                    </div>
-                    <button
-                      onClick={loadHealth}
-                      disabled={loadingHealth}
-                      className="text-xs text-brand-lilacDark font-semibold hover:underline disabled:opacity-50 flex items-center gap-1"
-                    >
-                      {loadingHealth && <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-                      Atualizar
-                    </button>
-                  </div>
-                  {health ? (
-                    <div className="prose prose-sm prose-slate max-w-none text-brand-text leading-relaxed">
-                      <p className="text-xs text-slate-400 font-light mb-3">Último relatório disponível.</p>
-                      <ReactMarkdown>{health.report_text}</ReactMarkdown>
-                    </div>
-                  ) : (
-                    <div className="py-8 text-center text-slate-300">
-                      <span className="material-symbols-outlined text-[40px] block mb-3">auto_awesome</span>
-                      <p className="text-sm font-light">Clique em &quot;Atualizar&quot; para gerar um relatório com IA.</p>
-                    </div>
-                  )}
-                </div>
+            {/* ── Recent Posts ── */}
+            <div className="dream-card p-6">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-base font-sans font-bold text-slate-700">Posts Recentes</h2>
+                <Link href="/connect" className="text-xs text-brand-lilacDark font-semibold hover:underline">Ver tudo</Link>
               </div>
-
-              {/* Recent Posts */}
-              <div className="dream-card p-6">
-                <div className="flex items-center justify-between mb-5">
-                  <h2 className="text-base font-sans font-bold text-slate-700">Posts Recentes</h2>
-                  <Link href="/connect" className="text-xs text-brand-lilacDark font-semibold hover:underline">Ver tudo</Link>
+              <p className="text-xs text-slate-400 mb-3">Clique para ver a análise individual.</p>
+              {loading ? (
+                <div className="space-y-3">
+                  {Array(4).fill(0).map((_, i) => (
+                    <div key={i} className="h-14 bg-slate-50 rounded-2xl animate-pulse" />
+                  ))}
                 </div>
-                <p className="text-xs text-slate-400 mb-3">Clique para ver a análise individual.</p>
-                {loading ? (
-                  <div className="space-y-3">
-                    {Array(4).fill(0).map((_, i) => (
-                      <div key={i} className="h-14 bg-slate-50 rounded-2xl animate-pulse" />
-                    ))}
-                  </div>
-                ) : (summary?.recent_posts ?? []).length === 0 ? (
-                  <div className="py-10 text-center text-slate-300 text-sm font-light">
-                    <span className="material-symbols-outlined text-[36px] block mb-2 text-slate-200">article</span>
-                    Nenhum post analisado ainda
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    {(summary?.recent_posts ?? []).slice(0, 5).map((post, i) => (
-                      <RecentPostItem key={post.id} post={post} index={i} />
-                    ))}
-                  </div>
-                )}
-              </div>
+              ) : (summary?.recent_posts ?? []).length === 0 ? (
+                <div className="py-10 text-center text-slate-300 text-sm font-light">
+                  <span className="material-symbols-outlined text-[36px] block mb-2 text-slate-200">article</span>
+                  Nenhum post analisado ainda
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {(summary?.recent_posts ?? []).slice(0, 5).map((post, i) => (
+                    <RecentPostItem key={post.id} post={post} index={i} />
+                  ))}
+                </div>
+              )}
             </div>
           </>
         )}

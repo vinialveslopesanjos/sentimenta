@@ -18,6 +18,7 @@ from app.services.media_cache_service import cache_remote_image
 from app.services.instagram_scrape_service import (
     fetch_post_comments,
     fetch_recent_posts,
+    fetch_post_thumbnail,
 )
 
 logger = logging.getLogger(__name__)
@@ -84,6 +85,8 @@ def ingest_instagram_profile(
 
                 if post:
                     media_url = post_data.get("media_url")
+                    if not media_url:
+                        media_url = fetch_post_thumbnail(post_data["platform_post_id"])
                     if media_url:
                         cache_remote_image(media_url)
                     post.post_type = post_data.get("post_type")
@@ -103,6 +106,8 @@ def ingest_instagram_profile(
                     stats["posts_updated"] += 1
                 else:
                     media_url = post_data.get("media_url")
+                    if not media_url:
+                        media_url = fetch_post_thumbnail(post_data["platform_post_id"])
                     if media_url:
                         cache_remote_image(media_url)
                     post = Post(

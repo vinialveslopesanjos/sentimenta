@@ -38,7 +38,17 @@ import type {
 
 // Temporal chart constants
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
+const EMOTION_EMOJI: Record<string, string> = {
+  joy: "😊", happiness: "😊", sadness: "😢", anger: "😡", surprise: "😮",
+  fear: "😰", disgust: "🤢", love: "❤️", trust: "🤝", anticipation: "🤩",
+  gratitude: "🙏", frustration: "😤", confusion: "😕", excitement: "🎉",
+  disappointment: "😞", pride: "💪", humor: "😂", sarcasm: "😏",
+  admiration: "🌟", curiosity: "🧐", hope: "🌈", nostalgia: "💭",
+  empathy: "🫂", relief: "😌", anxiety: "😟", contempt: "😒",
+  inspiration: "✨", amusement: "😄", concern: "😟", enthusiasm: "🔥",
+};
+
+const API_URL = "/api/v1";
 
 function buildThumbnailSrc(url?: string | null) {
   if (!url) return null;
@@ -226,13 +236,13 @@ function TrendChart({ data, granularity }: { data: TrendResponse | null; granula
             minTickGap={26}
             tick={{ fill: "#94A3B8", fontSize: 10 }}
             tickFormatter={(period: string) => formatMonthYear(period)}
-            axisLine={{ stroke: "#E2E8F0" }}
+            axisLine={false}
             tickLine={false}
           />
           <YAxis
             domain={[0, 10]}
-            tick={{ fill: "#94A3B8", fontSize: 10 }}
-            axisLine={{ stroke: "#E2E8F0" }}
+            tick={{ fill: "#94A3B8", fontSize: 11 }}
+            axisLine={false}
             tickLine={false}
           />
           <Tooltip
@@ -249,7 +259,7 @@ function TrendChart({ data, granularity }: { data: TrendResponse | null; granula
               };
 
               return (
-                <div className="rounded-xl border border-slate-200 bg-white p-3 shadow-lg min-w-[180px]">
+                <div className="rounded-xl border border-slate-200 bg-white p-3 min-w-[180px]" style={{ boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
                   <p className="text-xs text-slate-400 mb-1">{formatDayLabel(point.period)} · {granularityLabel}</p>
                   <p className="text-sm font-semibold text-slate-700 mb-2">
                     Score médio: {point.avg_score != null ? point.avg_score.toFixed(2) : "—"}
@@ -277,7 +287,7 @@ function TrendChart({ data, granularity }: { data: TrendResponse | null; granula
             stroke="#8B5CF6"
             strokeWidth={2.2}
             dot={false}
-            activeDot={{ r: 3, strokeWidth: 0, fill: "#8B5CF6" }}
+            activeDot={{ r: 5, strokeWidth: 2, fill: "#8B5CF6", stroke: "#fff" }}
             isAnimationActive={false}
           />
         </LineChart>
@@ -377,18 +387,18 @@ function StackedBarChart({
     <div className="h-56 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={rows} margin={{ top: 4, right: 8, left: -14, bottom: 8 }}>
-          <CartesianGrid stroke="#F1F5F9" strokeDasharray="3 3" vertical={false} />
+          <CartesianGrid stroke="#f1f5f9" strokeDasharray="3 3" vertical={false} />
           <XAxis
             dataKey="period"
             minTickGap={24}
-            tick={{ fill: "#94A3B8", fontSize: 10 }}
+            tick={{ fill: "#94a3b8", fontSize: 11 }}
             tickFormatter={(period: string) => formatMonthYear(period)}
-            axisLine={{ stroke: "#E2E8F0" }}
+            axisLine={false}
             tickLine={false}
           />
           <YAxis
-            tick={{ fill: "#94A3B8", fontSize: 10 }}
-            axisLine={{ stroke: "#E2E8F0" }}
+            tick={{ fill: "#94a3b8", fontSize: 11 }}
+            axisLine={false}
             tickLine={false}
             domain={mode === "pct" ? [0, 100] : [0, "auto"]}
             tickFormatter={(v: number) => (mode === "pct" ? `${Math.round(v)}%` : String(Math.round(v)))}
@@ -401,9 +411,10 @@ function StackedBarChart({
               return [Math.round(value), label];
             }}
             labelFormatter={(period: string) => formatDayLabel(period)}
+            contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
           />
           {series.map((s) => (
-            <Bar key={s.key} dataKey={s.key} stackId="stack" fill={s.color} radius={[2, 2, 0, 0]} />
+            <Bar key={s.key} dataKey={s.key} stackId="stack" fill={s.color} radius={[4, 4, 0, 0]} />
           ))}
         </BarChart>
       </ResponsiveContainer>
@@ -435,18 +446,18 @@ function MonthlyCommentsChart({ data }: { data: TrendResponse | null }) {
               <stop offset="100%" stopColor="#22D3EE" stopOpacity={0.03} />
             </linearGradient>
           </defs>
-          <CartesianGrid stroke="#F1F5F9" strokeDasharray="3 3" vertical={false} />
+          <CartesianGrid stroke="#f1f5f9" strokeDasharray="3 3" vertical={false} />
           <XAxis
             dataKey="period"
             minTickGap={24}
-            tick={{ fill: "#94A3B8", fontSize: 10 }}
+            tick={{ fill: "#94a3b8", fontSize: 11 }}
             tickFormatter={(period: string) => formatMonthYear(period)}
-            axisLine={{ stroke: "#E2E8F0" }}
+            axisLine={false}
             tickLine={false}
           />
           <YAxis
-            tick={{ fill: "#94A3B8", fontSize: 10 }}
-            axisLine={{ stroke: "#E2E8F0" }}
+            tick={{ fill: "#94a3b8", fontSize: 11 }}
+            axisLine={false}
             tickLine={false}
             allowDecimals={false}
           />
@@ -454,6 +465,7 @@ function MonthlyCommentsChart({ data }: { data: TrendResponse | null }) {
             cursor={{ stroke: "#67E8F9", strokeDasharray: "4 4" }}
             labelFormatter={(period: string) => formatMonthYear(period)}
             formatter={(value: number) => [Math.round(value), "Comentários"]}
+            contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
           />
           <Area type="monotone" dataKey="total_comments" stroke="none" fill="url(#monthlyCommentsFill)" isAnimationActive={false} />
           <Line
@@ -462,7 +474,7 @@ function MonthlyCommentsChart({ data }: { data: TrendResponse | null }) {
             stroke="#06B6D4"
             strokeWidth={2.2}
             dot={false}
-            activeDot={{ r: 3, strokeWidth: 0, fill: "#06B6D4" }}
+            activeDot={{ r: 5, strokeWidth: 2, fill: "#06B6D4", stroke: "#fff" }}
             isAnimationActive={false}
           />
         </LineChart>
@@ -617,6 +629,7 @@ export default function ConnectionPage() {
   const [personaText, setPersonaText] = useState("");
   const [savingPersona, setSavingPersona] = useState(false);
   const [savingIgnore, setSavingIgnore] = useState(false);
+  const [trendDays, setTrendDays] = useState(90);
 
   // temporal chart tabs
   const [temporalTab, setTemporalTab] = useState<"sentiment" | "emotions" | "topics">("sentiment");
@@ -677,7 +690,7 @@ export default function ConnectionPage() {
         const t = await dashboardApi.trends(token, {
           connection_id: id,
           granularity: gran,
-          days: 30,
+          days: trendDays,
         });
         setTrends(t);
       } catch (error) {
@@ -687,7 +700,7 @@ export default function ConnectionPage() {
         setTrendsLoading(false);
       }
     },
-    [id]
+    [id, trendDays]
   );
 
   const loadDetailedTrends = useCallback(
@@ -699,7 +712,7 @@ export default function ConnectionPage() {
         const d = await dashboardApi.trendsDetailed(token, {
           connection_id: id,
           granularity: gran,
-          days: 30,
+          days: trendDays,
         });
         setDetailedTrends(d);
       } catch (error) {
@@ -709,7 +722,7 @@ export default function ConnectionPage() {
         setDetailedLoading(false);
       }
     },
-    [id]
+    [id, trendDays]
   );
 
   const loadMonthlyTrends = useCallback(async () => {
@@ -764,7 +777,7 @@ export default function ConnectionPage() {
     loadMonthlyTrends();
     loadDetailedTrends(granularity);
     loadComments({ search, sentiment, offset });
-  }, [loadMain]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [loadMain, trendDays]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleGranularity = (g: string) => {
     setGranularity(g);
@@ -819,6 +832,18 @@ export default function ConnectionPage() {
   const neuRate = dist ? Math.round((dist.neutral / distTotal) * 100) : 0;
   const negRate = dist ? Math.round((dist.negative / distTotal) * 100) : 0;
   const negativeRate = dist ? Math.round((dist.negative / distTotal) * 100) : 0;
+
+  const dateRange = (() => {
+    if (!data?.posts?.length) return null;
+    const dates = data.posts
+      .map(p => p.published_at ? new Date(p.published_at) : null)
+      .filter(Boolean) as Date[];
+    if (dates.length === 0) return null;
+    const min = new Date(Math.min(...dates.map(d => d.getTime())));
+    const max = new Date(Math.max(...dates.map(d => d.getTime())));
+    const fmt_date = (d: Date) => d.toLocaleDateString("pt-BR", { month: "short", year: "numeric" });
+    return `${fmt_date(min)} — ${fmt_date(max)}`;
+  })();
 
   const platformColors: Record<string, string> = {
     instagram: "from-orange-100 to-pink-100 text-pink-500",
@@ -1095,35 +1120,34 @@ export default function ConnectionPage() {
                 tooltip="Percentual de comentários classificados como negativos no período. Ajuda a monitorar risco reputacional com mais clareza."
               />
               <KpiCard
-                icon="ssid_chart"
-                label="Polaridade"
-                value={data?.avg_polarity != null ? data.avg_polarity.toFixed(2) : "—"}
-                sub="Polaridade média"
-                iconBg="bg-indigo-50 text-indigo-500"
-                valueClass="text-slate-700"
-                tooltip="Escala de -1 (muito negativo) a +1 (muito positivo) baseada na análise semântica. Complementa o score numérico."
+                icon="sentiment_satisfied"
+                label="Menções positivas"
+                value={dist ? `${dist.positive}` : "—"}
+                sub={dist && distTotal > 0 ? `${Math.round((dist.positive / distTotal) * 100)}% do total` : ""}
+                iconBg="bg-emerald-50 text-emerald-500"
+                tooltip="Total de comentários classificados como positivos (score > 6)."
               />
               <KpiCard
                 icon="forum"
-                label="Comentários"
-                value={fmt(data?.total_comments ?? 0)}
-                sub="Comentários coletados"
+                label="Analisados"
+                value={fmt(data?.total_analyzed ?? 0)}
+                sub={`de ${fmt(data?.total_comments ?? 0)} coletados`}
                 iconBg="bg-rose-50 text-rose-400"
+                tooltip="Comentários que foram analisados por IA. O restante está pendente de análise."
               />
               <KpiCard
-                icon="thumb_up"
-                label="Engagement"
-                value={fmt((data?.engagement_totals.total_likes ?? 0) + (data?.engagement_totals.total_views ?? 0))}
-                sub="Likes + Views"
-                iconBg="bg-amber-50 text-amber-500"
+                icon="date_range"
+                label="Período"
+                value={dateRange || "—"}
+                sub="Período monitorado"
+                iconBg="bg-indigo-50 text-indigo-500"
               />
               <KpiCard
                 icon="article"
                 label="Posts"
-                value={`${fmt(data?.total_posts ?? 0)}${data?.connection.media_count ? ` / ${fmt(data.connection.media_count)}` : ""}`}
-                sub={`${fmt(data?.total_analyzed ?? 0)} analisados`}
+                value={fmt(data?.total_posts ?? 0)}
+                sub={`${fmt(data?.total_analyzed ?? 0)} com análise`}
                 iconBg="bg-emerald-50 text-emerald-500"
-                tooltip="Esquerda: Posts coletados no banco de dados. Direita: Total de posts publicados no perfil."
               />
             </>
           )}
@@ -1150,6 +1174,26 @@ export default function ConnectionPage() {
             <div>
               <h2 className="text-lg font-sans font-medium text-slate-700">Tendência de Score</h2>
               <p className="text-sm text-slate-400 font-light mt-0.5">Score médio ao longo do tempo</p>
+            </div>
+            <div className="flex rounded-xl border border-slate-100 overflow-hidden text-sm shrink-0">
+              {[
+                { label: "30d", value: 30 },
+                { label: "90d", value: 90 },
+                { label: "1a", value: 365 },
+                { label: "Tudo", value: 3650 },
+              ].map((p) => (
+                <button
+                  key={p.value}
+                  onClick={() => setTrendDays(p.value)}
+                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                    trendDays === p.value
+                      ? "bg-brand-lilac text-white"
+                      : "text-slate-400 hover:text-slate-600"
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
             </div>
             <div className="flex rounded-xl border border-slate-100 overflow-hidden text-sm shrink-0">
               {[
@@ -1255,7 +1299,7 @@ export default function ConnectionPage() {
                 ))}
               </div>
             ) : (
-              <HBarChart data={data?.emotions_distribution ?? null} palette="emotion" limit={7} />
+              <HBarChart data={data?.emotions_distribution ? Object.fromEntries(Object.entries(data.emotions_distribution).map(([k, v]) => [`${EMOTION_EMOJI[k] || "📊"} ${k}`, v])) : null} palette="emotion" limit={7} />
             )}
           </div>
           <div className="dream-card p-6">

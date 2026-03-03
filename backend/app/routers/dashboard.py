@@ -18,6 +18,32 @@ from app.services.report_service import generate_health_report
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
+import re
+
+def _clean_post_text(text: str | None, max_len: int = 100) -> str | None:
+    """Remove generic CTA prefixes and hashtags, return meaningful first sentence."""
+    if not text:
+        return text
+    # Normalize escaped newlines to real newlines
+    t = text.replace("\\n", "\n")
+    # Remove common CTA prefix patterns (e.g. "➡️Coloca pra me seguir...")
+    t = re.sub(
+        r'^[➡️▶️👉🔔]*\s*(coloca pra me seguir|me segue|segue a[ií]|siga)[^\n]*\n*',
+        '', t, flags=re.IGNORECASE
+    )
+    # Remove leading whitespace/newlines
+    t = t.lstrip('\n \t')
+    # Remove leading emoji clusters
+    t = re.sub(r'^[\U0001F300-\U0001FAFF\U00002702-\U000027B0\U0000FE00-\U0000FE0F\u200d\s]+', '', t)
+    # Remove trailing hashtags block
+    t = re.sub(r'\s*#\w+(\s+#\w+)*\s*$', '', t)
+    t = t.strip()
+    if not t:
+        return (text[:max_len] + "...") if len(text) > max_len else text
+    if len(t) > max_len:
+        return t[:max_len] + "..."
+    return t
+
 
 def _latest_analysis_subquery():
     ranked = (
@@ -184,7 +210,7 @@ def _build_dashboard_summary(user_id: str, db: Session) -> dict:
                 "platform": p.platform,
                 "platform_post_id": p.platform_post_id,
                 "post_type": p.post_type,
-                "content_text": (p.content_text[:100] + "..." if p.content_text and len(p.content_text) > 100 else p.content_text),
+                "content_text": _clean_post_text(p.content_text, 100),
                 "like_count": p.like_count,
                 "comment_count": p.comment_count,
                 "published_at": p.published_at.isoformat() if p.published_at else None,
@@ -270,16 +296,20 @@ def get_connection_dashboard(
     topics_agg = Counter()
 
     if summaries:
-        scores = [s.avg_score for s in summaries if s.avg_score is not None]
-        polarities = [s.avg_polarity for s in summaries if s.avg_polarity is not None]
-        w_scores = [s.weighted_score for s in summaries if s.weighted_score is not None]
+        # Weighted averages by total_analyzed per post (not simple mean of means)
+        w_score_pairs = [(s.avg_score, s.total_analyzed or 0) for s in summaries if s.avg_score is not None and s.total_analyzed]
+        w_pol_pairs = [(s.avg_polarity, s.total_analyzed or 0) for s in summaries if s.avg_polarity is not None and s.total_analyzed]
+        w_scores_pairs = [(s.weighted_score, s.total_analyzed or 0) for s in summaries if s.weighted_score is not None and s.total_analyzed]
 
-        if scores:
-            avg_score = round(sum(scores) / len(scores), 2)
-        if polarities:
-            avg_polarity = round(sum(polarities) / len(polarities), 2)
-        if w_scores:
-            weighted_avg_score = round(sum(w_scores) / len(w_scores), 2)
+        if w_score_pairs:
+            total_w = sum(n for _, n in w_score_pairs)
+            avg_score = round(sum(s * n for s, n in w_score_pairs) / total_w, 2) if total_w else None
+        if w_pol_pairs:
+            total_w = sum(n for _, n in w_pol_pairs)
+            avg_polarity = round(sum(p * n for p, n in w_pol_pairs) / total_w, 2) if total_w else None
+        if w_scores_pairs:
+            total_w = sum(n for _, n in w_scores_pairs)
+            weighted_avg_score = round(sum(s * n for s, n in w_scores_pairs) / total_w, 2) if total_w else None
 
         neg_total = sum(s.sentiment_distribution.get("negative", 0) for s in summaries if s.sentiment_distribution)
         neu_total = sum(s.sentiment_distribution.get("neutral", 0) for s in summaries if s.sentiment_distribution)
@@ -311,7 +341,7 @@ def get_connection_dashboard(
             "platform": p.platform,
             "platform_post_id": p.platform_post_id,
             "post_type": p.post_type,
-            "content_text": (p.content_text[:100] + "..." if p.content_text and len(p.content_text) > 100 else p.content_text),
+            "content_text": _clean_post_text(p.content_text, 100),
             "like_count": p.like_count,
             "comment_count": p.comment_count,
             "view_count": p.view_count,
@@ -725,6 +755,104 @@ def get_platform_compare(
     return {
         "days": days,
         "platforms": platforms,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+@router.get("/compare-connections")
+def get_connections_compare(
+    connection_ids: str = Query(..., description="Comma-separated connection UUIDs"),
+    days: int = Query(3650, ge=7, le=3650),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Compare sentiment data between specific connections (profiles)."""
+    ids = [uuid.UUID(cid.strip()) for cid in connection_ids.split(",") if cid.strip()]
+
+    # Verify ownership
+    valid_conns = (
+        db.query(SocialConnection)
+        .filter(
+            SocialConnection.id.in_(ids),
+            SocialConnection.user_id == current_user.id,
+        )
+        .all()
+    )
+    valid_ids = [c.id for c in valid_conns]
+    conn_map = {c.id: c for c in valid_conns}
+
+    if not valid_ids:
+        return {"days": days, "connections": [], "generated_at": datetime.now(timezone.utc).isoformat()}
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    latest_analysis = _latest_analysis_subquery()
+
+    rows = (
+        db.query(
+            Comment.connection_id.label("connection_id"),
+            func.count(Comment.id).label("total_comments"),
+            func.count(latest_analysis.c.id).label("total_analyzed"),
+            func.avg(latest_analysis.c.score_0_10).label("avg_score"),
+            func.avg(latest_analysis.c.polarity).label("avg_polarity"),
+            func.sum(case((latest_analysis.c.score_0_10 > 6, 1), else_=0)).label("positive"),
+            func.sum(case((latest_analysis.c.score_0_10.between(4, 6), 1), else_=0)).label("neutral"),
+            func.sum(case((latest_analysis.c.score_0_10 < 4, 1), else_=0)).label("negative"),
+        )
+        .outerjoin(latest_analysis, latest_analysis.c.comment_id == Comment.id)
+        .filter(
+            Comment.connection_id.in_(valid_ids),
+            Comment.published_at.isnot(None),
+            Comment.published_at >= cutoff,
+        )
+        .group_by(Comment.connection_id)
+        .all()
+    )
+
+    # Get emotions per connection from PostAnalysisSummary
+    connections_data = []
+    for row in rows:
+        conn = conn_map.get(row.connection_id)
+        total_analyzed = int(row.total_analyzed or 0)
+        positive = int(row.positive or 0)
+        neutral = int(row.neutral or 0)
+        negative = int(row.negative or 0)
+        safe_total = total_analyzed if total_analyzed > 0 else 1
+
+        # Get emotions from summaries
+        post_ids = [p.id for p in db.query(Post.id).filter(Post.connection_id == row.connection_id).all()]
+        emotions_agg = Counter()
+        if post_ids:
+            summaries = db.query(PostAnalysisSummary).filter(PostAnalysisSummary.post_id.in_(post_ids)).all()
+            for s in summaries:
+                if s.emotions_distribution:
+                    for emo, cnt in s.emotions_distribution.items():
+                        emotions_agg[emo] += cnt
+
+        connections_data.append({
+            "connection_id": str(row.connection_id),
+            "platform": conn.platform if conn else "unknown",
+            "username": conn.username if conn else "unknown",
+            "display_name": conn.display_name if conn else None,
+            "profile_image_url": conn.profile_image_url if conn else None,
+            "total_comments": int(row.total_comments or 0),
+            "total_analyzed": total_analyzed,
+            "avg_score": round(float(row.avg_score), 2) if row.avg_score is not None else None,
+            "avg_polarity": round(float(row.avg_polarity), 2) if row.avg_polarity is not None else None,
+            "sentiment_distribution": {
+                "positive": positive,
+                "neutral": neutral,
+                "negative": negative,
+            },
+            "positive_rate": round((positive / safe_total) * 100, 2),
+            "negative_rate": round((negative / safe_total) * 100, 2),
+            "emotions_distribution": dict(emotions_agg.most_common(10)),
+        })
+
+    connections_data.sort(key=lambda c: c["positive_rate"], reverse=True)
+
+    return {
+        "days": days,
+        "connections": connections_data,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
 

@@ -255,6 +255,27 @@ export const dashboardApi = {
       generated_at: string;
     }>(`/dashboard/compare?days=${days}`, { token }),
 
+  compareConnections: (token: string, connectionIds: string[], days = 3650) =>
+    apiFetch<{
+      days: number;
+      connections: Array<{
+        connection_id: string;
+        platform: string;
+        username: string;
+        display_name: string | null;
+        profile_image_url: string | null;
+        total_comments: number;
+        total_analyzed: number;
+        avg_score: number | null;
+        avg_polarity: number | null;
+        sentiment_distribution: { positive: number; neutral: number; negative: number };
+        positive_rate: number;
+        negative_rate: number;
+        emotions_distribution: Record<string, number>;
+      }>;
+      generated_at: string;
+    }>(`/dashboard/compare-connections?connection_ids=${connectionIds.join(",")}&days=${days}`, { token }),
+
   alerts: (
     token: string,
     params: { days?: number; min_analyzed?: number; negative_threshold?: number } = {}

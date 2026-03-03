@@ -19,6 +19,7 @@ class PostResponse(BaseModel):
     view_count: int
     published_at: datetime | None
     post_url: str | None
+    thumbnail_url: str | None = None
     fetched_at: datetime
 
     model_config = {"from_attributes": True}
@@ -135,6 +136,7 @@ class PostWithSummary(BaseModel):
     view_count: int
     published_at: datetime | None
     post_url: str | None
+    thumbnail_url: str | None = None
     summary: dict | None = None
 
     model_config = {"from_attributes": True}
