@@ -23,19 +23,19 @@ INSTAGRAM_GRAPH_URL = "https://graph.instagram.com"
 # ---------------------------------------------------------------------------
 # 1. Generate OAuth authorization URL
 # ---------------------------------------------------------------------------
-def generate_auth_url(state: str) -> str:
+def generate_auth_url(state: str, redirect_uri: str | None = None) -> str:
     """Build the Instagram OAuth authorization URL.
 
     Args:
-        state: An opaque value (typically the user ID) forwarded to the
-               callback so we can associate the token with the right user.
+        state: An opaque value forwarded to the callback.
+        redirect_uri: Override the default redirect URI (for login vs connections).
 
     Returns:
         The fully-formed authorization URL string.
     """
     params = {
         "client_id": settings.INSTAGRAM_APP_ID,
-        "redirect_uri": settings.INSTAGRAM_REDIRECT_URI,
+        "redirect_uri": redirect_uri or settings.INSTAGRAM_REDIRECT_URI,
         "scope": settings.INSTAGRAM_SCOPES,
         "response_type": "code",
         "state": state,
@@ -74,7 +74,10 @@ async def handle_oauth_callback(
         raise ValueError("Invalid OAuth state: not a valid user ID")
 
     # --- Step 1: Exchange code for a short-lived token -----------------
-    short_lived_token = await _exchange_code_for_short_token(code)
+    # Use connections redirect URI since this callback is called from connections flow
+    short_lived_token = await _exchange_code_for_short_token(
+        code, redirect_uri=settings.INSTAGRAM_CONNECTIONS_REDIRECT_URI
+    )
 
     # --- Step 2: Exchange short-lived token for a long-lived token -----
     long_lived_data = await _exchange_for_long_lived_token(short_lived_token)
@@ -300,14 +303,14 @@ async def refresh_long_lived_token(access_token: str) -> dict:
 # Internal helpers
 # ===========================================================================
 
-async def _exchange_code_for_short_token(code: str) -> str:
+async def _exchange_code_for_short_token(code: str, redirect_uri: str | None = None) -> str:
     """POST to Instagram to exchange the authorization code for a short-lived
     access token."""
     payload = {
         "client_id": settings.INSTAGRAM_APP_ID,
         "client_secret": settings.INSTAGRAM_APP_SECRET,
         "grant_type": "authorization_code",
-        "redirect_uri": settings.INSTAGRAM_REDIRECT_URI,
+        "redirect_uri": redirect_uri or settings.INSTAGRAM_REDIRECT_URI,
         "code": code,
     }
 

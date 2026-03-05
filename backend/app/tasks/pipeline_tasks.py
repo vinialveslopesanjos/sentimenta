@@ -411,6 +411,68 @@ def task_daily_sync(self) -> dict:
         db.close()
 
 
+@celery_app.task(bind=True)
+def task_refresh_social_tokens(self) -> dict:
+    """Refresh OAuth tokens for social connections expiring within 7 days."""
+    db = SessionLocal()
+    try:
+        from datetime import timedelta
+        from app.core.security import encrypt_token, decrypt_token
+
+        threshold = datetime.now(timezone.utc) + timedelta(days=7)
+        connections = (
+            db.query(SocialConnection)
+            .filter(
+                SocialConnection.status == "active",
+                SocialConnection.access_token_enc.isnot(None),
+                SocialConnection.token_expires_at < threshold,
+            )
+            .all()
+        )
+
+        refreshed = 0
+        errors = 0
+        for conn in connections:
+            try:
+                if conn.platform == "instagram":
+                    from app.services.instagram_service import refresh_long_lived_token
+
+                    current_token = decrypt_token(conn.access_token_enc)
+                    result = _run_async(refresh_long_lived_token(current_token))
+                    conn.access_token_enc = encrypt_token(result["access_token"])
+                    conn.token_expires_at = datetime.now(timezone.utc) + timedelta(
+                        seconds=result.get("expires_in", 5184000)
+                    )
+                    refreshed += 1
+
+                elif conn.platform == "tiktok" and conn.refresh_token_enc:
+                    from app.services.tiktok_service import refresh_access_token
+
+                    current_refresh = decrypt_token(conn.refresh_token_enc)
+                    result = _run_async(refresh_access_token(current_refresh))
+                    conn.access_token_enc = encrypt_token(result["access_token"])
+                    if result.get("refresh_token"):
+                        conn.refresh_token_enc = encrypt_token(result["refresh_token"])
+                    conn.token_expires_at = datetime.now(timezone.utc) + timedelta(
+                        seconds=result.get("expires_in", 86400)
+                    )
+                    refreshed += 1
+
+                db.commit()
+                logger.info("Refreshed token for %s @%s", conn.platform, conn.username)
+
+            except Exception as exc:
+                logger.error("Token refresh failed for %s @%s: %s", conn.platform, conn.username, exc)
+                conn.status = "token_expired"
+                db.commit()
+                errors += 1
+
+        logger.info("Token refresh done: %d refreshed, %d errors", refreshed, errors)
+        return {"refreshed": refreshed, "errors": errors}
+    finally:
+        db.close()
+
+
 def _create_follower_snapshot(db, connection) -> None:
     """Create a follower snapshot for a connection."""
     snapshot = FollowerSnapshot(

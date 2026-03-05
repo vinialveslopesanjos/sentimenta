@@ -76,6 +76,12 @@ export const authApi = {
       body: JSON.stringify({ token: googleToken }),
     }),
 
+  instagramAuthUrl: () =>
+    apiFetch<{ auth_url: string }>("/auth/instagram/auth-url"),
+
+  tiktokAuthUrl: () =>
+    apiFetch<{ auth_url: string }>("/auth/tiktok/auth-url"),
+
   me: (token: string) =>
     apiFetch<{
       id: string;
@@ -151,6 +157,9 @@ export const connectionsApi = {
 
   getInstagramAuthUrl: (token: string) =>
     apiFetch<{ auth_url: string }>("/connections/instagram/auth-url", { token }),
+
+  getTiktokAuthUrl: (token: string) =>
+    apiFetch<{ auth_url: string }>("/connections/tiktok/auth-url", { token }),
 
   checkProfile: (token: string, platform: string, username: string) =>
     apiFetch<any>(`/connections/check-profile?platform=${platform}&username=${username}`, { token }),

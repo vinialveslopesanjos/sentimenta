@@ -1,5 +1,7 @@
+import logging
+import secrets
 import uuid
-from datetime import date
+from datetime import date, datetime, timezone, timedelta
 from typing import Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
@@ -7,6 +9,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.core.cache import get_redis
 from app.core.config import settings
 from app.core.deps import get_current_user
 from app.db.session import get_db
@@ -19,6 +22,8 @@ from app.schemas.connection import (
     SyncResponse,
     YouTubeConnectRequest,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class SyncRequest(BaseModel):
@@ -285,12 +290,15 @@ def delete_connection(
 
 
 
-# --- Instagram OAuth ---
+# --- Instagram OAuth (for already-authenticated users) ---
 @router.get("/instagram/auth-url", response_model=OAuthURLResponse)
 def get_instagram_auth_url(current_user: User = Depends(get_current_user)):
     from app.services.instagram_service import generate_auth_url
 
-    auth_url = generate_auth_url(state=str(current_user.id))
+    auth_url = generate_auth_url(
+        state=str(current_user.id),
+        redirect_uri=settings.INSTAGRAM_CONNECTIONS_REDIRECT_URI,
+    )
     return OAuthURLResponse(auth_url=auth_url)
 
 
@@ -303,14 +311,10 @@ async def instagram_callback(
     error_description: str = Query(None),
     db: Session = Depends(get_db),
 ):
-    import logging
-    logger = logging.getLogger(__name__)
-
     base_url = settings.APP_URL.rstrip("/")
 
-    # Check for OAuth errors first
     if error:
-        logger.error(f"Instagram OAuth error: {error} - {error_reason} - {error_description}")
+        logger.error("Instagram OAuth connection error: %s - %s - %s", error, error_reason, error_description)
         return RedirectResponse(
             url=f"{base_url}/settings?tab=integrations&status=error&platform=instagram&error={error_description or error}"
         )
@@ -324,17 +328,153 @@ async def instagram_callback(
     from app.services.instagram_service import handle_oauth_callback
 
     try:
-        logger.info(f"Instagram OAuth callback - code: {code[:20]}..., state: {state}")
+        logger.info("Instagram OAuth connection callback - state: %s", state)
         connection = await handle_oauth_callback(db, code, state)
-        logger.info(f"Instagram connection created: {connection.id}")
+        logger.info("Instagram connection created: %s", connection.id)
     except ValueError as e:
-        logger.error(f"Instagram OAuth callback failed: {e}")
+        logger.error("Instagram OAuth connection callback failed: %s", e)
         return RedirectResponse(
             url=f"{base_url}/settings?tab=integrations&status=error&platform=instagram&error={str(e)}"
         )
 
-    # Redirect to frontend with success
     return RedirectResponse(url=f"{base_url}/settings?tab=integrations&status=success&platform=instagram")
+
+
+# --- TikTok OAuth (for already-authenticated users) ---
+@router.get("/tiktok/auth-url", response_model=OAuthURLResponse)
+def get_tiktok_auth_url(current_user: User = Depends(get_current_user)):
+    from app.services.tiktok_service import generate_auth_url
+
+    r = get_redis()
+    if not r:
+        raise HTTPException(status_code=503, detail="Redis unavailable")
+
+    state = secrets.token_urlsafe(32)
+    auth_url, code_verifier = generate_auth_url(
+        state=state,
+        redirect_uri=settings.TIKTOK_CONNECTIONS_REDIRECT_URI,
+    )
+
+    # Store user_id + code_verifier keyed by state
+    r.setex(f"oauth_conn_state:{state}", 600, f"{current_user.id}:{code_verifier}")
+
+    return OAuthURLResponse(auth_url=auth_url)
+
+
+@router.get("/tiktok/callback")
+async def tiktok_connection_callback(
+    code: str = Query(None),
+    state: str = Query(""),
+    error: str = Query(None),
+    error_description: str = Query(None),
+    db: Session = Depends(get_db),
+):
+    base_url = settings.APP_URL.rstrip("/")
+
+    if error:
+        logger.error("TikTok OAuth connection error: %s - %s", error, error_description)
+        return RedirectResponse(
+            url=f"{base_url}/settings?tab=integrations&status=error&platform=tiktok&error={error_description or error}"
+        )
+
+    if not code:
+        return RedirectResponse(
+            url=f"{base_url}/settings?tab=integrations&status=error&platform=tiktok&error=missing_code"
+        )
+
+    r = get_redis()
+    if not r:
+        return RedirectResponse(url=f"{base_url}/settings?tab=integrations&status=error&platform=tiktok&error=server_error")
+
+    stored = r.get(f"oauth_conn_state:{state}")
+    if not stored or ":" not in stored:
+        logger.error("TikTok OAuth connection: invalid state %s", state)
+        return RedirectResponse(
+            url=f"{base_url}/settings?tab=integrations&status=error&platform=tiktok&error=invalid_state"
+        )
+    r.delete(f"oauth_conn_state:{state}")
+
+    # Parse user_id and code_verifier
+    parts = stored.split(":", 1)
+    user_id_str = parts[0]
+    code_verifier = parts[1]
+
+    try:
+        user_uuid = uuid.UUID(user_id_str)
+    except ValueError:
+        return RedirectResponse(
+            url=f"{base_url}/settings?tab=integrations&status=error&platform=tiktok&error=invalid_state"
+        )
+
+    try:
+        from app.services.tiktok_service import exchange_code_for_tokens, fetch_user_profile
+        from app.core.security import encrypt_token
+
+        token_data = await exchange_code_for_tokens(
+            code, code_verifier, redirect_uri=settings.TIKTOK_CONNECTIONS_REDIRECT_URI
+        )
+        access_token = token_data["access_token"]
+        refresh_token = token_data.get("refresh_token")
+        expires_in = token_data.get("expires_in", 86400)
+        open_id = token_data.get("open_id") or ""
+
+        profile = await fetch_user_profile(access_token)
+        username = profile.get("username", f"tiktok_{open_id[:8]}")
+
+        # Check if already connected
+        existing = (
+            db.query(SocialConnection)
+            .filter(
+                SocialConnection.user_id == user_uuid,
+                SocialConnection.platform == "tiktok",
+                SocialConnection.platform_user_id == open_id,
+            )
+            .first()
+        )
+
+        token_expires_at = datetime.now(timezone.utc) + timedelta(seconds=expires_in)
+
+        if existing:
+            existing.access_token_enc = encrypt_token(access_token)
+            if refresh_token:
+                existing.refresh_token_enc = encrypt_token(refresh_token)
+            existing.token_expires_at = token_expires_at
+            existing.username = username
+            existing.display_name = profile.get("display_name", username)
+            existing.profile_image_url = profile.get("avatar_url")
+            existing.followers_count = profile.get("follower_count", 0)
+            existing.status = "active"
+            existing.raw_profile_json = profile
+        else:
+            conn = SocialConnection(
+                user_id=user_uuid,
+                platform="tiktok",
+                platform_user_id=open_id,
+                username=username,
+                display_name=profile.get("display_name", username),
+                profile_url=f"https://www.tiktok.com/@{username}" if username else None,
+                profile_image_url=profile.get("avatar_url"),
+                followers_count=profile.get("follower_count", 0),
+                access_token_enc=encrypt_token(access_token),
+                refresh_token_enc=encrypt_token(refresh_token) if refresh_token else None,
+                token_expires_at=token_expires_at,
+                scopes=["user.info.basic", "user.info.profile", "video.list"],
+                status="active",
+                raw_profile_json=profile,
+                connected_at=datetime.now(timezone.utc),
+            )
+            db.add(conn)
+
+        db.commit()
+        logger.info("TikTok connection created for user %s", user_id_str)
+
+    except ValueError as e:
+        logger.error("TikTok OAuth connection callback failed: %s", e)
+        return RedirectResponse(
+            url=f"{base_url}/settings?tab=integrations&status=error&platform=tiktok&error={str(e)}"
+        )
+
+    return RedirectResponse(url=f"{base_url}/settings?tab=integrations&status=success&platform=tiktok")
 
 
 # --- Sync ---

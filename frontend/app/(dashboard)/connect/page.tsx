@@ -25,7 +25,7 @@ type Connection = {
   last_sync_at: string | null;
 };
 
-type PlatformId = "instagram" | "youtube" | "twitter";
+type PlatformId = "instagram" | "youtube" | "twitter" | "tiktok";
 
 function PlatformIcon({ platform, size = 24 }: { platform: string; size?: number }) {
   if (platform === "instagram") {
@@ -44,6 +44,13 @@ function PlatformIcon({ platform, size = 24 }: { platform: string; size?: number
       </svg>
     );
   }
+  if (platform === "tiktok") {
+    return (
+      <svg height={size} viewBox="0 0 24 24" width={size} fill="currentColor">
+        <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1v-3.51a6.37 6.37 0 00-.79-.05A6.34 6.34 0 003.15 15.2a6.34 6.34 0 0010.86 4.46V13a8.28 8.28 0 005.58 2.14v-3.47a4.85 4.85 0 01-3.77-1.75V6.69h3.77z" />
+      </svg>
+    );
+  }
   return (
     <svg fill="none" height={size} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width={size}>
       <path d="M22.54 6.42a2.78 2.78 0 0 0-1.94-2C18.88 4 12 4 12 4s-6.88 0-8.6.46a2.78 2.78 0 0 0-1.94 2A29 29 0 0 0 1 11.75a29 29 0 0 0 .46 5.33A2.78 2.78 0 0 0 3.4 19c1.72.46 8.6.46 8.6.46s6.88 0 8.6-.46a2.78 2.78 0 0 0 1.94-2 29 29 0 0 0 .46-5.33 29 29 0 0 0-.46-5.33z" />
@@ -55,7 +62,7 @@ function PlatformIcon({ platform, size = 24 }: { platform: string; size?: number
 export default function ConnectPage() {
   const [connections, setConnections] = useState<Connection[]>([]);
   const [loading, setLoading] = useState(true);
-  const [inputs, setInputs] = useState<Record<string, string>>({ instagram: "", youtube: "", twitter: "" });
+  const [inputs, setInputs] = useState<Record<string, string>>({ instagram: "", youtube: "", twitter: "", tiktok: "" });
   const [connecting, setConnecting] = useState<Record<string, boolean>>({});
   const [checking, setChecking] = useState<Record<string, boolean>>({});
   const [potentials, setPotentials] = useState<Record<string, any>>({});
@@ -173,10 +180,27 @@ export default function ConnectPage() {
     }
   };
 
+  const handleOAuthConnect = async (platformId: "instagram" | "tiktok") => {
+    const token = getToken();
+    if (!token) return;
+    setConnecting(c => ({ ...c, [platformId]: true }));
+    setErrors(e => ({ ...e, [platformId]: "" }));
+    try {
+      const res = platformId === "instagram"
+        ? await connectionsApi.getInstagramAuthUrl(token)
+        : await connectionsApi.getTiktokAuthUrl(token);
+      window.location.href = res.auth_url;
+    } catch (err) {
+      setErrors(e => ({ ...e, [platformId]: err instanceof Error ? err.message : "Falha ao iniciar OAuth." }));
+      setConnecting(c => ({ ...c, [platformId]: false }));
+    }
+  };
+
   const platforms = [
     { id: "instagram" as PlatformId, name: "Instagram", desc: "Perfil público funciona sem login", placeholder: "@usuario", colorBg: "from-orange-100 to-pink-100", colorText: "text-pink-500" },
     { id: "youtube" as PlatformId, name: "YouTube", desc: "Análise de comentários em vídeos", placeholder: "@canal ou URL", colorBg: "from-red-50 to-red-100", colorText: "text-red-500" },
     { id: "twitter" as PlatformId, name: "Twitter / X", desc: "Tweets e replies via XPoz", placeholder: "@usuario", colorBg: "from-slate-100 to-blue-50", colorText: "text-slate-700" },
+    { id: "tiktok" as PlatformId, name: "TikTok", desc: "Conectar via OAuth (Login Kit)", placeholder: "", colorBg: "from-slate-100 to-slate-200", colorText: "text-black", oauthOnly: true },
   ];
 
   return (
@@ -195,7 +219,7 @@ export default function ConnectPage() {
       <main className="p-6 md:p-8 max-w-screen-xl mx-auto space-y-10 animate-fade-in">
         <section>
           <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6">Adicionar Perfil</h2>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {platforms.map((p) => (
               <div key={p.id} className="dream-card p-6 flex flex-col items-center text-center hover:shadow-float transition-all duration-300 group">
                 <div className={`w-14 h-14 rounded-2xl bg-gradient-to-tr ${p.colorBg} ${p.colorText} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
@@ -204,71 +228,101 @@ export default function ConnectPage() {
                 <h4 className="font-sans font-medium text-slate-700 mb-1">{p.name}</h4>
                 <p className="text-xs text-slate-400 font-light mb-5">{p.desc}</p>
                 <div className="w-full space-y-3">
-                  <input
-                    type="text"
-                    value={inputs[p.id] ?? ""}
-                    onChange={(e) => {
-                      setInputs(i => ({ ...i, [p.id]: e.target.value }));
-                      if (potentials[p.id]) setPotentials(pt => ({ ...pt, [p.id]: null }));
-                    }}
-                    onKeyDown={(e) => { if (e.key === "Enter") handleCheck(p.id); }}
-                    placeholder={p.placeholder}
-                    disabled={connecting[p.id] || checking[p.id]}
-                    className="w-full text-center text-sm px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100 text-slate-600 placeholder:text-slate-300 focus:bg-white focus:border-brand-lilac focus:ring-4 focus:ring-brand-lilac/10 outline-none transition-all disabled:opacity-50"
-                  />
-                  {errors[p.id] && <p className="text-[11px] text-rose-500">{errors[p.id]}</p>}
-                  {success[p.id] && <p className="text-[11px] text-emerald-600">{success[p.id]}</p>}
-
-                  {potentials[p.id] && (
-                    <div className="bg-slate-50 border border-brand-cyan/20 rounded-xl p-3 text-left space-y-2 relative overflow-hidden">
-                      <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-brand-cyanLight to-transparent rounded-bl-full opacity-50 pointer-events-none" />
-                      <div className="flex items-center gap-2 mb-1">
-                        {potentials[p.id].profile_pic_url ? (
-                          <img src={potentials[p.id].profile_pic_url} className="w-8 h-8 rounded-full shadow-sm" alt="Foto" />
-                        ) : (
-                          <div className="w-8 h-8 rounded-full bg-slate-200" />
-                        )}
-                        <div className="min-w-0">
-                          <p className="font-semibold text-slate-800 text-xs truncate">{potentials[p.id].fullName || potentials[p.id].username}</p>
-                          <p className="text-[10px] text-slate-400">{potentials[p.id].username?.startsWith('@') ? '' : '@'}{potentials[p.id].username}</p>
-                        </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-[10px]">
-                        <div>
-                          <p className="text-slate-400">Seguidores</p>
-                          <p className="font-semibold text-slate-700">{potentials[p.id].followers_count?.toLocaleString()}</p>
-                        </div>
-                        <div>
-                          <p className="text-slate-400">Posts</p>
-                          <p className="font-semibold text-slate-700">{potentials[p.id].media_count?.toLocaleString()}</p>
-                        </div>
-                      </div>
-                      <p className="text-[9px] text-slate-400 font-light mt-1 pt-2 border-t border-slate-200/50 leading-tight">
-                        Curtidas e comentários totais serão dimensionados após a primeira sincronização de posts.
-                      </p>
-                    </div>
-                  )}
-
-                  {!potentials[p.id] ? (
-                    <button
-                      onClick={() => handleCheck(p.id)}
-                      disabled={checking[p.id]}
-                      className="w-full py-2.5 rounded-xl bg-slate-900 border border-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                      {checking[p.id] ? (
-                        <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Verificando...</>
-                      ) : p.id === "instagram" ? "Verificar Perfil" : "Conectar"}
-                    </button>
+                  {/* OAuth-only platforms (TikTok) */}
+                  {"oauthOnly" in p && p.oauthOnly ? (
+                    <>
+                      {errors[p.id] && <p className="text-[11px] text-rose-500">{errors[p.id]}</p>}
+                      {success[p.id] && <p className="text-[11px] text-emerald-600">{success[p.id]}</p>}
+                      <button
+                        onClick={() => handleOAuthConnect(p.id as "tiktok")}
+                        disabled={connecting[p.id]}
+                        className="w-full py-2.5 rounded-xl bg-black text-white text-sm font-medium hover:bg-slate-800 transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                      >
+                        {connecting[p.id] ? (
+                          <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Conectando...</>
+                        ) : "Conectar via OAuth"}
+                      </button>
+                    </>
                   ) : (
-                    <button
-                      onClick={() => handleConnect(p.id)}
-                      disabled={connecting[p.id]}
-                      className="w-full py-2.5 rounded-xl bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white text-sm font-medium hover:shadow-float transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                    >
-                      {connecting[p.id] ? (
-                        <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Conectando...</>
-                      ) : "Confirmar Conexão"}
-                    </button>
+                    <>
+                      <input
+                        type="text"
+                        value={inputs[p.id] ?? ""}
+                        onChange={(e) => {
+                          setInputs(i => ({ ...i, [p.id]: e.target.value }));
+                          if (potentials[p.id]) setPotentials(pt => ({ ...pt, [p.id]: null }));
+                        }}
+                        onKeyDown={(e) => { if (e.key === "Enter") handleCheck(p.id); }}
+                        placeholder={p.placeholder}
+                        disabled={connecting[p.id] || checking[p.id]}
+                        className="w-full text-center text-sm px-4 py-2.5 rounded-xl bg-slate-50 border border-slate-100 text-slate-600 placeholder:text-slate-300 focus:bg-white focus:border-brand-lilac focus:ring-4 focus:ring-brand-lilac/10 outline-none transition-all disabled:opacity-50"
+                      />
+                      {errors[p.id] && <p className="text-[11px] text-rose-500">{errors[p.id]}</p>}
+                      {success[p.id] && <p className="text-[11px] text-emerald-600">{success[p.id]}</p>}
+
+                      {potentials[p.id] && (
+                        <div className="bg-slate-50 border border-brand-cyan/20 rounded-xl p-3 text-left space-y-2 relative overflow-hidden">
+                          <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-brand-cyanLight to-transparent rounded-bl-full opacity-50 pointer-events-none" />
+                          <div className="flex items-center gap-2 mb-1">
+                            {potentials[p.id].profile_pic_url ? (
+                              <img src={potentials[p.id].profile_pic_url} className="w-8 h-8 rounded-full shadow-sm" alt="Foto" />
+                            ) : (
+                              <div className="w-8 h-8 rounded-full bg-slate-200" />
+                            )}
+                            <div className="min-w-0">
+                              <p className="font-semibold text-slate-800 text-xs truncate">{potentials[p.id].fullName || potentials[p.id].username}</p>
+                              <p className="text-[10px] text-slate-400">{potentials[p.id].username?.startsWith('@') ? '' : '@'}{potentials[p.id].username}</p>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-2 gap-2 text-[10px]">
+                            <div>
+                              <p className="text-slate-400">Seguidores</p>
+                              <p className="font-semibold text-slate-700">{potentials[p.id].followers_count?.toLocaleString()}</p>
+                            </div>
+                            <div>
+                              <p className="text-slate-400">Posts</p>
+                              <p className="font-semibold text-slate-700">{potentials[p.id].media_count?.toLocaleString()}</p>
+                            </div>
+                          </div>
+                          <p className="text-[9px] text-slate-400 font-light mt-1 pt-2 border-t border-slate-200/50 leading-tight">
+                            Curtidas e comentários totais serão dimensionados após a primeira sincronização de posts.
+                          </p>
+                        </div>
+                      )}
+
+                      {!potentials[p.id] ? (
+                        <button
+                          onClick={() => handleCheck(p.id)}
+                          disabled={checking[p.id]}
+                          className="w-full py-2.5 rounded-xl bg-slate-900 border border-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          {checking[p.id] ? (
+                            <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Verificando...</>
+                          ) : p.id === "instagram" ? "Verificar Perfil" : "Conectar"}
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => handleConnect(p.id)}
+                          disabled={connecting[p.id]}
+                          className="w-full py-2.5 rounded-xl bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white text-sm font-medium hover:shadow-float transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                        >
+                          {connecting[p.id] ? (
+                            <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Conectando...</>
+                          ) : "Confirmar Conexão"}
+                        </button>
+                      )}
+
+                      {/* Instagram: extra OAuth connect button */}
+                      {p.id === "instagram" && (
+                        <button
+                          onClick={() => handleOAuthConnect("instagram")}
+                          disabled={connecting[p.id]}
+                          className="w-full py-2 rounded-xl bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white text-xs font-medium hover:shadow-md transition-all disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+                        >
+                          {connecting["instagram_oauth"] ? "Conectando..." : "Conectar via OAuth (Business)"}
+                        </button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
@@ -383,7 +437,7 @@ export default function ConnectPage() {
               </div>
               <div className="divide-y divide-slate-50">
                 {connections.map((conn) => {
-                  const colorBg = conn.platform === "instagram" ? "from-orange-100 to-pink-100 text-pink-500" : conn.platform === "twitter" ? "from-slate-100 to-blue-50 text-slate-700" : "from-red-50 to-red-100 text-red-500";
+                  const colorBg = conn.platform === "instagram" ? "from-orange-100 to-pink-100 text-pink-500" : conn.platform === "twitter" ? "from-slate-100 to-blue-50 text-slate-700" : conn.platform === "tiktok" ? "from-slate-100 to-slate-200 text-black" : "from-red-50 to-red-100 text-red-500";
                   const isSyncing = syncing[conn.id];
                   return (
                     <div key={conn.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-slate-50/50 transition-colors">

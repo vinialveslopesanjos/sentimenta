@@ -20,6 +20,10 @@ celery_app.conf.update(
 )
 
 celery_app.conf.beat_schedule = {
+    "refresh-social-tokens": {
+        "task": "app.tasks.pipeline_tasks.task_refresh_social_tokens",
+        "schedule": crontab(hour=2, minute=30),  # 2:30AM UTC (before daily sync)
+    },
     "daily-follower-snapshots": {
         "task": "app.tasks.pipeline_tasks.task_daily_follower_snapshots",
         "schedule": crontab(hour=3, minute=0),  # 3AM UTC daily

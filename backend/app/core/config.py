@@ -39,9 +39,25 @@ class Settings(BaseSettings):
     INSTAGRAM_APP_SECRET: str = os.getenv("INSTAGRAM_APP_SECRET", "")
     INSTAGRAM_REDIRECT_URI: str = os.getenv(
         "INSTAGRAM_REDIRECT_URI",
+        "http://localhost:8000/api/v1/auth/instagram/callback",
+    )
+    INSTAGRAM_SCOPES: str = "instagram_business_basic,instagram_business_manage_comments,instagram_manage_insights"
+    INSTAGRAM_CONNECTIONS_REDIRECT_URI: str = os.getenv(
+        "INSTAGRAM_CONNECTIONS_REDIRECT_URI",
         "http://localhost:8000/api/v1/connections/instagram/callback",
     )
-    INSTAGRAM_SCOPES: str = "instagram_basic,instagram_manage_comments,pages_show_list"
+
+    # TikTok OAuth
+    TIKTOK_CLIENT_KEY: str = os.getenv("TIKTOK_CLIENT_KEY", "")
+    TIKTOK_CLIENT_SECRET: str = os.getenv("TIKTOK_CLIENT_SECRET", "")
+    TIKTOK_REDIRECT_URI: str = os.getenv(
+        "TIKTOK_REDIRECT_URI",
+        "http://localhost:8000/api/v1/auth/tiktok/callback",
+    )
+    TIKTOK_CONNECTIONS_REDIRECT_URI: str = os.getenv(
+        "TIKTOK_CONNECTIONS_REDIRECT_URI",
+        "http://localhost:8000/api/v1/connections/tiktok/callback",
+    )
 
     # Token Encryption (AES-256)
     TOKEN_ENCRYPTION_KEY: str = os.getenv("TOKEN_ENCRYPTION_KEY", "")
