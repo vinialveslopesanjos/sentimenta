@@ -118,3 +118,27 @@ export interface CompareResponse {
     platforms: PlatformComparison[];
     generated_at: string;
 }
+
+// ── Compare Connections ──────────────────────────────────────────
+
+export interface ConnectionComparison {
+    connection_id: string;
+    platform: string;
+    username: string;
+    display_name: string | null;
+    profile_image_url: string | null;
+    total_comments: number;
+    total_analyzed: number;
+    avg_score: number | null;
+    avg_polarity: number | null;
+    sentiment_distribution: SentimentDistribution;
+    positive_rate: number;
+    negative_rate: number;
+    emotions_distribution: Record<string, number>;
+}
+
+export interface CompareConnectionsResponse {
+    days: number;
+    connections: ConnectionComparison[];
+    generated_at: string;
+}

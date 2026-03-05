@@ -1,6 +1,6 @@
 // ─── Social Connections ────────────────────────────────────────────
 
-export type Platform = "instagram" | "youtube" | "tiktok";
+export type Platform = "instagram" | "youtube" | "tiktok" | "twitter";
 
 export interface Connection {
     id: string;
@@ -17,4 +17,7 @@ export interface Connection {
     last_sync_at: string | null;
     persona?: string | null;
     ignore_author_comments?: boolean;
+    has_oauth_token?: boolean;
+    total_posts?: number;
+    total_analyzed?: number;
 }
