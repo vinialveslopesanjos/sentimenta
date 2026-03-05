@@ -1,10 +1,10 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { motion } from "motion/react";
 import { StatusBar } from "./StatusBar";
 import { FogBackground } from "./FogBackground";
-import { Eye, EyeOff, Mail, Lock, ArrowRight } from "lucide-react";
-import { api } from "../../lib/api";
+import { Eye, EyeOff, Mail, Lock, ArrowRight, User } from "lucide-react";
+import { api, setTokens, getToken } from "../../lib/api";
 
 const ease = [0.22, 1, 0.36, 1] as const;
 
@@ -16,29 +16,98 @@ export function LoginScreen() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [name, setName] = useState("");
+  const [socialLoading, setSocialLoading] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (getToken()) navigate("/dashboard");
+  }, []);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const oauthCode = params.get("oauth_code");
+    const oauthError = params.get("error");
+
+    if (oauthError) {
+      setError(decodeURIComponent(oauthError));
+      window.history.replaceState({}, "", "/app/login");
+      return;
+    }
+    if (oauthCode) {
+      window.history.replaceState({}, "", "/app/login");
+      setSocialLoading("exchanging");
+      api.auth.exchangeOAuthCode(oauthCode)
+        .then((res) => {
+          setTokens(res.access_token, res.refresh_token);
+          if (res.pipeline_started) {
+            localStorage.setItem("sentimenta_pipeline_started", Date.now().toString());
+          }
+          navigate("/dashboard");
+        })
+        .catch((err: any) => {
+          setError(err.message || "Erro no login social.");
+          setSocialLoading(null);
+        });
+    }
+  }, []);
 
   const handleSubmit = async () => {
+    if (!email.trim()) {
+      setError("Informe seu email.");
+      return;
+    }
+    if (password.length < 6) {
+      setError("Senha deve ter pelo menos 6 caracteres.");
+      return;
+    }
     try {
       setLoading(true);
       setError("");
       if (isLogin) {
         const res = await api.auth.login(email, password);
-        localStorage.setItem("sentimenta_access_token", res.access_token);
+        setTokens(res.access_token, res.refresh_token);
       } else {
-        const res = await api.auth.register(email, password, "");
-        localStorage.setItem("sentimenta_access_token", res.access_token);
+        if (!name.trim()) {
+          setError("Informe seu nome.");
+          setLoading(false);
+          return;
+        }
+        const res = await api.auth.register(email, password, name);
+        setTokens(res.access_token, res.refresh_token);
       }
       navigate("/dashboard");
     } catch (err: any) {
-      setError(err.message || "Something went wrong.");
+      setError(err.message || "Erro ao conectar.");
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSocialLogin = async (provider: "instagram" | "tiktok") => {
+    try {
+      setSocialLoading(provider);
+      const res = provider === "instagram"
+        ? await api.auth.instagramAuthUrl()
+        : await api.auth.tiktokAuthUrl();
+      window.location.href = res.auth_url;
+    } catch (err: any) {
+      setError(err.message || `Erro ao conectar com ${provider}.`);
+      setSocialLoading(null);
     }
   };
 
   return (
     <div className="w-full min-h-screen flex justify-center bg-[#FDFBFF]">
       <div className="relative w-full max-w-[430px] min-h-screen overflow-hidden flex flex-col">
+
+        {socialLoading === "exchanging" && (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-white/80 backdrop-blur-sm">
+            <div className="text-center">
+              <div className="animate-spin w-8 h-8 border-3 border-violet-500 border-t-transparent rounded-full mx-auto mb-3" />
+              <p style={{ fontSize: "14px", color: "#64748B" }}>Finalizando login...</p>
+            </div>
+          </div>
+        )}
 
         {/* Fog canvas — full background */}
         <FogBackground />
@@ -227,20 +296,24 @@ export function LoginScreen() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ duration: 0.3 }}
                 >
-                  <Lock
+                  <User
                     size={16}
                     className="absolute left-4 top-1/2 -translate-y-1/2"
                     style={{ color: "#C4B5FD" }}
                   />
                   <input
-                    type="password"
-                    placeholder="Confirme sua senha"
+                    type="text"
+                    placeholder="Seu nome"
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
                     className="w-full pl-11 pr-4 py-4 rounded-2xl text-slate-700 placeholder-slate-300 outline-none transition-all"
                     style={{
                       fontSize: "15px",
                       background: "rgba(248,250,252,0.7)",
                       border: "1.5px solid rgba(196,181,253,0.2)",
                     }}
+                    onFocus={(e) => (e.target.style.borderColor = "rgba(139,92,246,0.4)")}
+                    onBlur={(e) => (e.target.style.borderColor = "rgba(196,181,253,0.2)")}
                   />
                 </motion.div>
               )}
@@ -269,9 +342,13 @@ export function LoginScreen() {
               }}
               whileTap={{ scale: 0.97 }}
             >
-              {isLogin ? "Conectar" : "Criar conta"}
-              <ArrowRight size={18} />
+              {loading ? "..." : isLogin ? "Conectar" : "Criar conta"}
+              {!loading && <ArrowRight size={18} />}
             </motion.button>
+
+            {error && (
+              <p className="text-rose-500 text-center mb-3" style={{ fontSize: "13px" }}>{error}</p>
+            )}
 
             {/* Divider */}
             <div className="flex items-center gap-3 mb-5">
@@ -280,26 +357,69 @@ export function LoginScreen() {
               <div className="flex-1 h-px" style={{ background: "rgba(196,181,253,0.25)" }} />
             </div>
 
-            {/* Google */}
-            <motion.button
-              className="w-full py-3.5 rounded-2xl flex items-center justify-center gap-3"
-              style={{
-                fontSize: "15px",
-                color: "#475569",
-                fontWeight: 500,
-                background: "rgba(255,255,255,0.8)",
-                border: "1.5px solid rgba(196,181,253,0.2)",
-              }}
-              whileTap={{ scale: 0.97 }}
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-              </svg>
-              Google
-            </motion.button>
+            {/* Social login */}
+            <div className="space-y-2.5">
+              <motion.button
+                onClick={() => handleSocialLogin("instagram")}
+                disabled={!!socialLoading}
+                className="w-full py-3.5 rounded-2xl flex items-center justify-center gap-3"
+                style={{
+                  fontSize: "15px", color: "#475569", fontWeight: 500,
+                  background: "linear-gradient(135deg, rgba(131,58,180,0.08), rgba(253,29,29,0.08), rgba(252,176,69,0.08))",
+                  border: "1.5px solid rgba(196,181,253,0.2)",
+                }}
+                whileTap={{ scale: 0.97 }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <linearGradient id="ig" x1="0" y1="24" x2="24" y2="0">
+                    <stop offset="0%" stopColor="#feda75"/>
+                    <stop offset="25%" stopColor="#fa7e1e"/>
+                    <stop offset="50%" stopColor="#d62976"/>
+                    <stop offset="75%" stopColor="#962fbf"/>
+                    <stop offset="100%" stopColor="#4f5bd5"/>
+                  </linearGradient>
+                  <rect x="2" y="2" width="20" height="20" rx="5" stroke="url(#ig)" strokeWidth="2"/>
+                  <circle cx="12" cy="12" r="5" stroke="url(#ig)" strokeWidth="2"/>
+                  <circle cx="17.5" cy="6.5" r="1.5" fill="url(#ig)"/>
+                </svg>
+                {socialLoading === "instagram" ? "Redirecionando..." : "Instagram"}
+              </motion.button>
+
+              <motion.button
+                onClick={() => handleSocialLogin("tiktok")}
+                disabled={!!socialLoading}
+                className="w-full py-3.5 rounded-2xl flex items-center justify-center gap-3"
+                style={{
+                  fontSize: "15px", color: "#475569", fontWeight: 500,
+                  background: "rgba(0,0,0,0.04)",
+                  border: "1.5px solid rgba(196,181,253,0.2)",
+                }}
+                whileTap={{ scale: 0.97 }}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
+                  <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" stroke="#000" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                {socialLoading === "tiktok" ? "Redirecionando..." : "TikTok"}
+              </motion.button>
+
+              <motion.button
+                disabled
+                className="w-full py-3.5 rounded-2xl flex items-center justify-center gap-3 opacity-50 cursor-not-allowed"
+                style={{
+                  fontSize: "15px", color: "#94A3B8", fontWeight: 500,
+                  background: "rgba(255,255,255,0.8)",
+                  border: "1.5px solid rgba(196,181,253,0.15)",
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24">
+                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 0 1-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
+                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+                </svg>
+                Google (em breve)
+              </motion.button>
+            </div>
           </div>
 
           <p
