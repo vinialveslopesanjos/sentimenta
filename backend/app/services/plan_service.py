@@ -62,6 +62,16 @@ PLAN_LIMITS = {
         "pdf_export": True,
         "comparison": True,
     },
+    "admin": {
+        "max_connections": 100,
+        "max_posts_per_sync": 999999,
+        "max_comments_per_post": 999999,
+        "syncs_per_month": 999999,
+        "apify_budget_brl": 999999.0,
+        "health_report": True,
+        "pdf_export": True,
+        "comparison": True,
+    },
 }
 
 # Apify cost reference: $2.30 per 1,000 comments
@@ -89,6 +99,8 @@ def count_syncs_this_month(db: Session, user_id) -> int:
         .filter(
             PipelineRun.user_id == user_id,
             PipelineRun.started_at >= period_start,
+            # Only count runs that actually ran (not cancelled/failed)
+            PipelineRun.status.in_(["completed", "partial", "running"]),
         )
         .scalar()
         or 0

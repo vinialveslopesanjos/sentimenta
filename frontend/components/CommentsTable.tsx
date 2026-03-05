@@ -174,7 +174,7 @@ export default function CommentsTable({ connectionId, postId }: Props) {
                             animate={{ opacity: 1, height: "auto" }}
                             className="mt-2 text-xs text-accent italic"
                           >
-                            IA: {c.analysis.summary_pt}
+                            Resumo: {c.analysis.summary_pt}
                           </motion.div>
                         )}
                         {isExpanded && c.analysis?.topics && c.analysis.topics.length > 0 && (
@@ -194,7 +194,7 @@ export default function CommentsTable({ connectionId, postId }: Props) {
                       </td>
                       <td className="p-3 text-center font-mono font-bold">
                         <span className={s.color}>
-                          {c.analysis?.score_0_10 != null ? c.analysis.score_0_10.toFixed(1) : "-"}
+                          {c.analysis?.score_0_10 != null ? `${c.analysis.score_0_10.toFixed(1)}/10` : "-"}
                         </span>
                       </td>
                       <td className="p-3 text-center">

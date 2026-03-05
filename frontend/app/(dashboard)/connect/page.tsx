@@ -11,6 +11,7 @@ import {
   toSyncPayload,
   type SyncSettings,
 } from "@/lib/syncSettings";
+import { relativeTime } from "@/lib/helpers";
 
 type Connection = {
   id: string;
@@ -25,17 +26,6 @@ type Connection = {
 };
 
 type PlatformId = "instagram" | "youtube" | "twitter";
-
-function relativeTime(iso: string | null) {
-  if (!iso) return "—";
-  const diff = Date.now() - new Date(iso).getTime();
-  const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "Agora";
-  if (mins < 60) return `Há ${mins}min`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `Há ${hrs}h`;
-  return `Há ${Math.floor(hrs / 24)}d`;
-}
 
 function PlatformIcon({ platform, size = 24 }: { platform: string; size?: number }) {
   if (platform === "instagram") {
@@ -240,7 +230,7 @@ export default function ConnectPage() {
                         )}
                         <div className="min-w-0">
                           <p className="font-semibold text-slate-800 text-xs truncate">{potentials[p.id].fullName || potentials[p.id].username}</p>
-                          <p className="text-[10px] text-slate-400">@{potentials[p.id].username}</p>
+                          <p className="text-[10px] text-slate-400">{potentials[p.id].username?.startsWith('@') ? '' : '@'}{potentials[p.id].username}</p>
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-[10px]">
@@ -398,8 +388,16 @@ export default function ConnectPage() {
                   return (
                     <div key={conn.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-slate-50/50 transition-colors">
                       <div className="col-span-12 md:col-span-4 flex items-center gap-3 min-w-0">
-                        <div className={`w-10 h-10 rounded-2xl bg-gradient-to-tr ${colorBg} flex items-center justify-center shrink-0`}>
-                          <PlatformIcon platform={conn.platform} size={18} />
+                        <div className={`w-10 h-10 rounded-2xl bg-gradient-to-tr ${colorBg} flex items-center justify-center shrink-0 overflow-hidden`}>
+                          {conn.profile_image_url ? (
+                            <img
+                              src={`/api/v1/posts/thumbnail?url=${encodeURIComponent(conn.profile_image_url)}`}
+                              alt={conn.username}
+                              className="w-10 h-10 rounded-2xl object-cover"
+                            />
+                          ) : (
+                            <PlatformIcon platform={conn.platform} size={18} />
+                          )}
                         </div>
                         <div className="min-w-0">
                           <p className="font-medium text-slate-700 text-sm">{conn.username.startsWith('@') ? conn.username : `@${conn.username}`}</p>

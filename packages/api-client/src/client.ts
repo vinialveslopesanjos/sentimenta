@@ -237,6 +237,11 @@ export function createApiClient(config: ClientConfig) {
             apiFetch<PipelineStatus>(`/pipeline/runs/${runId}/status`),
     };
 
+    const posts = {
+        detail: (postId: string) =>
+            apiFetch<any>(`/posts/${postId}`),
+    };
+
     const comments = {
         list: (params: {
             connection_id?: string;
@@ -261,7 +266,7 @@ export function createApiClient(config: ClientConfig) {
         },
     };
 
-    return { auth, connections, dashboard, pipeline, comments, apiFetch };
+    return { auth, connections, dashboard, pipeline, posts, comments, apiFetch };
 }
 
 export type ApiClient = ReturnType<typeof createApiClient>;

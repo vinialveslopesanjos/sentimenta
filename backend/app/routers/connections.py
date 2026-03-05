@@ -7,6 +7,7 @@ from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.deps import get_current_user
 from app.db.session import get_db
 from app.models.social_connection import SocialConnection
@@ -305,17 +306,19 @@ async def instagram_callback(
     import logging
     logger = logging.getLogger(__name__)
 
+    base_url = settings.APP_URL.rstrip("/")
+
     # Check for OAuth errors first
     if error:
         logger.error(f"Instagram OAuth error: {error} - {error_reason} - {error_description}")
         return RedirectResponse(
-            url=f"http://localhost:3000/connect?status=error&platform=instagram&error={error_description or error}"
+            url=f"{base_url}/settings?tab=integrations&status=error&platform=instagram&error={error_description or error}"
         )
 
     if not code:
         logger.error("Instagram callback received without code parameter")
         return RedirectResponse(
-            url=f"http://localhost:3000/connect?status=error&platform=instagram&error=missing_code"
+            url=f"{base_url}/settings?tab=integrations&status=error&platform=instagram&error=missing_code"
         )
 
     from app.services.instagram_service import handle_oauth_callback
@@ -327,11 +330,11 @@ async def instagram_callback(
     except ValueError as e:
         logger.error(f"Instagram OAuth callback failed: {e}")
         return RedirectResponse(
-            url=f"http://localhost:3000/connect?status=error&platform=instagram&error={str(e)}"
+            url=f"{base_url}/settings?tab=integrations&status=error&platform=instagram&error={str(e)}"
         )
 
     # Redirect to frontend with success
-    return RedirectResponse(url=f"http://localhost:3000/connect?status=success&platform=instagram")
+    return RedirectResponse(url=f"{base_url}/settings?tab=integrations&status=success&platform=instagram")
 
 
 # --- Sync ---

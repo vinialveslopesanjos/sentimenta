@@ -20,6 +20,8 @@ class PipelineRunResponse(BaseModel):
     started_at: datetime
     ended_at: datetime | None
     notes: str | None
+    target_posts: int | None = None
+    target_comments: int | None = None
 
     model_config = {"from_attributes": True}
 

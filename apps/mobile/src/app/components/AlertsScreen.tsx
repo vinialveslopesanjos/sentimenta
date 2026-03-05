@@ -1,7 +1,8 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { StatusBar } from "./StatusBar";
 import { DreamCard } from "./DreamCard";
-import { alerts } from "./mockData";
+import { api } from "../../lib/api";
+import { type Alert, type AlertsResponse } from "@sentimenta/types";
 import {
   Bell,
   AlertTriangle,
@@ -10,20 +11,20 @@ import {
   CircleDot,
 } from "lucide-react";
 
-const typeConfig: Record<string, { icon: React.ReactNode; color: string; bg: string; borderColor: string }> = {
-  warning: {
+const severityConfig: Record<string, { icon: React.ReactNode; color: string; bg: string; borderColor: string }> = {
+  high: {
     icon: <AlertTriangle size={16} />,
     color: "text-amber-500",
     bg: "bg-amber-50",
     borderColor: "border-l-amber-400",
   },
-  info: {
+  medium: {
     icon: <Info size={16} />,
     color: "text-cyan-500",
     bg: "bg-cyan-50",
     borderColor: "border-l-cyan-400",
   },
-  success: {
+  low: {
     icon: <CheckCircle2 size={16} />,
     color: "text-emerald-500",
     bg: "bg-emerald-50",
@@ -32,9 +33,17 @@ const typeConfig: Record<string, { icon: React.ReactNode; color: string; bg: str
 };
 
 export function AlertsScreen() {
-  const [filter, setFilter] = useState<"all" | "unread">("all");
-  const filteredAlerts = filter === "unread" ? alerts.filter((a) => !a.read) : alerts;
-  const unreadCount = alerts.filter((a) => !a.read).length;
+  const [alertsData, setAlertsData] = useState<AlertsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.dashboard.alerts()
+      .then(setAlertsData)
+      .catch((err) => console.error("Failed to load alerts", err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const alerts = alertsData?.alerts || [];
 
   return (
     <div className="min-h-screen bg-[#FDFBFF] pb-28">
@@ -53,11 +62,11 @@ export function AlertsScreen() {
           >
             Alertas
           </h1>
-          {unreadCount > 0 && (
+          {alerts.length > 0 && (
             <div className="flex items-center gap-1 px-2.5 py-1 bg-rose-50 rounded-full">
               <CircleDot size={12} className="text-rose-400" />
               <span className="text-rose-500" style={{ fontSize: "11px", fontWeight: 500 }}>
-                {unreadCount} novos
+                {alerts.length} alertas
               </span>
             </div>
           )}
@@ -68,82 +77,67 @@ export function AlertsScreen() {
       </div>
 
       <div className="px-5 mt-4 space-y-5">
-        {/* Filter */}
-        <div className="flex bg-slate-50 rounded-2xl p-1">
-          <button
-            onClick={() => setFilter("all")}
-            className={`flex-1 py-2.5 rounded-xl transition-all ${
-              filter === "all"
-                ? "bg-white shadow-sm text-violet-600"
-                : "text-slate-400"
-            }`}
-            style={{ fontSize: "13px", fontWeight: 500, fontFamily: "'Outfit', sans-serif" }}
-          >
-            Todos
-          </button>
-          <button
-            onClick={() => setFilter("unread")}
-            className={`flex-1 py-2.5 rounded-xl transition-all ${
-              filter === "unread"
-                ? "bg-white shadow-sm text-violet-600"
-                : "text-slate-400"
-            }`}
-            style={{ fontSize: "13px", fontWeight: 500, fontFamily: "'Outfit', sans-serif" }}
-          >
-            Nao lidos ({unreadCount})
-          </button>
-        </div>
-
-        {/* Alert cards */}
-        <div className="space-y-3">
-          {filteredAlerts.map((alert) => {
-            const tc = typeConfig[alert.type] || typeConfig.info;
-            return (
-              <DreamCard
-                key={alert.id}
-                className={`p-4 border-l-4 ${tc.borderColor} ${!alert.read ? "ring-1 ring-violet-100" : ""}`}
-              >
-                <div className="flex items-start gap-3">
-                  <div className={`w-9 h-9 rounded-xl ${tc.bg} flex items-center justify-center flex-shrink-0 ${tc.color}`}>
-                    {tc.icon}
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-0.5">
-                      <span
-                        className="text-slate-700"
-                        style={{ fontSize: "13px", fontWeight: 500 }}
-                      >
-                        {alert.title}
-                      </span>
-                      {!alert.read && (
-                        <div className="w-2 h-2 rounded-full bg-violet-400" />
-                      )}
+        {loading ? (
+          <div className="p-10 text-center text-slate-400">Carregando alertas...</div>
+        ) : (
+          <>
+            {/* Alert cards */}
+            <div className="space-y-3">
+              {alerts.map((alert, idx) => {
+                const tc = severityConfig[alert.severity] || severityConfig.medium;
+                return (
+                  <DreamCard
+                    key={`${alert.connection_id}-${idx}`}
+                    className={`p-4 border-l-4 ${tc.borderColor}`}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className={`w-9 h-9 rounded-xl ${tc.bg} flex items-center justify-center flex-shrink-0 ${tc.color}`}>
+                        {tc.icon}
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-0.5">
+                          <span
+                            className="text-slate-700"
+                            style={{ fontSize: "13px", fontWeight: 500 }}
+                          >
+                            @{alert.username} ({alert.platform})
+                          </span>
+                        </div>
+                        <p className="text-slate-500" style={{ fontSize: "12px", lineHeight: 1.5 }}>
+                          {alert.message}
+                        </p>
+                        <div className="flex items-center gap-3 mt-1.5">
+                          <span className="text-slate-400" style={{ fontSize: "10px" }}>
+                            Score: {alert.avg_score?.toFixed(1) ?? "—"}
+                          </span>
+                          <span className="text-slate-400" style={{ fontSize: "10px" }}>
+                            Neg: {(alert.negative_rate * 100).toFixed(0)}%
+                          </span>
+                          <span className="text-slate-400" style={{ fontSize: "10px" }}>
+                            {alert.total_analyzed} analisados
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                    <p className="text-slate-500" style={{ fontSize: "12px", lineHeight: 1.5 }}>
-                      {alert.description}
-                    </p>
-                    <p className="text-slate-300 mt-1.5" style={{ fontSize: "10px" }}>
-                      {alert.date}
-                    </p>
-                  </div>
-                </div>
-              </DreamCard>
-            );
-          })}
-        </div>
+                  </DreamCard>
+                );
+              })}
+            </div>
 
-        {filteredAlerts.length === 0 && (
-          <div className="text-center py-16">
-            <Bell size={40} className="text-slate-200 mx-auto mb-3" />
-            <p
-              style={{ fontFamily: "'Outfit', sans-serif", fontSize: "16px", fontWeight: 500, color: "#94A3B8" }}
-            >
-              Nenhum alerta novo
-            </p>
-            <p className="text-slate-300 mt-1" style={{ fontSize: "13px" }}>
-              Voce esta em dia com tudo!
-            </p>
-          </div>
+            {alerts.length === 0 && (
+              <div className="text-center py-16">
+                <Bell size={40} className="text-slate-200 mx-auto mb-3" />
+                <p
+                  style={{ fontFamily: "'Outfit', sans-serif", fontSize: "16px", fontWeight: 500, color: "#94A3B8" }}
+                >
+                  Nenhum alerta novo
+                </p>
+                <p className="text-slate-300 mt-1" style={{ fontSize: "13px" }}>
+                  Voce esta em dia com tudo!
+                </p>
+              </div>
+            )}
+          </>
         )}
       </div>
     </div>

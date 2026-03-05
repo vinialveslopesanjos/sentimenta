@@ -117,6 +117,7 @@ export const connectionsApi = {
         connected_at: string;
         last_sync_at: string | null;
         persona: string | null;
+        has_oauth_token: boolean;
       }>
     >("/connections", { token }),
 
@@ -240,6 +241,16 @@ export const dashboardApi = {
   healthReport: (token: string) =>
     apiFetch<HealthReport>("/dashboard/health-report", { token }),
 
+  healthReportWithPrompt: (token: string, customPrompt?: string) =>
+    apiFetch<HealthReport>("/dashboard/health-report", {
+      method: "POST",
+      token,
+      body: JSON.stringify({ custom_prompt: customPrompt || null }),
+    }),
+
+  getHealthPrompt: (token: string) =>
+    apiFetch<{ prompt: string }>("/dashboard/health-report/prompt", { token }),
+
   compare: (token: string, days = 30) =>
     apiFetch<{
       days: number;
@@ -313,6 +324,12 @@ export const pipelineApi = {
 
   getRunStatus: (token: string, runId: string) =>
     apiFetch<PipelineStatus>(`/pipeline/runs/${runId}/status`, { token }),
+
+  cancelRun: (token: string, runId: string) =>
+    apiFetch<{ status: string; id: string }>(`/pipeline/runs/${runId}/cancel`, { method: "POST", token }),
+
+  deleteRun: (token: string, runId: string) =>
+    apiFetch<void>(`/pipeline/runs/${runId}`, { method: "DELETE", token }),
 };
 
 // Comments

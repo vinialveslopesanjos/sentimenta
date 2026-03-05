@@ -3,6 +3,7 @@ from collections import Counter
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import func, case, cast, Date, select
 from sqlalchemy.orm import Session
 
@@ -14,7 +15,7 @@ from app.models.analysis import CommentAnalysis, PostAnalysisSummary
 from app.models.post import Post
 from app.models.social_connection import SocialConnection
 from app.models.user import User
-from app.services.report_service import generate_health_report
+from app.services.report_service import generate_health_report, DEFAULT_HEALTH_PROMPT
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -437,10 +438,13 @@ def _build_trends(user_id: str, connection_id_str: str | None, granularity: str,
             .all()
         )
 
-    # Query comments grouped by date. If there is no data in recent window, fallback to all-time.
-    query = trends_query(with_cutoff=True)
-    if not query:
+    # Query comments grouped by date. days=0 means all-time; otherwise fallback if empty.
+    if days <= 0:
         query = trends_query(with_cutoff=False)
+    else:
+        query = trends_query(with_cutoff=True)
+        if not query:
+            query = trends_query(with_cutoff=False)
 
     # Aggregate by granularity
     data_points_map = {}
@@ -499,7 +503,7 @@ def _build_trends(user_id: str, connection_id_str: str | None, granularity: str,
 def get_trends(
     connection_id: uuid.UUID | None = Query(None),
     granularity: str = Query("day", pattern="^(day|week|month)$"),
-    days: int = Query(30, ge=7, le=3650),
+    days: int = Query(30, ge=0, le=36500),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -516,7 +520,7 @@ def get_trends(
 def get_trends_detailed(
     connection_id: uuid.UUID | None = Query(None),
     granularity: str = Query("day", pattern="^(day|week|month)$"),
-    days: int = Query(30, ge=7, le=3650),
+    days: int = Query(30, ge=0, le=36500),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -550,9 +554,12 @@ def get_trends_detailed(
             query = query.filter(Comment.published_at >= cutoff)
         return query.all()
 
-    rows = detailed_rows(with_cutoff=True)
-    if not rows:
+    if days <= 0:
         rows = detailed_rows(with_cutoff=False)
+    else:
+        rows = detailed_rows(with_cutoff=True)
+        if not rows:
+            rows = detailed_rows(with_cutoff=False)
 
     data_points_map: dict = {}
 
@@ -613,20 +620,20 @@ def get_trends_detailed(
     return {"data_points": data_points, "granularity": granularity}
 
 
-@router.get("/health-report")
-def get_health_report(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
+class HealthReportRequest(BaseModel):
+    custom_prompt: str | None = None
+
+
+def _build_health_report(db: Session, user_id, custom_prompt: str | None = None):
     connections = (
         db.query(SocialConnection)
-        .filter(SocialConnection.user_id == current_user.id)
+        .filter(SocialConnection.user_id == user_id)
         .all()
     )
 
     if not connections:
         return {
-            "report_text": "Nenhuma rede social conectada. Conecte suas contas para gerar o relatÃ³rio.",
+            "report_text": "Nenhuma rede social conectada. Conecte suas contas para gerar o relatório.",
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "data_summary": {},
         }
@@ -688,7 +695,7 @@ def get_health_report(
         "top_topics": dict(all_topics.most_common(10)),
     }
 
-    report_text = generate_health_report(data_summary)
+    report_text = generate_health_report(data_summary, custom_prompt=custom_prompt)
 
     return {
         "report_text": report_text,
@@ -697,9 +704,31 @@ def get_health_report(
     }
 
 
+@router.get("/health-report")
+def get_health_report(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return _build_health_report(db, current_user.id)
+
+
+@router.post("/health-report")
+def post_health_report(
+    body: HealthReportRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    return _build_health_report(db, current_user.id, custom_prompt=body.custom_prompt)
+
+
+@router.get("/health-report/prompt")
+def get_health_report_prompt():
+    return {"prompt": DEFAULT_HEALTH_PROMPT}
+
+
 @router.get("/compare")
 def get_platform_compare(
-    days: int = Query(30, ge=7, le=3650),
+    days: int = Query(30, ge=0, le=36500),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):

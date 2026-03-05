@@ -131,17 +131,27 @@ def fetch_recent_posts(username: str, max_posts: int = 10, since_date=None) -> l
     })
     
     text = res.get("text", "")
-    from app.services.xpoz_parser_llm import parse_xpoz_data_with_llm, ListOfPosts
-    data = parse_xpoz_data_with_llm(text, ListOfPosts)
-    
+
+    # Try pure Python parser first, fall back to LLM
+    from app.services.xpoz_parser import parse_xpoz_posts
+    data = parse_xpoz_posts(text)
+    if not data.get("items"):
+        logger.info("CSV parser returned no posts, falling back to LLM parser")
+        from app.services.xpoz_parser_llm import parse_xpoz_data_with_llm, ListOfPosts
+        data = parse_xpoz_data_with_llm(text, ListOfPosts)
+
     posts = []
     for item in data.get("items", []):
         post_id = str(item.get("id", ""))
         if not post_id: continue
-        
+
+        # Infer post type: view_count > 0 suggests video/reel
+        views = _safe_int(item.get("views", 0))
+        post_type = "video" if views > 0 else "image"
+
         posts.append({
             "platform_post_id": post_id,
-            "post_type": "image",
+            "post_type": post_type,
             "caption": item.get("text", ""),
             "media_url": item.get("url", ""),
             "permalink": f"https://www.instagram.com/p/{item.get('shortcode', post_id.split('_')[0])}/",
@@ -153,7 +163,7 @@ def fetch_recent_posts(username: str, max_posts: int = 10, since_date=None) -> l
     return posts
 
 def fetch_post_thumbnail(platform_post_id: str) -> Optional[str]:
-    """Fetch the thumbnail URL for an Instagram post using Instaloader.
+    """Fetch the thumbnail URL for an Instagram post via Apify fallback.
 
     Args:
         platform_post_id: The platform_post_id in format 'mediaid_userid'
@@ -162,13 +172,16 @@ def fetch_post_thumbnail(platform_post_id: str) -> Optional[str]:
         The image URL string, or None if not available.
     """
     try:
-        import instaloader
-        media_id = int(platform_post_id.split("_")[0])
-        L = instaloader.Instaloader()
-        post = instaloader.Post.from_mediaid(L.context, media_id)
-        return post.url
+        from app.services.apify_service import fetch_post_thumbnail_apify
+        # Extract shortcode from platform_post_id for Apify
+        shortcode = platform_post_id.split("_")[0]
+        url = fetch_post_thumbnail_apify(shortcode)
+        if url:
+            return url
+        logger.warning("Apify returned no thumbnail for %s", platform_post_id)
+        return None
     except Exception as exc:
-        logger.warning("Failed to fetch thumbnail for %s: %s", platform_post_id, exc)
+        logger.error("Failed to fetch thumbnail for %s: %s", platform_post_id, exc)
         return None
 
 
@@ -197,9 +210,15 @@ def fetch_post_comments(post_id: str, max_comments: int = 100) -> list[dict]:
     }, async_poll=True)
     
     text = res.get("text", "")
-    from app.services.xpoz_parser_llm import parse_xpoz_data_with_llm, ListOfComments
-    data = parse_xpoz_data_with_llm(text, ListOfComments)
-    
+
+    # Try pure Python parser first, fall back to LLM
+    from app.services.xpoz_parser import parse_xpoz_comments
+    data = parse_xpoz_comments(text)
+    if not data.get("items"):
+        logger.info("CSV parser returned no comments, falling back to LLM parser")
+        from app.services.xpoz_parser_llm import parse_xpoz_data_with_llm, ListOfComments
+        data = parse_xpoz_data_with_llm(text, ListOfComments)
+
     comments = []
     for item in data.get("items", []):
         text_val = item.get("text", "")

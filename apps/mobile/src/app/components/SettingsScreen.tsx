@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { StatusBar } from "./StatusBar";
 import { DreamCard } from "./DreamCard";
-import { userProfile } from "./mockData";
+import { api } from "../../lib/api";
+import { type UserProfile } from "@sentimenta/types";
 import {
   User,
   CreditCard,
@@ -21,6 +22,33 @@ import {
 export function SettingsScreen() {
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState(true);
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    api.auth.me()
+      .then(setUser)
+      .catch((err) => console.error("Failed to load user", err))
+      .finally(() => setLoading(false));
+  }, []);
+
+  const handleLogout = () => {
+    localStorage.removeItem("sentimenta_access_token");
+    localStorage.removeItem("sentimenta_refresh_token");
+    navigate("/login");
+  };
+
+  const userName = user?.name || "Usuario";
+  const userEmail = user?.email || "";
+  const userPlan = user?.plan || "free";
+  const userInitials = user?.name
+    ? user.name.split(" ").map((w) => w[0]).join("").substring(0, 2).toUpperCase()
+    : "??";
+
+  const usage = user?.usage;
+  const usagePercent = usage
+    ? Math.round((usage.syncs_used_this_month / Math.max(usage.syncs_limit, 1)) * 100)
+    : 0;
 
   const sections = [
     {
@@ -29,14 +57,14 @@ export function SettingsScreen() {
         {
           icon: <User size={18} />,
           label: "Informacoes do Perfil",
-          sublabel: userProfile.email,
+          sublabel: userEmail,
           color: "text-violet-500",
           bg: "bg-violet-50",
         },
         {
           icon: <CreditCard size={18} />,
           label: "Plano e Uso",
-          sublabel: `Plano ${userProfile.plan}`,
+          sublabel: `Plano ${userPlan}`,
           color: "text-cyan-500",
           bg: "bg-cyan-50",
         },
@@ -101,6 +129,15 @@ export function SettingsScreen() {
     },
   ];
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-[#FDFBFF] pb-28">
+        <StatusBar />
+        <div className="p-10 text-center text-slate-400">Carregando configuracoes...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#FDFBFF] pb-28">
       <StatusBar />
@@ -126,22 +163,22 @@ export function SettingsScreen() {
             <span
               style={{ fontFamily: "'Outfit', sans-serif", fontSize: "22px", fontWeight: 500, color: "white" }}
             >
-              {userProfile.avatar}
+              {userInitials}
             </span>
           </div>
           <div>
             <p
               style={{ fontFamily: "'Outfit', sans-serif", fontSize: "18px", fontWeight: 500, color: "#334155" }}
             >
-              {userProfile.name}
+              {userName}
             </p>
             <p className="text-slate-400" style={{ fontSize: "13px" }}>
-              {userProfile.email}
+              {userEmail}
             </p>
             <div className="flex items-center gap-1 mt-1 px-2 py-0.5 bg-violet-50 rounded-full w-fit">
               <div className="w-1.5 h-1.5 rounded-full bg-violet-400" />
               <span className="text-violet-600" style={{ fontSize: "10px", fontWeight: 500 }}>
-                Plano {userProfile.plan}
+                Plano {userPlan}
               </span>
             </div>
           </div>
@@ -154,18 +191,20 @@ export function SettingsScreen() {
               Uso do plano
             </span>
             <span className="text-violet-500" style={{ fontSize: "11px", fontWeight: 500 }}>
-              68% usado
+              {usagePercent}% usado
             </span>
           </div>
           <div className="h-2 bg-slate-50 rounded-full overflow-hidden">
             <div
               className="h-full rounded-full bg-gradient-to-r from-violet-400 to-cyan-300"
-              style={{ width: "68%" }}
+              style={{ width: `${Math.min(usagePercent, 100)}%` }}
             />
           </div>
           <div className="flex items-center justify-between mt-2">
             <span className="text-slate-400" style={{ fontSize: "10px" }}>
-              3.400 de 5.000 comentarios/mes
+              {usage
+                ? `${usage.syncs_used_this_month} de ${usage.syncs_limit} syncs/mes`
+                : "Carregando uso..."}
             </span>
             <button className="text-violet-500" style={{ fontSize: "10px", fontWeight: 500 }}>
               Upgrade
@@ -236,7 +275,7 @@ export function SettingsScreen() {
           </p>
           <DreamCard className="overflow-hidden">
             <button
-              onClick={() => navigate("/login")}
+              onClick={handleLogout}
               className="w-full p-4 flex items-center gap-3 active:bg-slate-50 transition-colors"
             >
               <div className="w-9 h-9 rounded-xl bg-rose-50 flex items-center justify-center text-rose-500">

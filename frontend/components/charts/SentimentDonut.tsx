@@ -70,7 +70,7 @@ export default function SentimentDonut({ distribution, avgScore }: Props) {
             <span className="text-2xl font-bold text-text-primary">
               {avgScore.toFixed(1)}
             </span>
-            <span className="text-xs text-text-secondary">Score</span>
+            <span className="text-xs text-text-secondary">/10</span>
           </>
         )}
       </div>

@@ -34,6 +34,9 @@ class PipelineRun(Base):
         DateTime(timezone=True), nullable=True
     )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    celery_task_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    target_posts: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    target_comments: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     # Relationships
     user = relationship("User", back_populates="pipeline_runs")

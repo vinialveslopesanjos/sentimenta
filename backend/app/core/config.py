@@ -60,17 +60,11 @@ class Settings(BaseSettings):
 
     # CORS
     CORS_ORIGINS: list[str] = [
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://localhost:3002",
-        "http://localhost:8000",
-        "http://147.93.13.49",
-        "http://147.93.13.49:3000",
-        "http://147.93.13.49:8080",
         "http://sentimenta.com.br",
         "https://sentimenta.com.br",
         "http://www.sentimenta.com.br",
         "https://www.sentimenta.com.br",
+        "http://147.93.13.49:8080",
     ]
 
     @field_validator("CORS_ORIGINS", mode="before")

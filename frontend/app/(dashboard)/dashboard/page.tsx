@@ -12,51 +12,28 @@ import {
   CartesianGrid,
   Tooltip,
 } from "recharts";
-import { dashboardApi, connectionsApi } from "@/lib/api";
+import { AnimatePresence, motion } from "framer-motion";
+import { dashboardApi, connectionsApi, authApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import type { DashboardSummary, TrendResponse, HealthReport, Connection, PostSummary } from "@/lib/types";
 import { loadSyncSettings, toSyncPayload } from "@/lib/syncSettings";
+import { scoreColor, scoreLabel, parsePeriod, formatMonthYear, formatDayLabel } from "@/lib/helpers";
 
 const API_URL = "/api/v1";
 
+function compactNumber(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, '')}M`;
+  if (n >= 10_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}K`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, '')}K`;
+  return n.toLocaleString("pt-BR");
+}
+
 function buildThumbnailSrc(url?: string | null) {
-  if (!url) return null;
+  if (!url || url === "null") return null;
   if (url.startsWith("http://") || url.startsWith("https://")) {
     return `${API_URL}/posts/thumbnail?url=${encodeURIComponent(url)}`;
   }
   return url;
-}
-
-function parsePeriod(period: string) {
-  if (/^\d{4}-\d{2}$/.test(period)) return new Date(`${period}-01T00:00:00`);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(period)) return new Date(`${period}T00:00:00`);
-  const dt = new Date(period);
-  return Number.isNaN(dt.getTime()) ? new Date("1970-01-01T00:00:00") : dt;
-}
-
-function formatMonthYear(period: string) {
-  return parsePeriod(period).toLocaleDateString("pt-BR", { month: "2-digit", year: "numeric" });
-}
-
-function formatDayLabel(period: string) {
-  return parsePeriod(period).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
-function scoreColor(score: number | null) {
-  if (score === null) return "text-slate-300";
-  if (score >= 8) return "text-emerald-500";
-  if (score >= 6) return "text-brand-lilacDark";
-  if (score >= 4) return "text-amber-500";
-  return "text-rose-500";
-}
-
-function scoreLabel(score: number | null) {
-  if (score === null) return null;
-  if (score >= 9) return { text: "Excelente", cls: "bg-emerald-50 text-emerald-700 border-emerald-100" };
-  if (score >= 8) return { text: "Ótimo", cls: "bg-cyan-50 text-cyan-700 border-cyan-100" };
-  if (score >= 6.5) return { text: "Bom", cls: "bg-violet-50 text-violet-700 border-violet-100" };
-  if (score >= 4) return { text: "Regular", cls: "bg-amber-50 text-amber-700 border-amber-100" };
-  return { text: "Crítico", cls: "bg-rose-50 text-rose-700 border-rose-100" };
 }
 
 function scoreNarrative(score: number | null) {
@@ -176,10 +153,24 @@ function SentimentBarChart({ data }: { data: TrendResponse | null }) {
     <div className="h-56 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={pts} margin={{ top: 8, right: 8, left: -14, bottom: 8 }}>
-          <CartesianGrid stroke="#F1F5F9" strokeDasharray="3 3" vertical={false} />
+          <defs>
+            <linearGradient id="gradPositive" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#34D399" stopOpacity={0.9} />
+              <stop offset="100%" stopColor="#34D399" stopOpacity={0.6} />
+            </linearGradient>
+            <linearGradient id="gradNeutral" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#94A3B8" stopOpacity={0.7} />
+              <stop offset="100%" stopColor="#94A3B8" stopOpacity={0.4} />
+            </linearGradient>
+            <linearGradient id="gradNegative" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#FB7185" stopOpacity={0.9} />
+              <stop offset="100%" stopColor="#FB7185" stopOpacity={0.6} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke="#F1F5F9" strokeDasharray="4 4" vertical={false} />
           <XAxis
             dataKey="period"
-            minTickGap={22}
+            minTickGap={40}
             tick={{ fill: "#94a3b8", fontSize: 11 }}
             tickFormatter={(period: string) => formatMonthYear(period)}
             axisLine={false}
@@ -192,7 +183,7 @@ function SentimentBarChart({ data }: { data: TrendResponse | null }) {
             allowDecimals={false}
           />
           <Tooltip
-            cursor={{ fill: "rgba(139, 92, 246, 0.06)" }}
+            cursor={{ fill: "rgba(139, 92, 246, 0.05)" }}
             labelFormatter={(period: string) => formatDayLabel(period)}
             formatter={(value: number, name: string) => {
               const labels: Record<string, string> = {
@@ -203,15 +194,16 @@ function SentimentBarChart({ data }: { data: TrendResponse | null }) {
               return [Math.round(value), labels[name] || name];
             }}
             contentStyle={{
-              borderRadius: 12,
-              border: "1px solid #e2e8f0",
-              fontSize: 12,
-              boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
+              borderRadius: 14,
+              border: "1px solid #f1f5f9",
+              fontSize: 11,
+              boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+              padding: "10px 14px",
             }}
           />
-          <Bar dataKey="positive" stackId="sent" fill="#34D399" radius={[6, 6, 0, 0]} />
-          <Bar dataKey="neutral" stackId="sent" fill="#FCD34D" radius={[6, 6, 0, 0]} />
-          <Bar dataKey="negative" stackId="sent" fill="#FB7185" radius={[6, 6, 0, 0]} />
+          <Bar dataKey="positive" stackId="sent" fill="url(#gradPositive)" radius={[0, 0, 0, 0]} animationDuration={800} animationEasing="ease-out" />
+          <Bar dataKey="neutral" stackId="sent" fill="url(#gradNeutral)" radius={[0, 0, 0, 0]} animationDuration={800} animationEasing="ease-out" />
+          <Bar dataKey="negative" stackId="sent" fill="url(#gradNegative)" radius={[6, 6, 0, 0]} animationDuration={800} animationEasing="ease-out" />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -236,7 +228,15 @@ function ConnectionCard({ conn, onSync }: { conn: Connection; onSync: (id: strin
     <div className="dream-card p-5 hover:-translate-y-0.5 transition-all duration-300">
       <div className="flex items-center gap-3 mb-4">
         <div className="w-11 h-11 rounded-2xl bg-white flex items-center justify-center shrink-0 shadow-md border border-slate-50 overflow-hidden">
-          <img src={iconSrc} alt={conn.platform} className="w-7 h-7" />
+          {conn.profile_image_url ? (
+            <img
+              src={`${API_URL}/posts/thumbnail?url=${encodeURIComponent(conn.profile_image_url)}`}
+              alt={conn.username}
+              className="w-11 h-11 rounded-2xl object-cover"
+            />
+          ) : (
+            <img src={iconSrc} alt={conn.platform} className="w-7 h-7" />
+          )}
         </div>
         <div className="min-w-0 flex-1">
           <p className="font-sans font-semibold text-slate-800 text-sm truncate">{conn.username.startsWith('@') ? conn.username : `@${conn.username}`}</p>
@@ -249,7 +249,7 @@ function ConnectionCard({ conn, onSync }: { conn: Connection; onSync: (id: strin
           <p className="text-[10px] text-slate-400 uppercase font-semibold">Seguidores</p>
           <p className="text-sm font-semibold text-slate-700">
             {conn.followers_count > 0
-              ? (conn.followers_count >= 10000 ? (conn.followers_count / 1000).toFixed(1) + 'k' : conn.followers_count.toLocaleString("pt-BR"))
+              ? (conn.followers_count >= 1_000_000 ? (conn.followers_count / 1_000_000).toFixed(1).replace(/\.0$/, '') + 'M' : conn.followers_count >= 10_000 ? (conn.followers_count / 1_000).toFixed(1).replace(/\.0$/, '') + 'K' : conn.followers_count.toLocaleString("pt-BR"))
               : "—"}
           </p>
         </div>
@@ -318,11 +318,12 @@ function RecentPostItem({ post, index }: { post: PostSummary; index: number }) {
         </p>
         <p className="text-xs text-slate-400 mt-0.5 capitalize">
           {post.platform} · {post.comment_count} comentários
+          {" · "}{post.published_at && post.published_at !== "null" ? new Date(post.published_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : "Sem data"}
         </p>
       </div>
       {score !== null && (
         <span className={`text-sm font-sans font-bold shrink-0 ${scoreColor(score)}`}>
-          {score.toFixed(1)}
+          {score.toFixed(1)}/10
         </span>
       )}
     </Link>
@@ -336,6 +337,9 @@ export default function DashboardPage() {
   const [loadingHealth, setLoadingHealth] = useState(false);
   const [loading, setLoading] = useState(true);
   const [userName, setUserName] = useState<string | null>(null);
+  const [showPromptEditor, setShowPromptEditor] = useState(false);
+  const [customPrompt, setCustomPrompt] = useState("");
+  const [defaultPrompt, setDefaultPrompt] = useState("");
   const HEALTH_CACHE_KEY = "sentimenta_latest_health_report";
 
   const loadData = useCallback(async () => {
@@ -361,7 +365,9 @@ export default function DashboardPage() {
     if (!token) return;
     setLoadingHealth(true);
     try {
-      const h = await dashboardApi.healthReport(token);
+      const h = customPrompt && customPrompt !== defaultPrompt
+        ? await dashboardApi.healthReportWithPrompt(token, customPrompt)
+        : await dashboardApi.healthReport(token);
       setHealth(h);
       if (typeof window !== "undefined") {
         localStorage.setItem(HEALTH_CACHE_KEY, JSON.stringify(h));
@@ -371,11 +377,27 @@ export default function DashboardPage() {
     } finally {
       setLoadingHealth(false);
     }
-  }, []);
+  }, [customPrompt, defaultPrompt]);
+
+  const openPromptEditor = async () => {
+    if (!defaultPrompt) {
+      const token = getToken();
+      if (token) {
+        try {
+          const data = await dashboardApi.getHealthPrompt(token);
+          setDefaultPrompt(data.prompt);
+          if (!customPrompt) setCustomPrompt(data.prompt);
+        } catch {}
+      }
+    }
+    setShowPromptEditor(true);
+  };
 
   useEffect(() => {
-    const stored = typeof window !== "undefined" ? localStorage.getItem("sentiment_user_name") : null;
-    setUserName(stored);
+    const token = getToken();
+    if (token) {
+      authApi.me(token).then((u) => setUserName(u.name)).catch(() => {});
+    }
     if (typeof window !== "undefined") {
       const raw = localStorage.getItem(HEALTH_CACHE_KEY);
       if (raw) {
@@ -414,10 +436,10 @@ export default function DashboardPage() {
   return (
     <div className="flex-1 overflow-y-auto">
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-white/60 px-6 md:px-8 py-5 flex items-center justify-between shadow-sm">
+      <header className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-white/60 px-4 sm:px-6 md:px-8 py-3 sm:py-5 flex items-center justify-between shadow-sm">
         <div>
           <h1 className="text-2xl font-sans font-bold text-slate-800 tracking-tight">
-            {greeting()}{firstName ? `, ${firstName}` : ""}. 👋
+            {greeting()}{firstName ? `, ${firstName}` : ""} <span className="inline-block animate-wave origin-[70%_70%]">👋</span>
           </h1>
           <p className="text-sm text-slate-400 font-light">Escute o que o mundo sente.</p>
         </div>
@@ -432,12 +454,12 @@ export default function DashboardPage() {
             href="/connect"
             className="px-4 py-2 rounded-full bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white text-sm font-semibold shadow-sm hover:shadow-lg hover:shadow-violet-200 transition-all hover:-translate-y-px"
           >
-            + Conectar
+            <span className="sm:hidden">+</span><span className="hidden sm:inline">+ Conectar</span>
           </Link>
         </div>
       </header>
 
-      <main className="p-6 md:p-8 space-y-6 max-w-screen-xl mx-auto">
+      <main className="p-4 sm:p-6 md:p-8 space-y-4 sm:space-y-6 max-w-screen-xl mx-auto">
 
         {/* Empty state */}
         {isEmpty && (
@@ -524,16 +546,25 @@ export default function DashboardPage() {
                     <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-brand-lilac to-brand-cyan flex items-center justify-center text-white shadow-sm">
                       <span className="material-symbols-outlined text-[16px]">auto_awesome</span>
                     </div>
-                    <h2 className="text-base font-sans font-bold text-slate-700">Saúde da Reputação (IA)</h2>
+                    <h2 className="text-base font-sans font-bold text-slate-700">Diagnóstico de Reputação</h2>
                   </div>
-                  <button
-                    onClick={loadHealth}
-                    disabled={loadingHealth}
-                    className="text-xs text-brand-lilacDark font-semibold hover:underline disabled:opacity-50 flex items-center gap-1"
-                  >
-                    {loadingHealth && <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-                    Atualizar
-                  </button>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={openPromptEditor}
+                      className="text-xs text-slate-400 hover:text-brand-lilacDark transition-colors flex items-center gap-1"
+                      title="Personalizar prompt"
+                    >
+                      <span className="material-symbols-outlined text-[14px]">edit_note</span>
+                    </button>
+                    <button
+                      onClick={loadHealth}
+                      disabled={loadingHealth}
+                      className="text-xs text-brand-lilacDark font-semibold hover:underline disabled:opacity-50 flex items-center gap-1"
+                    >
+                      {loadingHealth && <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                      Atualizar
+                    </button>
+                  </div>
                 </div>
                 {health ? (
                   <div className="prose prose-sm prose-slate max-w-none text-brand-text leading-relaxed">
@@ -550,7 +581,7 @@ export default function DashboardPage() {
             </div>
 
             {/* ── KPIs compactos ── */}
-            <div className="grid grid-cols-3 gap-5 animate-fade-in-up-2">
+            <div className="grid grid-cols-3 gap-2 sm:gap-5 animate-fade-in-up-2">
               {loading ? (
                 Array(3).fill(0).map((_, i) => (
                   <div key={i} className="dream-card p-5 shadow-sm animate-pulse flex gap-3 items-center">
@@ -563,16 +594,16 @@ export default function DashboardPage() {
                 ))
               ) : (
                 [
-                  { icon: "forum", value: (summary?.total_analyzed ?? 0).toLocaleString("pt-BR"), label: "analisados", sub: `de ${(summary?.total_comments ?? 0).toLocaleString("pt-BR")} coletados`, bg: "bg-cyan-50 text-brand-cyanDark" },
-                  { icon: "article", value: summary?.total_posts ?? 0, label: "posts", bg: "bg-violet-50 text-brand-lilacDark" },
-                  { icon: "add_link", value: summary?.total_connections ?? 0, label: "conexões", bg: "bg-emerald-50 text-emerald-600" },
+                  { icon: "forum", value: compactNumber(summary?.total_analyzed ?? 0), label: "analisados", sub: `de ${compactNumber(summary?.total_comments ?? 0)} coletados`, bg: "bg-cyan-50 text-brand-cyanDark" },
+                  { icon: "article", value: compactNumber(summary?.total_posts ?? 0), label: "posts", bg: "bg-violet-50 text-brand-lilacDark" },
+                  { icon: "add_link", value: compactNumber(summary?.total_connections ?? 0), label: "conexões", bg: "bg-emerald-50 text-emerald-600" },
                 ].map((kpi) => (
-                  <div key={kpi.label} className="dream-card p-5 flex shadow-sm gap-3 items-center hover:-translate-y-0.5 transition-all">
+                  <div key={kpi.label} className="dream-card p-3 sm:p-5 flex shadow-sm gap-2 sm:gap-3 items-center hover:-translate-y-0.5 transition-all">
                     <div className={`w-10 h-10 rounded-xl ${kpi.bg} flex items-center justify-center shrink-0`}>
                       <span className="material-symbols-outlined text-[20px]">{kpi.icon}</span>
                     </div>
                     <div>
-                      <p className="font-sans font-bold text-xl text-slate-800">{kpi.value}</p>
+                      <p className="font-sans font-bold text-base sm:text-xl text-slate-800">{kpi.value}</p>
                       <p className="text-xs text-slate-400">{kpi.label}</p>
                       {(kpi as any).sub && <p className="text-[10px] text-slate-300">{(kpi as any).sub}</p>}
                     </div>
@@ -623,7 +654,7 @@ export default function DashboardPage() {
               )}
               <div className="flex items-center gap-4 text-[11px] text-slate-500 mt-3">
                 <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-emerald-400" />Positivo</span>
-                <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-amber-300" />Neutro</span>
+                <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-slate-400" />Neutro</span>
                 <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-rose-400" />Negativo</span>
               </div>
             </div>
@@ -657,6 +688,87 @@ export default function DashboardPage() {
           </>
         )}
       </main>
+
+      {/* Prompt Editor Modal */}
+      <AnimatePresence>
+        {showPromptEditor && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/20 backdrop-blur-sm"
+            onClick={() => setShowPromptEditor(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              transition={{ type: "spring", damping: 25, stiffness: 300 }}
+              className="bg-white rounded-3xl shadow-modal w-full max-w-2xl max-h-[80vh] flex flex-col overflow-hidden"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-brand-lilac to-brand-cyan flex items-center justify-center">
+                    <span className="material-symbols-outlined text-[16px] text-white">edit_note</span>
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-sans font-bold text-slate-700">Personalizar Prompt</h3>
+                    <p className="text-xs text-slate-400 font-light">Edite o prompt usado para gerar o diagn&oacute;stico</p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => setShowPromptEditor(false)}
+                  className="w-8 h-8 rounded-xl hover:bg-slate-50 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
+                >
+                  <span className="material-symbols-outlined text-[18px]">close</span>
+                </button>
+              </div>
+
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto p-6">
+                <textarea
+                  value={customPrompt}
+                  onChange={(e) => setCustomPrompt(e.target.value)}
+                  className="w-full h-64 p-4 text-sm text-slate-600 bg-slate-50 border border-slate-200 rounded-2xl resize-none focus:outline-none focus:border-brand-lilac focus:ring-2 focus:ring-brand-lilac/20 transition-all font-mono leading-relaxed"
+                  placeholder="Escreva seu prompt customizado aqui..."
+                />
+                <p className="text-[10px] text-slate-300 mt-2 font-light">
+                  Os dados de sentimento ser&atilde;o automaticamente anexados ao final do prompt.
+                </p>
+              </div>
+
+              {/* Footer */}
+              <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
+                <button
+                  onClick={() => { setCustomPrompt(defaultPrompt); }}
+                  className="text-xs text-slate-400 hover:text-slate-600 font-medium transition-colors"
+                >
+                  Restaurar padr&atilde;o
+                </button>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setShowPromptEditor(false)}
+                    className="px-4 py-2 text-xs font-medium text-slate-500 hover:text-slate-700 transition-colors"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowPromptEditor(false);
+                      loadHealth();
+                    }}
+                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white text-xs font-bold shadow-sm hover:shadow-float transition-all"
+                  >
+                    Gerar com este prompt
+                  </button>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

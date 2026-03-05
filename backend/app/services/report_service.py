@@ -16,18 +16,7 @@ logger = logging.getLogger(__name__)
 
 GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
 
-
-def generate_health_report(data_summary: dict) -> str:
-    """Generate a markdown health report via Gemini.
-
-    Args:
-        data_summary: Aggregated data dict with keys like
-            platforms, avg_scores, sentiment_distributions, top_emotions, top_topics
-
-    Returns:
-        Markdown string with the report.
-    """
-    prompt = f"""Você é a voz analítica avançada da Sentimenta.
+DEFAULT_HEALTH_PROMPT = """Você é a voz analítica avançada da Sentimenta.
 
 Com base nos dados abaixo, escreva a análise de sentimento da audiência de forma intimista e cirúrgica, em português brasileiro.
 
@@ -47,10 +36,26 @@ Com base nos dados abaixo, escreva a análise de sentimento da audiência de for
 🚀 **Próximo passo sugerido**
 [Dê uma sugestão prática de ação para o criador de conteúdo hoje. Ex: um novo post, um story, melhoria no link, baseado no que o público engajou ou criticou na análise]
 
-**Dados extraídos (Use-os para construir a resposta):**
-{json.dumps(data_summary, ensure_ascii=False, indent=2)}
-
 Siga EXATAMENTE a estrutura visual pedida com os emojis e títulos fornecidos."""
+
+
+def generate_health_report(data_summary: dict, custom_prompt: str | None = None) -> str:
+    """Generate a markdown health report via Gemini.
+
+    Args:
+        data_summary: Aggregated data dict with keys like
+            platforms, avg_scores, sentiment_distributions, top_emotions, top_topics
+        custom_prompt: Optional custom prompt to use instead of the default.
+
+    Returns:
+        Markdown string with the report.
+    """
+    base_prompt = custom_prompt if custom_prompt else DEFAULT_HEALTH_PROMPT
+
+    prompt = f"""{base_prompt}
+
+**Dados extraídos:**
+{json.dumps(data_summary, ensure_ascii=False, indent=2)}"""
 
     url = f"{GEMINI_BASE_URL}/{settings.GEMINI_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
 

@@ -44,6 +44,10 @@ class SocialConnection(Base):
         default=True, server_default="true", nullable=False
     )
 
+    @property
+    def has_oauth_token(self) -> bool:
+        return bool(self.access_token_enc)
+
     __table_args__ = (
         UniqueConstraint("user_id", "platform", "username", name="uq_user_platform_username"),
     )

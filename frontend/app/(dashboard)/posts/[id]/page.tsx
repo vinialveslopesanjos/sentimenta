@@ -6,44 +6,7 @@ import { useParams } from "next/navigation";
 import { postsApi, commentsApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import type { CommentWithAnalysis, CommentListResponse } from "@/lib/types";
-
-// ─── helpers ────────────────────────────────────────────────────────────────
-
-function scoreColor(s: number | null) {
-  if (s === null) return "text-slate-300";
-  if (s >= 7) return "text-emerald-600";
-  if (s >= 4) return "text-amber-500";
-  return "text-rose-500";
-}
-
-function scoreBg(s: number | null) {
-  if (s === null) return "bg-slate-50 text-slate-400 border-slate-100";
-  if (s >= 7) return "bg-emerald-50 text-emerald-600 border-emerald-100";
-  if (s >= 4) return "bg-amber-50 text-amber-600 border-amber-100";
-  return "bg-rose-50 text-rose-500 border-rose-100";
-}
-
-function fmt(n: number) {
-  return n.toLocaleString("pt-BR");
-}
-
-function fmtDate(s: string | null | undefined) {
-  if (!s) return "—";
-  return new Date(s).toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function platformIcon(platform: string, size = 16) {
-  const isInstagram = String(platform).toLowerCase() === "instagram";
-  const isTwitter = String(platform).toLowerCase() === "twitter";
-  const src = isInstagram ? "/icons/instagram.svg" : isTwitter ? "/icons/twitter-x.svg" : "/icons/youtube.svg";
-  return <img src={src} alt={platform} style={{ width: size, height: size }} />;
-}
+import { scoreColor, scoreBg, fmt, fmtDatetime as fmtDate, platformIcon } from "@/lib/helpers";
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
@@ -145,7 +108,7 @@ function CommentCard({ comment }: { comment: CommentWithAnalysis }) {
       <div className="shrink-0 pt-0.5">
         {score !== null ? (
           <span className={`inline-block text-sm font-bold px-2.5 py-1 rounded-xl border ${scoreBg(score)} min-w-[3rem] text-center`}>
-            {score.toFixed(1)}
+            {score.toFixed(1)}<span className="text-[10px] font-normal opacity-60">/10</span>
           </span>
         ) : (
           <span className="inline-block text-sm px-2.5 py-1 rounded-xl bg-slate-50 text-slate-300 border border-slate-100 min-w-[3rem] text-center">
@@ -162,7 +125,7 @@ function CommentCard({ comment }: { comment: CommentWithAnalysis }) {
             {comment.author_name || comment.author_username || "Anônimo"}
           </span>
           {comment.author_username && comment.author_name && (
-            <span className="text-xs text-slate-300">@{comment.author_username}</span>
+            <span className="text-xs text-slate-300">{comment.author_username?.startsWith('@') ? '' : '@'}{comment.author_username}</span>
           )}
           {comment.like_count > 0 && (
             <span className="text-xs text-slate-300 flex items-center gap-1 ml-auto">
@@ -182,7 +145,7 @@ function CommentCard({ comment }: { comment: CommentWithAnalysis }) {
         {/* AI summary */}
         {summary && (
           <p className="text-xs text-slate-400 italic mt-1.5">
-            <span className="not-italic font-medium text-brand-lilacDark">IA:</span> {summary}
+            <span className="not-italic font-medium text-brand-lilacDark">Resumo:</span> {summary}
           </p>
         )}
 
@@ -451,14 +414,14 @@ export default function PostDetailPage() {
               <KpiCard
                 icon="favorite"
                 label="Score médio"
-                value={avgScore != null ? avgScore.toFixed(1) : "—"}
+                value={avgScore != null ? `${avgScore.toFixed(1)}/10` : "—"}
                 iconBg="bg-violet-50 text-brand-lilacDark"
                 valueClass={scoreColor(avgScore)}
               />
               <KpiCard
                 icon="bar_chart_4_bars"
                 label="Score ponderado"
-                value={weightedScore != null ? weightedScore.toFixed(1) : "—"}
+                value={weightedScore != null ? `${weightedScore.toFixed(1)}/10` : "—"}
                 iconBg="bg-cyan-50 text-brand-cyanDark"
                 valueClass={scoreColor(weightedScore)}
               />
@@ -491,7 +454,7 @@ export default function PostDetailPage() {
                   style={{ width: `${posRate}%` }}
                 />
                 <div
-                  className="h-full bg-amber-300 transition-all duration-700"
+                  className="h-full bg-slate-300 transition-all duration-700"
                   style={{ width: `${neuRate}%` }}
                 />
                 <div
@@ -502,7 +465,7 @@ export default function PostDetailPage() {
               <div className="flex gap-6">
                 {[
                   { label: "Positivo", pct: posRate, count: dist.positive, dot: "bg-emerald-400", text: "text-emerald-600" },
-                  { label: "Neutro", pct: neuRate, count: dist.neutral, dot: "bg-amber-300", text: "text-amber-600" },
+                  { label: "Neutro", pct: neuRate, count: dist.neutral, dot: "bg-slate-300", text: "text-slate-500" },
                   { label: "Negativo", pct: negRate, count: dist.negative, dot: "bg-rose-400", text: "text-rose-600" },
                 ].map((item) => (
                   <div key={item.label} className="flex items-center gap-2">

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { dashboardApi, connectionsApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { scoreColor } from "@/lib/helpers";
 import { ResponsiveContainer, LineChart, Line, Area, XAxis, YAxis, CartesianGrid, Tooltip } from "recharts";
 
 const EMOTION_EMOJI: Record<string, string> = {
@@ -39,13 +40,6 @@ type CompareConnection = {
   emotions_distribution: Record<string, number>;
 };
 
-function scoreColor(score: number | null) {
-  if (score === null) return "text-slate-300";
-  if (score >= 7) return "text-emerald-500";
-  if (score >= 4) return "text-amber-500";
-  return "text-rose-500";
-}
-
 function EmotionBars({ emotions, label }: { emotions: Record<string, number>; label: string }) {
   const entries = Object.entries(emotions).sort((a, b) => b[1] - a[1]).slice(0, 8);
   const max = entries.length > 0 ? entries[0][1] : 1;
@@ -55,7 +49,7 @@ function EmotionBars({ emotions, label }: { emotions: Record<string, number>; la
       <p className="text-xs text-slate-400 font-medium mb-3">{label}</p>
       {entries.map(([emo, count]) => (
         <div key={emo} className="flex items-center gap-2">
-          <span className="text-xs w-32 truncate text-slate-500">{EMOTION_EMOJI[emo] || "📊"} {emo}</span>
+          <span className="text-xs w-20 sm:w-32 truncate text-slate-500">{EMOTION_EMOJI[emo] || "📊"} {emo}</span>
           <div className="flex-1 h-5 bg-slate-50 rounded-lg overflow-hidden">
             <div
               className="h-full bg-gradient-to-r from-brand-lilac to-violet-300 rounded-lg transition-all"
@@ -152,7 +146,7 @@ export default function ComparePage() {
     <div className="max-w-5xl mx-auto space-y-8">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-sans font-bold text-slate-800">Análise Comparativa</h1>
+        <h1 className="text-lg sm:text-2xl font-sans font-bold text-slate-800">Análise Comparativa</h1>
         <p className="text-sm text-slate-400 mt-1">Compare sentimentos e emoções entre perfis</p>
       </div>
 
@@ -169,7 +163,7 @@ export default function ComparePage() {
               <option value="">Selecione um perfil...</option>
               {connections.map((c) => (
                 <option key={c.id} value={c.id} disabled={c.id === selectedB}>
-                  @{c.username} ({c.platform})
+                  {c.username.startsWith('@') ? '' : '@'}{c.username} ({c.platform})
                 </option>
               ))}
             </select>
@@ -184,7 +178,7 @@ export default function ComparePage() {
               <option value="">Nenhum (mostrar só A)</option>
               {connections.map((c) => (
                 <option key={c.id} value={c.id} disabled={c.id === selectedA}>
-                  @{c.username} ({c.platform})
+                  {c.username.startsWith('@') ? '' : '@'}{c.username} ({c.platform})
                 </option>
               ))}
             </select>
@@ -257,11 +251,11 @@ export default function ComparePage() {
               {activeConns.map((c) => (
                 <div key={c.connection_id} className="dream-card p-6 space-y-4">
                   <div className="flex items-center gap-3">
-                    {c.profile_image_url && (
-                      <img src={c.profile_image_url} alt="" className="w-10 h-10 rounded-full" />
-                    )}
+                    {c.profile_image_url ? (
+                      <img src={`/api/v1/posts/thumbnail?url=${encodeURIComponent(c.profile_image_url)}`} alt={c.username} className="w-10 h-10 rounded-2xl object-cover" />
+                    ) : null}
                     <div>
-                      <p className="font-semibold text-slate-700">@{c.username}</p>
+                      <p className="font-semibold text-slate-700">{c.username.startsWith('@') ? '' : '@'}{c.username}</p>
                       <p className="text-xs text-slate-400">{c.platform}</p>
                     </div>
                   </div>
@@ -269,7 +263,7 @@ export default function ComparePage() {
                     <div>
                       <p className="text-xs text-slate-400">Score Médio</p>
                       <p className={`text-3xl font-bold ${scoreColor(c.avg_score)}`}>
-                        {c.avg_score?.toFixed(1) ?? "—"}
+                        {c.avg_score != null ? `${c.avg_score.toFixed(1)}/10` : "—"}
                       </p>
                     </div>
                     <div>
@@ -343,7 +337,7 @@ export default function ComparePage() {
                         data={trendsA.data_points}
                         type="monotone"
                         dataKey="avg_score"
-                        name={connA ? `@${connA.username}` : "Perfil A"}
+                        name={connA ? (connA.username.startsWith('@') ? connA.username : `@${connA.username}`) : "Perfil A"}
                         stroke="#8b5cf6"
                         strokeWidth={2.2}
                         dot={false}
@@ -366,7 +360,7 @@ export default function ComparePage() {
                         data={trendsB.data_points}
                         type="monotone"
                         dataKey="avg_score"
-                        name={connB ? `@${connB.username}` : "Perfil B"}
+                        name={connB ? (connB.username.startsWith('@') ? connB.username : `@${connB.username}`) : "Perfil B"}
                         stroke="#fb7185"
                         strokeWidth={2.2}
                         dot={false}
@@ -385,7 +379,7 @@ export default function ComparePage() {
             <div className={`grid gap-6 ${activeConns.length === 2 ? "grid-cols-2" : "grid-cols-1 max-w-lg"}`}>
               {activeConns.map((c) => (
                 <div key={c.connection_id} className="dream-card p-6">
-                  <EmotionBars emotions={c.emotions_distribution} label={`Emoções — @${c.username}`} />
+                  <EmotionBars emotions={c.emotions_distribution} label={`Emoções — ${c.username.startsWith('@') ? '' : '@'}${c.username}`} />
                 </div>
               ))}
             </div>
@@ -396,7 +390,7 @@ export default function ComparePage() {
             <div className={`grid gap-6 ${activeConns.length === 2 ? "grid-cols-2" : "grid-cols-1 max-w-lg"}`}>
               {activeConns.map((c) => (
                 <div key={c.connection_id} className="dream-card p-6">
-                  <p className="text-xs text-slate-400 font-medium mb-4">Volume — @{c.username}</p>
+                  <p className="text-xs text-slate-400 font-medium mb-4">Volume — {c.username.startsWith('@') ? '' : '@'}{c.username}</p>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <p className="text-2xl font-bold text-slate-700">{c.total_comments.toLocaleString("pt-BR")}</p>

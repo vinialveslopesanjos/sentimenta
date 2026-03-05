@@ -103,7 +103,7 @@ export default function PipelineLogViewer() {
                   </span>
                   <span className="text-sm font-medium text-text-primary">
                     {run.platform ? run.platform.charAt(0).toUpperCase() + run.platform.slice(1) : "Pipeline"}{" "}
-                    {run.connection_username && `@${run.connection_username}`}
+                    {run.connection_username && (run.connection_username.startsWith('@') ? run.connection_username : `@${run.connection_username}`)}
                   </span>
                   <span className="text-xs text-text-muted">
                     {run.run_type}

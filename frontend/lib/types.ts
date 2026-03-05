@@ -12,6 +12,8 @@ export interface PipelineRun {
   comments_analyzed: number;
   llm_calls: number;
   errors_count: number;
+  target_posts?: number | null;
+  target_comments?: number | null;
   total_cost_usd: number;
   started_at: string;
   ended_at: string | null;

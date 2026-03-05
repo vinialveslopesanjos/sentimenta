@@ -1,6 +1,7 @@
 import asyncio
 import json
 import uuid
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -53,6 +54,8 @@ def list_pipeline_runs(
             started_at=run.started_at,
             ended_at=run.ended_at,
             notes=run.notes,
+            target_posts=run.target_posts,
+            target_comments=run.target_comments,
         ))
 
     return result
@@ -94,7 +97,55 @@ def get_pipeline_run(
         started_at=run.started_at,
         ended_at=run.ended_at,
         notes=run.notes,
+        target_posts=run.target_posts,
+        target_comments=run.target_comments,
     )
+
+
+@router.post("/runs/{run_id}/cancel")
+def cancel_pipeline_run(
+    run_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    run = db.query(PipelineRun).filter(
+        PipelineRun.id == run_id,
+        PipelineRun.user_id == current_user.id,
+    ).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if run.status != "running":
+        raise HTTPException(status_code=400, detail="Run is not running")
+
+    # Revoke celery task
+    if run.celery_task_id:
+        from app.tasks.celery_app import celery_app
+        celery_app.control.revoke(run.celery_task_id, terminate=True, signal="SIGTERM")
+
+    run.status = "cancelled"
+    run.ended_at = datetime.now(timezone.utc)
+    run.notes = "Cancelado pelo usuário"
+    db.commit()
+    return {"status": "cancelled", "id": str(run.id)}
+
+
+@router.delete("/runs/{run_id}", status_code=204)
+def delete_pipeline_run(
+    run_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    run = db.query(PipelineRun).filter(
+        PipelineRun.id == run_id,
+        PipelineRun.user_id == current_user.id,
+    ).first()
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if run.status == "running" and run.celery_task_id:
+        from app.tasks.celery_app import celery_app
+        celery_app.control.revoke(run.celery_task_id, terminate=True, signal="SIGTERM")
+    db.delete(run)
+    db.commit()
 
 
 @router.get("/runs/{run_id}/status", response_model=PipelineStatusResponse)

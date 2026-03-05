@@ -396,7 +396,7 @@ export default function LandingPage() {
                       <span className="material-symbols-outlined text-[18px]">auto_awesome</span>
                     </div>
                     <div>
-                      <h3 className="text-xl font-sans font-semibold text-slate-900">Saúde da Reputação (IA)</h3>
+                      <h3 className="text-xl font-sans font-semibold text-slate-900">Diagnóstico de Reputação</h3>
                       <p className="text-xs text-slate-600 font-light">Perfil: @julia_brand | Período: Últimas 24h</p>
                     </div>
                   </div>

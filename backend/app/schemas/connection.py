@@ -26,6 +26,7 @@ class ConnectionResponse(BaseModel):
     last_sync_at: datetime | None
     persona: str | None
     ignore_author_comments: bool
+    has_oauth_token: bool = False
 
     model_config = {"from_attributes": True}
 
