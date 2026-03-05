@@ -41,7 +41,7 @@ class Settings(BaseSettings):
         "INSTAGRAM_REDIRECT_URI",
         "http://localhost:8000/api/v1/auth/instagram/callback",
     )
-    INSTAGRAM_SCOPES: str = "instagram_business_basic,instagram_business_manage_comments,instagram_manage_insights"
+    INSTAGRAM_SCOPES: str = "instagram_business_basic,instagram_business_manage_comments,instagram_business_manage_messages"
     INSTAGRAM_CONNECTIONS_REDIRECT_URI: str = os.getenv(
         "INSTAGRAM_CONNECTIONS_REDIRECT_URI",
         "http://localhost:8000/api/v1/connections/instagram/callback",

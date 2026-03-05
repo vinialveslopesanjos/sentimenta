@@ -51,10 +51,18 @@ def _do_ingest(db, connection, max_posts: int = 10, max_comments_per_post: int =
         from app.services.youtube_service import ingest_youtube_channel
         return _run_async(ingest_youtube_channel(db, connection.id, max_comments=max_comments_per_post))
     elif connection.platform == "instagram":
-        from app.services.instagram_ingest_service import ingest_instagram_profile
         from datetime import date as date_type
         since = date_type.fromisoformat(since_date) if since_date else None
-        return ingest_instagram_profile(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since, progress_callback=progress_callback, step_callback=step_callback)
+
+        # OAuth connections use official Graph API — no XPoz/Apify needed
+        if connection.has_oauth_token:
+            from app.services.instagram_ingest_service import ingest_instagram_via_graph_api
+            logger.info("Using Graph API for @%s (OAuth token present)", connection.username)
+            return ingest_instagram_via_graph_api(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since, progress_callback=progress_callback, step_callback=step_callback)
+        else:
+            from app.services.instagram_ingest_service import ingest_instagram_profile
+            logger.info("Using XPoz/Apify for @%s (no OAuth token)", connection.username)
+            return ingest_instagram_profile(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since, progress_callback=progress_callback, step_callback=step_callback)
     elif connection.platform == "twitter":
         from app.services.twitter_service import ingest_twitter_profile
         return ingest_twitter_profile(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post)

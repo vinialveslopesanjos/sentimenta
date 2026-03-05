@@ -510,6 +510,252 @@ def _enrich_via_apify(db, connection_id, platform_post_ids, followers, step_call
         step_callback(f"Apify: erro — {exc}")
 
 
+def ingest_instagram_via_graph_api(
+    db: Session,
+    connection: SocialConnection,
+    max_posts: int = 50,
+    max_comments_per_post: int = 100,
+    since_date: Optional[date] = None,
+    progress_callback=None,
+    step_callback=None,
+) -> dict:
+    """
+    Ingest Instagram data using the official Graph API (OAuth token required).
+
+    This is the preferred path when the connection has a valid OAuth token.
+    No XPoz or Apify needed — all data comes from Instagram's official API.
+    """
+    import asyncio
+    from app.core.security import decrypt_token
+    from app.services.instagram_service import fetch_user_posts, fetch_post_comments as graph_fetch_comments
+
+    _step = step_callback or (lambda msg: None)
+    username = connection.username
+    followers = connection.followers_count or 0
+
+    stats = {
+        "posts_fetched": 0,
+        "posts_updated": 0,
+        "comments_fetched": 0,
+        "comments_updated": 0,
+        "errors": [],
+    }
+
+    try:
+        access_token = decrypt_token(connection.access_token_enc)
+        platform_user_id = connection.platform_user_id
+
+        # ── Phase 1: Fetch posts from Graph API ──────────────────────
+        _step("Buscando posts via Instagram Graph API...")
+        loop = asyncio.new_event_loop()
+        try:
+            posts_data = loop.run_until_complete(
+                fetch_user_posts(access_token, platform_user_id, limit=max_posts)
+            )
+        finally:
+            loop.close()
+        _step(f"{len(posts_data)} posts obtidos via API oficial")
+
+        # ── Phase 2: Upsert posts into DB ────────────────────────────
+        existing_posts = {
+            p.platform_post_id: p
+            for p in db.query(Post).filter(Post.connection_id == connection.id).all()
+        }
+        comment_counts = dict(
+            db.query(Comment.post_id, func.count(Comment.id))
+            .filter(Comment.connection_id == connection.id)
+            .group_by(Comment.post_id)
+            .all()
+        )
+
+        posts_need_comments = []
+
+        for pd in posts_data:
+            pid = pd["platform_post_id"]
+
+            # Filter by since_date if provided
+            if since_date and pd.get("timestamp"):
+                ts = _parse_timestamp(pd["timestamp"])
+                if ts and ts.date() < since_date:
+                    continue
+
+            existing = existing_posts.get(pid)
+            media_type = pd.get("media_type", "IMAGE")
+            post_type = "video" if media_type in ("VIDEO", "REELS") else "carousel" if media_type == "CAROUSEL_ALBUM" else "image"
+
+            if existing:
+                existing.content_text = pd.get("caption") or existing.content_text
+                existing.content_clean = pd.get("caption") or existing.content_clean
+                existing.post_type = post_type
+                existing.like_count = pd.get("like_count", 0) or existing.like_count
+                existing.comment_count = pd.get("comments_count", 0) or existing.comment_count
+                existing.post_url = pd.get("permalink") or existing.post_url
+                if pd.get("media_url"):
+                    existing.media_urls = {
+                        "url": pd["media_url"],
+                        "thumbnail_url": pd.get("thumbnail_url") or pd["media_url"],
+                    }
+                if not existing.published_at:
+                    existing.published_at = _parse_timestamp(pd.get("timestamp"))
+                existing.fetched_at = datetime.now(timezone.utc)
+                stats["posts_updated"] += 1
+
+                db_comment_count = comment_counts.get(existing.id, 0)
+                if db_comment_count == 0:
+                    posts_need_comments.append((pid, existing))
+            else:
+                media_url = pd.get("media_url")
+                _likes = pd.get("like_count", 0) or 0
+                _comments = pd.get("comments_count", 0) or 0
+                post = Post(
+                    connection_id=connection.id,
+                    platform="instagram",
+                    platform_post_id=pid,
+                    post_type=post_type,
+                    content_text=pd.get("caption") or "",
+                    content_clean=pd.get("caption") or "",
+                    media_urls={
+                        "url": media_url,
+                        "thumbnail_url": pd.get("thumbnail_url") or media_url,
+                    } if media_url else None,
+                    like_count=_likes,
+                    comment_count=_comments,
+                    view_count=0,
+                    engagement_rate=_calc_engagement_rate(_likes, _comments, 0, followers),
+                    published_at=_parse_timestamp(pd.get("timestamp")),
+                    post_url=pd.get("permalink"),
+                    raw_payload=pd,
+                    fetched_at=datetime.now(timezone.utc),
+                )
+                db.add(post)
+                db.flush()
+                stats["posts_fetched"] += 1
+                posts_need_comments.append((pid, post))
+
+        db.commit()
+        _step(f"Posts salvos: {stats['posts_fetched']} novos, {stats['posts_updated']} atualizados")
+
+        if progress_callback:
+            progress_callback(stats["posts_fetched"] + stats["posts_updated"], 0)
+
+        # ── Phase 3: Fetch comments via Graph API ────────────────────
+        posts_with_comments = [
+            (pid, po) for pid, po in posts_need_comments
+            if (po.comment_count or 0) > 0
+        ]
+        if posts_with_comments:
+            _step(f"Buscando comentários para {len(posts_with_comments)} posts via Graph API...")
+
+            for idx, (pid, post_obj) in enumerate(posts_with_comments, 1):
+                try:
+                    loop = asyncio.new_event_loop()
+                    try:
+                        comments_data = loop.run_until_complete(
+                            graph_fetch_comments(access_token, pid, limit=max_comments_per_post)
+                        )
+                    finally:
+                        loop.close()
+
+                    if not comments_data and (post_obj.comment_count or 0) > 0:
+                        logger.warning(
+                            "Graph API returned 0 comments for post %s (expected ~%d). "
+                            "This usually means the Meta App is in Development mode — "
+                            "comments from non-test users are filtered. "
+                            "Submit the app for App Review to fix this.",
+                            pid, post_obj.comment_count or 0,
+                        )
+
+                    existing_ids = set(
+                        row[0] for row in
+                        db.query(Comment.platform_comment_id)
+                        .filter(Comment.post_id == post_obj.id)
+                        .all()
+                    )
+
+                    new_count = 0
+                    for cd in comments_data:
+                        cid = str(cd.get("platform_comment_id", "")).strip()
+                        if not cid or cid in existing_ids:
+                            continue
+
+                        text_original = (cd.get("text") or "").strip()
+                        if not text_original:
+                            continue
+                        text_hash = hashlib.sha256(text_original.encode("utf-8")).hexdigest()
+
+                        comment = Comment(
+                            post_id=post_obj.id,
+                            connection_id=connection.id,
+                            platform="instagram",
+                            platform_comment_id=cid,
+                            source_type="comment",
+                            author_username=cd.get("username"),
+                            author_name=cd.get("username"),
+                            like_count=cd.get("like_count", 0) or 0,
+                            published_at=_parse_timestamp(cd.get("timestamp")) or post_obj.published_at,
+                            text_original=text_original,
+                            text_clean=text_original,
+                            text_hash=text_hash,
+                            status="pending",
+                            raw_payload=cd,
+                        )
+                        db.add(comment)
+                        new_count += 1
+                        stats["comments_fetched"] += 1
+
+                    db.commit()
+                    _step(f"Post {idx}/{len(posts_with_comments)}: {new_count} comentários novos")
+
+                    if progress_callback:
+                        progress_callback(
+                            stats["posts_fetched"] + stats["posts_updated"],
+                            stats["comments_fetched"],
+                        )
+                except Exception as e:
+                    logger.error("Graph API comments error for post %s: %s", pid, e)
+                    stats["errors"].append(f"Comments {pid}: {e}")
+        else:
+            _step("Nenhum post precisa de comentários")
+
+        # ── Phase 4: Sync comment counts ─────────────────────────────
+        _sync_comment_counts(db, connection.id)
+        _step("Contagens de comentários sincronizadas")
+
+        # ── Phase 5: Engagement rates ────────────────────────────────
+        all_posts = db.query(Post).filter(Post.connection_id == connection.id).all()
+        for p in all_posts:
+            p.engagement_rate = _calc_engagement_rate(
+                p.like_count or 0, p.comment_count or 0, p.share_count or 0, followers
+            )
+        db.commit()
+
+        # ── Follower snapshot ────────────────────────────────────────
+        try:
+            from app.models.follower_snapshot import FollowerSnapshot
+            snapshot = FollowerSnapshot(
+                connection_id=connection.id,
+                followers_count=connection.followers_count or 0,
+                following_count=connection.following_count or 0,
+                media_count=connection.media_count or 0,
+            )
+            db.add(snapshot)
+            db.commit()
+        except Exception as snap_exc:
+            logger.warning("Failed to create follower snapshot: %s", snap_exc)
+
+        logger.info(
+            "Instagram Graph API ingestion for @%s: %s new posts, %s updated, %s comments",
+            username, stats["posts_fetched"], stats["posts_updated"], stats["comments_fetched"],
+        )
+
+    except Exception as exc:
+        logger.error("Instagram Graph API ingestion failed for @%s: %s", username, exc)
+        stats["errors"].append(str(exc))
+        db.rollback()
+
+    return stats
+
+
 def _sync_comment_counts(db, connection_id):
     """Sync post.comment_count with actual COUNT from comments table."""
     post_counts = (

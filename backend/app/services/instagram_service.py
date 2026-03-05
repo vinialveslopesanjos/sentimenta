@@ -39,6 +39,7 @@ def generate_auth_url(state: str, redirect_uri: str | None = None) -> str:
         "scope": settings.INSTAGRAM_SCOPES,
         "response_type": "code",
         "state": state,
+        "enable_fb_login": "1",
     }
     return f"{INSTAGRAM_AUTH_URL}?{urlencode(params)}"
 
@@ -148,6 +149,8 @@ async def fetch_user_posts(
 ) -> list[dict]:
     """Retrieve recent media items for the given Instagram user.
 
+    Handles cursor-based pagination to collect up to *limit* posts.
+
     Args:
         access_token: A valid (decrypted) long-lived access token.
         user_id: The Instagram user / page ID.
@@ -161,27 +164,41 @@ async def fetch_user_posts(
         "permalink,timestamp,like_count,comments_count"
     )
     url = f"{INSTAGRAM_GRAPH_URL}/{user_id}/media"
-    params = {
+    params: dict = {
         "fields": fields,
-        "limit": limit,
+        "limit": min(limit, 25),  # API max per page is 25
         "access_token": access_token,
     }
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.get(url, params=params)
-        if response.status_code != 200:
-            logger.error(
-                "Instagram fetch_user_posts failed: %s %s",
-                response.status_code,
-                response.text,
-            )
-            raise ValueError(
-                f"Failed to fetch Instagram posts: {response.status_code}"
-            )
-        data = response.json()
+    all_posts: list[dict] = []
 
-    posts = data.get("data", [])
-    return [_normalize_post(post) for post in posts]
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        while url and len(all_posts) < limit:
+            response = await client.get(url, params=params)
+            if response.status_code != 200:
+                logger.error(
+                    "Instagram fetch_user_posts failed: %s %s",
+                    response.status_code,
+                    response.text,
+                )
+                raise ValueError(
+                    f"Failed to fetch Instagram posts: {response.status_code}"
+                )
+            data = response.json()
+
+            for post in data.get("data", []):
+                if len(all_posts) >= limit:
+                    break
+                all_posts.append(_normalize_post(post))
+
+            next_url = data.get("paging", {}).get("next")
+            if next_url:
+                url = next_url
+                params = {}  # params embedded in next URL
+            else:
+                break
+
+    return all_posts
 
 
 # ---------------------------------------------------------------------------

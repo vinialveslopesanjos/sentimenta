@@ -23,24 +23,34 @@ function LoginPageInner() {
   const [mounted, setMounted] = useState(false);
   const [socialLoading, setSocialLoading] = useState<string | null>(null);
 
-  // Handle OAuth callback (tokens come as query params after redirect)
+  // Handle OAuth callback — exchange one-time code for tokens via POST
   useEffect(() => {
-    const accessToken = searchParams.get("access_token");
-    const refreshToken = searchParams.get("refresh_token");
-    const provider = searchParams.get("provider");
+    const oauthCode = searchParams.get("oauth_code");
     const oauthError = searchParams.get("error");
 
-    if (accessToken && refreshToken) {
-      setTokens(accessToken, refreshToken);
-      setSuccess(`Login via ${provider || "social"} realizado!`);
-      // Clean URL
+    if (oauthCode) {
+      // Clean URL immediately so code is not visible
       window.history.replaceState({}, "", "/login");
-      router.replace("/dashboard");
+      setSocialLoading("exchanging");
+
+      authApi.exchangeOAuthCode(oauthCode)
+        .then((res) => {
+          setTokens(res.access_token, res.refresh_token);
+          setSuccess(`Login via ${res.provider || "social"} realizado!`);
+          if (res.pipeline_started) {
+            localStorage.setItem("sentimenta_pipeline_started", Date.now().toString());
+          }
+          router.replace("/dashboard");
+        })
+        .catch((err) => {
+          setError(err instanceof Error ? err.message : "Falha ao autenticar via login social.");
+          setSocialLoading(null);
+        });
       return;
     }
 
     if (oauthError) {
-      setError(`Falha no login social: ${oauthError}`);
+      setError(`Falha no login social: ${decodeURIComponent(oauthError)}`);
       window.history.replaceState({}, "", "/login");
     }
   }, [searchParams, router]);

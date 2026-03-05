@@ -82,6 +82,17 @@ export const authApi = {
   tiktokAuthUrl: () =>
     apiFetch<{ auth_url: string }>("/auth/tiktok/auth-url"),
 
+  exchangeOAuthCode: (code: string) =>
+    apiFetch<{
+      access_token: string;
+      refresh_token: string;
+      provider?: string;
+      pipeline_started?: boolean;
+    }>("/auth/exchange-code", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
+
   me: (token: string) =>
     apiFetch<{
       id: string;

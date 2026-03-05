@@ -340,6 +340,7 @@ export default function DashboardPage() {
   const [showPromptEditor, setShowPromptEditor] = useState(false);
   const [customPrompt, setCustomPrompt] = useState("");
   const [defaultPrompt, setDefaultPrompt] = useState("");
+  const [pipelineBanner, setPipelineBanner] = useState(false);
   const HEALTH_CACHE_KEY = "sentimenta_latest_health_report";
 
   const loadData = useCallback(async () => {
@@ -403,6 +404,14 @@ export default function DashboardPage() {
       if (raw) {
         try { setHealth(JSON.parse(raw)); } catch { /* ignore */ }
       }
+      // Check if pipeline was just triggered after social login
+      const pipelineFlag = localStorage.getItem("sentimenta_pipeline_started");
+      if (pipelineFlag) {
+        localStorage.removeItem("sentimenta_pipeline_started");
+        setPipelineBanner(true);
+        // Auto-dismiss after 30 seconds
+        setTimeout(() => setPipelineBanner(false), 30000);
+      }
     }
     loadData();
     loadHealth();
@@ -460,6 +469,35 @@ export default function DashboardPage() {
       </header>
 
       <main className="p-4 sm:p-6 md:p-8 space-y-4 sm:space-y-6 max-w-screen-xl mx-auto">
+
+        {/* Pipeline started notification */}
+        <AnimatePresence>
+          {pipelineBanner && (
+            <motion.div
+              initial={{ opacity: 0, y: -12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              className="relative flex items-start gap-3 p-4 rounded-2xl bg-gradient-to-r from-violet-50 to-cyan-50 border border-violet-100 shadow-sm"
+            >
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-r from-brand-lilac to-brand-cyan flex items-center justify-center shrink-0 shadow-sm">
+                <span className="material-symbols-outlined text-white text-[18px]">hourglass_top</span>
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-slate-700">Seus dados estao sendo processados</p>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Estamos coletando e analisando seus posts e comentarios. Dependendo do volume, isso pode levar de <strong>5 a 15 minutos</strong>.
+                  Voce pode navegar normalmente — o dashboard sera atualizado automaticamente.
+                </p>
+              </div>
+              <button
+                onClick={() => setPipelineBanner(false)}
+                className="shrink-0 w-7 h-7 rounded-lg hover:bg-white/60 flex items-center justify-center text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                <span className="material-symbols-outlined text-[16px]">close</span>
+              </button>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Empty state */}
         {isEmpty && (

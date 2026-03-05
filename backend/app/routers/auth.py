@@ -1,9 +1,11 @@
 import logging
 import secrets
 from datetime import datetime, timezone, timedelta
+from urllib.parse import quote
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import RedirectResponse
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.cache import get_redis
@@ -106,6 +108,72 @@ async def logout(request: Request, current_user: User = Depends(get_current_user
 
 
 # ---------------------------------------------------------------------------
+# Helpers for secure OAuth redirects
+# ---------------------------------------------------------------------------
+def _safe_redirect_error(base_url: str, error_msg: str) -> RedirectResponse:
+    """Build a safe redirect with URL-encoded, truncated error message."""
+    safe_msg = quote(str(error_msg)[:150], safe="")
+    return RedirectResponse(url=f"{base_url}/login?error={safe_msg}")
+
+
+def _redis_get_str(r, key: str) -> str | None:
+    """Get a Redis key and ensure it's returned as str (handles bytes)."""
+    val = r.get(key)
+    if val is None:
+        return None
+    return val.decode() if isinstance(val, bytes) else val
+
+
+def _store_oauth_tokens(tokens: dict, provider: str, pipeline_started: bool) -> str:
+    """Store JWT tokens in Redis under a one-time code (120s TTL).
+    Returns the one-time code for the redirect URL."""
+    r = get_redis()
+    if not r:
+        raise ValueError("Redis unavailable for token storage")
+    code = secrets.token_urlsafe(48)
+    import json
+    payload = json.dumps({
+        "access_token": tokens["access_token"],
+        "refresh_token": tokens["refresh_token"],
+        "provider": provider,
+        "pipeline_started": pipeline_started,
+    })
+    r.setex(f"oauth_login_code:{code}", 120, payload)
+    return code
+
+
+class ExchangeCodeRequest(BaseModel):
+    code: str
+
+
+@router.post("/exchange-code")
+def exchange_oauth_code(data: ExchangeCodeRequest):
+    """Exchange a one-time OAuth login code for JWT tokens.
+    The code was stored in Redis during the OAuth callback."""
+    r = get_redis()
+    if not r:
+        raise HTTPException(status_code=503, detail="Redis unavailable")
+
+    import json
+    raw = _redis_get_str(r, f"oauth_login_code:{data.code}")
+    if not raw:
+        raise HTTPException(status_code=400, detail="Invalid or expired code")
+    r.delete(f"oauth_login_code:{data.code}")
+
+    try:
+        payload = json.loads(raw)
+    except (json.JSONDecodeError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid code payload")
+
+    return {
+        "access_token": payload["access_token"],
+        "refresh_token": payload["refresh_token"],
+        "provider": payload.get("provider"),
+        "pipeline_started": payload.get("pipeline_started", False),
+    }
+
+
+# ---------------------------------------------------------------------------
 # Instagram OAuth Login (no auth required — this IS the login)
 # ---------------------------------------------------------------------------
 @router.get("/instagram/auth-url")
@@ -132,25 +200,28 @@ async def instagram_login_callback(
     error_description: str = Query(None),
     db: Session = Depends(get_db),
 ):
-    """Instagram OAuth callback for social login — creates/finds user and redirects with JWT."""
+    """Instagram OAuth callback for social login — stores tokens via one-time code and redirects."""
     base_url = settings.APP_URL.rstrip("/")
 
     if error:
         logger.error("Instagram OAuth login error: %s - %s", error, error_description)
-        return RedirectResponse(url=f"{base_url}/login?error={error_description or error}")
+        return _safe_redirect_error(base_url, error_description or error)
 
     if not code:
-        return RedirectResponse(url=f"{base_url}/login?error=missing_code")
+        return _safe_redirect_error(base_url, "missing_code")
 
-    # Validate CSRF state
+    # Validate CSRF state (must be non-empty)
+    if not state or not state.strip():
+        return _safe_redirect_error(base_url, "missing_state")
+
     r = get_redis()
     if not r:
-        return RedirectResponse(url=f"{base_url}/login?error=server_error")
+        return _safe_redirect_error(base_url, "server_error")
 
-    stored = r.get(f"oauth_state:{state}")
+    stored = _redis_get_str(r, f"oauth_state:{state}")
     if not stored or stored != "instagram":
         logger.error("Instagram OAuth login: invalid state %s", state)
-        return RedirectResponse(url=f"{base_url}/login?error=invalid_state")
+        return _safe_redirect_error(base_url, "invalid_state")
     r.delete(f"oauth_state:{state}")
 
     try:
@@ -194,13 +265,24 @@ async def instagram_login_callback(
         )
 
         tokens = create_tokens(user)
-        return RedirectResponse(
-            url=f"{base_url}/login?provider=instagram&access_token={tokens['access_token']}&refresh_token={tokens['refresh_token']}"
-        )
+
+        # Auto-trigger data ingestion pipeline in background
+        pipeline_started = False
+        try:
+            from app.tasks.pipeline_tasks import task_full_pipeline
+            task_full_pipeline.delay(str(connection.id), str(user.id), max_posts=50, max_comments_per_post=100)
+            pipeline_started = True
+            logger.info("Auto-triggered pipeline for Instagram login user %s, connection %s", user.id, connection.id)
+        except Exception as exc:
+            logger.error("Failed to trigger pipeline after Instagram login: %s", exc)
+
+        # Store tokens in Redis via one-time code (never in URL)
+        login_code = _store_oauth_tokens(tokens, "instagram", pipeline_started)
+        return RedirectResponse(url=f"{base_url}/login?oauth_code={login_code}")
 
     except ValueError as e:
         logger.error("Instagram OAuth login failed: %s", e)
-        return RedirectResponse(url=f"{base_url}/login?error={str(e)[:200]}")
+        return _safe_redirect_error(base_url, str(e))
 
 
 # ---------------------------------------------------------------------------
@@ -232,25 +314,28 @@ async def tiktok_login_callback(
     error_description: str = Query(None),
     db: Session = Depends(get_db),
 ):
-    """TikTok OAuth callback for social login — creates/finds user and redirects with JWT."""
+    """TikTok OAuth callback for social login — stores tokens via one-time code and redirects."""
     base_url = settings.APP_URL.rstrip("/")
 
     if error:
         logger.error("TikTok OAuth login error: %s - %s", error, error_description)
-        return RedirectResponse(url=f"{base_url}/login?error={error_description or error}")
+        return _safe_redirect_error(base_url, error_description or error)
 
     if not code:
-        return RedirectResponse(url=f"{base_url}/login?error=missing_code")
+        return _safe_redirect_error(base_url, "missing_code")
 
-    # Validate CSRF state and retrieve code_verifier
+    # Validate CSRF state (must be non-empty)
+    if not state or not state.strip():
+        return _safe_redirect_error(base_url, "missing_state")
+
     r = get_redis()
     if not r:
-        return RedirectResponse(url=f"{base_url}/login?error=server_error")
+        return _safe_redirect_error(base_url, "server_error")
 
-    stored = r.get(f"oauth_state:{state}")
+    stored = _redis_get_str(r, f"oauth_state:{state}")
     if not stored or not stored.startswith("tiktok:"):
         logger.error("TikTok OAuth login: invalid state %s", state)
-        return RedirectResponse(url=f"{base_url}/login?error=invalid_state")
+        return _safe_redirect_error(base_url, "invalid_state")
     r.delete(f"oauth_state:{state}")
 
     code_verifier = stored.split(":", 1)[1]
@@ -268,6 +353,10 @@ async def tiktok_login_callback(
         # Fetch profile
         profile = await fetch_user_profile(access_token)
         open_id = token_data.get("open_id") or profile.get("open_id", "")
+
+        if not open_id:
+            raise ValueError("TikTok did not return a valid open_id")
+
         username = profile.get("username", "")
 
         profile_data = {
@@ -293,10 +382,21 @@ async def tiktok_login_callback(
         )
 
         tokens = create_tokens(user)
-        return RedirectResponse(
-            url=f"{base_url}/login?provider=tiktok&access_token={tokens['access_token']}&refresh_token={tokens['refresh_token']}"
-        )
+
+        # Auto-trigger data ingestion pipeline in background
+        pipeline_started = False
+        try:
+            from app.tasks.pipeline_tasks import task_full_pipeline
+            task_full_pipeline.delay(str(connection.id), str(user.id), max_posts=50, max_comments_per_post=100)
+            pipeline_started = True
+            logger.info("Auto-triggered pipeline for TikTok login user %s, connection %s", user.id, connection.id)
+        except Exception as exc:
+            logger.error("Failed to trigger pipeline after TikTok login: %s", exc)
+
+        # Store tokens in Redis via one-time code (never in URL)
+        login_code = _store_oauth_tokens(tokens, "tiktok", pipeline_started)
+        return RedirectResponse(url=f"{base_url}/login?oauth_code={login_code}")
 
     except ValueError as e:
         logger.error("TikTok OAuth login failed: %s", e)
-        return RedirectResponse(url=f"{base_url}/login?error={str(e)[:200]}")
+        return _safe_redirect_error(base_url, str(e))
