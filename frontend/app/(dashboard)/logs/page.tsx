@@ -7,7 +7,7 @@ import type { PipelineRun } from "@/lib/types";
 import { fmt, fmtDatetime, platformIcon } from "@/lib/helpers";
 
 const USD_TO_BRL = Number(process.env.NEXT_PUBLIC_USD_BRL ?? "5.00");
-const USD_PER_COMMENT_FALLBACK = 0.03 / 14;
+const USD_PER_COMMENT_APIFY = 0.50 / 1000; // $0.50 per 1K comments (Apify pricing)
 
 function calcDuration(started: string, ended: string | null) {
   if (!ended) return null;
@@ -24,7 +24,7 @@ function estimateRunCostUsd(run: PipelineRun) {
   const explicit = run.total_cost_usd ?? 0;
   if (explicit > 0) return explicit;
   const baseComments = run.comments_analyzed || run.comments_fetched || 0;
-  return baseComments * USD_PER_COMMENT_FALLBACK;
+  return baseComments * USD_PER_COMMENT_APIFY;
 }
 
 function fmtCostBRL(usd: number) {
@@ -60,6 +60,7 @@ function StatPill({ icon, label, value }: { icon: string; label: string; value: 
 
 function RunCard({ run, onRefresh }: { run: PipelineRun; onRefresh: () => void }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [logExpanded, setLogExpanded] = useState(false);
   const cfg = getStatusConfig(run.status);
   const duration = calcDuration(run.started_at, run.ended_at);
   const runCostUsd = estimateRunCostUsd(run);
@@ -127,8 +128,15 @@ function RunCard({ run, onRefresh }: { run: PipelineRun; onRefresh: () => void }
               <div className="w-2.5 h-2.5 rounded-full bg-emerald-400" />
             </div>
             <span className="text-slate-500 text-[10px]">sentimenta pipeline</span>
+            <button
+              onClick={() => setLogExpanded((p) => !p)}
+              className="ml-auto text-slate-500 hover:text-slate-300 transition-colors"
+              title={logExpanded ? "Recolher" : "Expandir"}
+            >
+              <span className="material-symbols-outlined text-[14px]">{logExpanded ? "unfold_less" : "unfold_more"}</span>
+            </button>
           </div>
-          <div className="max-h-32 overflow-y-auto space-y-1 scrollbar-thin">
+          <div className={`${logExpanded ? "max-h-96" : "max-h-32"} overflow-y-auto space-y-1 scrollbar-thin transition-all duration-300`}>
             {steps.map((step, i) => (
               <div key={i} className="flex items-start gap-2">
                 <span className="text-emerald-400 shrink-0">$</span>
@@ -152,7 +160,7 @@ function RunCard({ run, onRefresh }: { run: PipelineRun; onRefresh: () => void }
             Ver log de execução
           </summary>
           <div className="mt-2 bg-slate-900 rounded-xl p-4 font-mono text-xs">
-            <div className="max-h-32 overflow-y-auto space-y-1">
+            <div className={`${logExpanded ? "max-h-96" : "max-h-32"} overflow-y-auto space-y-1 transition-all duration-300`}>
               {steps.map((step, i) => (
                 <div key={i} className="flex items-start gap-2">
                   <span className="text-emerald-400 shrink-0">$</span>
@@ -160,6 +168,12 @@ function RunCard({ run, onRefresh }: { run: PipelineRun; onRefresh: () => void }
                 </div>
               ))}
             </div>
+            <button
+              onClick={() => setLogExpanded((p) => !p)}
+              className="mt-2 text-[10px] text-slate-500 hover:text-slate-300 transition-colors"
+            >
+              {logExpanded ? "Recolher" : "Expandir log"}
+            </button>
           </div>
         </details>
       )}
@@ -250,9 +264,19 @@ function SkeletonRun() {
   );
 }
 
+const RUN_TYPE_FILTERS = [
+  { key: "all", label: "Todos" },
+  { key: "full", label: "Full" },
+  { key: "ingest", label: "Ingest" },
+  { key: "daily_sync", label: "Daily" },
+] as const;
+
+type RunTypeFilter = (typeof RUN_TYPE_FILTERS)[number]["key"];
+
 export default function LogsPage() {
   const [runs, setRuns] = useState<PipelineRun[]>([]);
   const [loading, setLoading] = useState(true);
+  const [typeFilter, setTypeFilter] = useState<RunTypeFilter>("all");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const loadRuns = useCallback(async () => {
@@ -285,6 +309,7 @@ export default function LogsPage() {
   }, [runs, loadRuns]);
 
   const hasRunning = runs.some((r) => r.status === "running");
+  const filteredRuns = typeFilter === "all" ? runs : runs.filter((r) => r.run_type === typeFilter);
   const isEmpty = !loading && runs.length === 0;
 
   const totalRuns = runs.length;
@@ -334,6 +359,25 @@ export default function LogsPage() {
           </div>
         )}
 
+        {!loading && runs.length > 0 && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-400 font-light mr-1">Tipo:</span>
+            {RUN_TYPE_FILTERS.map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setTypeFilter(f.key)}
+                className={`text-xs px-3 py-1.5 rounded-full border transition-all font-medium ${
+                  typeFilter === f.key
+                    ? "bg-violet-50 text-violet-700 border-violet-200"
+                    : "bg-white text-slate-400 border-slate-100 hover:border-slate-200 hover:text-slate-600"
+                }`}
+              >
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
+
         {isEmpty && (
           <div className="flex flex-col items-center justify-center py-32 text-center">
             <div className="relative mb-8">
@@ -359,9 +403,15 @@ export default function LogsPage() {
 
         {!loading && runs.length > 0 && (
           <div className="space-y-4">
-            {runs.map((run) => (
-              <RunCard key={run.id} run={run} onRefresh={loadRuns} />
-            ))}
+            {filteredRuns.length === 0 ? (
+              <div className="text-center py-12 text-sm text-slate-400 font-light">
+                Nenhuma execução do tipo &ldquo;{typeFilter}&rdquo; encontrada.
+              </div>
+            ) : (
+              filteredRuns.map((run) => (
+                <RunCard key={run.id} run={run} onRefresh={loadRuns} />
+              ))
+            )}
           </div>
         )}
       </main>

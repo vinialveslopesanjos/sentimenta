@@ -265,7 +265,7 @@ export default function ConnectPage() {
                           <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-brand-cyanLight to-transparent rounded-bl-full opacity-50 pointer-events-none" />
                           <div className="flex items-center gap-2 mb-1">
                             {potentials[p.id].profile_pic_url ? (
-                              <img src={potentials[p.id].profile_pic_url} className="w-8 h-8 rounded-full shadow-sm" alt="Foto" />
+                              <img src={`/api/v1/posts/thumbnail?url=${encodeURIComponent(potentials[p.id].profile_pic_url)}`} className="w-8 h-8 rounded-full shadow-sm" alt="Foto" />
                             ) : (
                               <div className="w-8 h-8 rounded-full bg-slate-200" />
                             )}
@@ -375,7 +375,7 @@ export default function ConnectPage() {
                     <div>
                       <p className="text-xs font-medium text-slate-500 mb-2">Comentários por post</p>
                       <div className="flex gap-1.5 flex-wrap">
-                        {[{ label: "10", value: 10 }, { label: "100", value: 100 }, { label: "Todos (1000)", value: 1000 }].map(opt => (
+                        {[{ label: "50", value: 50 }, { label: "200", value: 200 }, { label: "Todos", value: 10000 }].map(opt => (
                           <button
                             key={opt.value}
                             onClick={() => updateSyncParams({ ...syncParams, max_comments_per_post: opt.value })}
@@ -385,6 +385,11 @@ export default function ConnectPage() {
                           </button>
                         ))}
                       </div>
+                      {syncParams.comment_sample_mode === "sample" && syncParams.max_comments_per_post < 10000 && (
+                        <p className="text-[10px] text-slate-400 mt-1.5 font-light">
+                          Com amostra inteligente, recomendamos &quot;Todos&quot; — o algoritmo calcula o tamanho ideal automaticamente.
+                        </p>
+                      )}
                     </div>
                     {/* A partir de */}
                     <div>
@@ -403,6 +408,35 @@ export default function ConnectPage() {
                       )}
                     </div>
                   </div>
+                  {/* Modo de coleta */}
+                  <div className="border-t border-slate-100 pt-4">
+                    <p className="text-xs font-medium text-slate-500 mb-2">Modo de coleta</p>
+                    <div className="flex gap-1.5 flex-wrap">
+                      <button
+                        onClick={() => updateSyncParams({ ...syncParams, comment_sample_mode: "all" })}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors border ${syncParams.comment_sample_mode === "all" ? "bg-slate-800 text-white border-slate-800" : "bg-white text-slate-500 border-slate-200 hover:border-slate-400"}`}
+                      >
+                        Completa
+                      </button>
+                      <button
+                        onClick={() => updateSyncParams({ ...syncParams, comment_sample_mode: "sample" })}
+                        className={`px-3 py-1.5 rounded-xl text-xs font-medium transition-colors border ${syncParams.comment_sample_mode === "sample" ? "bg-brand-lilacDark text-white border-brand-lilacDark" : "bg-white text-slate-500 border-slate-200 hover:border-brand-lilac"}`}
+                      >
+                        Amostra inteligente
+                      </button>
+                    </div>
+                    {syncParams.comment_sample_mode === "sample" && (
+                      <p className="text-[10px] text-slate-400 mt-1.5 font-light">
+                        Coleta amostra representativa (80% confianca, 5% margem) priorizando comentários com mais engajamento.
+                      </p>
+                    )}
+                    {syncParams.comment_sample_mode === "all" && (
+                      <p className="text-[10px] text-slate-400 mt-1.5 font-light">
+                        Coleta todos os comentários disponíveis. Ideal para perfis com poucos comentários.
+                      </p>
+                    )}
+                  </div>
+
                   <div className="flex items-center justify-end">
                     <button
                       onClick={handleSyncAll}

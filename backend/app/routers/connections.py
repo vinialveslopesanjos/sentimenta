@@ -28,8 +28,10 @@ logger = logging.getLogger(__name__)
 
 class SyncRequest(BaseModel):
     max_posts: int = Field(10, ge=1, le=200)
-    max_comments_per_post: int = Field(100, ge=10, le=1000)
+    max_comments_per_post: int = Field(100, ge=10, le=10000)
     since_date: Optional[date] = None
+    use_apify_comments: bool = True
+    comment_sample_mode: str = Field("all", pattern=r"^(all|sample)$")
 
 router = APIRouter(prefix="/connections", tags=["connections"])
 
@@ -55,6 +57,16 @@ def check_profile(
         except:
             return 0
 
+    # Fetch profile pic via Apify (XPoz URLs are blocked by Instagram CORS)
+    profile_pic_url = prof.get("profilePicUrl")
+    try:
+        from app.services.apify_service import fetch_profile_pic_apify
+        apify_pic = fetch_profile_pic_apify(username)
+        if apify_pic:
+            profile_pic_url = apify_pic
+    except Exception:
+        pass  # Fall back to XPoz URL
+
     return {
         "platform_user_id": prof.get("id"),
         "username": prof.get("username", username),
@@ -65,7 +77,7 @@ def check_profile(
         "media_count": safe_int(prof.get("mediaCount")),
         "is_private": prof.get("isPrivate", "false").lower() == "true",
         "is_verified": prof.get("isVerified", "false").lower() == "true",
-        "profile_pic_url": prof.get("profilePicUrl")
+        "profile_pic_url": profile_pic_url,
     }
 
 
@@ -517,6 +529,10 @@ def trigger_sync(
         params.max_comments_per_post, plan_limits["max_comments_per_post"]
     )
 
+    # When using Apify comments, allow higher comment cap (Apify handles large volumes)
+    if params.use_apify_comments:
+        effective_max_comments = min(10000, plan_limits.get("max_comments_per_post", 10000))
+
     from app.tasks.pipeline_tasks import task_full_pipeline
 
     result = task_full_pipeline.delay(
@@ -525,6 +541,8 @@ def trigger_sync(
         max_posts=effective_max_posts,
         max_comments_per_post=effective_max_comments,
         since_date=since_date_str,
+        use_apify_comments=params.use_apify_comments,
+        comment_sample_mode=params.comment_sample_mode,
     )
 
     return SyncResponse(

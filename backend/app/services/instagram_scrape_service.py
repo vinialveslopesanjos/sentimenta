@@ -93,12 +93,31 @@ def create_instagram_connection(db: Session, user_id: str, username: str) -> Opt
         existing.followers_count = prof.get("followers", 0)
         existing.following_count = prof.get("following", 0)
         existing.media_count = prof.get("post_count", 0)
-        existing.profile_image_url = prof.get("profile_pic_url")
+        # Prefer Apify profile pic (fresher CDN URL, avoids CORS blocks)
+        profile_pic = prof.get("profile_pic_url")
+        try:
+            from app.services.apify_service import fetch_profile_pic_apify
+            apify_pic = fetch_profile_pic_apify(username)
+            if apify_pic:
+                profile_pic = apify_pic
+        except Exception:
+            pass
+        existing.profile_image_url = profile_pic
         existing.raw_profile_json = prof
         existing.status = "active"
         db.commit()
         db.refresh(existing)
         return existing
+
+    # Prefer Apify profile pic (fresher CDN URL, avoids CORS blocks)
+    profile_pic = prof.get("profile_pic_url")
+    try:
+        from app.services.apify_service import fetch_profile_pic_apify
+        apify_pic = fetch_profile_pic_apify(username)
+        if apify_pic:
+            profile_pic = apify_pic
+    except Exception:
+        pass
 
     conn = SocialConnection(
         user_id=user_id,
@@ -107,7 +126,7 @@ def create_instagram_connection(db: Session, user_id: str, username: str) -> Opt
         username=prof.get("username", username),
         display_name=prof.get("full_name") or prof.get("username", username),
         profile_url=f"https://instagram.com/{prof.get('username', username)}",
-        profile_image_url=prof.get("profile_pic_url"),
+        profile_image_url=profile_pic,
         followers_count=prof.get("followers", 0),
         following_count=prof.get("following", 0),
         media_count=prof.get("post_count", 0),

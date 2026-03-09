@@ -103,15 +103,16 @@ def ingest_instagram_profile(
     since_date: Optional[date] = None,
     progress_callback=None,
     step_callback=None,
+    use_apify_comments: bool = True,
+    comment_sample_mode: str = "all",
 ) -> dict:
     """
-    Incremental + parallel ingestion from Instagram.
+    Apify-first ingestion from Instagram.
 
-    1. Fetch post catalog from XPoz (1 API call)
-    2. Diff against DB — classify each post into SKIP / ENRICH_ONLY / NEEDS_COMMENTS
-    3. Fetch missing comments in parallel (3 workers)
-    4. Apify enrichment only for posts missing likes/views/thumbnails
-    5. Sync comment counts from real DB data
+    1. Fetch post catalog + metadata from Apify Instagram Scraper (1 API call)
+    2. Diff against DB — classify each post into SKIP / NEEDS_COMMENTS
+    3. Fetch comments via Apify Comment Scraper (1 run per post, parallel)
+    4. Sync comment counts from real DB data
     """
     username = connection.username
     followers = connection.followers_count or 0
@@ -126,18 +127,21 @@ def ingest_instagram_profile(
     }
 
     try:
-        # ── Phase 1: Fetch post catalog from XPoz ──────────────────────
-        _step("Buscando catálogo de posts via XPoz...")
-        posts_data = fetch_recent_posts(username, max_posts=max_posts, since_date=since_date)
-        _step(f"{len(posts_data)} posts no perfil")
+        # ── Phase 1: Fetch post catalog from Apify ─────────────────────
+        _step("Buscando catálogo de posts via Apify...")
+        from app.services.apify_service import fetch_posts_apify
+        posts_data = fetch_posts_apify(username, max_posts=max_posts, step_callback=_step)
 
-        # ── Phase 2: Diff DB vs XPoz ──────────────────────────────────
+        if not posts_data:
+            _step("Nenhum post encontrado via Apify")
+            return stats
+
+        # ── Phase 2: Diff DB vs Apify ─────────────────────────────────
         _step("Comparando com base de dados...")
-        existing_posts = {
-            p.platform_post_id: p
-            for p in db.query(Post).filter(Post.connection_id == connection.id).all()
-        }
-        # Pre-load comment counts per post in one query
+        all_db_posts = db.query(Post).filter(Post.connection_id == connection.id).all()
+        existing_posts = {p.platform_post_id: p for p in all_db_posts}
+        # Secondary lookup by post_url (handles migration from numeric IDs to shortcodes)
+        existing_by_url = {p.post_url: p for p in all_db_posts if p.post_url}
         comment_counts = dict(
             db.query(Comment.post_id, func.count(Comment.id))
             .filter(Comment.connection_id == connection.id)
@@ -145,46 +149,47 @@ def ingest_instagram_profile(
             .all()
         )
 
-        posts_need_comments = []   # (post_data, post_obj) — need XPoz comment fetch
-        posts_need_enrichment = [] # shortcodes for Apify
+        posts_need_comments = []  # (post_data, post_obj)
         skipped = 0
 
         for post_data in posts_data:
             pid = post_data["platform_post_id"]
-            existing = existing_posts.get(pid)
+            permalink = post_data.get("permalink")
+            # Match by platform_post_id first, then by post_url (migration support)
+            existing = existing_posts.get(pid) or (existing_by_url.get(permalink) if permalink else None)
 
             if existing:
-                # Update metadata that might be missing
-                if not existing.content_text and post_data.get("caption"):
-                    existing.content_text = post_data.get("caption") or ""
-                    existing.content_clean = post_data.get("caption") or ""
+                # Migrate platform_post_id from numeric to shortcode if needed
+                if existing.platform_post_id != pid:
+                    existing.platform_post_id = pid
+                # Always update metadata from Apify (most accurate source)
+                caption = post_data.get("caption") or ""
+                if caption:
+                    existing.content_text = caption
+                    existing.content_clean = caption
                 existing.post_type = post_data.get("post_type") or existing.post_type
-                new_likes = post_data.get("like_count", 0) or 0
-                new_comments = post_data.get("comment_count", 0) or 0
-                new_views = post_data.get("view_count", 0) or 0
-                if new_likes > 0:
-                    existing.like_count = new_likes
-                if new_comments > 0:
-                    existing.comment_count = new_comments
-                if new_views > 0:
-                    existing.view_count = new_views
-                if not existing.published_at:
-                    existing.published_at = _parse_timestamp(post_data.get("timestamp"))
+                existing.like_count = post_data.get("like_count", 0) or existing.like_count
+                existing.comment_count = post_data.get("comment_count", 0) or existing.comment_count
+                existing.view_count = post_data.get("view_count", 0) or existing.view_count
+                existing.published_at = _parse_timestamp(post_data.get("timestamp")) or existing.published_at
                 existing.post_url = post_data.get("permalink") or existing.post_url
+                media_url = post_data.get("media_url")
+                if media_url:
+                    existing.media_urls = {"url": media_url, "thumbnail_url": media_url}
+                    cache_remote_image(media_url)
+                existing.engagement_rate = _calc_engagement_rate(
+                    existing.like_count or 0, existing.comment_count or 0, 0, followers
+                )
                 existing.fetched_at = datetime.now(timezone.utc)
                 stats["posts_updated"] += 1
 
                 db_comment_count = comment_counts.get(existing.id, 0)
-
                 if db_comment_count == 0:
                     posts_need_comments.append((post_data, existing))
                 else:
                     skipped += 1
-
-                # Always enrich via Apify on re-sync (updates likes, views, thumbnails, timestamps)
-                posts_need_enrichment.append(pid)
             else:
-                # New post — create it
+                # New post
                 media_url = post_data.get("media_url")
                 _likes = post_data.get("like_count", 0) or 0
                 _comments = post_data.get("comment_count", 0) or 0
@@ -210,54 +215,22 @@ def ingest_instagram_profile(
                 db.flush()
                 stats["posts_fetched"] += 1
                 posts_need_comments.append((post_data, post))
-                posts_need_enrichment.append(pid)
+                if media_url:
+                    cache_remote_image(media_url)
 
         db.commit()
-        _step(f"Diff: {skipped} posts completos (skip), {len(posts_need_comments)} precisam comentários, {len(posts_need_enrichment)} precisam enrichment")
+        _step(f"Diff: {skipped} completos (skip), {len(posts_need_comments)} precisam comentários")
 
         if progress_callback:
             progress_callback(stats["posts_fetched"] + stats["posts_updated"], 0)
 
-        # ── Phase 3: XPoz comments + Apify enrichment IN PARALLEL ────
-        # Filter out posts with 0 comments (no point fetching)
-        posts_with_comments = [
-            (pd, po) for pd, po in posts_need_comments
-            if (pd.get("comment_count", 0) or 0) > 0
-        ]
-        posts_no_comments = len(posts_need_comments) - len(posts_with_comments)
-        if posts_no_comments > 0:
-            _step(f"Pulando {posts_no_comments} posts sem comentários")
-
-        # Run Apify enrichment and XPoz comments in parallel threads
-        from concurrent.futures import ThreadPoolExecutor as TPE, as_completed as ac
-
-        def _apify_thread():
-            """Apify runs with its own DB session (thread-safe)."""
-            from app.db.session import SessionLocal
-            apify_db = SessionLocal()
-            try:
-                _enrich_via_apify(apify_db, connection.id, posts_need_enrichment, followers, _step)
-            except Exception as e:
-                logger.error("Apify thread error: %s", e)
-                stats["errors"].append(f"Apify: {e}")
-            finally:
-                apify_db.close()
-
-        # Launch Apify in background thread while XPoz comments run
-        if posts_need_enrichment:
-            _step(f"Lançando Apify para {len(posts_need_enrichment)} posts em paralelo...")
-            from threading import Thread
-            apify_thread = Thread(target=_apify_thread, daemon=True)
-            apify_thread.start()
-        else:
-            apify_thread = None
-            _step("Nenhum post para enriquecer via Apify")
-
-        if posts_with_comments:
-            _step(f"Buscando comentários para {len(posts_with_comments)} posts ({PARALLEL_WORKERS} workers)...")
-            _fetch_comments_parallel(
-                db, connection, posts_with_comments,
+        # ── Phase 3: Fetch comments via Apify ──────────────────────────
+        if posts_need_comments:
+            _step(f"Buscando comentários via Apify para {len(posts_need_comments)} posts...")
+            _fetch_comments_apify_path(
+                db, connection, posts_need_comments,
                 max_comments=max_comments_per_post,
+                sample_mode=comment_sample_mode,
                 stats=stats,
                 step_callback=_step,
                 progress_callback=progress_callback,
@@ -265,16 +238,6 @@ def ingest_instagram_profile(
             db.commit()
         else:
             _step("Nenhum post precisa de comentários")
-
-        # Wait for Apify to finish
-        if apify_thread is not None:
-            _step("Aguardando Apify finalizar...")
-            apify_thread.join(timeout=660)
-            if apify_thread.is_alive():
-                _step("Apify: timeout após 10min")
-                stats["errors"].append("Apify timeout")
-            else:
-                _step("Apify finalizado")
 
         # ── Phase 5: Sync comment counts from real DB ─────────────────
         _sync_comment_counts(db, connection.id)
@@ -426,6 +389,112 @@ def _fetch_comments_parallel(
                 stats["posts_fetched"] + stats["posts_updated"],
                 stats["comments_fetched"] + stats["comments_updated"],
             )
+
+
+def _fetch_comments_apify_path(
+    db: Session,
+    connection: SocialConnection,
+    posts_need_comments: list,
+    max_comments: int = 10000,
+    sample_mode: str = "all",
+    stats: dict = None,
+    step_callback=None,
+    progress_callback=None,
+):
+    """Fetch comments via Apify comment actor and save to DB."""
+    from app.services.apify_service import fetch_comments_apify
+
+    _step = step_callback or (lambda msg: None)
+
+    # Build post URL -> post_obj mapping and comment counts for sampling
+    post_map: dict[str, object] = {}  # url -> post_obj
+    comment_counts: dict[str, int] = {}  # url -> estimated count
+
+    for post_data, post_obj in posts_need_comments:
+        shortcode = _media_id_to_shortcode(post_data["platform_post_id"])
+        url = post_data.get("permalink") or f"https://www.instagram.com/p/{shortcode}/"
+        post_map[url] = post_obj
+        comment_counts[url] = post_data.get("comment_count", 0) or 0
+
+    post_urls = list(post_map.keys())
+
+    # Fetch comments via Apify
+    comments_by_url = fetch_comments_apify(
+        post_urls=post_urls,
+        max_per_post=max_comments,
+        sample_mode=sample_mode,
+        comment_counts=comment_counts,
+        step_callback=_step,
+    )
+
+    # Apply smart sampling (top-liked reservation) when in sample mode
+    if sample_mode == "sample":
+        from app.services.apify_service import _apply_smart_sample
+        for url in comments_by_url:
+            population = comment_counts.get(url, len(comments_by_url[url]))
+            comments_by_url[url] = _apply_smart_sample(
+                comments_by_url[url], population
+            )
+
+    # Save comments to DB — accumulate ALL, commit once, then report progress.
+    # CRITICAL: Do NOT call _step() or progress_callback() while comments are
+    # pending in the session. Those callbacks trigger _append_step → db.commit()
+    # which, on failure, would db.rollback() ALL pending comments silently.
+    total_new = 0
+    for url, comments_data in comments_by_url.items():
+        post_obj = post_map.get(url)
+        if not post_obj or not comments_data:
+            continue
+
+        existing_ids = set(
+            row[0] for row in
+            db.query(Comment.platform_comment_id)
+            .filter(Comment.post_id == post_obj.id)
+            .all()
+        )
+
+        for cd in comments_data:
+            cid = str(cd.get("platform_comment_id", "")).strip()
+            if not cid or cid in existing_ids:
+                continue
+
+            text_original = (cd.get("text") or "").strip()
+            if not text_original:
+                continue
+            text_hash = hashlib.sha256(text_original.encode("utf-8")).hexdigest()
+
+            comment = Comment(
+                post_id=post_obj.id,
+                connection_id=connection.id,
+                platform="instagram",
+                platform_comment_id=cid,
+                source_type="comment",
+                author_username=cd.get("username"),
+                author_name=cd.get("username"),
+                like_count=cd.get("like_count", 0) or 0,
+                published_at=_parse_timestamp(cd.get("timestamp")) or post_obj.published_at,
+                text_original=text_original,
+                text_clean=text_original,
+                text_hash=text_hash,
+                status="pending",
+                raw_payload=cd,
+            )
+            db.add(comment)
+            total_new += 1
+            stats["comments_fetched"] += 1
+
+    # Commit ALL comments in one transaction (no step/progress interference)
+    if total_new > 0:
+        db.commit()
+        logger.info("Apify comments: committed %d new comments to DB", total_new)
+
+    # ONLY AFTER successful commit: report progress
+    _step(f"Apify: {total_new} comentários novos salvos")
+    if progress_callback:
+        progress_callback(
+            stats["posts_fetched"] + stats["posts_updated"],
+            stats["comments_fetched"] + stats["comments_updated"],
+        )
 
 
 def _enrich_via_apify(db, connection_id, platform_post_ids, followers, step_callback):

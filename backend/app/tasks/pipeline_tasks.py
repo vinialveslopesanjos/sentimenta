@@ -32,7 +32,8 @@ def _append_step(db, run, message: str):
     run.notes = json.dumps(notes, ensure_ascii=False)
     try:
         db.commit()
-    except Exception:
+    except Exception as exc:
+        logger.error("_append_step commit failed (msg=%s): %s", message, exc)
         db.rollback()
 
 
@@ -45,7 +46,7 @@ def _run_async(coro):
         loop.close()
 
 
-def _do_ingest(db, connection, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None, progress_callback=None, step_callback=None) -> dict:
+def _do_ingest(db, connection, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None, progress_callback=None, step_callback=None, use_apify_comments: bool = False, comment_sample_mode: str = "all") -> dict:
     """Core ingest logic without creating a PipelineRun. Used by both task_ingest and task_full_pipeline."""
     if connection.platform == "youtube":
         from app.services.youtube_service import ingest_youtube_channel
@@ -62,7 +63,7 @@ def _do_ingest(db, connection, max_posts: int = 10, max_comments_per_post: int =
         else:
             from app.services.instagram_ingest_service import ingest_instagram_profile
             logger.info("Using XPoz/Apify for @%s (no OAuth token)", connection.username)
-            return ingest_instagram_profile(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since, progress_callback=progress_callback, step_callback=step_callback)
+            return ingest_instagram_profile(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since, progress_callback=progress_callback, step_callback=step_callback, use_apify_comments=use_apify_comments, comment_sample_mode=comment_sample_mode)
     elif connection.platform == "twitter":
         from app.services.twitter_service import ingest_twitter_profile
         return ingest_twitter_profile(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post)
@@ -71,7 +72,7 @@ def _do_ingest(db, connection, max_posts: int = 10, max_comments_per_post: int =
 
 
 @celery_app.task(bind=True)
-def task_ingest(self, connection_id: str, user_id: str, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None) -> dict:
+def task_ingest(self, connection_id: str, user_id: str, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None, use_apify_comments: bool = False, comment_sample_mode: str = "all") -> dict:
     """Ingest data from a social media platform (standalone task with its own PipelineRun)."""
     db = SessionLocal()
     try:
@@ -98,11 +99,15 @@ def task_ingest(self, connection_id: str, user_id: str, max_posts: int = 10, max
             run.comments_fetched = comments_done
             try:
                 db.commit()
-            except Exception:
-                db.rollback()
+            except Exception as exc:
+                logger.error("update_progress commit failed: %s", exc)
+                try:
+                    db.rollback()
+                except Exception:
+                    pass
 
         try:
-            result = _do_ingest(db, connection, max_posts, max_comments_per_post, since_date, progress_callback=update_progress)
+            result = _do_ingest(db, connection, max_posts, max_comments_per_post, since_date, progress_callback=update_progress, use_apify_comments=use_apify_comments, comment_sample_mode=comment_sample_mode)
 
             if "error" in result:
                 run.status = "failed"
@@ -156,7 +161,7 @@ def task_analyze(self, post_id: str, user_id: str) -> dict:
 
 
 @celery_app.task(bind=True)
-def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None) -> dict:
+def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None, use_apify_comments: bool = False, comment_sample_mode: str = "all") -> dict:
     """Run the full pipeline: ingest + analyze for all posts."""
     db = SessionLocal()
     try:
@@ -192,14 +197,18 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
             else:
                 try:
                     db.commit()
-                except Exception:
-                    db.rollback()
+                except Exception as exc:
+                    logger.error("update_progress commit failed: %s", exc)
+                    try:
+                        db.rollback()
+                    except Exception:
+                        pass
 
         def step_cb(msg):
             _append_step(db, run, msg)
 
         _append_step(db, run, "Iniciando extração de dados...")
-        ingest_result = _do_ingest(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since_date, progress_callback=update_progress, step_callback=step_cb)
+        ingest_result = _do_ingest(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since_date, progress_callback=update_progress, step_callback=step_cb, use_apify_comments=use_apify_comments, comment_sample_mode=comment_sample_mode)
         if "error" in ingest_result:
             run.status = "failed"
             _append_step(db, run, f"Erro: {ingest_result['error']}")

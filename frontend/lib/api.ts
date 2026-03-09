@@ -13,10 +13,34 @@ const API_URL = "/api/v1";
 
 interface FetchOptions extends RequestInit {
   token?: string;
+  _retried?: boolean;
+}
+
+async function tryRefreshToken(): Promise<string | null> {
+  const { getRefreshToken, setTokens, clearTokens } = await import("./auth");
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return null;
+
+  try {
+    const res = await fetch(`${API_URL}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!res.ok) {
+      clearTokens();
+      return null;
+    }
+    const data = await res.json();
+    setTokens(data.access_token, data.refresh_token);
+    return data.access_token;
+  } catch {
+    return null;
+  }
 }
 
 async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T> {
-  const { token, headers: customHeaders, ...rest } = options;
+  const { token, headers: customHeaders, _retried, ...rest } = options;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -38,6 +62,14 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
     } catch {
       const message = error instanceof Error ? error.message : "Failed to fetch";
       throw new Error(`Falha de conexão com API (${API_URL}). ${message}`);
+    }
+  }
+
+  // Auto-refresh: on 401, try to get a new access token and retry once
+  if (res.status === 401 && token && !_retried) {
+    const newToken = await tryRefreshToken();
+    if (newToken) {
+      return apiFetch<T>(path, { ...options, token: newToken, _retried: true });
     }
   }
 
@@ -178,7 +210,7 @@ export const connectionsApi = {
   sync: (
     token: string,
     connectionId: string,
-    params?: { max_posts?: number; max_comments_per_post?: number; since_date?: string }
+    params?: { max_posts?: number; max_comments_per_post?: number; since_date?: string; use_apify_comments?: boolean; comment_sample_mode?: string }
   ) =>
     apiFetch<{ connection_id: string; task_id: string; message: string }>(
       `/connections/${connectionId}/sync`,
