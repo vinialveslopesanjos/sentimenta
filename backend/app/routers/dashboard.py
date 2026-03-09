@@ -8,7 +8,7 @@ from sqlalchemy import func, case, cast, Date, select
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
-from app.core.cache import cached, invalidate_pattern
+from app.core.cache import cached, invalidate_pattern, get_redis
 from app.db.session import get_db
 from app.models.comment import Comment
 from app.models.analysis import CommentAnalysis, PostAnalysisSummary
@@ -785,10 +785,38 @@ def _build_health_report(db: Session, user_id, custom_prompt: str | None = None)
             "sentiment_distribution": sent,
         })
 
+    # Fetch 5 sample comments per sentiment (positive, neutral, negative)
+    conn_ids = [c.id for c in connections]
+    sample_comments = {"positive": [], "neutral": [], "negative": []}
+    sentiment_ranges = {
+        "positive": (7.0, 10.0),
+        "neutral": (4.0, 6.99),
+        "negative": (0.0, 3.99),
+    }
+    for sentiment, (lo, hi) in sentiment_ranges.items():
+        rows = (
+            db.query(Comment.text_clean, CommentAnalysis.score_0_10)
+            .join(CommentAnalysis, CommentAnalysis.comment_id == Comment.id)
+            .filter(
+                Comment.connection_id.in_(conn_ids),
+                Comment.status == "processed",
+                CommentAnalysis.score_0_10 >= lo,
+                CommentAnalysis.score_0_10 <= hi,
+            )
+            .order_by(CommentAnalysis.score_0_10.desc() if sentiment == "positive" else CommentAnalysis.score_0_10.asc())
+            .limit(5)
+            .all()
+        )
+        sample_comments[sentiment] = [
+            {"text": r.text_clean[:200], "score": r.score_0_10}
+            for r in rows
+        ]
+
     data_summary = {
         "platforms": platforms_data,
         "top_emotions": dict(all_emotions.most_common(7)),
         "top_topics": dict(all_topics.most_common(10)),
+        "sample_comments": sample_comments,
     }
 
     report_text = generate_health_report(data_summary, custom_prompt=custom_prompt)
@@ -800,12 +828,60 @@ def _build_health_report(db: Session, user_id, custom_prompt: str | None = None)
     }
 
 
+HEALTH_REPORT_TTL = 86400  # 24h cache — only regenerated on demand or new data
+
+
+def _count_analyzed(db: Session, user_id) -> int:
+    """Count total analyzed comments for a user (used to detect new data)."""
+    conn_ids = [
+        c.id for c in
+        db.query(SocialConnection.id).filter(SocialConnection.user_id == user_id).all()
+    ]
+    if not conn_ids:
+        return 0
+    return db.query(func.count(Comment.id)).filter(
+        Comment.connection_id.in_(conn_ids),
+        Comment.status == "processed",
+    ).scalar() or 0
+
+
 @router.get("/health-report")
 def get_health_report(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return _build_health_report(db, current_user.id)
+    """Return cached report only. Never generates a new one.
+    Includes has_new_data flag so frontend knows if refresh is worthwhile."""
+    import json as _json
+
+    cache_key = f"health_report:{current_user.id}"
+    r = get_redis()
+    cached_report = None
+
+    if r:
+        try:
+            cached_val = r.get(cache_key)
+            if cached_val:
+                cached_report = _json.loads(cached_val)
+        except Exception:
+            pass
+
+    if cached_report:
+        # Check if there's new data since last report
+        cached_analyzed = 0
+        for p in cached_report.get("data_summary", {}).get("platforms", []):
+            cached_analyzed += p.get("total_analyzed", 0)
+        current_analyzed = _count_analyzed(db, current_user.id)
+        cached_report["has_new_data"] = current_analyzed > cached_analyzed
+        return cached_report
+
+    # No cache — return empty so frontend shows "Gerar relatório" button
+    return {
+        "report_text": None,
+        "generated_at": None,
+        "data_summary": {},
+        "has_new_data": _count_analyzed(db, current_user.id) > 0,
+    }
 
 
 @router.post("/health-report")
@@ -814,7 +890,21 @@ def post_health_report(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return _build_health_report(db, current_user.id, custom_prompt=body.custom_prompt)
+    """Generate a fresh report (user clicked 'Gerar' or 'Atualizar')."""
+    import json as _json
+
+    result = _build_health_report(db, current_user.id, custom_prompt=body.custom_prompt)
+
+    r = get_redis()
+    if r and "indisponível" not in result.get("report_text", ""):
+        try:
+            cache_key = f"health_report:{current_user.id}"
+            r.setex(cache_key, HEALTH_REPORT_TTL, _json.dumps(result, default=str))
+        except Exception:
+            pass
+
+    result["has_new_data"] = False
+    return result
 
 
 @router.get("/health-report/prompt")

@@ -179,7 +179,8 @@ export interface TrendsDetailedResponse {
 // --- Health Report ---
 
 export interface HealthReport {
-  report_text: string;
-  generated_at: string;
+  report_text: string | null;
+  generated_at: string | null;
   data_summary: Record<string, unknown>;
+  has_new_data?: boolean;
 }

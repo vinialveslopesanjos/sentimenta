@@ -267,7 +267,7 @@ function ConnectionCard({ conn, onSync }: { conn: Connection; onSync: (id: strin
       <div className="flex gap-2">
         <Link
           href={`/dashboard/connection/${conn.id}`}
-          className="flex-1 text-center py-2.5 rounded-xl bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white text-xs font-semibold hover:shadow-lg hover:shadow-violet-200 transition-all hover:-translate-y-px"
+          className="flex-1 text-center py-2.5 rounded-xl bg-slate-900 text-white hover:bg-slate-800 text-xs font-semibold transition-all hover:-translate-y-px"
         >
           Ver análise →
         </Link>
@@ -365,24 +365,43 @@ export default function DashboardPage() {
     }
   }, [trendGranularity, trendDays]);
 
+  // Check server cache (GET) — never generates a new report
+  const checkHealth = useCallback(async () => {
+    const token = getToken();
+    if (!token) return;
+    try {
+      const h = await dashboardApi.healthReport(token);
+      if (h.report_text) {
+        setHealth(h);
+        if (typeof window !== "undefined") {
+          localStorage.setItem(HEALTH_CACHE_KEY, JSON.stringify(h));
+        }
+      } else {
+        // No cached report — keep localStorage version if any, just update has_new_data
+        setHealth((prev) => prev ? { ...prev, has_new_data: h.has_new_data } : h);
+      }
+    } catch (error) {
+      console.error("Falha ao verificar relatório de saúde", error);
+    }
+  }, []);
+
+  // Generate fresh report (POST) — only called on user click
   const loadHealth = useCallback(async () => {
     const token = getToken();
     if (!token) return;
     setLoadingHealth(true);
     try {
-      const h = customPrompt && customPrompt !== defaultPrompt
-        ? await dashboardApi.healthReportWithPrompt(token, customPrompt)
-        : await dashboardApi.healthReport(token);
+      const h = await dashboardApi.healthReportWithPrompt(token, customPrompt || undefined);
       setHealth(h);
       if (typeof window !== "undefined") {
         localStorage.setItem(HEALTH_CACHE_KEY, JSON.stringify(h));
       }
     } catch (error) {
-      console.error("Falha ao carregar relatório de saúde", error);
+      console.error("Falha ao gerar relatório de saúde", error);
     } finally {
       setLoadingHealth(false);
     }
-  }, [customPrompt, defaultPrompt]);
+  }, [customPrompt]);
 
   const openPromptEditor = async () => {
     if (!defaultPrompt) {
@@ -418,8 +437,8 @@ export default function DashboardPage() {
       }
     }
     loadData();
-    loadHealth();
-  }, [loadData, loadHealth]);
+    checkHealth();
+  }, [loadData, checkHealth]);
 
   const handleSync = async (connectionId: string) => {
     const token = getToken();
@@ -465,7 +484,7 @@ export default function DashboardPage() {
           </Link>
           <Link
             href="/connect"
-            className="px-4 py-2 rounded-full bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white text-sm font-semibold shadow-sm hover:shadow-lg hover:shadow-violet-200 transition-all hover:-translate-y-px"
+            className="px-4 py-2 rounded-full bg-slate-900 text-white text-sm font-semibold shadow-sm hover:bg-slate-800 transition-all hover:-translate-y-px"
           >
             <span className="sm:hidden">+</span><span className="hidden sm:inline">+ Conectar</span>
           </Link>
@@ -512,7 +531,7 @@ export default function DashboardPage() {
             <h2 className="text-2xl font-sans font-bold text-slate-700 mb-3">Conecte seu primeiro perfil</h2>
             <p className="text-slate-400 font-light mb-8 max-w-sm">Adicione Instagram ou YouTube para começar a analisar seus comentários com IA.</p>
             <div className="flex gap-4">
-              <Link href="/connect" className="px-6 py-3 rounded-2xl bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white font-medium text-sm shadow-float hover:shadow-glow hover:scale-105 transition-all">
+              <Link href="/connect" className="px-6 py-3 rounded-2xl bg-slate-900 text-white font-medium text-sm shadow-float hover:bg-slate-800 hover:scale-105 transition-all">
                 Conectar Instagram
               </Link>
               <Link href="/connect" className="px-6 py-3 rounded-2xl bg-white text-slate-600 font-medium text-sm border border-slate-200 hover:border-brand-lilac transition-all">
@@ -524,7 +543,7 @@ export default function DashboardPage() {
 
         {!isEmpty && (
           <>
-            {/* ── HERO: Score + Narrative ── */}
+            {/* ── 1. HERO: Score + Narrative ── */}
             <div className="dream-card p-8 md:p-10 animate-fade-in-up-1">
               <p className="text-xs font-bold text-slate-300 uppercase tracking-widest mb-4">Reputação Geral</p>
               <div className="flex flex-col sm:flex-row items-center sm:items-start gap-6">
@@ -579,50 +598,7 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* ── Health Report (IA) ── */}
-            <div className="dream-card p-6 md:p-8 relative overflow-hidden animate-fade-in-up-2">
-              <div className="absolute -left-10 -top-10 w-40 h-40 bg-cyan-100 rounded-full blur-3xl opacity-40 pointer-events-none" />
-              <div className="relative z-10">
-                <div className="flex items-center justify-between mb-5">
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-brand-lilac to-brand-cyan flex items-center justify-center text-white shadow-sm">
-                      <span className="material-symbols-outlined text-[16px]">auto_awesome</span>
-                    </div>
-                    <h2 className="text-base font-sans font-bold text-slate-700">Diagnóstico de Reputação</h2>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={openPromptEditor}
-                      className="text-xs text-slate-400 hover:text-brand-lilacDark transition-colors flex items-center gap-1"
-                      title="Personalizar prompt"
-                    >
-                      <span className="material-symbols-outlined text-[14px]">edit_note</span>
-                    </button>
-                    <button
-                      onClick={loadHealth}
-                      disabled={loadingHealth}
-                      className="text-xs text-brand-lilacDark font-semibold hover:underline disabled:opacity-50 flex items-center gap-1"
-                    >
-                      {loadingHealth && <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-                      Atualizar
-                    </button>
-                  </div>
-                </div>
-                {health ? (
-                  <div className="prose prose-sm prose-slate max-w-none text-brand-text leading-relaxed">
-                    <p className="text-xs text-slate-400 font-light mb-3">Último relatório disponível.</p>
-                    <ReactMarkdown>{health.report_text}</ReactMarkdown>
-                  </div>
-                ) : (
-                  <div className="py-8 text-center text-slate-300">
-                    <span className="material-symbols-outlined text-[40px] block mb-3">auto_awesome</span>
-                    <p className="text-sm font-light">Clique em &quot;Atualizar&quot; para gerar um relatório com IA.</p>
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {/* ── KPIs compactos ── */}
+            {/* ── 2. KPIs compactos ── */}
             <div className="grid grid-cols-3 gap-2 sm:gap-5 animate-fade-in-up-2">
               {loading ? (
                 Array(3).fill(0).map((_, i) => (
@@ -645,7 +621,7 @@ export default function DashboardPage() {
                       <span className="material-symbols-outlined text-[20px]">{kpi.icon}</span>
                     </div>
                     <div>
-                      <p className="font-sans font-bold text-base sm:text-xl text-slate-800">{kpi.value}</p>
+                      <p className="font-sans font-bold text-2xl sm:text-3xl text-slate-800">{kpi.value}</p>
                       <p className="text-xs text-slate-400">{kpi.label}</p>
                       {(kpi as any).sub && <p className="text-[10px] text-slate-300">{(kpi as any).sub}</p>}
                     </div>
@@ -654,7 +630,7 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* ── Connections ── */}
+            {/* ── 3. Connections ── */}
             {!loading && (summary?.connections ?? []).length > 0 && (
               <div className="space-y-4 animate-fade-in-up-3">
                 <div className="flex items-center justify-between">
@@ -681,7 +657,7 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* ── Temporal distribution chart ── */}
+            {/* ── 4. Temporal distribution chart ── */}
             <div className="dream-card p-6 md:p-8 animate-fade-in-up-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
                 <div>
@@ -742,7 +718,34 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* ── Radar + WordCloud ── */}
+            {/* ── 5. Recent Posts ── */}
+            <div className="dream-card p-6">
+              <div className="flex items-center justify-between mb-5">
+                <h2 className="text-base font-sans font-bold text-slate-700">Posts Recentes</h2>
+                <Link href="/connect" className="text-xs text-brand-lilacDark font-semibold hover:underline">Ver tudo</Link>
+              </div>
+              <p className="text-xs text-slate-400 mb-3">Clique para ver a análise individual.</p>
+              {loading ? (
+                <div className="space-y-3">
+                  {Array(4).fill(0).map((_, i) => (
+                    <div key={i} className="h-14 bg-slate-50 rounded-2xl animate-pulse" />
+                  ))}
+                </div>
+              ) : (summary?.recent_posts ?? []).length === 0 ? (
+                <div className="py-10 text-center text-slate-300 text-sm font-light">
+                  <span className="material-symbols-outlined text-[36px] block mb-2 text-slate-200">article</span>
+                  Nenhum post analisado ainda
+                </div>
+              ) : (
+                <div className="space-y-1">
+                  {(summary?.recent_posts ?? []).slice(0, 5).map((post, i) => (
+                    <RecentPostItem key={post.id} post={post} index={i} />
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* ── 6. Radar + WordCloud ── */}
             {!loading && (summary?.total_analyzed ?? 0) > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 animate-fade-in-up-4">
                 <div className="dream-card p-6">
@@ -768,31 +771,64 @@ export default function DashboardPage() {
               </div>
             )}
 
-            {/* ── Recent Posts ── */}
-            <div className="dream-card p-6">
-              <div className="flex items-center justify-between mb-5">
-                <h2 className="text-base font-sans font-bold text-slate-700">Posts Recentes</h2>
-                <Link href="/connect" className="text-xs text-brand-lilacDark font-semibold hover:underline">Ver tudo</Link>
+            {/* ── 7. Health Report (IA) — collapsed when unavailable ── */}
+            <div className={`dream-card relative overflow-hidden animate-fade-in-up-4 ${health?.report_text ? "p-6 md:p-8" : "p-4"}`}>
+              <div className="absolute -left-10 -top-10 w-40 h-40 bg-cyan-100 rounded-full blur-3xl opacity-40 pointer-events-none" />
+              <div className="relative z-10">
+                <div className={`flex items-center justify-between ${health?.report_text ? "mb-5" : ""}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-brand-lilac to-brand-cyan flex items-center justify-center text-white shadow-sm">
+                      <span className="material-symbols-outlined text-[16px]">auto_awesome</span>
+                    </div>
+                    <h2 className="text-base font-sans font-bold text-slate-700">Diagnóstico de Reputação</h2>
+                    {health?.has_new_data && health?.report_text && (
+                      <span className="px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-700 text-[10px] font-bold animate-pulse">
+                        Novos dados
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {health?.report_text && (
+                      <button
+                        onClick={openPromptEditor}
+                        className="text-xs text-slate-400 hover:text-brand-lilacDark transition-colors flex items-center gap-1"
+                        title="Personalizar prompt"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">edit_note</span>
+                      </button>
+                    )}
+                    {health?.report_text ? (
+                      <button
+                        onClick={loadHealth}
+                        disabled={loadingHealth}
+                        className="text-xs text-brand-lilacDark font-semibold hover:underline disabled:opacity-50 flex items-center gap-1"
+                      >
+                        {loadingHealth && <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                        Atualizar
+                      </button>
+                    ) : (
+                      <button
+                        onClick={loadHealth}
+                        disabled={loadingHealth}
+                        className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-all disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        {loadingHealth && <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                        Gerar relatório
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {health?.report_text && (
+                  <div className="prose prose-sm prose-slate max-w-none text-brand-text leading-relaxed mt-5">
+                    <p className="text-xs text-slate-400 font-light mb-3">
+                      {health.generated_at
+                        ? `Gerado em ${new Date(health.generated_at).toLocaleString("pt-BR")}`
+                        : "Último relatório disponível."}
+                    </p>
+                    <ReactMarkdown>{health.report_text}</ReactMarkdown>
+                  </div>
+                )}
               </div>
-              <p className="text-xs text-slate-400 mb-3">Clique para ver a análise individual.</p>
-              {loading ? (
-                <div className="space-y-3">
-                  {Array(4).fill(0).map((_, i) => (
-                    <div key={i} className="h-14 bg-slate-50 rounded-2xl animate-pulse" />
-                  ))}
-                </div>
-              ) : (summary?.recent_posts ?? []).length === 0 ? (
-                <div className="py-10 text-center text-slate-300 text-sm font-light">
-                  <span className="material-symbols-outlined text-[36px] block mb-2 text-slate-200">article</span>
-                  Nenhum post analisado ainda
-                </div>
-              ) : (
-                <div className="space-y-1">
-                  {(summary?.recent_posts ?? []).slice(0, 5).map((post, i) => (
-                    <RecentPostItem key={post.id} post={post} index={i} />
-                  ))}
-                </div>
-              )}
             </div>
           </>
         )}
@@ -868,7 +904,7 @@ export default function DashboardPage() {
                       setShowPromptEditor(false);
                       loadHealth();
                     }}
-                    className="px-5 py-2 rounded-xl bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white text-xs font-bold shadow-sm hover:shadow-float transition-all"
+                    className="px-5 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800 text-xs font-bold shadow-sm transition-all"
                   >
                     Gerar com este prompt
                   </button>
