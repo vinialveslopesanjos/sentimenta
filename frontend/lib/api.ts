@@ -217,6 +217,12 @@ export const connectionsApi = {
       { method: "POST", token, body: params ? JSON.stringify(params) : undefined }
     ),
 
+  analyze: (token: string, connectionId: string) =>
+    apiFetch<{ connection_id: string; task_id: string; message: string }>(
+      `/connections/${connectionId}/analyze`,
+      { method: "POST", token }
+    ),
+
   delete: (token: string, connectionId: string) =>
     apiFetch(`/connections/${connectionId}`, { method: "DELETE", token }),
 };

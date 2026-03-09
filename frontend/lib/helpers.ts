@@ -75,6 +75,16 @@ export function formatDayLabel(period: string): string {
   return parsePeriod(period).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
+/** Granularity-aware tick formatter for chart x-axes. */
+export function formatTickLabel(period: string, granularity: string): string {
+  const d = parsePeriod(period);
+  if (granularity === "month") {
+    return d.toLocaleDateString("pt-BR", { month: "short", year: "2-digit" });
+  }
+  // day or week: "dd/MM"
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+}
+
 // ─── Relative time ──────────────────────────────────────────────────────────
 
 export function relativeTime(dateStr: string | null): string {

@@ -17,7 +17,9 @@ import { dashboardApi, connectionsApi, authApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import type { DashboardSummary, TrendResponse, HealthReport, Connection, PostSummary } from "@/lib/types";
 import { loadSyncSettings, toSyncPayload } from "@/lib/syncSettings";
-import { scoreColor, scoreLabel, parsePeriod, formatMonthYear, formatDayLabel } from "@/lib/helpers";
+import { scoreColor, scoreLabel, parsePeriod, formatDayLabel, formatTickLabel } from "@/lib/helpers";
+import SentimentRadar from "@/components/charts/SentimentRadar";
+import WordCloudChart from "@/components/charts/WordCloudChart";
 
 const API_URL = "/api/v1";
 
@@ -132,7 +134,7 @@ function ScoreDonut({ score }: { score: number | null }) {
   );
 }
 
-function SentimentBarChart({ data }: { data: TrendResponse | null }) {
+function SentimentBarChart({ data, granularity }: { data: TrendResponse | null; granularity: string }) {
   if (!data || data.data_points.length === 0) {
     return (
       <div className="h-56 flex items-center justify-center text-slate-200">
@@ -141,7 +143,7 @@ function SentimentBarChart({ data }: { data: TrendResponse | null }) {
     );
   }
 
-  const pts = data.data_points.slice(-24).map((p) => ({
+  const pts = data.data_points.map((p) => ({
     period: p.period,
     positive: p.positive,
     neutral: p.neutral,
@@ -172,7 +174,7 @@ function SentimentBarChart({ data }: { data: TrendResponse | null }) {
             dataKey="period"
             minTickGap={40}
             tick={{ fill: "#94a3b8", fontSize: 11 }}
-            tickFormatter={(period: string) => formatMonthYear(period)}
+            tickFormatter={(period: string) => formatTickLabel(period, granularity)}
             axisLine={false}
             tickLine={false}
           />
@@ -341,6 +343,8 @@ export default function DashboardPage() {
   const [customPrompt, setCustomPrompt] = useState("");
   const [defaultPrompt, setDefaultPrompt] = useState("");
   const [pipelineBanner, setPipelineBanner] = useState(false);
+  const [trendGranularity, setTrendGranularity] = useState("day");
+  const [trendDays, setTrendDays] = useState(30);
   const HEALTH_CACHE_KEY = "sentimenta_latest_health_report";
 
   const loadData = useCallback(async () => {
@@ -349,17 +353,17 @@ export default function DashboardPage() {
     try {
       const [s, t] = await Promise.all([
         dashboardApi.summary(token),
-        dashboardApi.trends(token, { granularity: "day", days: 30 }),
+        dashboardApi.trends(token, { granularity: trendGranularity, days: trendDays }),
       ]);
       setSummary(s);
       setTrends(t);
     } catch (error) {
       console.error("Falha ao carregar dashboard", error);
-      setTrends({ data_points: [], granularity: "day" });
+      setTrends({ data_points: [], granularity: trendGranularity });
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [trendGranularity, trendDays]);
 
   const loadHealth = useCallback(async () => {
     const token = getToken();
@@ -679,16 +683,57 @@ export default function DashboardPage() {
 
             {/* ── Temporal distribution chart ── */}
             <div className="dream-card p-6 md:p-8 animate-fade-in-up-4">
-              <div className="flex items-center justify-between mb-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
                 <div>
                   <h2 className="text-base font-sans font-bold text-slate-700">Distribuição Temporal</h2>
-                  <p className="text-xs text-slate-400 font-light mt-0.5">Comentários por sentimento — 30 dias</p>
+                  <p className="text-xs text-slate-400 font-light mt-0.5">Comentários por sentimento</p>
+                </div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <div className="flex rounded-xl border border-slate-100 overflow-hidden text-sm shrink-0">
+                    {[
+                      { label: "30d", value: 30 },
+                      { label: "90d", value: 90 },
+                      { label: "1a", value: 365 },
+                      { label: "Tudo", value: 0 },
+                    ].map((p) => (
+                      <button
+                        key={p.value}
+                        onClick={() => setTrendDays(p.value)}
+                        className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                          trendDays === p.value
+                            ? "bg-brand-lilac text-white"
+                            : "text-slate-400 hover:text-slate-600"
+                        }`}
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex rounded-xl border border-slate-100 overflow-hidden text-sm shrink-0">
+                    {[
+                      { label: "Dia", value: "day" },
+                      { label: "Semana", value: "week" },
+                      { label: "Mês", value: "month" },
+                    ].map((g) => (
+                      <button
+                        key={g.value}
+                        onClick={() => setTrendGranularity(g.value)}
+                        className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                          trendGranularity === g.value
+                            ? "bg-brand-lilacDark text-white"
+                            : "text-slate-400 hover:text-slate-600"
+                        }`}
+                      >
+                        {g.label}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
               {loading ? (
                 <div className="h-48 bg-slate-50 rounded-2xl animate-pulse" />
               ) : (
-                <SentimentBarChart data={trends} />
+                <SentimentBarChart data={trends} granularity={trendGranularity} />
               )}
               <div className="flex items-center gap-4 text-[11px] text-slate-500 mt-3">
                 <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-emerald-400" />Positivo</span>
@@ -696,6 +741,32 @@ export default function DashboardPage() {
                 <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-rose-400" />Negativo</span>
               </div>
             </div>
+
+            {/* ── Radar + WordCloud ── */}
+            {!loading && (summary?.total_analyzed ?? 0) > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 animate-fade-in-up-4">
+                <div className="dream-card p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-7 h-7 rounded-lg bg-violet-50 text-brand-lilacDark flex items-center justify-center">
+                      <span className="material-symbols-outlined text-[16px]">radar</span>
+                    </div>
+                    <h2 className="text-base font-sans font-bold text-slate-700">Radar de Emocoes</h2>
+                  </div>
+                  <p className="text-xs text-slate-400 font-light mb-2">Emocoes predominantes em todas as redes</p>
+                  <SentimentRadar distribution={summary?.emotions_distribution ?? null} height={260} />
+                </div>
+                <div className="dream-card p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-7 h-7 rounded-lg bg-cyan-50 text-brand-cyanDark flex items-center justify-center">
+                      <span className="material-symbols-outlined text-[16px]">cloud</span>
+                    </div>
+                    <h2 className="text-base font-sans font-bold text-slate-700">Nuvem de Palavras</h2>
+                  </div>
+                  <p className="text-xs text-slate-400 font-light mb-2">Palavras mais faladas nos comentarios</p>
+                  <WordCloudChart topics={summary?.word_frequency ?? null} maxWords={20} height={260} />
+                </div>
+              </div>
+            )}
 
             {/* ── Recent Posts ── */}
             <div className="dream-card p-6">

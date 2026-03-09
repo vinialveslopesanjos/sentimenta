@@ -550,3 +550,32 @@ def trigger_sync(
         task_id=result.id,
         message=f"Sync started for {conn.platform}:{conn.username}",
     )
+
+
+@router.post("/{connection_id}/analyze", response_model=SyncResponse)
+def trigger_analyze(
+    connection_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Analyze-only: run sentiment analysis on existing pending comments (no ingestion)."""
+    conn = (
+        db.query(SocialConnection)
+        .filter(
+            SocialConnection.id == connection_id,
+            SocialConnection.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not conn:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    from app.tasks.pipeline_tasks import task_analyze_connection
+
+    result = task_analyze_connection.delay(str(connection_id), str(current_user.id))
+
+    return SyncResponse(
+        connection_id=connection_id,
+        task_id=result.id,
+        message=f"Analysis started for {conn.platform}:{conn.username}",
+    )

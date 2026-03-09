@@ -7,6 +7,7 @@ to work with PostgreSQL models.
 
 import math
 import sys
+import time
 import uuid
 import logging
 import json
@@ -36,7 +37,7 @@ def _analysis_exists_expression(
         db.query(CommentAnalysis.id)
         .filter(
             CommentAnalysis.comment_id == Comment.id,
-            CommentAnalysis.model == settings.GEMINI_MODEL,
+            CommentAnalysis.model == settings.LLM_MODEL,
             CommentAnalysis.prompt_version == prompt_version,
         )
         .exists()
@@ -46,7 +47,7 @@ def _analysis_exists_expression(
 def analyze_post_comments(
     db: Session,
     post_id: uuid.UUID,
-    batch_size: int = 30,
+    batch_size: int = 50,
     prompt_version: str = "v1",
 ) -> dict:
     """Analyze pending comments for a post, skipping already-analyzed rows."""
@@ -93,10 +94,7 @@ def analyze_post_comments(
         db.commit()
         return {"analyzed": 0, "errors": 0, "llm_calls": 0}
 
-    llm = LLMClient(
-        api_key=settings.GEMINI_API_KEY,
-        model=settings.GEMINI_MODEL,
-    )
+    llm = LLMClient()
 
     stats = {"analyzed": 0, "errors": 0, "llm_calls": 0}
 
@@ -118,6 +116,8 @@ def analyze_post_comments(
                         post.image_context = generated_context
                         db.commit()
                         logger.info("Visual context successfully generated and saved.")
+                        # Delay after image API call to respect Gemini rate limits
+                        time.sleep(5)
                     else:
                         logger.warning("Failed to generate useful visual context: %s", generated_context)
                 except Exception as e:
@@ -151,6 +151,11 @@ def analyze_post_comments(
         batch_num = i // batch_size + 1
         total_batches = math.ceil(len(pending) / batch_size)
 
+        # Rate limit protection: small delay between batches
+        # OpenRouter handles 200+ RPM — 1s gap is more than enough
+        if batch_num > 1:
+            time.sleep(1)
+
         logger.info(
             "Processing batch %d/%d (%d comments)",
             batch_num,
@@ -174,13 +179,14 @@ def analyze_post_comments(
             for result in results:
                 comment_uuid = uuid.UUID(result["comment_id"])
                 confidence = result.get("confidence")
-                is_error = confidence in (None, 0)
+                # A real analysis always has a score; error results have score=None
+                is_error = result.get("score_0_10") is None
 
                 existing_analysis = (
                     db.query(CommentAnalysis)
                     .filter(
                         CommentAnalysis.comment_id == comment_uuid,
-                        CommentAnalysis.model == settings.GEMINI_MODEL,
+                        CommentAnalysis.model == settings.LLM_MODEL,
                         CommentAnalysis.prompt_version == prompt_version,
                     )
                     .first()
@@ -191,7 +197,7 @@ def analyze_post_comments(
                 else:
                     analysis = CommentAnalysis(
                         comment_id=comment_uuid,
-                        model=settings.GEMINI_MODEL,
+                        model=settings.LLM_MODEL,
                         prompt_version=prompt_version,
                     )
                     db.add(analysis)
@@ -247,7 +253,7 @@ def generate_post_summary(
         .join(Comment, Comment.id == CommentAnalysis.comment_id)
         .filter(
             Comment.post_id == post_id,
-            CommentAnalysis.model == settings.GEMINI_MODEL,
+            CommentAnalysis.model == settings.LLM_MODEL,
             CommentAnalysis.prompt_version == prompt_version,
         )
     )

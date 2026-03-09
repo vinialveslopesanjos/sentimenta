@@ -21,6 +21,48 @@ router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 import re
 
+_STOPWORDS_PT = frozenset({
+    "de", "da", "do", "das", "dos", "a", "o", "as", "os", "e", "em", "na", "no",
+    "nas", "nos", "um", "uma", "uns", "umas", "para", "por", "com", "sem",
+    "que", "se", "mais", "menos", "muito", "pouco", "bem", "mal", "ja", "ainda",
+    "tambem", "como", "mas", "ou", "nem", "nao", "sim", "ao", "aos", "pela",
+    "pelo", "pelas", "pelos", "entre", "sobre", "ate", "isso", "isto", "esse",
+    "essa", "este", "esta", "esses", "essas", "estes", "estas", "aquele", "aquela",
+    "ele", "ela", "eles", "elas", "eu", "tu", "voce", "nos", "vos", "meu", "minha",
+    "seu", "sua", "nosso", "nossa", "ter", "ser", "estar", "fazer", "ir", "ver",
+    "vai", "vou", "foi", "sao", "tem", "tao", "tava", "era", "sou", "eh",
+    "pra", "pro", "vc", "vcs", "tb", "tbm", "q", "ne", "hj", "ai", "la",
+    "aqui", "ali", "assim", "depois", "antes", "agora", "onde", "quando",
+    "porque", "pq", "so", "todo", "toda", "todos", "todas", "cada", "outro",
+    "outra", "outros", "outras", "mesmo", "mesma", "nada", "tudo", "algo",
+    "gente", "coisa", "dia", "vez", "tipo", "acho", "pode", "quem", "ja",
+    "the", "and", "or", "is", "are", "was", "were", "in", "on", "at", "to", "for",
+    "of", "with", "from", "by", "it", "this", "that", "these", "those", "an",
+    "you", "your", "my", "me", "we", "they", "them", "he", "she", "his", "her",
+    "not", "but", "so", "if", "be", "has", "have", "had", "will", "can", "do",
+    "did", "would", "should", "could", "just", "very", "really", "too", "also",
+    "been", "being", "get", "got", "its", "than", "then", "when", "what", "how",
+    "all", "any", "each", "some", "no", "about", "up", "out", "into",
+})
+
+_WORD_RE = re.compile(r'[a-záàâãéèêíïóôõúüçñ]{3,}', re.IGNORECASE)
+
+
+def _compute_word_frequency(texts: list[str], limit: int = 30) -> dict[str, int] | None:
+    """Tokenize comment texts and return top word frequencies, filtering stopwords."""
+    if not texts:
+        return None
+    counter: Counter = Counter()
+    for text in texts:
+        words = _WORD_RE.findall(text.lower())
+        for w in words:
+            if w not in _STOPWORDS_PT and len(w) >= 3:
+                counter[w] += 1
+    if not counter:
+        return None
+    return dict(counter.most_common(limit))
+
+
 def _clean_post_text(text: str | None, max_len: int = 100) -> str | None:
     """Remove generic CTA prefixes and hashtags, return meaningful first sentence."""
     if not text:
@@ -106,6 +148,9 @@ def _build_dashboard_summary(user_id: str, db: Session) -> dict:
             "avg_score": None,
             "avg_polarity": None,
             "sentiment_distribution": None,
+            "emotions_distribution": None,
+            "topics_frequency": None,
+            "word_frequency": None,
             "recent_posts": [],
             "connections": [],
         }
@@ -189,6 +234,40 @@ def _build_dashboard_summary(user_id: str, db: Session) -> dict:
             "positive": positive,
         }
 
+    # Aggregate emotions & topics from PostAnalysisSummary
+    post_ids = [
+        row[0]
+        for row in db.query(Post.id).filter(Post.connection_id.in_(conn_ids)).all()
+    ]
+    emotions_agg = Counter()
+    topics_agg = Counter()
+    if post_ids:
+        summaries = (
+            db.query(PostAnalysisSummary)
+            .filter(PostAnalysisSummary.post_id.in_(post_ids))
+            .all()
+        )
+        for s in summaries:
+            if s.emotions_distribution:
+                for emo, cnt in s.emotions_distribution.items():
+                    emotions_agg[emo] += cnt
+            if s.topics_frequency:
+                for topic, cnt in s.topics_frequency.items():
+                    topics_agg[topic] += cnt
+
+    # Word frequency from comment texts
+    comment_texts = [
+        row[0]
+        for row in db.query(
+            func.coalesce(Comment.text_clean, Comment.text_original)
+        ).filter(
+            Comment.connection_id.in_(conn_ids),
+            Comment.status == "processed",
+        ).all()
+        if row[0]
+    ]
+    word_frequency = _compute_word_frequency(comment_texts, limit=30)
+
     recent_posts = (
         db.query(Post)
         .filter(Post.connection_id.in_(conn_ids))
@@ -205,6 +284,9 @@ def _build_dashboard_summary(user_id: str, db: Session) -> dict:
         "avg_score": avg_score,
         "avg_polarity": avg_polarity,
         "sentiment_distribution": sentiment_distribution,
+        "emotions_distribution": dict(emotions_agg.most_common(10)) if emotions_agg else None,
+        "topics_frequency": dict(topics_agg.most_common(20)) if topics_agg else None,
+        "word_frequency": word_frequency,
         "recent_posts": [
             {
                 "id": str(p.id),
@@ -325,6 +407,19 @@ def get_connection_dashboard(
                 for topic, cnt in s.topics_frequency.items():
                     topics_agg[topic] += cnt
 
+    # Word frequency from comment texts
+    conn_comment_texts = [
+        row[0]
+        for row in db.query(
+            func.coalesce(Comment.text_clean, Comment.text_original)
+        ).filter(
+            Comment.connection_id == connection_id,
+            Comment.status == "processed",
+        ).all()
+        if row[0]
+    ]
+    word_frequency = _compute_word_frequency(conn_comment_texts, limit=30)
+
     # Engagement totals
     engagement = {
         "total_likes": sum(p.like_count for p in posts),
@@ -384,6 +479,7 @@ def get_connection_dashboard(
         "sentiment_distribution": sentiment_distribution,
         "emotions_distribution": dict(emotions_agg.most_common(10)),
         "topics_frequency": dict(topics_agg.most_common(15)),
+        "word_frequency": word_frequency,
         "posts": posts_with_summary,
         "engagement_totals": engagement,
     }

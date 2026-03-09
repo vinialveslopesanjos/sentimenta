@@ -63,6 +63,9 @@ export interface DashboardSummary {
   avg_score: number | null;
   avg_polarity: number | null;
   sentiment_distribution: SentimentDistribution | null;
+  emotions_distribution: Record<string, number> | null;
+  topics_frequency: Record<string, number> | null;
+  word_frequency: Record<string, number> | null;
   recent_posts: PostSummary[];
   connections: Connection[];
 }
@@ -97,6 +100,7 @@ export interface ConnectionDashboard {
   sentiment_distribution: SentimentDistribution | null;
   emotions_distribution: Record<string, number> | null;
   topics_frequency: Record<string, number> | null;
+  word_frequency: Record<string, number> | null;
   posts: PostSummary[];
   engagement_totals: {
     total_likes: number;

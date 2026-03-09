@@ -17,9 +17,11 @@ import {
   Tooltip,
 } from "recharts";
 import SyncButton from "@/components/SyncButton";
+import SentimentRadar from "@/components/charts/SentimentRadar";
+import WordCloudChart from "@/components/charts/WordCloudChart";
 import { dashboardApi, connectionsApi, commentsApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
-import { scoreColor, scoreBg, fmt, fmtDate, parsePeriod, formatMonthYear, formatDayLabel, platformIcon } from "@/lib/helpers";
+import { scoreColor, scoreBg, fmt, fmtDate, parsePeriod, formatDayLabel, formatTickLabel, platformIcon } from "@/lib/helpers";
 import {
   DEFAULT_SYNC_SETTINGS,
   loadSyncSettings,
@@ -191,7 +193,7 @@ function TrendChart({ data, granularity }: { data: TrendResponse | null; granula
             dataKey="period"
             minTickGap={26}
             tick={{ fill: "#94A3B8", fontSize: 10 }}
-            tickFormatter={(period: string) => formatMonthYear(period)}
+            tickFormatter={(period: string) => formatTickLabel(period, granularity)}
             axisLine={false}
             tickLine={false}
           />
@@ -320,10 +322,12 @@ function StackedBarChart({
   periods,
   series,
   mode,
+  granularity = "month",
 }: {
   periods: string[];
   series: { key: string; label: string; color: string; values: number[] }[];
   mode: "absolute" | "pct";
+  granularity?: string;
 }) {
   if (periods.length === 0 || series.length === 0) {
     return (
@@ -360,7 +364,7 @@ function StackedBarChart({
             dataKey="period"
             minTickGap={60}
             tick={{ fill: "#94a3b8", fontSize: 10 }}
-            tickFormatter={(period: string) => formatMonthYear(period)}
+            tickFormatter={(period: string) => formatTickLabel(period, granularity)}
             axisLine={false}
             tickLine={false}
           />
@@ -398,7 +402,7 @@ function StackedBarChart({
   );
 }
 
-function MonthlyCommentsChart({ data }: { data: TrendResponse | null }) {
+function MonthlyCommentsChart({ data, granularity }: { data: TrendResponse | null; granularity: string }) {
   if (!data || data.data_points.length === 0) {
     return (
       <div className="h-44 flex items-center justify-center text-slate-200">
@@ -427,7 +431,7 @@ function MonthlyCommentsChart({ data }: { data: TrendResponse | null }) {
             dataKey="period"
             minTickGap={60}
             tick={{ fill: "#94a3b8", fontSize: 10 }}
-            tickFormatter={(period: string) => formatMonthYear(period)}
+            tickFormatter={(period: string) => formatTickLabel(period, granularity)}
             axisLine={false}
             tickLine={false}
           />
@@ -439,7 +443,7 @@ function MonthlyCommentsChart({ data }: { data: TrendResponse | null }) {
           />
           <Tooltip
             cursor={{ stroke: "#67E8F9", strokeDasharray: "4 4" }}
-            labelFormatter={(period: string) => formatMonthYear(period)}
+            labelFormatter={(period: string) => formatDayLabel(period)}
             formatter={(value: number) => [Math.round(value), "Comentários"]}
             contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
           />
@@ -603,12 +607,10 @@ export default function ConnectionPage() {
 
   const [data, setData] = useState<ConnectionDashboard | null>(null);
   const [trends, setTrends] = useState<TrendResponse | null>(null);
-  const [monthlyTrends, setMonthlyTrends] = useState<TrendResponse | null>(null);
   const [detailedTrends, setDetailedTrends] = useState<TrendsDetailedResponse | null>(null);
   const [comments, setComments] = useState<CommentListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [trendsLoading, setTrendsLoading] = useState(false);
-  const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [detailedLoading, setDetailedLoading] = useState(false);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -715,25 +717,6 @@ export default function ConnectionPage() {
     [id, trendDays]
   );
 
-  const loadMonthlyTrends = useCallback(async () => {
-    const token = getToken();
-    if (!token) return;
-    setMonthlyLoading(true);
-    try {
-      const t = await dashboardApi.trends(token, {
-        connection_id: id,
-        granularity: "month",
-        days: 3650,
-      });
-      setMonthlyTrends(t);
-    } catch (error) {
-      console.error("Falha ao carregar volume mensal", error);
-      setMonthlyTrends({ data_points: [], granularity: "month" });
-    } finally {
-      setMonthlyLoading(false);
-    }
-  }, [id]);
-
   const loadComments = useCallback(
     async (q: { search: string; sentiment: string; offset: number }) => {
       const token = getToken();
@@ -764,7 +747,6 @@ export default function ConnectionPage() {
     setSyncParams(loadSyncSettings());
     loadMain();
     loadTrends(granularity);
-    loadMonthlyTrends();
     loadDetailedTrends(granularity);
     loadComments({ search, sentiment, offset });
   }, [loadMain, trendDays]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -805,7 +787,6 @@ export default function ConnectionPage() {
       setTimeout(() => {
         loadMain();
         loadTrends(granularity);
-        loadMonthlyTrends();
         loadDetailedTrends(granularity);
         loadComments({ search, sentiment, offset });
         setSyncing(false);
@@ -963,7 +944,6 @@ export default function ConnectionPage() {
             onComplete={() => {
               loadMain();
               loadTrends(granularity);
-              loadMonthlyTrends();
               loadDetailedTrends(granularity);
               loadComments({ search, sentiment, offset });
             }}
@@ -1151,65 +1131,69 @@ export default function ConnectionPage() {
           )}
         </div>
 
-        {/* -- Monthly comments chart -- */}
-        <div className="dream-card p-6 md:p-8">
-          <div className="flex items-center justify-between gap-4 mb-6">
-            <div>
-              <h2 className="text-lg font-sans font-medium text-slate-700">Volume de Comentários</h2>
-              <p className="text-sm text-slate-400 font-light mt-0.5">Quantidade de comentários por mês</p>
-            </div>
-          </div>
-          {monthlyLoading ? (
-            <div className="h-56 bg-slate-50 rounded-2xl animate-pulse" />
-          ) : (
-            <MonthlyCommentsChart data={monthlyTrends} />
-          )}
-        </div>
-
-        {/* -- Trend chart -- */}
+        {/* -- Volume de Comentários (com seletores de período/granularidade) -- */}
         <div className="dream-card p-6 md:p-8">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
             <div>
+              <h2 className="text-lg font-sans font-medium text-slate-700">Volume de Comentários</h2>
+              <p className="text-sm text-slate-400 font-light mt-0.5">
+                Quantidade de comentários por {granularity === "day" ? "dia" : granularity === "week" ? "semana" : "mês"}
+              </p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex rounded-xl border border-slate-100 overflow-hidden text-sm shrink-0">
+                {[
+                  { label: "30d", value: 30 },
+                  { label: "90d", value: 90 },
+                  { label: "1a", value: 365 },
+                  { label: "Tudo", value: 0 },
+                ].map((p) => (
+                  <button
+                    key={p.value}
+                    onClick={() => setTrendDays(p.value)}
+                    className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                      trendDays === p.value
+                        ? "bg-brand-lilac text-white"
+                        : "text-slate-400 hover:text-slate-600"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex rounded-xl border border-slate-100 overflow-hidden text-sm shrink-0">
+                {[
+                  { label: "Dia", value: "day" },
+                  { label: "Semana", value: "week" },
+                  { label: "Mês", value: "month" },
+                ].map((g) => (
+                  <button
+                    key={g.value}
+                    onClick={() => handleGranularity(g.value)}
+                    className={`px-4 py-1.5 font-medium transition-colors ${granularity === g.value
+                      ? "bg-brand-lilacDark text-white"
+                      : "bg-white text-slate-400 hover:text-slate-600"
+                      }`}
+                  >
+                    {g.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          {trendsLoading ? (
+            <div className="h-56 bg-slate-50 rounded-2xl animate-pulse" />
+          ) : (
+            <MonthlyCommentsChart data={trends} granularity={granularity} />
+          )}
+        </div>
+
+        {/* -- Trend chart (Score) -- */}
+        <div className="dream-card p-6 md:p-8">
+          <div className="flex items-center justify-between gap-4 mb-6">
+            <div>
               <h2 className="text-lg font-sans font-medium text-slate-700">Tendência de Score</h2>
               <p className="text-sm text-slate-400 font-light mt-0.5">Score médio ao longo do tempo</p>
-            </div>
-            <div className="flex rounded-xl border border-slate-100 overflow-hidden text-sm shrink-0">
-              {[
-                { label: "30d", value: 30 },
-                { label: "90d", value: 90 },
-                { label: "1a", value: 365 },
-                { label: "Tudo", value: 0 },
-              ].map((p) => (
-                <button
-                  key={p.value}
-                  onClick={() => setTrendDays(p.value)}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                    trendDays === p.value
-                      ? "bg-brand-lilac text-white"
-                      : "text-slate-400 hover:text-slate-600"
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex rounded-xl border border-slate-100 overflow-hidden text-sm shrink-0">
-              {[
-                { label: "Dia", value: "day" },
-                { label: "Semana", value: "week" },
-                { label: "Mês", value: "month" },
-              ].map((g) => (
-                <button
-                  key={g.value}
-                  onClick={() => handleGranularity(g.value)}
-                  className={`px-4 py-1.5 font-medium transition-colors ${granularity === g.value
-                    ? "bg-brand-lilacDark text-white"
-                    : "bg-white text-slate-400 hover:text-slate-600"
-                    }`}
-                >
-                  {g.label}
-                </button>
-              ))}
             </div>
           </div>
           {trendsLoading ? (
@@ -1255,6 +1239,7 @@ export default function ConnectionPage() {
                     periods={temporalPeriods}
                     series={temporalSeries}
                     mode="absolute"
+                    granularity={granularity}
                   />
                 </div>
                 <div className="rounded-2xl border border-slate-100 p-3">
@@ -1263,6 +1248,7 @@ export default function ConnectionPage() {
                     periods={temporalPeriods}
                     series={temporalSeries}
                     mode="pct"
+                    granularity={granularity}
                   />
                 </div>
               </div>
@@ -1319,6 +1305,32 @@ export default function ConnectionPage() {
             )}
           </div>
         </div>
+
+        {/* -- Radar + WordCloud -- */}
+        {!loading && (data?.total_analyzed ?? 0) > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="dream-card p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-7 h-7 rounded-lg bg-violet-50 text-brand-lilacDark flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[16px]">radar</span>
+                </div>
+                <h2 className="text-base font-sans font-medium text-slate-700">Radar de Emocoes</h2>
+              </div>
+              <p className="text-xs text-slate-400 font-light mb-2">Perfil emocional desta rede</p>
+              <SentimentRadar distribution={data?.emotions_distribution ?? null} height={260} />
+            </div>
+            <div className="dream-card p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-7 h-7 rounded-lg bg-cyan-50 text-brand-cyanDark flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[16px]">cloud</span>
+                </div>
+                <h2 className="text-base font-sans font-medium text-slate-700">Nuvem de Palavras</h2>
+              </div>
+              <p className="text-xs text-slate-400 font-light mb-2">Palavras mais faladas nos comentarios</p>
+              <WordCloudChart topics={data?.word_frequency ?? null} maxWords={20} height={260} />
+            </div>
+          </div>
+        )}
 
         {/* -- Sentiment distribution + Engagement -- */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

@@ -161,6 +161,137 @@ def task_analyze(self, post_id: str, user_id: str) -> dict:
 
 
 @celery_app.task(bind=True)
+def task_analyze_connection(self, connection_id: str, user_id: str) -> dict:
+    """Analyze-only: run sentiment analysis on existing pending comments (no ingestion)."""
+    db = SessionLocal()
+    try:
+        from app.models.comment import Comment
+        from sqlalchemy import func as sa_func
+
+        conn_uuid = uuid.UUID(connection_id)
+        user_uuid = uuid.UUID(user_id)
+
+        connection = db.get(SocialConnection, conn_uuid)
+        if not connection:
+            return {"error": f"Connection {connection_id} not found"}
+
+        # Create pipeline run for tracking
+        run = PipelineRun(
+            user_id=user_uuid,
+            connection_id=conn_uuid,
+            run_type="analyze",
+            status="running",
+        )
+        run.celery_task_id = self.request.id
+        db.add(run)
+        db.commit()
+
+        def step_cb(msg):
+            _append_step(db, run, msg)
+
+        # Count pending comments
+        pending_count = (
+            db.query(sa_func.count(Comment.id))
+            .join(Post, Post.id == Comment.post_id)
+            .filter(Post.connection_id == conn_uuid, Comment.status.in_(["pending", "error"]))
+            .scalar()
+        )
+
+        # Reset error comments to pending for re-analysis
+        reset_count = (
+            db.query(Comment)
+            .filter(
+                Comment.connection_id == conn_uuid,
+                Comment.status == "error",
+            )
+            .update({"status": "pending", "last_error": None}, synchronize_session=False)
+        )
+        if reset_count > 0:
+            db.commit()
+            step_cb(f"{reset_count} comentários com erro resetados para re-análise")
+
+        step_cb(f"Iniciando análise de {pending_count} comentários pendentes...")
+
+        posts = db.query(Post).filter(Post.connection_id == conn_uuid).all()
+        run.posts_fetched = len(posts)
+        total_comments = (
+            db.query(sa_func.count(Comment.id))
+            .filter(Comment.connection_id == conn_uuid)
+            .scalar()
+        )
+        run.comments_fetched = total_comments
+        run.target_posts = len(posts)
+        run.target_comments = pending_count
+        db.commit()
+
+        from app.services.analysis_service import analyze_post_comments, generate_post_summary
+
+        total_analyzed = 0
+        total_llm_calls = 0
+        total_errors = 0
+
+        for idx, post in enumerate(posts, 1):
+            stats = analyze_post_comments(db, post.id)
+            analyzed = stats.get("analyzed", 0)
+            total_analyzed += analyzed
+            total_llm_calls += stats.get("llm_calls", 0)
+            total_errors += stats.get("errors", 0)
+
+            if analyzed > 0:
+                generate_post_summary(db, post.id)
+
+            run.comments_analyzed = total_analyzed
+            step_cb(f"Post {idx}/{len(posts)}: {analyzed} comentários analisados")
+
+        # Sync comment counts
+        post_counts = (
+            db.query(Post.id, sa_func.count(Comment.id))
+            .join(Comment, Comment.post_id == Post.id)
+            .filter(Post.connection_id == conn_uuid)
+            .group_by(Post.id)
+            .all()
+        )
+        for post_id, count in post_counts:
+            db.query(Post).filter(Post.id == post_id).update({"comment_count": count})
+        db.commit()
+
+        run.comments_analyzed = total_analyzed
+        run.llm_calls = total_llm_calls
+        run.errors_count = total_errors
+        run.status = "completed" if total_errors == 0 else "partial"
+        run.ended_at = datetime.now(timezone.utc)
+        step_cb(f"Análise concluída: {total_analyzed} comentários processados")
+
+        # Invalidate cache
+        try:
+            from app.core.cache import invalidate_pattern
+            invalidate_pattern("dashboard_summary")
+            invalidate_pattern("dashboard_trends")
+        except Exception:
+            pass
+
+        return {
+            "posts_fetched": len(posts),
+            "comments_fetched": total_comments,
+            "comments_analyzed": total_analyzed,
+            "llm_calls": total_llm_calls,
+            "errors": total_errors,
+        }
+
+    except Exception as e:
+        logger.exception("Analyze-only failed for connection %s", connection_id)
+        try:
+            run.status = "failed"
+            run.ended_at = datetime.now(timezone.utc)
+            _append_step(db, run, f"Erro: {str(e)[:200]}")
+        except Exception:
+            pass
+        return {"error": str(e)}
+    finally:
+        db.close()
+
+
+@celery_app.task(bind=True)
 def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None, use_apify_comments: bool = False, comment_sample_mode: str = "all") -> dict:
     """Run the full pipeline: ingest + analyze for all posts."""
     db = SessionLocal()

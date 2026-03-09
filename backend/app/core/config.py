@@ -65,7 +65,12 @@ class Settings(BaseSettings):
     # Apify (Instagram comments)
     APIFY_API_TOKEN: str = os.getenv("APIFY_API_TOKEN", "")
 
-    # Gemini LLM
+    # LLM (OpenRouter — OpenAI-compatible)
+    OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "google/gemini-2.0-flash-001")
+    LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1")
+
+    # Gemini direto (legado/backup)
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 

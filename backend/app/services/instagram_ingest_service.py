@@ -441,6 +441,7 @@ def _fetch_comments_apify_path(
     # pending in the session. Those callbacks trigger _append_step → db.commit()
     # which, on failure, would db.rollback() ALL pending comments silently.
     total_new = 0
+    seen_keys: set[tuple[str, str]] = set()  # (post_id, comment_id) — dedup within batch
     for url, comments_data in comments_by_url.items():
         post_obj = post_map.get(url)
         if not post_obj or not comments_data:
@@ -457,6 +458,11 @@ def _fetch_comments_apify_path(
             cid = str(cd.get("platform_comment_id", "")).strip()
             if not cid or cid in existing_ids:
                 continue
+            # Dedup within current batch (Apify may return same comment twice)
+            batch_key = (str(post_obj.id), cid)
+            if batch_key in seen_keys:
+                continue
+            seen_keys.add(batch_key)
 
             text_original = (cd.get("text") or "").strip()
             if not text_original:

@@ -13,6 +13,7 @@ from app.models.post import Post
 from app.models.social_connection import SocialConnection
 from app.models.user import User
 from app.services.media_cache_service import cache_remote_image
+from app.routers.dashboard import _compute_word_frequency
 from app.schemas.post import (
     AnalysisResponse,
     CommentResponse,
@@ -166,6 +167,14 @@ def get_post_detail(
         .filter(PostAnalysisSummary.post_id == post_id)
         .first()
     )
+    # Word frequency from comment texts for this post
+    post_comment_texts = [
+        (c.text_clean or c.text_original)
+        for c in comments
+        if c.status == "processed" and (c.text_clean or c.text_original)
+    ]
+    word_frequency = _compute_word_frequency(post_comment_texts, limit=25)
+
     summary = None
     if summary_row:
         summary = {
@@ -178,6 +187,7 @@ def get_post_detail(
             "emotions_distribution": summary_row.emotions_distribution,
             "topics_frequency": summary_row.topics_frequency,
             "sentiment_distribution": summary_row.sentiment_distribution,
+            "word_frequency": word_frequency,
         }
 
     return PostDetailResponse(

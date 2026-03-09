@@ -7,6 +7,8 @@ import { postsApi, commentsApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import type { CommentWithAnalysis, CommentListResponse } from "@/lib/types";
 import { scoreColor, scoreBg, fmt, fmtDatetime as fmtDate, platformIcon } from "@/lib/helpers";
+import SentimentRadar from "@/components/charts/SentimentRadar";
+import WordCloudChart from "@/components/charts/WordCloudChart";
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
@@ -277,6 +279,7 @@ export default function PostDetailPage() {
   // emotions & topics from summary if available
   const emotionsDist = (summaryAny?.emotions_distribution as Record<string, number> | null) ?? null;
   const topicsDist = (summaryAny?.topics_distribution as Record<string, number> | null) ?? null;
+  const wordFreq = (summaryAny?.word_frequency as Record<string, number> | null) ?? null;
 
   const emotionsList = emotionsDist
     ? Object.entries(emotionsDist)
@@ -530,6 +533,32 @@ export default function PostDetailPage() {
             )}
           </div>
         </div>
+
+        {/* ── Radar + WordCloud ── */}
+        {!loading && (summary?.total_analyzed ?? 0) > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="dream-card p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-7 h-7 rounded-lg bg-violet-50 text-brand-lilacDark flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[16px]">radar</span>
+                </div>
+                <h2 className="text-base font-sans font-medium text-slate-700">Radar de Emocoes</h2>
+              </div>
+              <p className="text-xs text-slate-400 font-light mb-2">Emocoes nos comentarios deste post</p>
+              <SentimentRadar distribution={emotionsDist} height={240} />
+            </div>
+            <div className="dream-card p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-7 h-7 rounded-lg bg-cyan-50 text-brand-cyanDark flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[16px]">cloud</span>
+                </div>
+                <h2 className="text-base font-sans font-medium text-slate-700">Nuvem de Palavras</h2>
+              </div>
+              <p className="text-xs text-slate-400 font-light mb-2">Palavras mais faladas nos comentarios</p>
+              <WordCloudChart topics={wordFreq} maxWords={15} height={240} />
+            </div>
+          </div>
+        )}
 
         {/* ── Comments section ── */}
         <div className="dream-card overflow-hidden">
