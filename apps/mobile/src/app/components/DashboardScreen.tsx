@@ -134,15 +134,6 @@ function ScoreHero({ score }: { score: number }) {
         </p>
         <div className="flex items-center gap-2 mt-2.5">
           <span
-            className="px-2.5 py-1 rounded-full text-emerald-600 bg-emerald-50"
-            style={{
-              fontSize: "11px",
-              fontWeight: 500,
-            }}
-          >
-            + 0.5 esta semana
-          </span>
-          <span
             className="px-2.5 py-1 rounded-full capitalize"
             style={{
               fontSize: "11px",
@@ -447,7 +438,7 @@ export function DashboardScreen() {
                     className="px-2.5 py-1 rounded-lg"
                     style={{ background: "rgba(196,181,253,0.12)" }}
                   >
-                    <span style={{ fontSize: "10px", fontWeight: 500, color: "#7C3AED" }}>30 dias</span>
+                    <span style={{ fontSize: "10px", fontWeight: 500, color: "#7C3AED" }}>12 meses</span>
                   </div>
                 </div>
 
