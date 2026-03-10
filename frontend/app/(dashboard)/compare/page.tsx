@@ -261,13 +261,13 @@ export default function ComparePage() {
                   </div>
                   <div className="grid grid-cols-2 gap-4">
                     <div>
-                      <p className="text-xs text-slate-400">Score Médio</p>
+                      <p className="text-xs text-slate-400">Score</p>
                       <p className={`text-3xl font-bold ${scoreColor(c.avg_score)}`}>
                         {c.avg_score != null ? `${c.avg_score.toFixed(1)}/10` : "—"}
                       </p>
                     </div>
                     <div>
-                      <p className="text-xs text-slate-400">Polaridade</p>
+                      <p className="text-xs text-slate-400">Positividade</p>
                       <p className="text-3xl font-bold text-slate-700">
                         {c.avg_polarity?.toFixed(2) ?? "—"}
                       </p>

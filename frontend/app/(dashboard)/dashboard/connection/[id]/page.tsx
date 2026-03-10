@@ -220,7 +220,7 @@ function TrendChart({ data, granularity }: { data: TrendResponse | null; granula
                 <div className="rounded-xl border border-slate-200 bg-white p-3 min-w-[180px]" style={{ boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
                   <p className="text-xs text-slate-400 mb-1">{formatDayLabel(point.period)} · {granularityLabel}</p>
                   <p className="text-sm font-semibold text-slate-700 mb-2">
-                    Score médio: {point.avg_score != null ? point.avg_score.toFixed(2) : "—"}
+                    Score: {point.avg_score != null ? point.avg_score.toFixed(2) : "—"}
                   </p>
                   <div className="space-y-1 text-xs text-slate-500">
                     <p>Total comentários: {point.total_comments}</p>
@@ -624,7 +624,7 @@ export default function ConnectionPage() {
   const [trendDays, setTrendDays] = useState(90);
 
   // temporal chart tabs
-  const [temporalTab, setTemporalTab] = useState<"sentiment" | "emotions" | "topics">("sentiment");
+  const [temporalTab, setTemporalTab] = useState<"volume" | "score" | "sentiment" | "emotions" | "topics">("volume");
 
   // comment filters
   const [search, setSearch] = useState("");
@@ -976,7 +976,7 @@ export default function ConnectionPage() {
               <button
                 onClick={handleSavePersona}
                 disabled={savingPersona || personaText.trim().length < 5}
-                className="px-4 py-2 rounded-lg bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white text-sm font-medium shadow-sm hover:shadow-float transition-all disabled:opacity-60"
+                className="px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 text-sm font-medium shadow-sm transition-all disabled:opacity-60"
               >
                 {savingPersona ? "Salvando..." : "Salvar Persona"}
               </button>
@@ -1073,264 +1073,54 @@ export default function ConnectionPage() {
           )}
         </AnimatePresence>
 
+        {/* -- Period subtitle -- */}
+        {!loading && dateRange && (
+          <p className="text-sm text-slate-400 font-light -mt-2">{dateRange}</p>
+        )}
+
         {/* -- KPI cards -- */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-2 sm:gap-4 md:gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 md:gap-6">
           {loading ? (
-            Array(6).fill(0).map((_, i) => <SkeletonKpi key={i} />)
+            Array(4).fill(0).map((_, i) => <SkeletonKpi key={i} />)
           ) : (
             <>
               <KpiCard
                 icon="favorite"
-                label="Score médio"
+                label="Score"
                 value={data?.avg_score != null ? `${data.avg_score.toFixed(1)}/10` : "—"}
-                sub="Score médio"
+                sub="Score"
                 iconBg="bg-violet-50 text-brand-lilacDark"
                 valueClass={scoreColor(data?.avg_score ?? null)}
                 tooltip="Média aritmética dos scores (0-10) de todos os comentários analisados. Acima de 7 = positivo, abaixo de 4 = negativo."
               />
               <KpiCard
-                icon="bar_chart_4_bars"
-                label="Taxa negativa"
-                value={`${negativeRate}%`}
-                sub="Comentários negativos"
-                iconBg="bg-cyan-50 text-brand-cyanDark"
-                valueClass={negativeRate >= 35 ? "text-rose-500" : negativeRate >= 20 ? "text-amber-500" : "text-emerald-600"}
-                tooltip="Percentual de comentários classificados como negativos no período. Ajuda a monitorar risco reputacional com mais clareza."
+                icon="thumb_up"
+                label="Positivos %"
+                value={dist ? `${posRate}%` : "—"}
+                sub={dist ? `${fmt(dist.positive)} comentários` : ""}
+                iconBg="bg-emerald-50 text-emerald-500"
+                tooltip="Percentual de comentários classificados como positivos (score > 6)."
               />
               <KpiCard
-                icon="sentiment_satisfied"
-                label="Menções positivas"
-                value={dist ? `${dist.positive}` : "—"}
-                sub={dist && distTotal > 0 ? `${Math.round((dist.positive / distTotal) * 100)}% do total` : ""}
-                iconBg="bg-emerald-50 text-emerald-500"
-                tooltip="Total de comentários classificados como positivos (score > 6)."
+                icon="thumb_down"
+                label="Negativos %"
+                value={`${negativeRate}%`}
+                sub={dist ? `${fmt(dist.negative)} comentários` : ""}
+                iconBg="bg-rose-50 text-rose-400"
+                valueClass={negativeRate >= 35 ? "text-rose-500" : negativeRate >= 20 ? "text-amber-500" : "text-emerald-600"}
+                tooltip="Percentual de comentários classificados como negativos no período."
               />
               <KpiCard
                 icon="forum"
-                label="Analisados"
+                label="Volume"
                 value={fmt(data?.total_analyzed ?? 0)}
                 sub={`de ${fmt(data?.total_comments ?? 0)} coletados`}
-                iconBg="bg-rose-50 text-rose-400"
+                iconBg="bg-cyan-50 text-brand-cyanDark"
                 tooltip="Comentários que foram analisados por IA. O restante está pendente de análise."
               />
-              <KpiCard
-                icon="date_range"
-                label="Período"
-                value={dateRange || "—"}
-                sub="Período monitorado"
-                iconBg="bg-indigo-50 text-indigo-500"
-              />
-              <KpiCard
-                icon="article"
-                label="Posts"
-                value={fmt(data?.total_posts ?? 0)}
-                sub={`${fmt(data?.total_analyzed ?? 0)} com análise`}
-                iconBg="bg-emerald-50 text-emerald-500"
-              />
             </>
           )}
         </div>
-
-        {/* -- Volume de Comentários (com seletores de período/granularidade) -- */}
-        <div className="dream-card p-6 md:p-8">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div>
-              <h2 className="text-lg font-sans font-medium text-slate-700">Volume de Comentários</h2>
-              <p className="text-sm text-slate-400 font-light mt-0.5">
-                Quantidade de comentários por {granularity === "day" ? "dia" : granularity === "week" ? "semana" : "mês"}
-              </p>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex rounded-xl border border-slate-100 overflow-hidden text-sm shrink-0">
-                {[
-                  { label: "30d", value: 30 },
-                  { label: "90d", value: 90 },
-                  { label: "1a", value: 365 },
-                  { label: "Tudo", value: 0 },
-                ].map((p) => (
-                  <button
-                    key={p.value}
-                    onClick={() => setTrendDays(p.value)}
-                    className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                      trendDays === p.value
-                        ? "bg-brand-lilac text-white"
-                        : "text-slate-400 hover:text-slate-600"
-                    }`}
-                  >
-                    {p.label}
-                  </button>
-                ))}
-              </div>
-              <div className="flex rounded-xl border border-slate-100 overflow-hidden text-sm shrink-0">
-                {[
-                  { label: "Dia", value: "day" },
-                  { label: "Semana", value: "week" },
-                  { label: "Mês", value: "month" },
-                ].map((g) => (
-                  <button
-                    key={g.value}
-                    onClick={() => handleGranularity(g.value)}
-                    className={`px-4 py-1.5 font-medium transition-colors ${granularity === g.value
-                      ? "bg-brand-lilacDark text-white"
-                      : "bg-white text-slate-400 hover:text-slate-600"
-                      }`}
-                  >
-                    {g.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-          {trendsLoading ? (
-            <div className="h-56 bg-slate-50 rounded-2xl animate-pulse" />
-          ) : (
-            <MonthlyCommentsChart data={trends} granularity={granularity} />
-          )}
-        </div>
-
-        {/* -- Trend chart (Score) -- */}
-        <div className="dream-card p-6 md:p-8">
-          <div className="flex items-center justify-between gap-4 mb-6">
-            <div>
-              <h2 className="text-lg font-sans font-medium text-slate-700">Tendência de Score</h2>
-              <p className="text-sm text-slate-400 font-light mt-0.5">Score médio ao longo do tempo</p>
-            </div>
-          </div>
-          {trendsLoading ? (
-            <div className="h-60 bg-slate-50 rounded-2xl animate-pulse" />
-          ) : (
-            <TrendChart data={trends} granularity={granularity} />
-          )}
-        </div>
-
-        {/* -- Análise Temporal -- */}
-        <div className="dream-card p-6 md:p-8">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div>
-              <h2 className="text-lg font-sans font-medium text-slate-700">Análise Temporal</h2>
-              <p className="text-sm text-slate-400 font-light mt-0.5">Distribuição por período</p>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex rounded-xl border border-slate-100 overflow-hidden text-xs">
-                {([
-                  { label: "Sentimento", value: "sentiment" as const },
-                  { label: "Emoções", value: "emotions" as const },
-                  { label: "Tópicos", value: "topics" as const },
-                ] as const).map((t) => (
-                  <button
-                    key={t.value}
-                    onClick={() => setTemporalTab(t.value)}
-                    className={`px-3 py-1.5 font-medium transition-colors ${temporalTab === t.value ? "bg-brand-lilacDark text-white" : "bg-white text-slate-400 hover:text-slate-600"}`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-          {trendsLoading || detailedLoading ? (
-            <div className="h-56 bg-slate-50 rounded-2xl animate-pulse" />
-          ) : (
-            <>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="rounded-2xl border border-slate-100 p-3">
-                  <p className="text-xs font-medium text-slate-500 mb-2">Intensidade absoluta</p>
-                  <StackedBarChart
-                    periods={temporalPeriods}
-                    series={temporalSeries}
-                    mode="absolute"
-                    granularity={granularity}
-                  />
-                </div>
-                <div className="rounded-2xl border border-slate-100 p-3">
-                  <p className="text-xs font-medium text-slate-500 mb-2">Distribuição 100%</p>
-                  <StackedBarChart
-                    periods={temporalPeriods}
-                    series={temporalSeries}
-                    mode="pct"
-                    granularity={granularity}
-                  />
-                </div>
-              </div>
-              {temporalSeries.length > 0 && (
-                <div className="flex flex-wrap gap-2 sm:gap-3 mt-3">
-                  {temporalSeries.map((s) => (
-                    <div key={s.key} className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: s.color }} />
-                      <span className="text-[10px] sm:text-xs text-slate-400 font-light capitalize">{s.label}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* -- Emotions + Topics -- */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="dream-card p-6">
-            <div className="flex items-center gap-2 mb-5">
-              <div className="w-7 h-7 rounded-lg bg-violet-50 text-brand-lilacDark flex items-center justify-center">
-                <span className="material-symbols-outlined text-[16px]">sentiment_satisfied</span>
-              </div>
-              <h2 className="text-base font-sans font-medium text-slate-700">Emoções</h2>
-              <span className="text-xs text-slate-300 font-light ml-1">top 7</span>
-            </div>
-            {loading ? (
-              <div className="space-y-3 animate-pulse">
-                {Array(5).fill(0).map((_, i) => (
-                  <div key={i} className="h-6 bg-slate-50 rounded-lg" />
-                ))}
-              </div>
-            ) : (
-              <HBarChart data={data?.emotions_distribution ? Object.fromEntries(Object.entries(data.emotions_distribution).map(([k, v]) => [`${EMOTION_EMOJI[k] || "📊"} ${k}`, v])) : null} palette="emotion" limit={7} />
-            )}
-          </div>
-          <div className="dream-card p-6">
-            <div className="flex items-center gap-2 mb-5">
-              <div className="w-7 h-7 rounded-lg bg-cyan-50 text-brand-cyanDark flex items-center justify-center">
-                <span className="material-symbols-outlined text-[16px]">label</span>
-              </div>
-              <h2 className="text-base font-sans font-medium text-slate-700">Tópicos</h2>
-              <span className="text-xs text-slate-300 font-light ml-1">top 10</span>
-            </div>
-            {loading ? (
-              <div className="space-y-3 animate-pulse">
-                {Array(6).fill(0).map((_, i) => (
-                  <div key={i} className="h-6 bg-slate-50 rounded-lg" />
-                ))}
-              </div>
-            ) : (
-              <HBarChart data={data?.topics_frequency ?? null} palette="topic" limit={10} />
-            )}
-          </div>
-        </div>
-
-        {/* -- Radar + WordCloud -- */}
-        {!loading && (data?.total_analyzed ?? 0) > 0 && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="dream-card p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-7 h-7 rounded-lg bg-violet-50 text-brand-lilacDark flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[16px]">radar</span>
-                </div>
-                <h2 className="text-base font-sans font-medium text-slate-700">Radar de Emocoes</h2>
-              </div>
-              <p className="text-xs text-slate-400 font-light mb-2">Perfil emocional desta rede</p>
-              <SentimentRadar distribution={data?.emotions_distribution ?? null} height={260} />
-            </div>
-            <div className="dream-card p-6">
-              <div className="flex items-center gap-2 mb-4">
-                <div className="w-7 h-7 rounded-lg bg-cyan-50 text-brand-cyanDark flex items-center justify-center">
-                  <span className="material-symbols-outlined text-[16px]">cloud</span>
-                </div>
-                <h2 className="text-base font-sans font-medium text-slate-700">Nuvem de Palavras</h2>
-              </div>
-              <p className="text-xs text-slate-400 font-light mb-2">Palavras mais faladas nos comentarios</p>
-              <WordCloudChart topics={data?.word_frequency ?? null} maxWords={20} height={260} />
-            </div>
-          </div>
-        )}
 
         {/* -- Sentiment distribution + Engagement -- */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -1393,6 +1183,139 @@ export default function ConnectionPage() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* -- Radar + WordCloud -- */}
+        {!loading && (data?.total_analyzed ?? 0) > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="dream-card p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-7 h-7 rounded-lg bg-violet-50 text-brand-lilacDark flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[16px]">radar</span>
+                </div>
+                <h2 className="text-base font-sans font-medium text-slate-700">Radar de Emocoes</h2>
+              </div>
+              <p className="text-xs text-slate-400 font-light mb-2">Perfil emocional desta rede</p>
+              <SentimentRadar distribution={data?.emotions_distribution ?? null} height={260} />
+            </div>
+            <div className="dream-card p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-7 h-7 rounded-lg bg-cyan-50 text-brand-cyanDark flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[16px]">cloud</span>
+                </div>
+                <h2 className="text-base font-sans font-medium text-slate-700">Nuvem de Palavras</h2>
+              </div>
+              <p className="text-xs text-slate-400 font-light mb-2">Palavras mais faladas nos comentarios</p>
+              <WordCloudChart topics={data?.word_frequency ?? null} maxWords={20} height={260} />
+            </div>
+          </div>
+        )}
+
+        {/* -- Análise Temporal (unified: Volume / Score / Sentimento / Emoções / Tópicos) -- */}
+        <div className="dream-card p-6 md:p-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-lg font-sans font-medium text-slate-700">Análise Temporal</h2>
+              <p className="text-sm text-slate-400 font-light mt-0.5">Distribuição por período</p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex rounded-xl border border-slate-100 overflow-hidden text-sm shrink-0">
+                {[
+                  { label: "30d", value: 30 },
+                  { label: "90d", value: 90 },
+                  { label: "1a", value: 365 },
+                  { label: "Tudo", value: 0 },
+                ].map((p) => (
+                  <button
+                    key={p.value}
+                    onClick={() => setTrendDays(p.value)}
+                    className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                      trendDays === p.value
+                        ? "bg-brand-lilac text-white"
+                        : "text-slate-400 hover:text-slate-600"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex rounded-xl border border-slate-100 overflow-hidden text-sm shrink-0">
+                {[
+                  { label: "Dia", value: "day" },
+                  { label: "Semana", value: "week" },
+                  { label: "Mês", value: "month" },
+                ].map((g) => (
+                  <button
+                    key={g.value}
+                    onClick={() => handleGranularity(g.value)}
+                    className={`px-4 py-1.5 font-medium transition-colors ${granularity === g.value
+                      ? "bg-brand-lilacDark text-white"
+                      : "bg-white text-slate-400 hover:text-slate-600"
+                      }`}
+                  >
+                    {g.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex rounded-xl border border-slate-100 overflow-hidden text-xs">
+                {([
+                  { label: "Volume", value: "volume" as const },
+                  { label: "Score", value: "score" as const },
+                  { label: "Sentimento", value: "sentiment" as const },
+                  { label: "Emoções", value: "emotions" as const },
+                  { label: "Tópicos", value: "topics" as const },
+                ] as const).map((t) => (
+                  <button
+                    key={t.value}
+                    onClick={() => setTemporalTab(t.value)}
+                    className={`px-3 py-1.5 font-medium transition-colors ${temporalTab === t.value ? "bg-brand-lilacDark text-white" : "bg-white text-slate-400 hover:text-slate-600"}`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          {trendsLoading || detailedLoading ? (
+            <div className="h-56 bg-slate-50 rounded-2xl animate-pulse" />
+          ) : temporalTab === "volume" ? (
+            <MonthlyCommentsChart data={trends} granularity={granularity} />
+          ) : temporalTab === "score" ? (
+            <TrendChart data={trends} granularity={granularity} />
+          ) : (
+            <>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="rounded-2xl border border-slate-100 p-3">
+                  <p className="text-xs font-medium text-slate-500 mb-2">Intensidade absoluta</p>
+                  <StackedBarChart
+                    periods={temporalPeriods}
+                    series={temporalSeries}
+                    mode="absolute"
+                    granularity={granularity}
+                  />
+                </div>
+                <div className="rounded-2xl border border-slate-100 p-3">
+                  <p className="text-xs font-medium text-slate-500 mb-2">Distribuição 100%</p>
+                  <StackedBarChart
+                    periods={temporalPeriods}
+                    series={temporalSeries}
+                    mode="pct"
+                    granularity={granularity}
+                  />
+                </div>
+              </div>
+              {temporalSeries.length > 0 && (
+                <div className="flex flex-wrap gap-2 sm:gap-3 mt-3">
+                  {temporalSeries.map((s) => (
+                    <div key={s.key} className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: s.color }} />
+                      <span className="text-[10px] sm:text-xs text-slate-400 font-light capitalize">{s.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {/* -- Posts list -- */}

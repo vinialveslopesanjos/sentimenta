@@ -300,7 +300,7 @@ export default function SettingsPage() {
               )}
 
               <div className="flex gap-3">
-                <button className="flex-1 px-4 py-2.5 bg-gradient-to-r from-brand-lilac to-brand-cyan text-white text-sm font-medium rounded-xl hover:opacity-90 transition-all shadow-dream">
+                <button className="flex-1 px-4 py-2.5 bg-slate-900 text-white hover:bg-slate-800 text-sm font-medium rounded-xl transition-all shadow-sm">
                   Fazer Upgrade
                 </button>
                 <button className="px-4 py-2.5 bg-white border border-slate-200 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50 transition-colors">

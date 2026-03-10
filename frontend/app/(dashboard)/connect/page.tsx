@@ -304,7 +304,7 @@ export default function ConnectPage() {
                         <button
                           onClick={() => handleConnect(p.id)}
                           disabled={connecting[p.id]}
-                          className="w-full py-2.5 rounded-xl bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white text-sm font-medium hover:shadow-float transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                          className="w-full py-2.5 rounded-xl bg-slate-900 text-white hover:bg-slate-800 text-sm font-medium transition-all shadow-sm disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                         >
                           {connecting[p.id] ? (
                             <><svg className="animate-spin h-4 w-4" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>Conectando...</>
@@ -440,7 +440,7 @@ export default function ConnectPage() {
                   <div className="flex items-center justify-end">
                     <button
                       onClick={handleSyncAll}
-                      className="px-4 py-2 rounded-xl bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white text-sm font-medium shadow-sm hover:shadow-float transition-all"
+                      className="px-4 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800 text-sm font-medium shadow-sm transition-all"
                     >
                       Adicionar novos dados
                     </button>

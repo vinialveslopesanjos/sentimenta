@@ -205,7 +205,13 @@ export function DashboardScreen() {
     return trendsData.data_points.map((dp) => {
       const total = dp.positive + dp.neutral + dp.negative || 1;
       return {
-        month: dp.period,
+        month: (() => {
+          try {
+            const d = new Date(dp.period);
+            if (!isNaN(d.getTime())) return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+          } catch {}
+          return dp.period.length > 5 ? dp.period.slice(5, 10).replace('-', '/') : dp.period;
+        })(),
         positivo: Math.round((dp.positive / total) * 100),
         neutro: Math.round((dp.neutral / total) * 100),
         negativo: Math.round((dp.negative / total) * 100),
@@ -284,7 +290,7 @@ export function DashboardScreen() {
                   className="absolute -right-12 -top-12 w-48 h-48 rounded-full blur-3xl"
                   style={{ background: "radial-gradient(circle, rgba(103,232,249,0.2) 0%, rgba(196,181,253,0.15) 60%, transparent 100%)" }}
                 />
-                <ScoreHero score={summary.avg_score ?? 0} />
+                <ScoreHero score={summary.avg_score ?? (summary as any).weighted_avg_score ?? 0} />
               </DreamCard>
             </motion.div>
 
@@ -371,11 +377,23 @@ export function DashboardScreen() {
                   >
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-white border border-slate-50 shadow-sm overflow-hidden flex-shrink-0">
-                        <img
-                          src={`/icons/${conn.platform === "twitter" ? "twitter-x" : conn.platform}.svg`}
-                          alt={conn.platform}
-                          className="w-6 h-6"
-                        />
+                        {conn.profile_image_url ? (
+                          <img
+                            src={`${import.meta.env.VITE_API_URL || "/api/v1"}/posts/thumbnail?url=${encodeURIComponent(conn.profile_image_url)}`}
+                            alt={conn.username}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = "none";
+                              (e.target as HTMLImageElement).parentElement!.innerHTML = `<img src="/icons/${conn.platform === "twitter" ? "twitter-x" : conn.platform}.svg" alt="${conn.platform}" class="w-6 h-6" />`;
+                            }}
+                          />
+                        ) : (
+                          <img
+                            src={`/icons/${conn.platform === "twitter" ? "twitter-x" : conn.platform}.svg`}
+                            alt={conn.platform}
+                            className="w-6 h-6"
+                          />
+                        )}
                       </div>
                       <div>
                         <p style={{ fontSize: "14px", fontWeight: 600, color: "#1E293B" }}>
@@ -459,7 +477,7 @@ export function DashboardScreen() {
                           <stop offset="95%" stopColor="#F472B6" stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#94A3B8" }} interval={1} />
+                      <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: "#94A3B8" }} interval="preserveStartEnd" angle={-35} textAnchor="end" height={35} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#94A3B8" }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
                       <Tooltip
                         contentStyle={{
@@ -625,6 +643,12 @@ export function DashboardScreen() {
                               : (post as any).media_urls;
                             if (Array.isArray(urls) && urls.length > 0) thumbUrl = urls[0];
                           } catch {}
+                          if (!thumbUrl && post.thumbnail_url) {
+                            const baseUrl = import.meta.env.VITE_API_URL || "/api/v1";
+                            thumbUrl = post.thumbnail_url.startsWith("http")
+                              ? `${baseUrl}/posts/thumbnail?url=${encodeURIComponent(post.thumbnail_url)}`
+                              : post.thumbnail_url;
+                          }
                           return thumbUrl ? (
                             <img
                               src={thumbUrl}

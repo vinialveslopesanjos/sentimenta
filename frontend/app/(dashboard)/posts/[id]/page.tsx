@@ -55,7 +55,7 @@ function KpiCard({
       <div className={`w-10 h-10 rounded-xl ${iconBg} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
         <span className="material-symbols-outlined text-[20px]">{icon}</span>
       </div>
-      <h3 className={`text-2xl font-sans font-semibold ${valueClass ?? "text-slate-700"}`}>{value}</h3>
+      <h3 className={`text-2xl sm:text-3xl font-bold ${valueClass ?? "text-slate-700"}`}>{value}</h3>
       <p className="text-xs text-slate-400 font-light mt-1">{label}</p>
     </div>
   );
@@ -414,32 +414,38 @@ export default function PostDetailPage() {
             Array(4).fill(0).map((_, i) => <SkeletonKpi key={i} />)
           ) : (
             <>
-              <KpiCard
-                icon="favorite"
-                label="Score médio"
-                value={avgScore != null ? `${avgScore.toFixed(1)}/10` : "—"}
-                iconBg="bg-violet-50 text-brand-lilacDark"
-                valueClass={scoreColor(avgScore)}
-              />
-              <KpiCard
-                icon="bar_chart_4_bars"
-                label="Score ponderado"
-                value={weightedScore != null ? `${weightedScore.toFixed(1)}/10` : "—"}
-                iconBg="bg-cyan-50 text-brand-cyanDark"
-                valueClass={scoreColor(weightedScore)}
-              />
+              {(weightedScore != null || avgScore != null) && (
+                <KpiCard
+                  icon="favorite"
+                  label="Score"
+                  value={weightedScore != null ? `${weightedScore.toFixed(1)}/10` : avgScore != null ? `${avgScore.toFixed(1)}/10` : "—"}
+                  iconBg="bg-violet-50 text-brand-lilacDark"
+                  valueClass={scoreColor(weightedScore ?? avgScore)}
+                />
+              )}
+              {avgPolarity != null && (
+                <KpiCard
+                  icon="ssid_chart"
+                  label="Positividade"
+                  value={avgPolarity.toFixed(2)}
+                  iconBg="bg-indigo-50 text-indigo-500"
+                />
+              )}
               <KpiCard
                 icon="check_circle"
                 label="Analisados"
                 value={fmt(summary?.total_analyzed ?? 0)}
                 iconBg="bg-emerald-50 text-emerald-500"
               />
-              <KpiCard
-                icon="ssid_chart"
-                label="Polaridade"
-                value={avgPolarity != null ? avgPolarity.toFixed(2) : "—"}
-                iconBg="bg-indigo-50 text-indigo-500"
-              />
+              {posRate > 0 && (
+                <KpiCard
+                  icon="thumb_up"
+                  label="Positivos"
+                  value={`${posRate}%`}
+                  iconBg="bg-emerald-50 text-emerald-500"
+                  valueClass="text-emerald-600"
+                />
+              )}
             </>
           )}
         </div>

@@ -34,6 +34,10 @@ import {
   YAxis,
   ResponsiveContainer,
   Tooltip,
+  RadarChart,
+  PolarGrid,
+  PolarAngleAxis,
+  Radar,
 } from "recharts";
 
 const EMOTION_PALETTE = [
@@ -72,13 +76,16 @@ export function ConnectionDetailScreen() {
   const [trendsDetailed, setTrendsDetailed] = useState<TrendsDetailedResponse | null>(null);
   const [comments, setComments] = useState<CommentWithAnalysis[]>([]);
 
+  const granularityMap: Record<string, string> = { Dia: "day", Semana: "week", Mes: "month" };
+
   useEffect(() => {
     if (!id) return;
     setLoading(true);
+    const granularity = granularityMap[scorePeriod];
     Promise.all([
       api.dashboard.connectionDashboard(id),
-      api.dashboard.trends({ connection_id: id }),
-      api.dashboard.trendsDetailed({ connection_id: id }),
+      api.dashboard.trends({ connection_id: id, granularity }),
+      api.dashboard.trendsDetailed({ connection_id: id, granularity }),
       api.comments.list({ connection_id: id, limit: 20 }),
     ])
       .then(([dashData, trendsData, detailedData, commentsData]) => {
@@ -89,7 +96,7 @@ export function ConnectionDetailScreen() {
       })
       .catch((err) => console.error("Failed to load connection data:", err))
       .finally(() => setLoading(false));
-  }, [id]);
+  }, [id, scorePeriod]);
 
   const handleAnalyze = () => {
     if (!id) return;
@@ -216,11 +223,23 @@ export function ConnectionDetailScreen() {
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-11 h-11 rounded-xl flex items-center justify-center bg-white border border-slate-50 shadow-sm overflow-hidden flex-shrink-0">
-              <img
-                src={`/icons/${conn.platform === "twitter" ? "twitter-x" : conn.platform}.svg`}
-                alt={conn.platform}
-                className="w-7 h-7"
-              />
+              {conn.profile_image_url ? (
+                <img
+                  src={`${import.meta.env.VITE_API_URL || "/api/v1"}/posts/thumbnail?url=${encodeURIComponent(conn.profile_image_url)}`}
+                  alt={conn.username}
+                  className="w-full h-full object-cover"
+                  onError={(e) => {
+                    (e.target as HTMLImageElement).style.display = "none";
+                    (e.target as HTMLImageElement).parentElement!.innerHTML = `<img src="/icons/${conn.platform === "twitter" ? "twitter-x" : conn.platform}.svg" alt="${conn.platform}" class="w-7 h-7" />`;
+                  }}
+                />
+              ) : (
+                <img
+                  src={`/icons/${conn.platform === "twitter" ? "twitter-x" : conn.platform}.svg`}
+                  alt={conn.platform}
+                  className="w-7 h-7"
+                />
+              )}
             </div>
             <div>
               <div className="flex items-center gap-2">
@@ -478,105 +497,118 @@ export function ConnectionDetailScreen() {
               </div>
             </div>
 
-            {/* Side by side charts */}
-            <div className="space-y-4">
-              <div>
-                <p className="text-slate-400 mb-2" style={{ fontSize: "10px", fontWeight: 500 }}>
-                  Intensidade absoluta
-                </p>
-                <div className="h-[120px]">
-                  <ResponsiveContainer width="99%" height="100%">
-                    <BarChart data={temporalData}>
-                      <XAxis
-                        dataKey="period"
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fontSize: 7, fill: "#94A3B8" }}
-                      />
-                      <YAxis
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fontSize: 7, fill: "#94A3B8" }}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: "white",
-                          border: "none",
-                          borderRadius: "12px",
-                          boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
-                          fontSize: "10px",
-                        }}
-                      />
-                      <Bar dataKey="positivo" stackId="a" fill="#34D399" radius={[0, 0, 0, 0]} />
-                      <Bar dataKey="neutro" stackId="a" fill="#FBBF24" radius={[0, 0, 0, 0]} />
-                      <Bar dataKey="negativo" stackId="a" fill="#F472B6" radius={[4, 4, 0, 0]} />
-                    </BarChart>
-                  </ResponsiveContainer>
+            {/* Tab content */}
+            {temporalView === "Sentimento" && (
+              <div className="space-y-4">
+                <div>
+                  <p className="text-slate-400 mb-2" style={{ fontSize: "10px", fontWeight: 500 }}>
+                    Intensidade absoluta
+                  </p>
+                  <div className="h-[120px]">
+                    <ResponsiveContainer width="99%" height="100%">
+                      <BarChart data={temporalData}>
+                        <XAxis dataKey="period" axisLine={false} tickLine={false} tick={{ fontSize: 7, fill: "#94A3B8" }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 7, fill: "#94A3B8" }} />
+                        <Tooltip contentStyle={{ background: "white", border: "none", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.06)", fontSize: "10px" }} />
+                        <Bar dataKey="positivo" stackId="a" fill="#34D399" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="neutro" stackId="a" fill="#FBBF24" radius={[0, 0, 0, 0]} />
+                        <Bar dataKey="negativo" stackId="a" fill="#F472B6" radius={[4, 4, 0, 0]} />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+                <div>
+                  <p className="text-slate-400 mb-2" style={{ fontSize: "10px", fontWeight: 500 }}>
+                    Distribuicao 100%
+                  </p>
+                  <div className="h-[120px]">
+                    <ResponsiveContainer width="99%" height="100%">
+                      <BarChart
+                        data={temporalData.map((d) => {
+                          const total = d.positivo + d.neutro + d.negativo;
+                          return {
+                            period: d.period,
+                            positivo: total > 0 ? Math.round((d.positivo / total) * 100) : 0,
+                            neutro: total > 0 ? Math.round((d.neutro / total) * 100) : 0,
+                            negativo: total > 0 ? Math.round((d.negativo / total) * 100) : 0,
+                          };
+                        })}
+                      >
+                        <XAxis dataKey="period" axisLine={false} tickLine={false} tick={{ fontSize: 7, fill: "#94A3B8" }} />
+                        <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 7, fill: "#94A3B8" }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                        <Tooltip contentStyle={{ background: "white", border: "none", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.06)", fontSize: "10px" }} />
+                        <Bar dataKey="positivo" stackId="a" fill="#34D399" />
+                        <Bar dataKey="neutro" stackId="a" fill="#FBBF24" />
+                        <Bar dataKey="negativo" stackId="a" fill="#F472B6" />
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4 mt-3 justify-center">
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                    <span className="text-slate-400" style={{ fontSize: "9px" }}>Positivo</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-amber-400" />
+                    <span className="text-slate-400" style={{ fontSize: "9px" }}>Neutro</span>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <div className="w-2 h-2 rounded-full bg-pink-400" />
+                    <span className="text-slate-400" style={{ fontSize: "9px" }}>Negativo</span>
+                  </div>
                 </div>
               </div>
+            )}
 
-              <div>
-                <p className="text-slate-400 mb-2" style={{ fontSize: "10px", fontWeight: 500 }}>
-                  Distribuicao 100%
-                </p>
-                <div className="h-[120px]">
-                  <ResponsiveContainer width="99%" height="100%">
-                    <BarChart
-                      data={temporalData.map((d) => {
-                        const total = d.positivo + d.neutro + d.negativo;
-                        return {
-                          period: d.period,
-                          positivo: total > 0 ? Math.round((d.positivo / total) * 100) : 0,
-                          neutro: total > 0 ? Math.round((d.neutro / total) * 100) : 0,
-                          negativo: total > 0 ? Math.round((d.negativo / total) * 100) : 0,
-                        };
-                      })}
-                    >
-                      <XAxis
-                        dataKey="period"
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fontSize: 7, fill: "#94A3B8" }}
-                      />
-                      <YAxis
-                        axisLine={false}
-                        tickLine={false}
-                        tick={{ fontSize: 7, fill: "#94A3B8" }}
-                        domain={[0, 100]}
-                        tickFormatter={(v) => `${v}%`}
-                      />
-                      <Tooltip
-                        contentStyle={{
-                          background: "white",
-                          border: "none",
-                          borderRadius: "12px",
-                          boxShadow: "0 4px 12px rgba(0,0,0,0.06)",
-                          fontSize: "10px",
-                        }}
-                      />
-                      <Bar dataKey="positivo" stackId="a" fill="#34D399" />
-                      <Bar dataKey="neutro" stackId="a" fill="#FBBF24" />
-                      <Bar dataKey="negativo" stackId="a" fill="#F472B6" />
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
+            {temporalView === "Emocoes" && (
+              <div className="space-y-4">
+                {emotionsList.length > 0 ? (
+                  <div className="h-[220px]">
+                    <ResponsiveContainer width="99%" height="100%">
+                      <RadarChart data={emotionsList.map((e) => ({ name: e.name, value: e.value }))}>
+                        <PolarGrid stroke="rgba(196,181,253,0.2)" />
+                        <PolarAngleAxis dataKey="name" tick={{ fontSize: 9, fill: "#64748B" }} />
+                        <Radar name="Emocoes" dataKey="value" stroke="#8B5CF6" fill="#8B5CF6" fillOpacity={0.25} strokeWidth={2} />
+                        <Tooltip contentStyle={{ background: "white", border: "none", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.06)", fontSize: "10px" }} />
+                      </RadarChart>
+                    </ResponsiveContainer>
+                  </div>
+                ) : (
+                  <p className="text-slate-300 text-center py-8" style={{ fontSize: "12px" }}>Sem dados de emocoes</p>
+                )}
               </div>
-            </div>
+            )}
 
-            <div className="flex items-center gap-4 mt-3 justify-center">
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-emerald-400" />
-                <span className="text-slate-400" style={{ fontSize: "9px" }}>Positivo</span>
+            {temporalView === "Topicos" && (
+              <div className="space-y-3">
+                {topicsList.length > 0 ? (
+                  <div className="flex flex-wrap gap-2 justify-center py-4">
+                    {topicsList.map((t, i) => {
+                      const size = Math.max(11, Math.min(24, 11 + t.value * 0.8));
+                      const opacity = Math.max(0.5, Math.min(1, 0.5 + t.value / 50));
+                      return (
+                        <span
+                          key={t.name}
+                          style={{
+                            fontSize: `${size}px`,
+                            fontWeight: size > 16 ? 600 : 400,
+                            color: TOPIC_PALETTE[i % TOPIC_PALETTE.length],
+                            opacity,
+                            padding: "4px 8px",
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          {t.name}
+                        </span>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-slate-300 text-center py-8" style={{ fontSize: "12px" }}>Sem dados de topicos</p>
+                )}
               </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-amber-400" />
-                <span className="text-slate-400" style={{ fontSize: "9px" }}>Neutro</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <div className="w-2 h-2 rounded-full bg-pink-400" />
-                <span className="text-slate-400" style={{ fontSize: "9px" }}>Negativo</span>
-              </div>
-            </div>
+            )}
           </DreamCard>
         )}
 

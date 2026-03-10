@@ -156,30 +156,6 @@ const plans = [
   },
 ];
 
-const testimonials = [
-  {
-    text: "Antes do Sentimenta, me sentia sobrecarregada com os comentários negativos. A interface zen mudou minha forma de trabalhar.",
-    name: "Ana Clara",
-    role: "Social Media Manager",
-    initials: "AC",
-    color: "from-pink-200 to-rose-200",
-  },
-  {
-    text: "A clareza dos dados é impressionante. Consigo ver a 'cor' do sentimento da minha audiência em segundos.",
-    name: "Ricardo Mendes",
-    role: "Head de Marketing",
-    initials: "RM",
-    color: "from-cyan-200 to-blue-200",
-  },
-  {
-    text: "Detectou uma crise de reputação 6 horas antes de viralizar. Salvou nossa campanha inteira.",
-    name: "Fernanda Costa",
-    role: "Gerente de Produto",
-    initials: "FC",
-    color: "from-violet-200 to-purple-200",
-  },
-];
-
 const faqs = [
   {
     q: "Preciso de login no Instagram para conectar?",
@@ -205,6 +181,7 @@ const faqs = [
 
 export default function LandingPage() {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const vantaRef = useRef<{ destroy?: () => void } | null>(null);
   const fogScriptLoadedRef = useRef(false);
   const threeScriptLoadedRef = useRef(false);
@@ -269,8 +246,7 @@ export default function LandingPage() {
           <div className="hidden md:flex items-center gap-8 text-sm font-medium text-slate-600">
             <a href="#features" className="hover:text-brand-lilacDark transition-colors">Recursos</a>
             <a href="#pricing" className="hover:text-brand-lilacDark transition-colors">Preços</a>
-            <a href="#testimonials" className="hover:text-brand-lilacDark transition-colors">Depoimentos</a>
-            <Link href="/login" className="text-slate-800 hover:text-brand-lilacDark transition-colors">Login</Link>
+<Link href="/login" className="text-slate-800 hover:text-brand-lilacDark transition-colors">Login</Link>
             <Link
               href="/login"
               className="px-5 py-2.5 rounded-full bg-slate-900 text-white hover:bg-slate-800 transition-all shadow-lg shadow-slate-200 text-sm"
@@ -278,12 +254,34 @@ export default function LandingPage() {
               Comece grátis
             </Link>
           </div>
-          {/* Mobile CTA */}
-          <Link href="/login" className="md:hidden px-4 py-2 rounded-full bg-slate-900 text-white text-sm font-medium">
-            Entrar
-          </Link>
+          {/* Mobile hamburger */}
+          <button
+            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            className="md:hidden p-2 rounded-xl text-slate-600 hover:bg-slate-100 transition-colors"
+            aria-label="Menu"
+          >
+            <svg fill="none" height="24" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="24">
+              {mobileMenuOpen ? <path d="M18 6 6 18M6 6l12 12" /> : <><path d="M4 6h16" /><path d="M4 12h16" /><path d="M4 18h16" /></>}
+            </svg>
+          </button>
         </div>
       </nav>
+
+      {/* Mobile menu drawer */}
+      {mobileMenuOpen && (
+        <div className="fixed inset-0 z-40 md:hidden" onClick={() => setMobileMenuOpen(false)}>
+          <div className="absolute inset-0 bg-black/20 backdrop-blur-sm" />
+          <div
+            className="absolute top-20 left-0 right-0 bg-white/95 backdrop-blur-xl border-b border-slate-100 shadow-xl p-6 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <a href="#features" onClick={() => setMobileMenuOpen(false)} className="block text-sm font-medium text-slate-600 hover:text-brand-lilacDark transition-colors py-2">Recursos</a>
+            <a href="#pricing" onClick={() => setMobileMenuOpen(false)} className="block text-sm font-medium text-slate-600 hover:text-brand-lilacDark transition-colors py-2">Precos</a>
+            <Link href="/login" onClick={() => setMobileMenuOpen(false)} className="block text-sm font-medium text-slate-800 hover:text-brand-lilacDark transition-colors py-2">Login</Link>
+            <Link href="/login" onClick={() => setMobileMenuOpen(false)} className="block text-center px-5 py-3 rounded-full bg-slate-900 text-white text-sm font-medium hover:bg-slate-800 transition-all">Comece gratis</Link>
+          </div>
+        </div>
+      )}
 
       {/* HERO */}
       <header className="pt-36 pb-24 px-6 relative overflow-hidden">
@@ -303,7 +301,7 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
             <Link
               href="/login"
-              className="px-8 py-4 rounded-full liquid-btn bg-gradient-to-r from-brand-lilacDark to-violet-600 text-white font-medium text-lg hover:shadow-glow hover:scale-105 transition-all duration-300 subtle-glow"
+              className="px-8 py-4 rounded-full liquid-btn bg-slate-900 text-white font-medium text-lg hover:bg-slate-800 hover:scale-105 transition-all duration-300"
             >
               Comece grátis 14 dias
             </Link>
@@ -311,33 +309,14 @@ export default function LandingPage() {
               href="#features"
               className="px-8 py-4 rounded-full liquid-btn bg-white/82 text-slate-700 font-medium text-lg border border-white/70 hover:border-brand-lilac hover:text-brand-lilacDark transition-all duration-300 flex items-center gap-2"
             >
-              <svg fill="none" height="18" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="18"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              Ver demonstração
+              <svg fill="none" height="18" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="18"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              Saiba mais
             </a>
           </div>
 
-          {/* Social proof numbers */}
-          <div className="flex items-center justify-center gap-8 pt-4 text-sm text-slate-700">
-            <div className="flex items-center gap-2">
-              <span className="font-sans font-semibold text-slate-900 text-lg">2.000+</span>
-              <span>perfis analisados</span>
-            </div>
-            <div className="w-1 h-1 rounded-full bg-slate-200" />
-            <div className="flex items-center gap-2">
-              <span className="font-sans font-semibold text-slate-900 text-lg">8,4M</span>
-              <span>comentários este mês</span>
-            </div>
-            <div className="w-1 h-1 rounded-full bg-slate-200 hidden sm:block" />
-            <div className="hidden sm:flex items-center gap-2">
-              <span className="font-sans font-semibold text-slate-900 text-lg">14 dias</span>
-              <span>grátis</span>
-            </div>
-          </div>
-
-          {/* Platform logos */}
-          <div className="pt-8 flex items-center justify-center gap-8 opacity-40">
-            <svg className="h-7 w-auto" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/></svg>
-            <svg className="h-7 w-auto" fill="currentColor" viewBox="0 0 24 24"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>
+          <div className="flex items-center justify-center gap-2 pt-4 text-sm text-slate-700">
+            <span className="font-sans font-semibold text-slate-900 text-lg">14 dias</span>
+            <span>grátis, sem cartão de crédito</span>
           </div>
         </div>
 
@@ -361,7 +340,7 @@ export default function LandingPage() {
                   {[
                     ["group", "3 Conexões", "+1 nova", "bg-violet-50 text-brand-lilacDark"],
                     ["article", "47 Posts", "+5 esta semana", "bg-cyan-50 text-brand-cyanDark"],
-                    ["forum", "10.812", "comentários/mês", "bg-rose-50 text-rose-400"],
+                    ["forum", "5.230", "comentários/mês", "bg-rose-50 text-rose-400"],
                     ["favorite", `${landingLatestTotals.score.toFixed(1)} / 10`, "▲ +0.4", "bg-gradient-to-br from-brand-lilac to-brand-lilacDark text-white"],
                   ].map(([icon, val, sub, cls]) => (
                     <div key={String(val)} className={`rounded-2xl p-4 ${String(cls).includes("from-") ? cls : "bg-white/80"}`}>
@@ -452,7 +431,6 @@ export default function LandingPage() {
                 <div className={`w-12 h-12 rounded-2xl ${f.color} flex items-center justify-center mb-6`}>
                   <span className="material-symbols-outlined text-[24px]">{f.icon}</span>
                 </div>
-                <div className="text-xs font-bold text-slate-300 uppercase tracking-widest mb-2">0{i + 1}</div>
                 <h3 className="text-xl font-sans font-semibold text-slate-700 mb-3">{f.title}</h3>
                 <p className="text-slate-400 font-light leading-relaxed">{f.desc}</p>
               </div>
@@ -503,33 +481,6 @@ export default function LandingPage() {
                 </div>
               ))}
             </div>
-          </div>
-        </div>
-      </section>
-
-      {/* TESTIMONIALS */}
-      <section id="testimonials" className="py-24 px-6">
-        <div className="max-w-6xl mx-auto">
-          <div className="text-center mb-16">
-            <h2 className="text-4xl font-sans font-semibold text-slate-900 mb-4">Confiança que transmite calma</h2>
-            <p className="text-slate-700 font-light max-w-xl mx-auto">Junte-se a mais de 2.000 marcas que monitoram suas comunidades sem perder a tranquilidade.</p>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-            {testimonials.map((t, i) => (
-              <div key={t.name} className={`liquid-panel rounded-3xl p-8 hover:-translate-y-1 transition-all duration-300 ${i === 1 ? "bg-gradient-to-br from-white/75 to-cyan-50/65 border-cyan-100/70" : ""}`}>
-                <div className="text-4xl text-brand-lilac font-serif opacity-30 mb-4">"</div>
-                <p className="text-slate-500 font-light leading-relaxed mb-6">{t.text}</p>
-                <div className="flex items-center gap-3 border-t border-slate-50 pt-6">
-                  <div className={`w-10 h-10 rounded-full bg-gradient-to-r ${t.color} flex items-center justify-center shadow-sm`}>
-                    <span className="text-sm font-sans font-semibold text-white">{t.initials}</span>
-                  </div>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-700">{t.name}</p>
-                    <p className="text-xs text-slate-400">{t.role}</p>
-                  </div>
-                </div>
-              </div>
-            ))}
           </div>
         </div>
       </section>
@@ -609,11 +560,13 @@ export default function LandingPage() {
                     keyboard_arrow_down
                   </span>
                 </button>
-                {openFaq === i && (
+                <div
+                  className={`overflow-hidden transition-all duration-300 ease-in-out ${openFaq === i ? "max-h-40 opacity-100" : "max-h-0 opacity-0"}`}
+                >
                   <div className="px-6 pb-5">
                     <p className="text-sm text-slate-400 font-light leading-relaxed">{faq.a}</p>
                   </div>
-                )}
+                </div>
               </div>
             ))}
           </div>
@@ -621,14 +574,14 @@ export default function LandingPage() {
       </section>
 
       {/* CTA FINAL */}
-      <section id="cta" className="py-24 px-6 bg-gradient-to-br from-brand-lilacDark to-violet-800 relative overflow-hidden">
+      <section id="cta" className="py-24 px-6 bg-slate-900 relative overflow-hidden">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(255,255,255,0.05)_0%,_transparent_70%)]" />
         <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl" />
         <div className="max-w-3xl mx-auto text-center relative z-10">
           <h2 className="text-4xl md:text-5xl font-sans font-semibold text-white mb-6 leading-tight">
             Comece a entender sua audiência hoje.
           </h2>
-          <p className="text-violet-200 font-light text-lg mb-10 max-w-xl mx-auto">
+          <p className="text-slate-400 font-light text-lg mb-10 max-w-xl mx-auto">
             14 dias grátis, sem cartão de crédito. Configure em menos de 2 minutos.
           </p>
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
@@ -642,8 +595,8 @@ export default function LandingPage() {
               href="#features"
               className="px-8 py-4 rounded-full border border-white/30 text-white font-medium text-lg hover:bg-white/10 transition-all flex items-center gap-2"
             >
-              <svg fill="none" height="18" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="18"><polygon points="5 3 19 12 5 21 5 3"/></svg>
-              Ver demonstração
+              <svg fill="none" height="18" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" viewBox="0 0 24 24" width="18"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+              Saiba mais
             </a>
           </div>
         </div>

@@ -251,7 +251,7 @@ export default function AlertsPage() {
                     <Link
                       href={`/dashboard/connection/${alert.connection_id}`}
                       onClick={(e) => e.stopPropagation()}
-                      className="flex-1 text-center py-2.5 rounded-xl bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white text-xs font-bold shadow-sm hover:shadow-md hover:shadow-violet-200 transition-all hover:-translate-y-px"
+                      className="flex-1 text-center py-2.5 rounded-xl bg-slate-900 text-white hover:bg-slate-800 text-xs font-bold shadow-sm hover:shadow-md hover:shadow-slate-200 transition-all hover:-translate-y-px"
                     >
                       Ver análise completa →
                     </Link>

@@ -345,7 +345,8 @@ export default function DashboardPage() {
   const [pipelineBanner, setPipelineBanner] = useState(false);
   const [trendGranularity, setTrendGranularity] = useState("day");
   const [trendDays, setTrendDays] = useState(30);
-  const HEALTH_CACHE_KEY = "sentimenta_latest_health_report";
+  const [userId, setUserId] = useState<string | null>(null);
+  const healthCacheKey = userId ? `sentimenta_health_report_${userId}` : null;
 
   const loadData = useCallback(async () => {
     const token = getToken();
@@ -373,17 +374,20 @@ export default function DashboardPage() {
       const h = await dashboardApi.healthReport(token);
       if (h.report_text) {
         setHealth(h);
-        if (typeof window !== "undefined") {
-          localStorage.setItem(HEALTH_CACHE_KEY, JSON.stringify(h));
+        if (typeof window !== "undefined" && healthCacheKey) {
+          localStorage.setItem(healthCacheKey, JSON.stringify(h));
         }
       } else {
-        // No cached report — keep localStorage version if any, just update has_new_data
-        setHealth((prev) => prev ? { ...prev, has_new_data: h.has_new_data } : h);
+        // No cached report on server — clear stale local state
+        setHealth(h);
+        if (typeof window !== "undefined" && healthCacheKey) {
+          localStorage.removeItem(healthCacheKey);
+        }
       }
     } catch (error) {
       console.error("Falha ao verificar relatório de saúde", error);
     }
-  }, []);
+  }, [healthCacheKey]);
 
   // Generate fresh report (POST) — only called on user click
   const loadHealth = useCallback(async () => {
@@ -393,15 +397,15 @@ export default function DashboardPage() {
     try {
       const h = await dashboardApi.healthReportWithPrompt(token, customPrompt || undefined);
       setHealth(h);
-      if (typeof window !== "undefined") {
-        localStorage.setItem(HEALTH_CACHE_KEY, JSON.stringify(h));
+      if (typeof window !== "undefined" && healthCacheKey) {
+        localStorage.setItem(healthCacheKey, JSON.stringify(h));
       }
     } catch (error) {
       console.error("Falha ao gerar relatório de saúde", error);
     } finally {
       setLoadingHealth(false);
     }
-  }, [customPrompt]);
+  }, [customPrompt, healthCacheKey]);
 
   const openPromptEditor = async () => {
     if (!defaultPrompt) {
@@ -420,25 +424,33 @@ export default function DashboardPage() {
   useEffect(() => {
     const token = getToken();
     if (token) {
-      authApi.me(token).then((u) => setUserName(u.name)).catch(() => {});
+      authApi.me(token).then((u) => {
+        setUserName(u.name);
+        setUserId(u.id);
+      }).catch(() => {});
     }
     if (typeof window !== "undefined") {
-      const raw = localStorage.getItem(HEALTH_CACHE_KEY);
-      if (raw) {
-        try { setHealth(JSON.parse(raw)); } catch { /* ignore */ }
-      }
       // Check if pipeline was just triggered after social login
       const pipelineFlag = localStorage.getItem("sentimenta_pipeline_started");
       if (pipelineFlag) {
         localStorage.removeItem("sentimenta_pipeline_started");
         setPipelineBanner(true);
-        // Auto-dismiss after 30 seconds
         setTimeout(() => setPipelineBanner(false), 30000);
       }
     }
     loadData();
     checkHealth();
   }, [loadData, checkHealth]);
+
+  // Load health cache only after userId is known (scoped per user)
+  useEffect(() => {
+    if (typeof window !== "undefined" && healthCacheKey) {
+      const raw = localStorage.getItem(healthCacheKey);
+      if (raw) {
+        try { setHealth(JSON.parse(raw)); } catch { /* ignore */ }
+      }
+    }
+  }, [healthCacheKey]);
 
   const handleSync = async (connectionId: string) => {
     const token = getToken();
@@ -630,34 +642,93 @@ export default function DashboardPage() {
               )}
             </div>
 
-            {/* ── 3. Connections ── */}
-            {!loading && (summary?.connections ?? []).length > 0 && (
-              <div className="space-y-4 animate-fade-in-up-3">
-                <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-sans font-bold text-slate-700">Seus Perfis</h2>
-                  <Link href="/connect" className="text-xs text-brand-lilacDark font-semibold hover:underline flex items-center gap-1">
-                    <span className="material-symbols-outlined text-[14px]">add</span>
-                    Adicionar
-                  </Link>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                  {(summary?.connections ?? []).map((conn) => (
-                    <ConnectionCard key={conn.id} conn={conn} onSync={handleSync} />
-                  ))}
-                  <Link
-                    href="/connect"
-                    className="dream-card p-5 flex flex-col items-center justify-center gap-3 border-dashed border-2 border-slate-100 hover:border-brand-lilac hover:bg-violet-50/30 transition-all duration-300 group"
-                  >
-                    <div className="w-10 h-10 rounded-2xl bg-slate-50 group-hover:bg-brand-lilacLight flex items-center justify-center transition-colors">
-                      <span className="material-symbols-outlined text-[20px] text-slate-300 group-hover:text-brand-lilacDark transition-colors">add</span>
+            {/* ── 3. Radar + WordCloud ── */}
+            {!loading && (summary?.total_analyzed ?? 0) > 0 && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 animate-fade-in-up-3">
+                <div className="dream-card p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-7 h-7 rounded-lg bg-violet-50 text-brand-lilacDark flex items-center justify-center">
+                      <span className="material-symbols-outlined text-[16px]">radar</span>
                     </div>
-                    <span className="text-xs text-slate-400 group-hover:text-brand-lilacDark font-medium transition-colors">Adicionar perfil</span>
-                  </Link>
+                    <h2 className="text-base font-sans font-bold text-slate-700">Radar de Emocoes</h2>
+                  </div>
+                  <p className="text-xs text-slate-400 font-light mb-2">Emocoes predominantes em todas as redes</p>
+                  <SentimentRadar distribution={summary?.emotions_distribution ?? null} height={260} />
+                </div>
+                <div className="dream-card p-6">
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="w-7 h-7 rounded-lg bg-cyan-50 text-brand-cyanDark flex items-center justify-center">
+                      <span className="material-symbols-outlined text-[16px]">cloud</span>
+                    </div>
+                    <h2 className="text-base font-sans font-bold text-slate-700">Nuvem de Palavras</h2>
+                  </div>
+                  <p className="text-xs text-slate-400 font-light mb-2">Palavras mais faladas nos comentarios</p>
+                  <WordCloudChart topics={summary?.word_frequency ?? null} maxWords={20} height={260} />
                 </div>
               </div>
             )}
 
-            {/* ── 4. Temporal distribution chart ── */}
+            {/* ── 4. Health Report (IA) — collapsed when unavailable ── */}
+            <div className={`dream-card relative overflow-hidden animate-fade-in-up-4 ${health?.report_text ? "p-6 md:p-8" : "p-4"}`}>
+              <div className="absolute -left-10 -top-10 w-40 h-40 bg-cyan-100 rounded-full blur-3xl opacity-40 pointer-events-none" />
+              <div className="relative z-10">
+                <div className={`flex items-center justify-between ${health?.report_text ? "mb-5" : ""}`}>
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-brand-lilac to-brand-cyan flex items-center justify-center text-white shadow-sm">
+                      <span className="material-symbols-outlined text-[16px]">auto_awesome</span>
+                    </div>
+                    <h2 className="text-base font-sans font-bold text-slate-700">Diagnóstico de Reputação</h2>
+                    {health?.has_new_data && health?.report_text && (
+                      <span className="px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-700 text-[10px] font-bold animate-pulse">
+                        Novos dados
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {health?.report_text && (
+                      <button
+                        onClick={openPromptEditor}
+                        className="text-xs text-slate-400 hover:text-brand-lilacDark transition-colors flex items-center gap-1"
+                        title="Personalizar prompt"
+                      >
+                        <span className="material-symbols-outlined text-[14px]">edit_note</span>
+                      </button>
+                    )}
+                    {health?.report_text ? (
+                      <button
+                        onClick={loadHealth}
+                        disabled={loadingHealth}
+                        className="text-xs text-brand-lilacDark font-semibold hover:underline disabled:opacity-50 flex items-center gap-1"
+                      >
+                        {loadingHealth && <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                        Atualizar
+                      </button>
+                    ) : (
+                      <button
+                        onClick={loadHealth}
+                        disabled={loadingHealth}
+                        className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-all disabled:opacity-50 flex items-center gap-1.5"
+                      >
+                        {loadingHealth && <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
+                        Gerar relatório
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {health?.report_text && (
+                  <div className="prose prose-sm prose-slate max-w-none text-brand-text leading-relaxed mt-5">
+                    <p className="text-xs text-slate-400 font-light mb-3">
+                      {health.generated_at
+                        ? `Gerado em ${new Date(health.generated_at).toLocaleString("pt-BR")}`
+                        : "Último relatório disponível."}
+                    </p>
+                    <ReactMarkdown>{health.report_text}</ReactMarkdown>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ── 5. Temporal distribution chart ── */}
             <div className="dream-card p-6 md:p-8 animate-fade-in-up-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
                 <div>
@@ -718,7 +789,34 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* ── 5. Recent Posts ── */}
+            {/* ── 6. Connections ── */}
+            {!loading && (summary?.connections ?? []).length > 0 && (
+              <div className="space-y-4 animate-fade-in-up-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-sans font-bold text-slate-700">Seus Perfis</h2>
+                  <Link href="/connect" className="text-xs text-brand-lilacDark font-semibold hover:underline flex items-center gap-1">
+                    <span className="material-symbols-outlined text-[14px]">add</span>
+                    Adicionar
+                  </Link>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                  {(summary?.connections ?? []).map((conn) => (
+                    <ConnectionCard key={conn.id} conn={conn} onSync={handleSync} />
+                  ))}
+                  <Link
+                    href="/connect"
+                    className="dream-card p-5 flex flex-col items-center justify-center gap-3 border-dashed border-2 border-slate-100 hover:border-brand-lilac hover:bg-violet-50/30 transition-all duration-300 group"
+                  >
+                    <div className="w-10 h-10 rounded-2xl bg-slate-50 group-hover:bg-brand-lilacLight flex items-center justify-center transition-colors">
+                      <span className="material-symbols-outlined text-[20px] text-slate-300 group-hover:text-brand-lilacDark transition-colors">add</span>
+                    </div>
+                    <span className="text-xs text-slate-400 group-hover:text-brand-lilacDark font-medium transition-colors">Adicionar perfil</span>
+                  </Link>
+                </div>
+              </div>
+            )}
+
+            {/* ── 7. Recent Posts ── */}
             <div className="dream-card p-6">
               <div className="flex items-center justify-between mb-5">
                 <h2 className="text-base font-sans font-bold text-slate-700">Posts Recentes</h2>
@@ -743,92 +841,6 @@ export default function DashboardPage() {
                   ))}
                 </div>
               )}
-            </div>
-
-            {/* ── 6. Radar + WordCloud ── */}
-            {!loading && (summary?.total_analyzed ?? 0) > 0 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6 animate-fade-in-up-4">
-                <div className="dream-card p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="w-7 h-7 rounded-lg bg-violet-50 text-brand-lilacDark flex items-center justify-center">
-                      <span className="material-symbols-outlined text-[16px]">radar</span>
-                    </div>
-                    <h2 className="text-base font-sans font-bold text-slate-700">Radar de Emocoes</h2>
-                  </div>
-                  <p className="text-xs text-slate-400 font-light mb-2">Emocoes predominantes em todas as redes</p>
-                  <SentimentRadar distribution={summary?.emotions_distribution ?? null} height={260} />
-                </div>
-                <div className="dream-card p-6">
-                  <div className="flex items-center gap-2 mb-4">
-                    <div className="w-7 h-7 rounded-lg bg-cyan-50 text-brand-cyanDark flex items-center justify-center">
-                      <span className="material-symbols-outlined text-[16px]">cloud</span>
-                    </div>
-                    <h2 className="text-base font-sans font-bold text-slate-700">Nuvem de Palavras</h2>
-                  </div>
-                  <p className="text-xs text-slate-400 font-light mb-2">Palavras mais faladas nos comentarios</p>
-                  <WordCloudChart topics={summary?.word_frequency ?? null} maxWords={20} height={260} />
-                </div>
-              </div>
-            )}
-
-            {/* ── 7. Health Report (IA) — collapsed when unavailable ── */}
-            <div className={`dream-card relative overflow-hidden animate-fade-in-up-4 ${health?.report_text ? "p-6 md:p-8" : "p-4"}`}>
-              <div className="absolute -left-10 -top-10 w-40 h-40 bg-cyan-100 rounded-full blur-3xl opacity-40 pointer-events-none" />
-              <div className="relative z-10">
-                <div className={`flex items-center justify-between ${health?.report_text ? "mb-5" : ""}`}>
-                  <div className="flex items-center gap-3">
-                    <div className="w-8 h-8 rounded-xl bg-gradient-to-r from-brand-lilac to-brand-cyan flex items-center justify-center text-white shadow-sm">
-                      <span className="material-symbols-outlined text-[16px]">auto_awesome</span>
-                    </div>
-                    <h2 className="text-base font-sans font-bold text-slate-700">Diagnóstico de Reputação</h2>
-                    {health?.has_new_data && health?.report_text && (
-                      <span className="px-2 py-0.5 rounded-full bg-cyan-100 text-cyan-700 text-[10px] font-bold animate-pulse">
-                        Novos dados
-                      </span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {health?.report_text && (
-                      <button
-                        onClick={openPromptEditor}
-                        className="text-xs text-slate-400 hover:text-brand-lilacDark transition-colors flex items-center gap-1"
-                        title="Personalizar prompt"
-                      >
-                        <span className="material-symbols-outlined text-[14px]">edit_note</span>
-                      </button>
-                    )}
-                    {health?.report_text ? (
-                      <button
-                        onClick={loadHealth}
-                        disabled={loadingHealth}
-                        className="text-xs text-brand-lilacDark font-semibold hover:underline disabled:opacity-50 flex items-center gap-1"
-                      >
-                        {loadingHealth && <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-                        Atualizar
-                      </button>
-                    ) : (
-                      <button
-                        onClick={loadHealth}
-                        disabled={loadingHealth}
-                        className="px-4 py-2 rounded-xl bg-slate-900 text-white text-xs font-bold hover:bg-slate-800 transition-all disabled:opacity-50 flex items-center gap-1.5"
-                      >
-                        {loadingHealth && <svg className="animate-spin h-3 w-3" viewBox="0 0 24 24" fill="none"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg>}
-                        Gerar relatório
-                      </button>
-                    )}
-                  </div>
-                </div>
-                {health?.report_text && (
-                  <div className="prose prose-sm prose-slate max-w-none text-brand-text leading-relaxed mt-5">
-                    <p className="text-xs text-slate-400 font-light mb-3">
-                      {health.generated_at
-                        ? `Gerado em ${new Date(health.generated_at).toLocaleString("pt-BR")}`
-                        : "Último relatório disponível."}
-                    </p>
-                    <ReactMarkdown>{health.report_text}</ReactMarkdown>
-                  </div>
-                )}
-              </div>
             </div>
           </>
         )}
