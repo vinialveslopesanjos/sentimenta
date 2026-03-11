@@ -113,6 +113,26 @@ def update_me(
     return current_user
 
 
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_account(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_unverified),
+):
+    """Delete user account and all associated data (LGPD compliance)."""
+    # TODO: If user has stripe_customer_id, cancel Stripe subscription
+    # if current_user.stripe_customer_id:
+    #     stripe.Customer.delete(current_user.stripe_customer_id)
+
+    # The User model has cascade="all, delete-orphan" on:
+    #   - connections (SocialConnection) -> which cascades to posts, comments
+    #   - pipeline_runs (PipelineRun)
+    # So deleting the user will cascade to all related data.
+    logger.info("Deleting account for user %s (%s)", current_user.id, current_user.email)
+    db.delete(current_user)
+    db.commit()
+    return None
+
+
 @router.post("/logout")
 async def logout(request: Request, current_user: User = Depends(get_current_user_unverified)):
     token = request.headers.get("Authorization", "").replace("Bearer ", "")

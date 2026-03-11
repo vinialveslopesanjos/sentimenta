@@ -22,6 +22,7 @@ function LoginPageInner() {
   const [showPassword, setShowPassword] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [socialLoading, setSocialLoading] = useState<string | null>(null);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
 
   // Handle OAuth callback — exchange one-time code for tokens via POST
   useEffect(() => {
@@ -331,6 +332,23 @@ function LoginPageInner() {
                 </div>
               </div>
 
+              {mode === "register" && (
+                <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={acceptedTerms}
+                    onChange={(e) => setAcceptedTerms(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500 accent-violet-600"
+                  />
+                  <span className="text-xs text-slate-500 leading-relaxed">
+                    Li e aceito os{" "}
+                    <a href="/termos" target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:text-violet-800 underline">Termos de Uso</a>
+                    {" "}e a{" "}
+                    <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:text-violet-800 underline">Política de Privacidade</a>.
+                  </span>
+                </label>
+              )}
+
               {error && (
                 <p className="text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">{error}</p>
               )}
@@ -340,7 +358,7 @@ function LoginPageInner() {
 
               <button
                 type="submit"
-                disabled={loading}
+                disabled={loading || (mode === "register" && !acceptedTerms)}
                 className="w-full py-4 bg-slate-900 text-white font-sans font-bold rounded-2xl shadow-lg shadow-slate-200/60 hover:shadow-xl hover:shadow-slate-300/40 hover:scale-[1.01] active:scale-[0.98] transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed disabled:scale-100 text-sm"
               >
                 {loading ? (
@@ -357,9 +375,9 @@ function LoginPageInner() {
 
             <p className="text-center text-xs text-slate-300 leading-relaxed">
               Ao continuar, você concorda com nossos{" "}
-              <span className="text-slate-400 hover:text-brand-lilacDark transition-colors underline cursor-pointer">Termos de Uso</span>
+              <a href="/termos" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-brand-lilacDark transition-colors underline">Termos de Uso</a>
               {" "}e{" "}
-              <span className="text-slate-400 hover:text-brand-lilacDark transition-colors underline cursor-pointer">Privacidade</span>.
+              <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-brand-lilacDark transition-colors underline">Privacidade</a>.
             </p>
           </div>
         </div>
