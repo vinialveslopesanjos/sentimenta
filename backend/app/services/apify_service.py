@@ -16,6 +16,7 @@ from typing import Optional
 import httpx
 
 from app.core.config import settings
+from app.core.apify_cost_tracker import is_limit_reached, add_cost, fetch_last_run_cost, get_daily_spend
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +44,19 @@ def _get_token() -> str:
     return settings.APIFY_API_TOKEN
 
 
+def _record_run_cost(actor_id: str) -> float:
+    """Fetch and record the cost of the last Apify run for the given actor."""
+    try:
+        cost = fetch_last_run_cost(actor_id)
+        if cost > 0:
+            total = add_cost(cost)
+            logger.info("Apify cost: $%.4f this run, $%.4f today", cost, total)
+        return cost
+    except Exception as exc:
+        logger.debug("Failed to record Apify run cost: %s", exc)
+        return 0.0
+
+
 def fetch_profile_pic_apify(username: str) -> Optional[str]:
     """Fetch Instagram profile picture URL via Apify scraper.
 
@@ -52,6 +66,9 @@ def fetch_profile_pic_apify(username: str) -> Optional[str]:
     token = _get_token()
     if not token:
         logger.warning("APIFY_API_TOKEN not configured")
+        return None
+
+    if is_limit_reached():
         return None
 
     try:
@@ -65,6 +82,8 @@ def fetch_profile_pic_apify(username: str) -> Optional[str]:
             resp = client.post(run_url, params={"token": token}, json=payload)
             resp.raise_for_status()
             items = resp.json()
+
+        _record_run_cost(SCRAPER_ACTOR)
 
         if items and len(items) > 0:
             item = items[0]
@@ -89,6 +108,9 @@ def fetch_post_thumbnail_apify(shortcode: str) -> Optional[str]:
         logger.warning("APIFY_API_TOKEN not configured")
         return None
 
+    if is_limit_reached():
+        return None
+
     try:
         run_url = f"{APIFY_BASE_URL}/acts/{SCRAPER_ACTOR}/run-sync-get-dataset-items"
         payload = {
@@ -100,6 +122,8 @@ def fetch_post_thumbnail_apify(shortcode: str) -> Optional[str]:
             resp = client.post(run_url, params={"token": token}, json=payload)
             resp.raise_for_status()
             items = resp.json()
+
+        _record_run_cost(SCRAPER_ACTOR)
 
         if items and len(items) > 0:
             url = items[0].get("displayUrl") or items[0].get("thumbnailUrl")
@@ -132,6 +156,12 @@ def fetch_posts_apify(
         logger.warning("APIFY_API_TOKEN not configured")
         return []
 
+    if is_limit_reached():
+        limit = settings.APIFY_DAILY_LIMIT_USD
+        spent = get_daily_spend()
+        _step(f"Apify daily limit reached (${spent:.2f}/${limit:.2f}), skipping scraping")
+        return []
+
     try:
         run_url = f"{APIFY_BASE_URL}/acts/{SCRAPER_ACTOR}/run-sync-get-dataset-items"
         payload = {
@@ -143,6 +173,8 @@ def fetch_posts_apify(
             resp = client.post(run_url, params={"token": token}, json=payload)
             resp.raise_for_status()
             items = resp.json()
+
+        _record_run_cost(SCRAPER_ACTOR)
 
         if not items:
             _step("Apify: nenhum post encontrado")
@@ -195,6 +227,9 @@ def _parse_apify_item(item: dict) -> Optional[dict]:
 
 def _enrich_batch(shortcodes: list[str], token: str) -> dict[str, dict]:
     """Single Apify run for a batch of shortcodes. Falls back to 1-by-1 on failure."""
+    if is_limit_reached():
+        return {}
+
     run_url = f"{APIFY_BASE_URL}/acts/{SCRAPER_ACTOR}/run-sync-get-dataset-items"
     payload = {
         "directUrls": [f"https://www.instagram.com/p/{sc}/" for sc in shortcodes],
@@ -206,6 +241,8 @@ def _enrich_batch(shortcodes: list[str], token: str) -> dict[str, dict]:
             resp = client.post(run_url, params={"token": token}, json=payload)
             resp.raise_for_status()
             items = resp.json()
+
+        _record_run_cost(SCRAPER_ACTOR)
 
         result: dict[str, dict] = {}
         for item in (items or []):
@@ -219,6 +256,8 @@ def _enrich_batch(shortcodes: list[str], token: str) -> dict[str, dict]:
             logger.warning("Apify batch of %d failed with 400, retrying 1-by-1", len(shortcodes))
             result: dict[str, dict] = {}
             for sc in shortcodes:
+                if is_limit_reached():
+                    break
                 try:
                     single_payload = {
                         "directUrls": [f"https://www.instagram.com/p/{sc}/"],
@@ -229,6 +268,7 @@ def _enrich_batch(shortcodes: list[str], token: str) -> dict[str, dict]:
                         resp = client.post(run_url, params={"token": token}, json=single_payload)
                         resp.raise_for_status()
                         items = resp.json()
+                    _record_run_cost(SCRAPER_ACTOR)
                     for item in (items or []):
                         parsed = _parse_apify_item(item)
                         if parsed:
@@ -250,6 +290,10 @@ def enrich_posts_apify(shortcodes: list[str]) -> dict[str, dict]:
         return {}
 
     if not shortcodes:
+        return {}
+
+    if is_limit_reached():
+        logger.warning("Apify daily limit reached, skipping enrichment")
         return {}
 
     result: dict[str, dict] = {}
@@ -321,6 +365,9 @@ def _fetch_comments_for_post(post_url: str, max_items: int, token: str) -> list[
     One post per run eliminates URL-matching ambiguity and ensures maxItems
     applies exclusively to this post's comments.
     """
+    if is_limit_reached():
+        return []
+
     run_url = f"{APIFY_BASE_URL}/acts/{COMMENT_ACTOR}/run-sync-get-dataset-items"
     payload = {"startUrls": [post_url], "maxItems": max_items}
 
@@ -330,6 +377,7 @@ def _fetch_comments_for_post(post_url: str, max_items: int, token: str) -> list[
                 resp = client.post(run_url, params={"token": token}, json=payload)
                 resp.raise_for_status()
                 items = resp.json()
+            _record_run_cost(COMMENT_ACTOR)
             return [c for c in (_parse_apify_comment(item) for item in (items or [])) if c]
         except httpx.HTTPStatusError as e:
             if e.response.status_code in (429, 500, 502, 503) and attempt < COMMENT_MAX_RETRIES - 1:
@@ -402,6 +450,12 @@ def fetch_comments_apify(
         return {}
 
     if not post_urls:
+        return {}
+
+    if is_limit_reached():
+        limit = settings.APIFY_DAILY_LIMIT_USD
+        spent = get_daily_spend()
+        _step(f"Apify daily limit reached (${spent:.2f}/${limit:.2f}), skipping scraping")
         return {}
 
     # IMPORTANT: step_callback may commit on a SQLAlchemy session that is NOT
