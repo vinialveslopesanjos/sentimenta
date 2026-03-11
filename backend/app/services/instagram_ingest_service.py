@@ -101,6 +101,7 @@ def ingest_instagram_profile(
     max_posts: int = 10,
     max_comments_per_post: int = 100,
     since_date: Optional[date] = None,
+    is_incremental: bool = False,
     progress_callback=None,
     step_callback=None,
     use_apify_comments: bool = True,
@@ -152,6 +153,14 @@ def ingest_instagram_profile(
         posts_need_comments = []  # (post_data, post_obj)
         skipped = 0
 
+        # Compute sync boundary for incremental mode
+        oldest_post_date = None
+        if is_incremental and all_db_posts:
+            dates = [p.published_at for p in all_db_posts if p.published_at]
+            if dates:
+                oldest_post_date = min(dates)
+                _step(f"Incremental: boundary = {oldest_post_date.date()} ({len(all_db_posts)} posts no DB)")
+
         for post_data in posts_data:
             pid = post_data["platform_post_id"]
             permalink = post_data.get("permalink")
@@ -184,12 +193,28 @@ def ingest_instagram_profile(
                 stats["posts_updated"] += 1
 
                 db_comment_count = comment_counts.get(existing.id, 0)
-                if db_comment_count == 0:
-                    posts_need_comments.append((post_data, existing))
+                apify_comment_count = post_data.get("comment_count", 0) or 0
+
+                if is_incremental:
+                    # Incremental: only fetch if Apify reports more comments than we have
+                    if apify_comment_count > db_comment_count:
+                        posts_need_comments.append((post_data, existing))
+                    else:
+                        skipped += 1
                 else:
-                    skipped += 1
+                    # Manual: fetch comments if we have none
+                    if db_comment_count == 0:
+                        posts_need_comments.append((post_data, existing))
+                    else:
+                        skipped += 1
             else:
-                # New post
+                # New post — in incremental mode, skip posts older than boundary
+                post_timestamp = _parse_timestamp(post_data.get("timestamp"))
+                if is_incremental and oldest_post_date and post_timestamp:
+                    if post_timestamp < oldest_post_date:
+                        skipped += 1
+                        continue
+
                 media_url = post_data.get("media_url")
                 _likes = post_data.get("like_count", 0) or 0
                 _comments = post_data.get("comment_count", 0) or 0
@@ -281,6 +306,10 @@ def ingest_instagram_profile(
             db.commit()
         except Exception as snap_exc:
             logger.warning("Failed to create follower snapshot: %s", snap_exc)
+
+        # Update last_sync_at for this connection
+        connection.last_sync_at = datetime.now(timezone.utc)
+        db.commit()
 
         logger.info(
             "Instagram ingestion complete for @%s: %s new, %s updated, %s comments new, %s comments existing",
@@ -591,6 +620,7 @@ def ingest_instagram_via_graph_api(
     max_posts: int = 50,
     max_comments_per_post: int = 100,
     since_date: Optional[date] = None,
+    is_incremental: bool = False,
     progress_callback=None,
     step_callback=None,
 ) -> dict:
@@ -644,6 +674,16 @@ def ingest_instagram_via_graph_api(
         )
 
         posts_need_comments = []
+        skipped = 0
+
+        # Compute sync boundary for incremental mode
+        all_db_posts_list = list(existing_posts.values())
+        oldest_post_date = None
+        if is_incremental and all_db_posts_list:
+            dates = [p.published_at for p in all_db_posts_list if p.published_at]
+            if dates:
+                oldest_post_date = min(dates)
+                _step(f"Incremental: boundary = {oldest_post_date.date()} ({len(all_db_posts_list)} posts no DB)")
 
         for pd in posts_data:
             pid = pd["platform_post_id"]
@@ -676,9 +716,26 @@ def ingest_instagram_via_graph_api(
                 stats["posts_updated"] += 1
 
                 db_comment_count = comment_counts.get(existing.id, 0)
-                if db_comment_count == 0:
-                    posts_need_comments.append((pid, existing))
+                api_comment_count = pd.get("comments_count", 0) or 0
+
+                if is_incremental:
+                    if api_comment_count > db_comment_count:
+                        posts_need_comments.append((pid, existing))
+                    else:
+                        skipped += 1
+                else:
+                    if db_comment_count == 0:
+                        posts_need_comments.append((pid, existing))
+                    else:
+                        skipped += 1
             else:
+                # New post — in incremental mode, skip posts older than boundary
+                post_timestamp = _parse_timestamp(pd.get("timestamp"))
+                if is_incremental and oldest_post_date and post_timestamp:
+                    if post_timestamp < oldest_post_date:
+                        skipped += 1
+                        continue
+
                 media_url = pd.get("media_url")
                 _likes = pd.get("like_count", 0) or 0
                 _comments = pd.get("comments_count", 0) or 0
@@ -817,6 +874,10 @@ def ingest_instagram_via_graph_api(
             db.commit()
         except Exception as snap_exc:
             logger.warning("Failed to create follower snapshot: %s", snap_exc)
+
+        # Update last_sync_at for this connection
+        connection.last_sync_at = datetime.now(timezone.utc)
+        db.commit()
 
         logger.info(
             "Instagram Graph API ingestion for @%s: %s new posts, %s updated, %s comments",

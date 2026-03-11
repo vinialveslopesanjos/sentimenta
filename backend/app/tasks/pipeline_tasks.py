@@ -46,7 +46,7 @@ def _run_async(coro):
         loop.close()
 
 
-def _do_ingest(db, connection, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None, progress_callback=None, step_callback=None, use_apify_comments: bool = False, comment_sample_mode: str = "all") -> dict:
+def _do_ingest(db, connection, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None, is_incremental: bool = False, progress_callback=None, step_callback=None, use_apify_comments: bool = False, comment_sample_mode: str = "all") -> dict:
     """Core ingest logic without creating a PipelineRun. Used by both task_ingest and task_full_pipeline."""
     if connection.platform == "youtube":
         from app.services.youtube_service import ingest_youtube_channel
@@ -59,11 +59,11 @@ def _do_ingest(db, connection, max_posts: int = 10, max_comments_per_post: int =
         if connection.has_oauth_token:
             from app.services.instagram_ingest_service import ingest_instagram_via_graph_api
             logger.info("Using Graph API for @%s (OAuth token present)", connection.username)
-            return ingest_instagram_via_graph_api(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since, progress_callback=progress_callback, step_callback=step_callback)
+            return ingest_instagram_via_graph_api(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since, is_incremental=is_incremental, progress_callback=progress_callback, step_callback=step_callback)
         else:
             from app.services.instagram_ingest_service import ingest_instagram_profile
             logger.info("Using XPoz/Apify for @%s (no OAuth token)", connection.username)
-            return ingest_instagram_profile(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since, progress_callback=progress_callback, step_callback=step_callback, use_apify_comments=use_apify_comments, comment_sample_mode=comment_sample_mode)
+            return ingest_instagram_profile(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since, is_incremental=is_incremental, progress_callback=progress_callback, step_callback=step_callback, use_apify_comments=use_apify_comments, comment_sample_mode=comment_sample_mode)
     elif connection.platform == "twitter":
         from app.services.twitter_service import ingest_twitter_profile
         return ingest_twitter_profile(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post)
@@ -511,6 +511,7 @@ def task_daily_sync(self) -> dict:
                     max_posts=max_posts,
                     max_comments_per_post=max_comments,
                     since_date=since_date,
+                    is_incremental=True,
                     progress_callback=progress_cb,
                     step_callback=step_cb,
                 )
