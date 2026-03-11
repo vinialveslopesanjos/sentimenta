@@ -82,9 +82,9 @@ export default function SettingsPage() {
 
   const PLAN_DISPLAY: Record<string, { name: string; price: string }> = {
     free: { name: "Free", price: "Grátis" },
-    creator: { name: "Creator", price: "R$49/mês" },
-    pro: { name: "Pro", price: "R$199/mês" },
-    agency: { name: "Agency", price: "R$599/mês" },
+    creator: { name: "Creator", price: "R$67/mês" },
+    pro: { name: "Pro", price: "R$167/mês" },
+    agency: { name: "Agency", price: "R$397/mês" },
     admin: { name: "Admin", price: "Ilimitado" },
   };
   const planInfo = PLAN_DISPLAY[user?.plan || "free"] || PLAN_DISPLAY.free;

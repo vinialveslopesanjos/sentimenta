@@ -23,10 +23,11 @@ logger = logging.getLogger(__name__)
 
 PLAN_LIMITS = {
     "free": {
-        "max_connections": 3,  # Max 3 total (1 insta, 1 youtube, 1 tiktok limit enforced per platform)
-        "max_posts_per_sync": 10,
-        "max_comments_per_post": 500,  # Max 500
-        "syncs_per_month": 5,
+        "max_connections": 1,
+        "max_posts_per_sync": 2,
+        "max_comments_per_post": 100,  # For free tier this is actually a TOTAL cap (sum across all posts)
+        "free_total_comments": 100,    # Explicit signal: 100 comments TOTAL, not per post
+        "syncs_per_month": 1,
         "apify_budget_brl": 10.0,
         "health_report": False,
         "pdf_export": False,
@@ -35,7 +36,7 @@ PLAN_LIMITS = {
     "creator": {
         "max_connections": 3,
         "max_posts_per_sync": 20,
-        "max_comments_per_post": 500,
+        "max_comments_per_post": 300,
         "syncs_per_month": 10,
         "apify_budget_brl": 80.0,
         "health_report": True,
@@ -43,7 +44,7 @@ PLAN_LIMITS = {
         "comparison": False,
     },
     "pro": {
-        "max_connections": 3,
+        "max_connections": 5,
         "max_posts_per_sync": 50,
         "max_comments_per_post": 500,
         "syncs_per_month": 30,
@@ -53,10 +54,10 @@ PLAN_LIMITS = {
         "comparison": True,
     },
     "agency": {
-        "max_connections": 3,
+        "max_connections": 15,
         "max_posts_per_sync": 100,
-        "max_comments_per_post": 500,
-        "syncs_per_month": 100,
+        "max_comments_per_post": 1000,
+        "syncs_per_month": 60,
         "apify_budget_brl": 800.0,
         "health_report": True,
         "pdf_export": True,
@@ -220,10 +221,17 @@ def enforce_sync_limits(db: Session, user: User) -> dict:
         f"Apify R${apify_spent:.2f}/{limits['apify_budget_brl']:.2f}"
     )
 
-    return {
+    result = {
         "max_posts": limits["max_posts_per_sync"],
         "max_comments_per_post": limits["max_comments_per_post"],
     }
+
+    # Free tier: comments cap is TOTAL across all posts (not per post)
+    # e.g. if post 1 uses 80 comments, post 2 only gets 20
+    if user.plan == "free":
+        result["free_total_comments_cap"] = limits.get("free_total_comments", 100)
+
+    return result
 
 
 def enforce_feature_access(user: User, feature: str) -> None:

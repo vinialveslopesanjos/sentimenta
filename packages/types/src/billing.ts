@@ -20,8 +20,8 @@ export interface PlanLimits {
 export const PLAN_CONFIG: Record<PlanSlug, PlanLimits> = {
     free: {
         max_connections: 1,
-        max_posts_per_sync: 5,
-        max_comments_per_post: 50,
+        max_posts_per_sync: 2,
+        max_comments_per_post: 100, // TOTAL across all posts, not per post
         syncs_per_month: 1,
         apify_budget_brl: 10,
         health_report: false,
@@ -39,7 +39,7 @@ export const PLAN_CONFIG: Record<PlanSlug, PlanLimits> = {
         comparison: false,
     },
     pro: {
-        max_connections: 10,
+        max_connections: 5,
         max_posts_per_sync: 50,
         max_comments_per_post: 500,
         syncs_per_month: 30,
@@ -49,10 +49,10 @@ export const PLAN_CONFIG: Record<PlanSlug, PlanLimits> = {
         comparison: true,
     },
     agency: {
-        max_connections: 30,
+        max_connections: 15,
         max_posts_per_sync: 100,
         max_comments_per_post: 1000,
-        syncs_per_month: 100,
+        syncs_per_month: 60,
         apify_budget_brl: 800,
         health_report: true,
         pdf_export: true,
