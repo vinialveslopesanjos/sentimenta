@@ -64,6 +64,7 @@ class Settings(BaseSettings):
 
     # Apify (Instagram comments)
     APIFY_API_TOKEN: str = os.getenv("APIFY_API_TOKEN", "")
+    APIFY_DAILY_LIMIT_USD: float = float(os.getenv("APIFY_DAILY_LIMIT_USD", "3.0"))
 
     # LLM (OpenRouter — OpenAI-compatible)
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
@@ -73,6 +74,9 @@ class Settings(BaseSettings):
     # Gemini direto (legado/backup)
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+
+    # LLM daily cost limit per user (USD)
+    LLM_DAILY_LIMIT_USD: float = float(os.getenv("LLM_DAILY_LIMIT_USD", "1.0"))
 
     # Pipeline
     DEFAULT_MAX_COMMENTS: int = int(os.getenv("DEFAULT_MAX_COMMENTS", "500"))

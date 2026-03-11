@@ -29,6 +29,29 @@ from app.models.social_connection import SocialConnection
 logger = logging.getLogger(__name__)
 
 
+def get_user_daily_llm_spend(db: Session, user_id: uuid.UUID) -> float:
+    """Sum cost_estimate_usd for all analyses created today (UTC) for a given user.
+
+    Join path: CommentAnalysis → Comment → Post → SocialConnection.user_id
+    """
+    today_start = datetime.now(timezone.utc).replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+
+    total = (
+        db.query(func.coalesce(func.sum(CommentAnalysis.cost_estimate_usd), 0.0))
+        .join(Comment, Comment.id == CommentAnalysis.comment_id)
+        .join(Post, Post.id == Comment.post_id)
+        .join(SocialConnection, SocialConnection.id == Post.connection_id)
+        .filter(
+            SocialConnection.user_id == user_id,
+            CommentAnalysis.analyzed_at >= today_start,
+        )
+        .scalar()
+    )
+    return float(total or 0.0)
+
+
 def _analysis_exists_expression(
     db: Session,
     prompt_version: str,
@@ -70,9 +93,23 @@ def analyze_post_comments(
     post = db.get(Post, post_id)
     if not post:
         return {"analyzed": 0, "errors": 0, "llm_calls": 0}
-        
+
     connection = db.get(SocialConnection, post.connection_id)
     ignore_author = connection.ignore_author_comments if connection else False
+
+    # ── Daily LLM cost limit check ──────────────────────────────
+    daily_limit = settings.LLM_DAILY_LIMIT_USD
+    if daily_limit > 0 and connection:
+        user_id = connection.user_id
+        spent_today = get_user_daily_llm_spend(db, user_id)
+        if spent_today >= daily_limit:
+            user = connection.user
+            email = user.email if user else str(user_id)
+            logger.warning(
+                "User %s hit daily LLM limit ($%.2f/$%.2f)",
+                email, spent_today, daily_limit,
+            )
+            return {"analyzed": 0, "errors": 0, "llm_calls": 0, "skipped_reason": "daily_limit"}
 
     pending_query = (
         db.query(Comment)
@@ -147,6 +184,19 @@ def analyze_post_comments(
     analysis_context.update(post_context)
 
     for i in range(0, len(pending), batch_size):
+        # ── Mid-analysis daily limit check (avoid N queries: only check between batches)
+        if daily_limit > 0 and connection:
+            spent_now = get_user_daily_llm_spend(db, connection.user_id)
+            if spent_now >= daily_limit:
+                user = connection.user
+                email = user.email if user else str(connection.user_id)
+                remaining = len(pending) - i
+                logger.warning(
+                    "User %s hit daily LLM limit ($%.2f/$%.2f) — %d comments left as pending",
+                    email, spent_now, daily_limit, remaining,
+                )
+                break
+
         batch = pending[i : i + batch_size]
         batch_num = i // batch_size + 1
         total_batches = math.ceil(len(pending) / batch_size)
