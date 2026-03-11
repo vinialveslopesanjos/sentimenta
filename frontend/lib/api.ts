@@ -388,6 +388,24 @@ export const dashboardApi = {
   },
 };
 
+// Billing
+export const billingApi = {
+  usage: (token: string) =>
+    apiFetch<{
+      plan: string;
+      usage: {
+        syncs_used_this_month: number;
+        syncs_limit: number;
+        connections_used: number;
+        connections_limit: number;
+        apify_credits_used_brl: number;
+        apify_credits_limit_brl: number;
+        billing_period_start: string;
+        billing_period_end: string;
+      };
+    }>("/billing/usage", { token }),
+};
+
 // Pipeline
 export const pipelineApi = {
   listRuns: (token: string) =>

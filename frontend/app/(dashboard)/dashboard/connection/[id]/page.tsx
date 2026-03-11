@@ -19,7 +19,7 @@ import {
 import SyncButton from "@/components/SyncButton";
 import SentimentRadar from "@/components/charts/SentimentRadar";
 import WordCloudChart from "@/components/charts/WordCloudChart";
-import { dashboardApi, connectionsApi, commentsApi } from "@/lib/api";
+import { dashboardApi, connectionsApi, commentsApi, billingApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import { scoreColor, scoreBg, fmt, fmtDate, parsePeriod, formatDayLabel, formatTickLabel, platformIcon } from "@/lib/helpers";
 import {
@@ -614,6 +614,7 @@ export default function ConnectionPage() {
   const [detailedLoading, setDetailedLoading] = useState(false);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [usageData, setUsageData] = useState<{ syncs_used: number; syncs_limit: number } | null>(null);
   const [granularity, setGranularity] = useState("day");
   const [showSyncSettings, setShowSyncSettings] = useState(false);
   const [syncParams, setSyncParams] = useState<SyncSettings>(DEFAULT_SYNC_SETTINGS);
@@ -666,6 +667,13 @@ export default function ConnectionPage() {
       if (d?.connection && !d.connection.persona) {
         setShowPersonaPrompt(true);
       }
+      // Load usage data in background
+      billingApi.usage(token).then((res) => {
+        setUsageData({
+          syncs_used: res.usage.syncs_used_this_month,
+          syncs_limit: res.usage.syncs_limit,
+        });
+      }).catch(() => {});
     } catch (error) {
       console.error("Falha ao carregar dashboard da conexão", error);
     } finally {
@@ -931,7 +939,18 @@ export default function ConnectionPage() {
           </div>
         ) : null}
 
-        <div className="ml-auto shrink-0 flex items-center gap-2">
+        <div className="ml-auto shrink-0 flex items-center gap-3">
+          {usageData && (
+            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border hidden sm:inline-flex ${
+              usageData.syncs_used >= usageData.syncs_limit
+                ? "bg-rose-50 text-rose-600 border-rose-100"
+                : usageData.syncs_used >= usageData.syncs_limit * 0.8
+                  ? "bg-amber-50 text-amber-600 border-amber-100"
+                  : "bg-violet-50 text-brand-lilacDark border-violet-100"
+            }`}>
+              {usageData.syncs_used}/{usageData.syncs_limit} análises
+            </span>
+          )}
           <button
             onClick={() => setShowSyncSettings((v) => !v)}
             className="h-10 w-10 rounded-full border border-slate-100 text-slate-400 hover:text-brand-lilacDark hover:border-brand-lilac transition-colors flex items-center justify-center"

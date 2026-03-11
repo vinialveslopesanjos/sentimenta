@@ -444,10 +444,12 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
 
 @celery_app.task(bind=True)
 def task_daily_sync(self) -> dict:
-    """Daily ETL: ingest new posts + comments, enrich via Apify, analyze, for all active connections."""
+    """Weekly ETL: ingest new posts + comments, enrich via Apify, analyze, for all active connections."""
     db = SessionLocal()
     try:
         from datetime import timedelta
+        from app.models.user import User
+        from app.services.plan_service import get_plan_limits, count_syncs_this_month
         connections = (
             db.query(SocialConnection)
             .filter(SocialConnection.status == "active")
@@ -456,7 +458,18 @@ def task_daily_sync(self) -> dict:
         results = {}
         for conn in connections:
             try:
-                logger.info("Daily sync starting for @%s (%s)", conn.username, conn.platform)
+                # Check if user reached monthly sync limit
+                user = db.get(User, conn.user_id)
+                if user:
+                    limits = get_plan_limits(user.plan)
+                    syncs_used = count_syncs_this_month(db, user.id)
+                    if syncs_used >= limits["syncs_per_month"]:
+                        logger.info("Skipping user %s (@%s) — reached monthly sync limit (%d/%d)",
+                                    user.id, conn.username, syncs_used, limits["syncs_per_month"])
+                        results[conn.username] = {"skipped": "monthly_limit_reached"}
+                        continue
+
+                logger.info("Weekly sync starting for @%s (%s)", conn.username, conn.platform)
 
                 # Create a PipelineRun for auditability
                 run = PipelineRun(
@@ -480,15 +493,24 @@ def task_daily_sync(self) -> dict:
                     except Exception:
                         db.rollback()
 
-                # Only fetch posts from last 2 days to keep it fast
-                yesterday = (datetime.now(timezone.utc) - timedelta(days=2)).date().isoformat()
+                # Use plan limits for max_posts
+                plan_limits = get_plan_limits(user.plan) if user else get_plan_limits("free")
+                max_posts = plan_limits["max_posts_per_sync"]
+                max_comments = plan_limits["max_comments_per_post"]
 
-                _append_step(db, run, f"Sync diário iniciado para @{conn.username}")
+                # Use last_sync_at to only fetch new posts since last sync
+                if conn.last_sync_at:
+                    since_date = conn.last_sync_at.date().isoformat()
+                else:
+                    # First sync: fetch last 7 days
+                    since_date = (datetime.now(timezone.utc) - timedelta(days=7)).date().isoformat()
+
+                _append_step(db, run, f"Sync semanal iniciado para @{conn.username}")
                 ingest_result = _do_ingest(
                     db, conn,
-                    max_posts=50,
-                    max_comments_per_post=100,
-                    since_date=yesterday,
+                    max_posts=max_posts,
+                    max_comments_per_post=max_comments,
+                    since_date=since_date,
                     progress_callback=progress_cb,
                     step_callback=step_cb,
                 )
@@ -533,7 +555,7 @@ def task_daily_sync(self) -> dict:
                 run.comments_analyzed = total_analyzed
                 run.status = "completed"
                 run.ended_at = datetime.now(timezone.utc)
-                _append_step(db, run, f"Sync diário concluído: {run.posts_fetched} posts, {total_analyzed} analisados")
+                _append_step(db, run, f"Sync semanal concluído: {run.posts_fetched} posts, {total_analyzed} analisados")
 
                 # Invalidate cache
                 try:
@@ -543,15 +565,28 @@ def task_daily_sync(self) -> dict:
                 except Exception:
                     pass
 
+                # Send email notification after successful sync
+                try:
+                    from app.services.email_service import send_analysis_ready_email
+                    if user and user.email:
+                        send_analysis_ready_email(
+                            email=user.email,
+                            name=user.name,
+                            username=conn.username,
+                            platform=conn.platform,
+                        )
+                except Exception as email_exc:
+                    logger.warning("Failed to send sync email for @%s: %s", conn.username, email_exc)
+
                 results[conn.username] = {
                     "posts": run.posts_fetched,
                     "comments": run.comments_fetched,
                     "analyzed": total_analyzed,
                 }
-                logger.info("Daily sync done for @%s: %s", conn.username, results[conn.username])
+                logger.info("Weekly sync done for @%s: %s", conn.username, results[conn.username])
 
             except Exception as exc:
-                logger.error("Daily sync failed for @%s: %s", conn.username, exc)
+                logger.error("Weekly sync failed for @%s: %s", conn.username, exc)
                 results[conn.username] = {"error": str(exc)}
 
         return results

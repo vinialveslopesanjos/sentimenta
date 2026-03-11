@@ -13,7 +13,7 @@ import {
   Tooltip,
 } from "recharts";
 import { AnimatePresence, motion } from "framer-motion";
-import { dashboardApi, connectionsApi, authApi } from "@/lib/api";
+import { dashboardApi, connectionsApi, authApi, billingApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import type { DashboardSummary, TrendResponse, HealthReport, Connection, PostSummary } from "@/lib/types";
 import { loadSyncSettings, toSyncPayload } from "@/lib/syncSettings";
@@ -346,6 +346,7 @@ export default function DashboardPage() {
   const [trendGranularity, setTrendGranularity] = useState("day");
   const [trendDays, setTrendDays] = useState(30);
   const [userId, setUserId] = useState<string | null>(null);
+  const [usageData, setUsageData] = useState<{ syncs_used: number; syncs_limit: number } | null>(null);
   const healthCacheKey = userId ? `sentimenta_health_report_${userId}` : null;
 
   const loadData = useCallback(async () => {
@@ -358,6 +359,13 @@ export default function DashboardPage() {
       ]);
       setSummary(s);
       setTrends(t);
+      // Load usage data in background
+      billingApi.usage(token).then((res) => {
+        setUsageData({
+          syncs_used: res.usage.syncs_used_this_month,
+          syncs_limit: res.usage.syncs_limit,
+        });
+      }).catch(() => {});
     } catch (error) {
       console.error("Falha ao carregar dashboard", error);
       setTrends({ data_points: [], granularity: trendGranularity });
@@ -793,7 +801,20 @@ export default function DashboardPage() {
             {!loading && (summary?.connections ?? []).length > 0 && (
               <div className="space-y-4 animate-fade-in-up-4">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-lg font-sans font-bold text-slate-700">Seus Perfis</h2>
+                  <div className="flex items-center gap-3">
+                    <h2 className="text-lg font-sans font-bold text-slate-700">Seus Perfis</h2>
+                    {usageData && (
+                      <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border ${
+                        usageData.syncs_used >= usageData.syncs_limit
+                          ? "bg-rose-50 text-rose-600 border-rose-100"
+                          : usageData.syncs_used >= usageData.syncs_limit * 0.8
+                            ? "bg-amber-50 text-amber-600 border-amber-100"
+                            : "bg-violet-50 text-brand-lilacDark border-violet-100"
+                      }`}>
+                        {usageData.syncs_used}/{usageData.syncs_limit} análises usadas
+                      </span>
+                    )}
+                  </div>
                   <Link href="/connect" className="text-xs text-brand-lilacDark font-semibold hover:underline flex items-center gap-1">
                     <span className="material-symbols-outlined text-[14px]">add</span>
                     Adicionar
