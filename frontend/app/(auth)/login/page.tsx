@@ -6,6 +6,7 @@ import { Suspense } from "react";
 import { authApi } from "@/lib/api";
 import { getToken, setTokens } from "@/lib/auth";
 import FogBackground from "@/components/FogBackground";
+import { track } from "@/lib/tracking";
 
 type Mode = "login" | "register";
 
@@ -64,6 +65,7 @@ function LoginPageInner() {
   const handleSocialLogin = async (provider: "instagram" | "tiktok") => {
     setSocialLoading(provider);
     setError("");
+    track("social_login", { provider });
     try {
       const res =
         provider === "instagram"
@@ -95,6 +97,7 @@ function LoginPageInner() {
     }
 
     setLoading(true);
+    track(mode === "login" ? "login_attempt" : "register_attempt");
     try {
       const res =
         mode === "login"
@@ -103,9 +106,11 @@ function LoginPageInner() {
 
       setTokens(res.access_token, res.refresh_token);
       if (mode === "register") {
+        track("register_success");
         setSuccess("Conta criada! Verifique seu email.");
         router.replace("/verify-email");
       } else {
+        track("login_success");
         setSuccess("Login realizado!");
         router.replace("/dashboard");
       }
