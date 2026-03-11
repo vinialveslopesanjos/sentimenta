@@ -22,10 +22,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     authApi
       .me(token)
       .then((user) => {
+        if (!user.email_verified) {
+          router.replace("/verify-email");
+          return;
+        }
         setUserName(user.name);
         setOk(true);
       })
-      .catch(() => {
+      .catch((err) => {
+        if (err instanceof Error && err.message === "email_not_verified") {
+          router.replace("/verify-email");
+          return;
+        }
         clearTokens();
         router.replace("/login");
       });

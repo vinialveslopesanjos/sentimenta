@@ -70,6 +70,9 @@ async def authenticate_google(db: Session, google_token: str) -> User:
             user.avatar_url = userinfo["picture"]
         if not user.name and userinfo.get("name"):
             user.name = userinfo["name"]
+        # Google-verified email — auto-verify
+        if not user.email_verified:
+            user.email_verified = True
         db.commit()
         db.refresh(user)
     else:
@@ -79,6 +82,7 @@ async def authenticate_google(db: Session, google_token: str) -> User:
             google_id=google_id,
             name=userinfo.get("name"),
             avatar_url=userinfo.get("picture"),
+            email_verified=True,  # Google OAuth = email already verified
         )
         db.add(user)
         db.commit()

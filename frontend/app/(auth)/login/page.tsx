@@ -101,8 +101,13 @@ function LoginPageInner() {
           : await authApi.register(email.trim(), password, name.trim() || undefined);
 
       setTokens(res.access_token, res.refresh_token);
-      setSuccess(mode === "login" ? "Login realizado!" : "Conta criada!");
-      router.replace("/dashboard");
+      if (mode === "register") {
+        setSuccess("Conta criada! Verifique seu email.");
+        router.replace("/verify-email");
+      } else {
+        setSuccess("Login realizado!");
+        router.replace("/dashboard");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha na autenticação.");
     } finally {

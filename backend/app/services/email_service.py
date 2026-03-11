@@ -144,6 +144,61 @@ def send_analysis_ready_email(
         return False
 
 
+def send_verification_email(email: str, name: Optional[str], verification_url: str) -> bool:
+    """
+    Send email verification link after registration.
+    Called in: auth router (register + send-verification endpoints)
+    """
+    resend = _get_resend()
+    if not resend:
+        return False
+
+    display_name = name or "criador"
+
+    try:
+        resend.Emails.send({
+            "from": FROM_ADDRESS,
+            "to": email,
+            "subject": "Confirme seu email — Sentimenta",
+            "html": f"""
+<!DOCTYPE html>
+<html>
+<body style="font-family: 'Inter', sans-serif; background: #0f0e17; color: #fffffe; padding: 32px;">
+  <div style="max-width: 560px; margin: 0 auto;">
+    <div style="background: linear-gradient(135deg, #C4B5FD, #67E8F9); border-radius: 16px; padding: 32px; margin-bottom: 24px;">
+      <h1 style="color: #0f0e17; margin: 0; font-size: 24px;">Confirme seu email</h1>
+    </div>
+    <div style="background: #1a1a2e; border-radius: 16px; padding: 32px; border: 1px solid rgba(196,181,253,0.1);">
+      <p style="color: #a8a4c8; line-height: 1.6;">
+        Oi {display_name}, precisamos confirmar que este email pertence a você
+        para que possa usar a plataforma Sentimenta.
+      </p>
+      <p style="color: #a8a4c8; line-height: 1.6;">
+        Clique no botão abaixo para verificar seu email. O link expira em <strong>24 horas</strong>.
+      </p>
+      <a href="{verification_url}"
+         style="display: inline-block; background: linear-gradient(135deg, #C4B5FD, #67E8F9);
+                color: #0f0e17; padding: 14px 28px; border-radius: 8px;
+                text-decoration: none; font-weight: 600; margin-top: 16px; font-size: 16px;">
+        Confirmar meu email →
+      </a>
+      <hr style="border: 1px solid rgba(196,181,253,0.1); margin: 24px 0;">
+      <p style="color: #504e6e; font-size: 13px;">
+        Se você não criou uma conta na Sentimenta, ignore este email.
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+            """,
+        })
+        logger.info(f"Verification email sent to {email}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send verification email to {email}: {e}")
+        return False
+
+
 def send_plan_upgrade_email(email: str, name: Optional[str], plan: str) -> bool:
     """
     Send confirmation email after plan upgrade via Stripe.

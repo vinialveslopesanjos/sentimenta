@@ -75,6 +75,15 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
 
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: res.statusText }));
+
+    // Intercept email_not_verified — redirect to verification page
+    if (res.status === 403 && error.detail === "email_not_verified") {
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/verify-email")) {
+        window.location.href = "/verify-email";
+      }
+      throw new Error("email_not_verified");
+    }
+
     throw new Error(error.detail || `API error: ${res.status}`);
   }
 
@@ -132,7 +141,11 @@ export const authApi = {
       name: string | null;
       avatar_url: string | null;
       plan: string;
+      email_verified: boolean;
     }>("/auth/me", { token }),
+
+  sendVerification: (token: string) =>
+    apiFetch<{ message: string }>("/auth/send-verification", { method: "POST", token }),
 
   updateMe: (
     token: string,

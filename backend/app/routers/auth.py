@@ -1,5 +1,6 @@
 import logging
 import secrets
+import uuid as _uuid
 from datetime import datetime, timezone, timedelta
 from urllib.parse import quote
 
@@ -10,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.core.cache import get_redis
 from app.core.config import settings
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, get_current_user_unverified
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.auth import (
@@ -29,6 +30,7 @@ from app.services.auth_service import (
     refresh_access_token,
     register_user,
 )
+from app.services.email_service import send_verification_email
 
 logger = logging.getLogger(__name__)
 
@@ -41,6 +43,20 @@ def register(data: UserRegister, db: Session = Depends(get_db)):
         user = register_user(db, data.email, data.password, data.name)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
+
+    # Generate verification token and send email
+    try:
+        token = str(_uuid.uuid4())
+        user.email_verification_token = token
+        user.email_verification_sent_at = datetime.now(timezone.utc)
+        db.add(user)
+        db.commit()
+
+        verification_url = f"{settings.APP_URL}/verify-email?token={token}"
+        send_verification_email(user.email, user.name, verification_url)
+    except Exception as exc:
+        logger.error("Failed to send verification email on register: %s", exc)
+
     return create_tokens(user)
 
 
@@ -76,7 +92,7 @@ def refresh(data: TokenRefresh, db: Session = Depends(get_db)):
 
 
 @router.get("/me", response_model=UserResponse)
-def me(current_user: User = Depends(get_current_user)):
+def me(current_user: User = Depends(get_current_user_unverified)):
     return current_user
 
 
@@ -98,13 +114,70 @@ def update_me(
 
 
 @router.post("/logout")
-async def logout(request: Request, current_user: User = Depends(get_current_user)):
+async def logout(request: Request, current_user: User = Depends(get_current_user_unverified)):
     token = request.headers.get("Authorization", "").replace("Bearer ", "")
     if token:
         r = get_redis()
         if r:
             r.setex(f"blacklist:{token}", 3600, "1")
     return {"message": "Logged out successfully"}
+
+
+# ---------------------------------------------------------------------------
+# Email verification
+# ---------------------------------------------------------------------------
+@router.post("/send-verification")
+def send_verification(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_unverified),
+):
+    """Send (or re-send) email verification link. Rate-limited to 1 per 60s."""
+    if current_user.email_verified:
+        return {"message": "Email já verificado"}
+
+    # Rate limit: 60 seconds between sends
+    if current_user.email_verification_sent_at:
+        elapsed = (datetime.now(timezone.utc) - current_user.email_verification_sent_at).total_seconds()
+        if elapsed < 60:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"Aguarde {int(60 - elapsed)} segundos para reenviar.",
+            )
+
+    token = str(_uuid.uuid4())
+    current_user.email_verification_token = token
+    current_user.email_verification_sent_at = datetime.now(timezone.utc)
+    db.add(current_user)
+    db.commit()
+
+    verification_url = f"{settings.APP_URL}/verify-email?token={token}"
+    send_verification_email(current_user.email, current_user.name, verification_url)
+    return {"message": "Email de verificação enviado"}
+
+
+@router.get("/verify-email")
+def verify_email(
+    token: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    """Verify email via token link (no auth required — user clicks from email)."""
+    user = db.query(User).filter(User.email_verification_token == token).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="Token inválido ou já utilizado")
+
+    # Check expiry: 24 hours
+    if user.email_verification_sent_at:
+        elapsed = (datetime.now(timezone.utc) - user.email_verification_sent_at).total_seconds()
+        if elapsed > 86400:
+            raise HTTPException(status_code=400, detail="Token expirado. Solicite um novo email de verificação.")
+
+    user.email_verified = True
+    user.email_verification_token = None
+    db.add(user)
+    db.commit()
+
+    base_url = settings.APP_URL.rstrip("/")
+    return RedirectResponse(url=f"{base_url}/verify-email?verified=true")
 
 
 # ---------------------------------------------------------------------------

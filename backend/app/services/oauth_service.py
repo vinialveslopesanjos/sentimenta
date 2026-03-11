@@ -71,6 +71,9 @@ def find_or_create_user_from_social(
             user.avatar_url = profile_data["profile_image_url"]
         if not user.name and profile_data.get("display_name"):
             user.name = profile_data["display_name"]
+        # Social OAuth login = auto-verify email
+        if not user.email_verified:
+            user.email_verified = True
 
         db.commit()
         db.refresh(connection)
@@ -90,6 +93,7 @@ def find_or_create_user_from_social(
                 email=synthetic_email,
                 name=profile_data.get("display_name") or profile_data.get("username"),
                 avatar_url=profile_data.get("profile_image_url"),
+                email_verified=True,  # Social OAuth = auto-verified
             )
             db.add(user)
             db.flush()
