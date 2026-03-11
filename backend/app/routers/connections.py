@@ -273,7 +273,10 @@ def update_connection(
         
     if params.ignore_author_comments is not None:
         conn.ignore_author_comments = params.ignore_author_comments
-        
+
+    if params.auto_sync is not None:
+        conn.auto_sync = params.auto_sync
+
     db.commit()
     db.refresh(conn)
     return conn

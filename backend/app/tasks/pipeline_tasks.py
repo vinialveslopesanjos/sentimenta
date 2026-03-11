@@ -458,6 +458,12 @@ def task_daily_sync(self) -> dict:
         results = {}
         for conn in connections:
             try:
+                # Skip connections with auto_sync disabled
+                if not conn.auto_sync:
+                    logger.info("Skipping @%s — auto_sync disabled", conn.username)
+                    results[conn.username] = {"skipped": "auto_sync_disabled"}
+                    continue
+
                 # Check if user reached monthly sync limit
                 user = db.get(User, conn.user_id)
                 if user:

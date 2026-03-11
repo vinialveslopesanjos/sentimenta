@@ -179,11 +179,12 @@ export const connectionsApi = {
         connected_at: string;
         last_sync_at: string | null;
         persona: string | null;
+        auto_sync: boolean;
         has_oauth_token: boolean;
       }>
     >("/connections", { token }),
 
-  updateConnection: (token: string, connectionId: string, params: { persona?: string | null, ignore_author_comments?: boolean }) =>
+  updateConnection: (token: string, connectionId: string, params: { persona?: string | null, ignore_author_comments?: boolean, auto_sync?: boolean }) =>
     apiFetch(`/connections/${connectionId}`, {
       method: "PATCH",
       token,

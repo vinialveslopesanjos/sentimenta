@@ -20,52 +20,9 @@ from app.schemas.post import (
     PostDetailResponse,
     PostResponse,
 )
+from app.utils.queries import latest_analysis_subquery as _latest_analysis_subquery
 
 router = APIRouter(prefix="/posts", tags=["posts"])
-
-
-def _latest_analysis_subquery():
-    ranked = (
-        select(
-            CommentAnalysis.id.label("id"),
-            CommentAnalysis.comment_id.label("comment_id"),
-            CommentAnalysis.score_0_10.label("score_0_10"),
-            CommentAnalysis.polarity.label("polarity"),
-            CommentAnalysis.intensity.label("intensity"),
-            CommentAnalysis.emotions.label("emotions"),
-            CommentAnalysis.topics.label("topics"),
-            CommentAnalysis.sarcasm.label("sarcasm"),
-            CommentAnalysis.summary_pt.label("summary_pt"),
-            CommentAnalysis.confidence.label("confidence"),
-            CommentAnalysis.analyzed_at.label("analyzed_at"),
-            func.row_number()
-            .over(
-                partition_by=CommentAnalysis.comment_id,
-                order_by=(
-                    CommentAnalysis.analyzed_at.desc().nullslast(),
-                    CommentAnalysis.id.desc(),
-                ),
-            )
-            .label("rn"),
-        ).subquery()
-    )
-    return (
-        select(
-            ranked.c.id,
-            ranked.c.comment_id,
-            ranked.c.score_0_10,
-            ranked.c.polarity,
-            ranked.c.intensity,
-            ranked.c.emotions,
-            ranked.c.topics,
-            ranked.c.sarcasm,
-            ranked.c.summary_pt,
-            ranked.c.confidence,
-            ranked.c.analyzed_at,
-        )
-        .where(ranked.c.rn == 1)
-        .subquery()
-    )
 
 
 @router.get("/thumbnail")

@@ -14,10 +14,10 @@ class PipelineRun(Base):
         Uuid, primary_key=True, default=uuid.uuid4
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("users.id"), nullable=False, index=True
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     connection_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("social_connections.id"), nullable=True
+        Uuid, ForeignKey("social_connections.id", ondelete="CASCADE"), nullable=True, index=True
     )
     run_type: Mapped[str] = mapped_column(String(50), nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="running")

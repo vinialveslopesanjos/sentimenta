@@ -43,6 +43,9 @@ class SocialConnection(Base):
     ignore_author_comments: Mapped[bool] = mapped_column(
         default=True, server_default="true", nullable=False
     )
+    auto_sync: Mapped[bool] = mapped_column(
+        default=True, server_default="true", nullable=False
+    )
 
     @property
     def has_oauth_token(self) -> bool:

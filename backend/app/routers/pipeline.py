@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 from sse_starlette.sse import EventSourceResponse
 
 from app.core.deps import get_current_user, get_current_user_token_or_query
@@ -24,6 +24,7 @@ def list_pipeline_runs(
 ):
     runs = (
         db.query(PipelineRun)
+        .options(joinedload(PipelineRun.connection))
         .filter(PipelineRun.user_id == current_user.id)
         .order_by(PipelineRun.started_at.desc())
         .limit(50)
@@ -32,12 +33,7 @@ def list_pipeline_runs(
 
     result = []
     for run in runs:
-        conn = None
-        if run.connection_id:
-            conn = db.query(SocialConnection).filter(
-                SocialConnection.id == run.connection_id
-            ).first()
-
+        conn = run.connection
         result.append(PipelineRunResponse(
             id=run.id,
             connection_id=run.connection_id,

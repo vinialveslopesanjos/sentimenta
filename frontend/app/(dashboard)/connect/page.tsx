@@ -23,6 +23,7 @@ type Connection = {
   status: string;
   connected_at: string;
   last_sync_at: string | null;
+  auto_sync: boolean;
 };
 
 type PlatformId = "instagram" | "youtube" | "twitter" | "tiktok";
@@ -70,6 +71,7 @@ export default function ConnectPage() {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [success, setSuccess] = useState<Record<string, string>>({});
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
+  const [togglingSync, setTogglingSync] = useState<Record<string, boolean>>({});
   const [showSyncParams, setShowSyncParams] = useState(false);
   const [syncParams, setSyncParams] = useState<SyncSettings>(DEFAULT_SYNC_SETTINGS);
 
@@ -177,6 +179,18 @@ export default function ConnectPage() {
       setConnections(c => c.filter(x => x.id !== connId));
     } finally {
       setConfirmDelete(null);
+    }
+  };
+
+  const handleToggleAutoSync = async (connId: string, current: boolean) => {
+    const token = getToken();
+    if (!token) return;
+    setTogglingSync(s => ({ ...s, [connId]: true }));
+    try {
+      await connectionsApi.updateConnection(token, connId, { auto_sync: !current });
+      setConnections(c => c.map(x => x.id === connId ? { ...x, auto_sync: !current } : x));
+    } finally {
+      setTogglingSync(s => ({ ...s, [connId]: false }));
     }
   };
 
@@ -463,10 +477,11 @@ export default function ConnectPage() {
           ) : (
             <div className="dream-card overflow-hidden">
               <div className="hidden md:grid grid-cols-12 gap-4 px-6 py-3 bg-slate-50/50 border-b border-slate-50 text-xs font-bold text-slate-400 uppercase tracking-widest">
-                <div className="col-span-4">Perfil</div>
+                <div className="col-span-3">Perfil</div>
                 <div className="col-span-2">Seguidores</div>
-                <div className="col-span-3">Último Sync</div>
+                <div className="col-span-2">Último Sync</div>
                 <div className="col-span-1">Status</div>
+                <div className="col-span-2 text-center">Auto Sync</div>
                 <div className="col-span-2">Ações</div>
               </div>
               <div className="divide-y divide-slate-50">
@@ -475,7 +490,7 @@ export default function ConnectPage() {
                   const isSyncing = syncing[conn.id];
                   return (
                     <div key={conn.id} className="grid grid-cols-12 gap-4 px-6 py-4 items-center hover:bg-slate-50/50 transition-colors">
-                      <div className="col-span-12 md:col-span-4 flex items-center gap-3 min-w-0">
+                      <div className="col-span-12 md:col-span-3 flex items-center gap-3 min-w-0">
                         <div className={`w-10 h-10 rounded-2xl bg-gradient-to-tr ${colorBg} flex items-center justify-center shrink-0 overflow-hidden`}>
                           {conn.profile_image_url ? (
                             <img
@@ -495,7 +510,7 @@ export default function ConnectPage() {
                       <div className="hidden md:block col-span-2 text-sm text-slate-500">
                         {conn.followers_count > 0 ? conn.followers_count.toLocaleString("pt-BR") : "—"}
                       </div>
-                      <div className="hidden md:block col-span-3 text-xs text-slate-400">{relativeTime(conn.last_sync_at)}</div>
+                      <div className="hidden md:block col-span-2 text-xs text-slate-400">{relativeTime(conn.last_sync_at)}</div>
                       <div className="hidden md:block col-span-1">
                         {isSyncing ? (
                           <span className="flex items-center gap-1 text-xs text-brand-cyanDark font-medium">
@@ -510,6 +525,16 @@ export default function ConnectPage() {
                             <span className="w-2 h-2 rounded-full bg-rose-400" />Erro
                           </span>
                         )}
+                      </div>
+                      <div className="hidden md:flex col-span-2 items-center justify-center">
+                        <button
+                          onClick={() => handleToggleAutoSync(conn.id, conn.auto_sync)}
+                          disabled={togglingSync[conn.id]}
+                          className={`relative w-10 h-5 rounded-full transition-colors duration-200 ${conn.auto_sync ? "bg-brand-cyan" : "bg-slate-200"} disabled:opacity-50`}
+                          title={conn.auto_sync ? "Sync automático ativo" : "Sync automático desativado"}
+                        >
+                          <span className={`absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white shadow transition-transform duration-200 ${conn.auto_sync ? "translate-x-5" : "translate-x-0"}`} />
+                        </button>
                       </div>
                       <div className="col-span-12 md:col-span-2 flex items-center gap-1">
                         <Link href={`/dashboard/connection/${conn.id}`} className="p-2 rounded-xl text-slate-400 hover:text-brand-lilacDark hover:bg-brand-lilacLight transition-colors" title="Analisar">

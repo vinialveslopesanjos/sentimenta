@@ -18,12 +18,12 @@ class Comment(Base):
         nullable=False, index=True,
     )
     connection_id: Mapped[uuid.UUID] = mapped_column(
-        Uuid, ForeignKey("social_connections.id"), nullable=False
+        Uuid, ForeignKey("social_connections.id", ondelete="CASCADE"), nullable=False, index=True
     )
     platform: Mapped[str] = mapped_column(String(50), nullable=False)
     platform_comment_id: Mapped[str] = mapped_column(String(255), nullable=False)
     parent_comment_id: Mapped[uuid.UUID | None] = mapped_column(
-        Uuid, ForeignKey("comments.id"), nullable=True
+        Uuid, ForeignKey("comments.id"), nullable=True, index=True
     )
     source_type: Mapped[str] = mapped_column(String(50), default="comment")
     author_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
@@ -32,7 +32,7 @@ class Comment(Base):
     like_count: Mapped[int] = mapped_column(Integer, default=0)
     reply_count: Mapped[int] = mapped_column(Integer, default=0)
     published_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
+        DateTime(timezone=True), nullable=True, index=True
     )
     text_original: Mapped[str] = mapped_column(Text, nullable=False)
     text_clean: Mapped[str] = mapped_column(Text, nullable=False)
