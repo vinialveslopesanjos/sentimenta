@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+const API_BASE = process.env.API_URL || "http://127.0.0.1:8000";
+
 const nextConfig = {
   images: {
     remotePatterns: [
@@ -11,15 +13,15 @@ const nextConfig = {
     return [
       {
         source: "/api/:path*",
-        destination: "http://127.0.0.1:8000/api/:path*",
+        destination: `${API_BASE}/api/:path*`,
       },
       {
         source: "/health",
-        destination: "http://127.0.0.1:8000/health",
+        destination: `${API_BASE}/health`,
       },
       {
         source: "/docs",
-        destination: "http://127.0.0.1:8000/docs",
+        destination: `${API_BASE}/docs`,
       },
     ];
   },

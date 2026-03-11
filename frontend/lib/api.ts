@@ -13,10 +13,34 @@ const API_URL = "/api/v1";
 
 interface FetchOptions extends RequestInit {
   token?: string;
+  _retried?: boolean;
+}
+
+async function tryRefreshToken(): Promise<string | null> {
+  const { getRefreshToken, setTokens, clearTokens } = await import("./auth");
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return null;
+
+  try {
+    const res = await fetch(`${API_URL}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refresh_token: refreshToken }),
+    });
+    if (!res.ok) {
+      clearTokens();
+      return null;
+    }
+    const data = await res.json();
+    setTokens(data.access_token, data.refresh_token);
+    return data.access_token;
+  } catch {
+    return null;
+  }
 }
 
 async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T> {
-  const { token, headers: customHeaders, ...rest } = options;
+  const { token, headers: customHeaders, _retried, ...rest } = options;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
@@ -41,8 +65,25 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
     }
   }
 
+  // Auto-refresh: on 401, try to get a new access token and retry once
+  if (res.status === 401 && token && !_retried) {
+    const newToken = await tryRefreshToken();
+    if (newToken) {
+      return apiFetch<T>(path, { ...options, token: newToken, _retried: true });
+    }
+  }
+
   if (!res.ok) {
     const error = await res.json().catch(() => ({ detail: res.statusText }));
+
+    // Intercept email_not_verified — redirect to verification page
+    if (res.status === 403 && error.detail === "email_not_verified") {
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/verify-email")) {
+        window.location.href = "/verify-email";
+      }
+      throw new Error("email_not_verified");
+    }
+
     throw new Error(error.detail || `API error: ${res.status}`);
   }
 
@@ -76,6 +117,23 @@ export const authApi = {
       body: JSON.stringify({ token: googleToken }),
     }),
 
+  instagramAuthUrl: () =>
+    apiFetch<{ auth_url: string }>("/auth/instagram/auth-url"),
+
+  tiktokAuthUrl: () =>
+    apiFetch<{ auth_url: string }>("/auth/tiktok/auth-url"),
+
+  exchangeOAuthCode: (code: string) =>
+    apiFetch<{
+      access_token: string;
+      refresh_token: string;
+      provider?: string;
+      pipeline_started?: boolean;
+    }>("/auth/exchange-code", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
+
   me: (token: string) =>
     apiFetch<{
       id: string;
@@ -83,7 +141,11 @@ export const authApi = {
       name: string | null;
       avatar_url: string | null;
       plan: string;
+      email_verified: boolean;
     }>("/auth/me", { token }),
+
+  sendVerification: (token: string) =>
+    apiFetch<{ message: string }>("/auth/send-verification", { method: "POST", token }),
 
   updateMe: (
     token: string,
@@ -117,10 +179,12 @@ export const connectionsApi = {
         connected_at: string;
         last_sync_at: string | null;
         persona: string | null;
+        auto_sync: boolean;
+        has_oauth_token: boolean;
       }>
     >("/connections", { token }),
 
-  updateConnection: (token: string, connectionId: string, params: { persona?: string | null, ignore_author_comments?: boolean }) =>
+  updateConnection: (token: string, connectionId: string, params: { persona?: string | null, ignore_author_comments?: boolean, auto_sync?: boolean }) =>
     apiFetch(`/connections/${connectionId}`, {
       method: "PATCH",
       token,
@@ -151,17 +215,26 @@ export const connectionsApi = {
   getInstagramAuthUrl: (token: string) =>
     apiFetch<{ auth_url: string }>("/connections/instagram/auth-url", { token }),
 
+  getTiktokAuthUrl: (token: string) =>
+    apiFetch<{ auth_url: string }>("/connections/tiktok/auth-url", { token }),
+
   checkProfile: (token: string, platform: string, username: string) =>
     apiFetch<any>(`/connections/check-profile?platform=${platform}&username=${username}`, { token }),
 
   sync: (
     token: string,
     connectionId: string,
-    params?: { max_posts?: number; max_comments_per_post?: number; since_date?: string }
+    params?: { max_posts?: number; max_comments_per_post?: number; since_date?: string; use_apify_comments?: boolean; comment_sample_mode?: string }
   ) =>
     apiFetch<{ connection_id: string; task_id: string; message: string }>(
       `/connections/${connectionId}/sync`,
       { method: "POST", token, body: params ? JSON.stringify(params) : undefined }
+    ),
+
+  analyze: (token: string, connectionId: string) =>
+    apiFetch<{ connection_id: string; task_id: string; message: string }>(
+      `/connections/${connectionId}/analyze`,
+      { method: "POST", token }
     ),
 
   delete: (token: string, connectionId: string) =>
@@ -240,6 +313,16 @@ export const dashboardApi = {
   healthReport: (token: string) =>
     apiFetch<HealthReport>("/dashboard/health-report", { token }),
 
+  healthReportWithPrompt: (token: string, customPrompt?: string) =>
+    apiFetch<HealthReport>("/dashboard/health-report", {
+      method: "POST",
+      token,
+      body: JSON.stringify({ custom_prompt: customPrompt || null }),
+    }),
+
+  getHealthPrompt: (token: string) =>
+    apiFetch<{ prompt: string }>("/dashboard/health-report/prompt", { token }),
+
   compare: (token: string, days = 30) =>
     apiFetch<{
       days: number;
@@ -306,6 +389,24 @@ export const dashboardApi = {
   },
 };
 
+// Billing
+export const billingApi = {
+  usage: (token: string) =>
+    apiFetch<{
+      plan: string;
+      usage: {
+        syncs_used_this_month: number;
+        syncs_limit: number;
+        connections_used: number;
+        connections_limit: number;
+        apify_credits_used_brl: number;
+        apify_credits_limit_brl: number;
+        billing_period_start: string;
+        billing_period_end: string;
+      };
+    }>("/billing/usage", { token }),
+};
+
 // Pipeline
 export const pipelineApi = {
   listRuns: (token: string) =>
@@ -313,6 +414,12 @@ export const pipelineApi = {
 
   getRunStatus: (token: string, runId: string) =>
     apiFetch<PipelineStatus>(`/pipeline/runs/${runId}/status`, { token }),
+
+  cancelRun: (token: string, runId: string) =>
+    apiFetch<{ status: string; id: string }>(`/pipeline/runs/${runId}/cancel`, { method: "POST", token }),
+
+  deleteRun: (token: string, runId: string) =>
+    apiFetch<void>(`/pipeline/runs/${runId}`, { method: "DELETE", token }),
 };
 
 // Comments

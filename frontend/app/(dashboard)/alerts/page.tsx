@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { dashboardApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { relativeTime } from "@/lib/helpers";
 
 type Alert = {
   connection_id: string;
@@ -32,15 +33,6 @@ function alertIcon(severity: string) {
   if (severity === "high") return { icon: "warning", bg: "bg-amber-100 text-amber-500" };
   if (severity === "medium") return { icon: "info", bg: "bg-cyan-100 text-cyan-600" };
   return { icon: "check_circle", bg: "bg-emerald-100 text-emerald-600" };
-}
-
-function relativeTime(dateStr: string) {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const h = Math.floor(diff / 3600000);
-  if (h < 1) return "Agora";
-  if (h < 24) return `Há ${h}h`;
-  const d = Math.floor(h / 24);
-  return `Há ${d}d`;
 }
 
 export default function AlertsPage() {
@@ -78,10 +70,10 @@ export default function AlertsPage() {
   return (
     <div className="flex-1 overflow-y-auto">
       {/* Header */}
-      <header className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-white/60 px-6 md:px-8 py-5 flex items-center justify-between shadow-sm">
+      <header className="sticky top-0 z-30 bg-white/70 backdrop-blur-xl border-b border-white/60 px-4 sm:px-6 md:px-8 py-3 sm:py-5 flex items-center justify-between shadow-sm">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-sans font-bold text-slate-800 tracking-tight">Alertas</h1>
+            <h1 className="text-lg sm:text-2xl font-sans font-bold text-slate-800 tracking-tight">Alertas</h1>
             {unreadAlerts.length > 0 && (
               <span className="flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 text-rose-600 border border-rose-100 rounded-full text-xs font-bold">
                 <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse" />
@@ -169,7 +161,7 @@ export default function AlertsPage() {
 
         {/* Empty */}
         {!loading && !error && visibleAlerts.length === 0 && (
-          <div className="dream-card p-12 text-center">
+          <div className="dream-card p-6 sm:p-12 text-center">
             <div className="w-16 h-16 rounded-full bg-emerald-50 flex items-center justify-center mx-auto mb-4">
               <span className="material-symbols-outlined text-[32px] text-emerald-500">check_circle</span>
             </div>
@@ -215,7 +207,7 @@ export default function AlertsPage() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-1">
                         <p className="text-sm font-bold text-slate-800 truncate">
-                          {alert.message.split(":")[0] || `Alerta @${alert.username}`}
+                          {alert.message.split(":")[0] || `Alerta ${alert.username?.startsWith('@') ? '' : '@'}${alert.username}`}
                         </p>
                         {isUnread && (
                           <span className="w-2 h-2 rounded-full bg-brand-lilacDark shrink-0" />
@@ -229,12 +221,12 @@ export default function AlertsPage() {
                           {relativeTime(data?.generated_at ?? new Date().toISOString())}
                         </p>
                         <span className="text-slate-200">·</span>
-                        <span className="text-xs text-slate-400 capitalize">@{alert.username}</span>
+                        <span className="text-xs text-slate-400 capitalize">{alert.username?.startsWith('@') ? '' : '@'}{alert.username}</span>
                         {alert.avg_score !== null && (
                           <>
                             <span className="text-slate-200">·</span>
                             <span className="text-xs font-bold text-slate-500">
-                              Score: {alert.avg_score.toFixed(1)}
+                              Score: {alert.avg_score.toFixed(1)}/10
                             </span>
                           </>
                         )}
@@ -259,7 +251,7 @@ export default function AlertsPage() {
                     <Link
                       href={`/dashboard/connection/${alert.connection_id}`}
                       onClick={(e) => e.stopPropagation()}
-                      className="flex-1 text-center py-2.5 rounded-xl bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white text-xs font-bold shadow-sm hover:shadow-md hover:shadow-violet-200 transition-all hover:-translate-y-px"
+                      className="flex-1 text-center py-2.5 rounded-xl bg-slate-900 text-white hover:bg-slate-800 text-xs font-bold shadow-sm hover:shadow-md hover:shadow-slate-200 transition-all hover:-translate-y-px"
                     >
                       Ver análise completa →
                     </Link>

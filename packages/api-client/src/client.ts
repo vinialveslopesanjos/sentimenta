@@ -19,6 +19,7 @@ import type {
     PipelineStatus,
     AlertsResponse,
     CompareResponse,
+    CompareConnectionsResponse,
 } from "@sentimenta/types";
 
 import { SentimentaApiError } from "./errors";
@@ -127,6 +128,25 @@ export function createApiClient(config: ClientConfig) {
                 method: "PATCH",
                 body: JSON.stringify(payload),
             }),
+
+        instagramAuthUrl: () =>
+            apiFetch<{ auth_url: string }>("/auth/instagram/auth-url", { skipAuth: true }),
+
+        tiktokAuthUrl: () =>
+            apiFetch<{ auth_url: string }>("/auth/tiktok/auth-url", { skipAuth: true }),
+
+        exchangeOAuthCode: (code: string) =>
+            apiFetch<AuthTokens & { provider?: string; pipeline_started?: boolean }>(
+                "/auth/exchange-code",
+                { method: "POST", body: JSON.stringify({ code }), skipAuth: true }
+            ),
+
+        refresh: (refreshToken: string) =>
+            apiFetch<AuthTokens>("/auth/refresh", {
+                method: "POST",
+                body: JSON.stringify({ refresh_token: refreshToken }),
+                skipAuth: true,
+            }),
     };
 
     const connections = {
@@ -171,6 +191,18 @@ export function createApiClient(config: ClientConfig) {
 
         delete: (connectionId: string) =>
             apiFetch(`/connections/${connectionId}`, { method: "DELETE" }),
+
+        connectTwitter: (username: string) =>
+            apiFetch<Connection>("/connections/twitter", {
+                method: "POST",
+                body: JSON.stringify({ channel_handle: username }),
+            }),
+
+        getInstagramAuthUrl: () =>
+            apiFetch<{ auth_url: string }>("/connections/instagram/auth-url"),
+
+        getTiktokAuthUrl: () =>
+            apiFetch<{ auth_url: string }>("/connections/tiktok/auth-url"),
     };
 
     const dashboard = {
@@ -229,12 +261,45 @@ export function createApiClient(config: ClientConfig) {
             ).toString();
             return apiFetch<AlertsResponse>(`/dashboard/alerts${qs ? `?${qs}` : ""}`);
         },
+
+        compareConnections: (connectionIds: string[], days = 3650) =>
+            apiFetch<CompareConnectionsResponse>(
+                `/dashboard/compare-connections?connection_ids=${connectionIds.join(",")}&days=${days}`
+            ),
+
+        healthReportWithPrompt: (customPrompt?: string) =>
+            apiFetch<HealthReport>("/dashboard/health-report", {
+                method: "POST",
+                body: JSON.stringify({ custom_prompt: customPrompt || null }),
+            }),
     };
 
     const pipeline = {
         listRuns: () => apiFetch<PipelineRun[]>("/pipeline/runs"),
         getRunStatus: (runId: string) =>
             apiFetch<PipelineStatus>(`/pipeline/runs/${runId}/status`),
+
+        cancelRun: (runId: string) =>
+            apiFetch<{ status: string; id: string }>(`/pipeline/runs/${runId}/cancel`, { method: "POST" }),
+
+        deleteRun: (runId: string) =>
+            apiFetch<void>(`/pipeline/runs/${runId}`, { method: "DELETE" }),
+    };
+
+    const posts = {
+        detail: (postId: string) =>
+            apiFetch<any>(`/posts/${postId}`),
+
+        list: (params?: { connection_id?: string; limit?: number }) => {
+            const qs = new URLSearchParams(
+                Object.fromEntries(
+                    Object.entries(params || {})
+                        .filter(([, v]) => v !== undefined)
+                        .map(([k, v]) => [k, String(v)])
+                )
+            ).toString();
+            return apiFetch<any[]>(`/posts${qs ? `?${qs}` : ""}`);
+        },
     };
 
     const comments = {
@@ -261,7 +326,7 @@ export function createApiClient(config: ClientConfig) {
         },
     };
 
-    return { auth, connections, dashboard, pipeline, comments, apiFetch };
+    return { auth, connections, dashboard, pipeline, posts, comments, apiFetch };
 }
 
 export type ApiClient = ReturnType<typeof createApiClient>;

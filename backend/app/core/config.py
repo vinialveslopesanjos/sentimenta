@@ -39,9 +39,25 @@ class Settings(BaseSettings):
     INSTAGRAM_APP_SECRET: str = os.getenv("INSTAGRAM_APP_SECRET", "")
     INSTAGRAM_REDIRECT_URI: str = os.getenv(
         "INSTAGRAM_REDIRECT_URI",
+        "http://localhost:8000/api/v1/auth/instagram/callback",
+    )
+    INSTAGRAM_SCOPES: str = "instagram_business_basic,instagram_business_manage_comments,instagram_business_manage_messages"
+    INSTAGRAM_CONNECTIONS_REDIRECT_URI: str = os.getenv(
+        "INSTAGRAM_CONNECTIONS_REDIRECT_URI",
         "http://localhost:8000/api/v1/connections/instagram/callback",
     )
-    INSTAGRAM_SCOPES: str = "instagram_basic,instagram_manage_comments,pages_show_list"
+
+    # TikTok OAuth
+    TIKTOK_CLIENT_KEY: str = os.getenv("TIKTOK_CLIENT_KEY", "")
+    TIKTOK_CLIENT_SECRET: str = os.getenv("TIKTOK_CLIENT_SECRET", "")
+    TIKTOK_REDIRECT_URI: str = os.getenv(
+        "TIKTOK_REDIRECT_URI",
+        "http://localhost:8000/api/v1/auth/tiktok/callback",
+    )
+    TIKTOK_CONNECTIONS_REDIRECT_URI: str = os.getenv(
+        "TIKTOK_CONNECTIONS_REDIRECT_URI",
+        "http://localhost:8000/api/v1/connections/tiktok/callback",
+    )
 
     # Token Encryption (AES-256)
     TOKEN_ENCRYPTION_KEY: str = os.getenv("TOKEN_ENCRYPTION_KEY", "")
@@ -49,7 +65,12 @@ class Settings(BaseSettings):
     # Apify (Instagram comments)
     APIFY_API_TOKEN: str = os.getenv("APIFY_API_TOKEN", "")
 
-    # Gemini LLM
+    # LLM (OpenRouter — OpenAI-compatible)
+    OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "google/gemini-2.0-flash-001")
+    LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1")
+
+    # Gemini direto (legado/backup)
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
 
@@ -60,17 +81,12 @@ class Settings(BaseSettings):
 
     # CORS
     CORS_ORIGINS: list[str] = [
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://localhost:3002",
-        "http://localhost:8000",
-        "http://147.93.13.49",
-        "http://147.93.13.49:3000",
-        "http://147.93.13.49:8080",
         "http://sentimenta.com.br",
         "https://sentimenta.com.br",
         "http://www.sentimenta.com.br",
         "https://www.sentimenta.com.br",
+        "https://app.sentimenta.com.br",
+        "https://sentimenta.vercel.app",
     ]
 
     @field_validator("CORS_ORIGINS", mode="before")

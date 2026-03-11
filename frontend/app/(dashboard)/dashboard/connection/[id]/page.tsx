@@ -17,8 +17,11 @@ import {
   Tooltip,
 } from "recharts";
 import SyncButton from "@/components/SyncButton";
-import { dashboardApi, connectionsApi, commentsApi } from "@/lib/api";
+import SentimentRadar from "@/components/charts/SentimentRadar";
+import WordCloudChart from "@/components/charts/WordCloudChart";
+import { dashboardApi, connectionsApi, commentsApi, billingApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
+import { scoreColor, scoreBg, fmt, fmtDate, parsePeriod, formatDayLabel, formatTickLabel, platformIcon } from "@/lib/helpers";
 import {
   DEFAULT_SYNC_SETTINGS,
   loadSyncSettings,
@@ -51,7 +54,7 @@ const EMOTION_EMOJI: Record<string, string> = {
 const API_URL = "/api/v1";
 
 function buildThumbnailSrc(url?: string | null) {
-  if (!url) return null;
+  if (!url || url === "null") return null;
   if (url.startsWith("http://") || url.startsWith("https://")) {
     return `${API_URL}/posts/thumbnail?url=${encodeURIComponent(url)}`;
   }
@@ -65,7 +68,7 @@ const EMOTION_PALETTE = [
 
 const SENTIMENT_CHART_COLORS: Record<string, string> = {
   positive: "#34D399",
-  neutral: "#FCD34D",
+  neutral: "#94A3B8",
   negative: "#FB7185",
 };
 
@@ -92,52 +95,7 @@ function buildSeriesFromDetailed(
   }));
 }
 
-// Helpers
-
-function scoreColor(s: number | null) {
-  if (s === null) return "text-slate-300";
-  if (s >= 7) return "text-emerald-600";
-  if (s >= 4) return "text-amber-500";
-  return "text-rose-500";
-}
-
-function scoreBg(s: number | null) {
-  if (s === null) return "bg-slate-50 text-slate-400 border-slate-100";
-  if (s >= 7) return "bg-emerald-50 text-emerald-600 border-emerald-100";
-  if (s >= 4) return "bg-amber-50 text-amber-600 border-amber-100";
-  return "bg-rose-50 text-rose-500 border-rose-100";
-}
-
-function fmt(n: number) {
-  return n.toLocaleString("pt-BR");
-}
-
-function fmtDate(s: string | null) {
-  if (!s) return "?";
-  return new Date(s).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", year: "numeric" });
-}
-
-function parsePeriod(period: string) {
-  if (/^\d{4}-\d{2}$/.test(period)) return new Date(`${period}-01T00:00:00`);
-  if (/^\d{4}-\d{2}-\d{2}$/.test(period)) return new Date(`${period}T00:00:00`);
-  const dt = new Date(period);
-  return Number.isNaN(dt.getTime()) ? new Date("1970-01-01T00:00:00") : dt;
-}
-
-function formatMonthYear(period: string) {
-  return parsePeriod(period).toLocaleDateString("pt-BR", { month: "2-digit", year: "numeric" });
-}
-
-function formatDayLabel(period: string) {
-  return parsePeriod(period).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
-}
-
-function platformIcon(platform: string, size = 18) {
-  const isInstagram = platform === "instagram";
-  const isTwitter = platform === "twitter";
-  const src = isInstagram ? "/icons/instagram.svg" : isTwitter ? "/icons/twitter-x.svg" : "/icons/youtube.svg";
-  return <img src={src} alt={platform} style={{ width: size, height: size }} />;
-}
+// Helpers imported from @/lib/helpers
 
 // Sub-components
 
@@ -169,13 +127,13 @@ function KpiCard({
   tooltip?: string;
 }) {
   return (
-    <div className="dream-card p-5 hover:shadow-float transition-all duration-300 group">
+    <div className="dream-card p-3 sm:p-5 hover:shadow-float transition-all duration-300 group">
       <div className="flex items-start justify-between mb-4">
         <div className={`w-10 h-10 rounded-xl ${iconBg} flex items-center justify-center group-hover:scale-110 transition-transform`}>
           <span className="material-symbols-outlined text-[20px]">{icon}</span>
         </div>
       </div>
-      <h3 className={`text-2xl font-sans font-semibold ${valueClass ?? "text-slate-700"}`}>{value}</h3>
+      <h3 className={`text-base sm:text-2xl font-sans font-semibold ${valueClass ?? "text-slate-700"}`}>{value}</h3>
       <div className="flex items-center mt-1">
         <p className="text-xs text-slate-400 font-light">{sub ?? label}</p>
         {tooltip && <MetricTooltip text={tooltip} />}
@@ -235,7 +193,7 @@ function TrendChart({ data, granularity }: { data: TrendResponse | null; granula
             dataKey="period"
             minTickGap={26}
             tick={{ fill: "#94A3B8", fontSize: 10 }}
-            tickFormatter={(period: string) => formatMonthYear(period)}
+            tickFormatter={(period: string) => formatTickLabel(period, granularity)}
             axisLine={false}
             tickLine={false}
           />
@@ -262,7 +220,7 @@ function TrendChart({ data, granularity }: { data: TrendResponse | null; granula
                 <div className="rounded-xl border border-slate-200 bg-white p-3 min-w-[180px]" style={{ boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
                   <p className="text-xs text-slate-400 mb-1">{formatDayLabel(point.period)} · {granularityLabel}</p>
                   <p className="text-sm font-semibold text-slate-700 mb-2">
-                    Score médio: {point.avg_score != null ? point.avg_score.toFixed(2) : "—"}
+                    Score: {point.avg_score != null ? point.avg_score.toFixed(2) : "—"}
                   </p>
                   <div className="space-y-1 text-xs text-slate-500">
                     <p>Total comentários: {point.total_comments}</p>
@@ -279,7 +237,8 @@ function TrendChart({ data, granularity }: { data: TrendResponse | null; granula
             dataKey="avg_score"
             stroke="none"
             fill="url(#scoreFill)"
-            isAnimationActive={false}
+            animationDuration={1200}
+            animationEasing="ease-out"
           />
           <Line
             type="monotone"
@@ -288,7 +247,8 @@ function TrendChart({ data, granularity }: { data: TrendResponse | null; granula
             strokeWidth={2.2}
             dot={false}
             activeDot={{ r: 5, strokeWidth: 2, fill: "#8B5CF6", stroke: "#fff" }}
-            isAnimationActive={false}
+            animationDuration={1200}
+            animationEasing="ease-out"
           />
         </LineChart>
       </ResponsiveContainer>
@@ -318,12 +278,14 @@ function HBarChart({
   const gradients =
     palette === "emotion"
       ? [
+        ["#8B5CF6", "#7C3AED"],
         ["#A78BFA", "#8B5CF6"],
-        ["#BFA9F9", "#A78BFA"],
-        ["#D4C4FB", "#C4B5FD"],
-        ["#E9DDFD", "#DDD6FE"],
+        ["#C4B5FD", "#A78BFA"],
+        ["#DDD6FE", "#C4B5FD"],
+        ["#EDE9FE", "#DDD6FE"],
       ]
       : [
+        ["#06B6D4", "#0891B2"],
         ["#22D3EE", "#06B6D4"],
         ["#67E8F9", "#22D3EE"],
         ["#A5F3FC", "#67E8F9"],
@@ -340,9 +302,9 @@ function HBarChart({
               <span className="text-xs text-slate-500 font-light capitalize truncate max-w-[55%]">{key}</span>
               <span className="text-xs text-slate-400 font-light">{Math.round((val / total) * 100)}%</span>
             </div>
-            <div className="h-1.5 bg-slate-100 rounded-full overflow-hidden">
+            <div className="h-2 bg-slate-50 rounded-full overflow-hidden">
               <div
-                className="h-full rounded-full transition-all duration-700"
+                className="h-full rounded-full transition-all duration-700 ease-out"
                 style={{
                   width: `${(val / max) * 100}%`,
                   backgroundImage: `linear-gradient(90deg, ${from}, ${to})`,
@@ -360,10 +322,12 @@ function StackedBarChart({
   periods,
   series,
   mode,
+  granularity = "month",
 }: {
   periods: string[];
   series: { key: string; label: string; color: string; values: number[] }[];
   mode: "absolute" | "pct";
+  granularity?: string;
 }) {
   if (periods.length === 0 || series.length === 0) {
     return (
@@ -387,12 +351,20 @@ function StackedBarChart({
     <div className="h-56 w-full">
       <ResponsiveContainer width="100%" height="100%">
         <BarChart data={rows} margin={{ top: 4, right: 8, left: -14, bottom: 8 }}>
-          <CartesianGrid stroke="#f1f5f9" strokeDasharray="3 3" vertical={false} />
+          <defs>
+            {series.map((s) => (
+              <linearGradient key={`grad-${s.key}`} id={`stackGrad-${s.key}`} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor={s.color} stopOpacity={0.9} />
+                <stop offset="100%" stopColor={s.color} stopOpacity={0.6} />
+              </linearGradient>
+            ))}
+          </defs>
+          <CartesianGrid stroke="#f1f5f9" strokeDasharray="4 4" vertical={false} />
           <XAxis
             dataKey="period"
-            minTickGap={24}
-            tick={{ fill: "#94a3b8", fontSize: 11 }}
-            tickFormatter={(period: string) => formatMonthYear(period)}
+            minTickGap={60}
+            tick={{ fill: "#94a3b8", fontSize: 10 }}
+            tickFormatter={(period: string) => formatTickLabel(period, granularity)}
             axisLine={false}
             tickLine={false}
           />
@@ -404,17 +376,25 @@ function StackedBarChart({
             tickFormatter={(v: number) => (mode === "pct" ? `${Math.round(v)}%` : String(Math.round(v)))}
           />
           <Tooltip
-            cursor={{ fill: "rgba(139, 92, 246, 0.08)" }}
+            cursor={{ fill: "rgba(139, 92, 246, 0.05)" }}
             formatter={(value: number, name: string) => {
               const label = series.find((s) => s.key === name)?.label || name;
               if (mode === "pct") return [`${value.toFixed(1)}%`, label];
               return [Math.round(value), label];
             }}
             labelFormatter={(period: string) => formatDayLabel(period)}
-            contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
+            contentStyle={{ borderRadius: 14, border: "1px solid #f1f5f9", fontSize: 11, boxShadow: "0 8px 24px rgba(0,0,0,0.06)", padding: "10px 14px" }}
           />
-          {series.map((s) => (
-            <Bar key={s.key} dataKey={s.key} stackId="stack" fill={s.color} radius={[4, 4, 0, 0]} />
+          {series.map((s, i) => (
+            <Bar
+              key={s.key}
+              dataKey={s.key}
+              stackId="stack"
+              fill={`url(#stackGrad-${s.key})`}
+              radius={i === series.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]}
+              animationDuration={800}
+              animationEasing="ease-out"
+            />
           ))}
         </BarChart>
       </ResponsiveContainer>
@@ -422,7 +402,7 @@ function StackedBarChart({
   );
 }
 
-function MonthlyCommentsChart({ data }: { data: TrendResponse | null }) {
+function MonthlyCommentsChart({ data, granularity }: { data: TrendResponse | null; granularity: string }) {
   if (!data || data.data_points.length === 0) {
     return (
       <div className="h-44 flex items-center justify-center text-slate-200">
@@ -449,9 +429,9 @@ function MonthlyCommentsChart({ data }: { data: TrendResponse | null }) {
           <CartesianGrid stroke="#f1f5f9" strokeDasharray="3 3" vertical={false} />
           <XAxis
             dataKey="period"
-            minTickGap={24}
-            tick={{ fill: "#94a3b8", fontSize: 11 }}
-            tickFormatter={(period: string) => formatMonthYear(period)}
+            minTickGap={60}
+            tick={{ fill: "#94a3b8", fontSize: 10 }}
+            tickFormatter={(period: string) => formatTickLabel(period, granularity)}
             axisLine={false}
             tickLine={false}
           />
@@ -463,11 +443,11 @@ function MonthlyCommentsChart({ data }: { data: TrendResponse | null }) {
           />
           <Tooltip
             cursor={{ stroke: "#67E8F9", strokeDasharray: "4 4" }}
-            labelFormatter={(period: string) => formatMonthYear(period)}
+            labelFormatter={(period: string) => formatDayLabel(period)}
             formatter={(value: number) => [Math.round(value), "Comentários"]}
             contentStyle={{ borderRadius: 12, border: "1px solid #e2e8f0", fontSize: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}
           />
-          <Area type="monotone" dataKey="total_comments" stroke="none" fill="url(#monthlyCommentsFill)" isAnimationActive={false} />
+          <Area type="monotone" dataKey="total_comments" stroke="none" fill="url(#monthlyCommentsFill)" animationDuration={1200} animationEasing="ease-out" />
           <Line
             type="monotone"
             dataKey="total_comments"
@@ -475,7 +455,8 @@ function MonthlyCommentsChart({ data }: { data: TrendResponse | null }) {
             strokeWidth={2.2}
             dot={false}
             activeDot={{ r: 5, strokeWidth: 2, fill: "#06B6D4", stroke: "#fff" }}
-            isAnimationActive={false}
+            animationDuration={1200}
+            animationEasing="ease-out"
           />
         </LineChart>
       </ResponsiveContainer>
@@ -524,12 +505,12 @@ function PostCard({ post }: { post: PostSummary }) {
         </p>
         <p className="text-xs text-slate-400 mt-0.5 capitalize">
           {post.platform} · {fmt(post.comment_count)} comentários
-          {post.published_at && ` · ${fmtDate(post.published_at)}`}
+          {` · ${post.published_at && post.published_at !== "null" ? fmtDate(post.published_at) : "Sem data"}`}
         </p>
       </div>
       {score !== null && (
         <span className={`text-[11px] font-bold px-2 py-1 rounded-lg border shrink-0 ${scoreBg(score)}`}>
-          {score.toFixed(1)}
+          {score.toFixed(1)}/10
         </span>
       )}
     </Link>
@@ -542,12 +523,16 @@ function CommentRow({ comment }: { comment: CommentWithAnalysis }) {
   const topics = comment.analysis?.topics ?? [];
   const sarcasm = comment.analysis?.sarcasm ?? false;
 
+  const postedDate = comment.published_at && comment.published_at !== "null"
+    ? new Date(comment.published_at).toLocaleDateString("pt-BR")
+    : null;
+
   return (
     <tr className="border-b border-slate-50 hover:bg-slate-50/60 transition-colors">
       <td className="py-3 pl-4 pr-2 w-16">
         {score !== null ? (
           <span className={`inline-block text-xs font-bold px-2 py-1 rounded-lg border ${scoreBg(score)}`}>
-            {score.toFixed(1)}
+            {score.toFixed(1)}/10
           </span>
         ) : (
           <span className="inline-block text-xs px-2 py-1 rounded-lg bg-slate-50 text-slate-300 border border-slate-100">
@@ -563,12 +548,19 @@ function CommentRow({ comment }: { comment: CommentWithAnalysis }) {
           <p className="text-[10px] text-slate-300 mt-0.5">❤ {comment.like_count}</p>
         )}
       </td>
-      <td className="py-3 px-2">
+      <td className="py-3 px-2" style={{ maxWidth: 280 }}>
         <p className="text-xs text-slate-500 font-light line-clamp-2">{comment.text_original}</p>
         {comment.analysis?.summary_pt && (
           <p className="text-[10px] text-slate-400 italic mt-0.5">
-            IA: {comment.analysis.summary_pt}
+            Resumo: {comment.analysis.summary_pt}
           </p>
+        )}
+      </td>
+      <td className="py-3 px-2 w-20 text-center">
+        {postedDate ? (
+          <span className="text-[10px] text-slate-400">{postedDate}</span>
+        ) : (
+          <span className="text-[10px] text-slate-300">—</span>
         )}
       </td>
       <td className="py-3 pl-2 pr-2 w-24 text-center">
@@ -580,7 +572,8 @@ function CommentRow({ comment }: { comment: CommentWithAnalysis }) {
           <span className="text-[10px] text-slate-400">—</span>
         )}
       </td>
-      <td className="py-3 pl-2 pr-4 w-40 flex flex-col gap-1">
+      <td className="py-3 pl-2 pr-4 w-56">
+        <div className="flex flex-col gap-1">
         {topics.length > 0 && (
           <div className="flex flex-wrap gap-1">
             <span className="text-[9px] uppercase tracking-wider text-slate-300 mt-0.5 shrink-0">Tópico:</span>
@@ -600,6 +593,7 @@ function CommentRow({ comment }: { comment: CommentWithAnalysis }) {
             ))}
           </div>
         )}
+        </div>
       </td>
     </tr>
   );
@@ -613,15 +607,14 @@ export default function ConnectionPage() {
 
   const [data, setData] = useState<ConnectionDashboard | null>(null);
   const [trends, setTrends] = useState<TrendResponse | null>(null);
-  const [monthlyTrends, setMonthlyTrends] = useState<TrendResponse | null>(null);
   const [detailedTrends, setDetailedTrends] = useState<TrendsDetailedResponse | null>(null);
   const [comments, setComments] = useState<CommentListResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [trendsLoading, setTrendsLoading] = useState(false);
-  const [monthlyLoading, setMonthlyLoading] = useState(false);
   const [detailedLoading, setDetailedLoading] = useState(false);
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [usageData, setUsageData] = useState<{ syncs_used: number; syncs_limit: number } | null>(null);
   const [granularity, setGranularity] = useState("day");
   const [showSyncSettings, setShowSyncSettings] = useState(false);
   const [syncParams, setSyncParams] = useState<SyncSettings>(DEFAULT_SYNC_SETTINGS);
@@ -632,7 +625,7 @@ export default function ConnectionPage() {
   const [trendDays, setTrendDays] = useState(90);
 
   // temporal chart tabs
-  const [temporalTab, setTemporalTab] = useState<"sentiment" | "emotions" | "topics">("sentiment");
+  const [temporalTab, setTemporalTab] = useState<"volume" | "score" | "sentiment" | "emotions" | "topics">("volume");
 
   // comment filters
   const [search, setSearch] = useState("");
@@ -674,6 +667,13 @@ export default function ConnectionPage() {
       if (d?.connection && !d.connection.persona) {
         setShowPersonaPrompt(true);
       }
+      // Load usage data in background
+      billingApi.usage(token).then((res) => {
+        setUsageData({
+          syncs_used: res.usage.syncs_used_this_month,
+          syncs_limit: res.usage.syncs_limit,
+        });
+      }).catch(() => {});
     } catch (error) {
       console.error("Falha ao carregar dashboard da conexão", error);
     } finally {
@@ -725,25 +725,6 @@ export default function ConnectionPage() {
     [id, trendDays]
   );
 
-  const loadMonthlyTrends = useCallback(async () => {
-    const token = getToken();
-    if (!token) return;
-    setMonthlyLoading(true);
-    try {
-      const t = await dashboardApi.trends(token, {
-        connection_id: id,
-        granularity: "month",
-        days: 3650,
-      });
-      setMonthlyTrends(t);
-    } catch (error) {
-      console.error("Falha ao carregar volume mensal", error);
-      setMonthlyTrends({ data_points: [], granularity: "month" });
-    } finally {
-      setMonthlyLoading(false);
-    }
-  }, [id]);
-
   const loadComments = useCallback(
     async (q: { search: string; sentiment: string; offset: number }) => {
       const token = getToken();
@@ -774,7 +755,6 @@ export default function ConnectionPage() {
     setSyncParams(loadSyncSettings());
     loadMain();
     loadTrends(granularity);
-    loadMonthlyTrends();
     loadDetailedTrends(granularity);
     loadComments({ search, sentiment, offset });
   }, [loadMain, trendDays]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -815,7 +795,6 @@ export default function ConnectionPage() {
       setTimeout(() => {
         loadMain();
         loadTrends(granularity);
-        loadMonthlyTrends();
         loadDetailedTrends(granularity);
         loadComments({ search, sentiment, offset });
         setSyncing(false);
@@ -885,7 +864,7 @@ export default function ConnectionPage() {
   return (
     <div className="flex-1 overflow-y-auto">
       {/* -- Header -- */}
-      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-100 px-6 md:px-8 py-4 flex items-center gap-4">
+      <header className="sticky top-0 z-30 bg-white/80 backdrop-blur-md border-b border-slate-100 px-4 sm:px-6 md:px-8 py-3 sm:py-4 flex flex-wrap items-center gap-2 sm:gap-4">
         <Link
           href="/dashboard"
           className="flex items-center gap-1.5 text-sm text-slate-400 hover:text-brand-lilacDark transition-colors shrink-0"
@@ -903,14 +882,22 @@ export default function ConnectionPage() {
             </div>
           </div>
         ) : conn ? (
-          <div className="flex-1 flex items-center gap-3 min-w-0">
+          <div className="flex-1 flex flex-col sm:flex-row items-start sm:items-center gap-2 sm:gap-3 min-w-0">
             <div className={`w-10 h-10 rounded-2xl bg-white border border-slate-50 flex items-center justify-center shrink-0 shadow-sm overflow-hidden`}>
-              {platformIcon(conn.platform, 20)}
+              {conn.profile_image_url ? (
+                <img
+                  src={`${API_URL}/posts/thumbnail?url=${encodeURIComponent(conn.profile_image_url)}`}
+                  alt={conn.username}
+                  className="w-10 h-10 rounded-2xl object-cover"
+                />
+              ) : (
+                platformIcon(conn.platform, 20)
+              )}
             </div>
             <div className="min-w-0">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <h1 className="text-base font-sans font-semibold text-slate-800 truncate">
-                  @{conn.username}
+                  {conn.username?.startsWith('@') ? '' : '@'}{conn.username}
                 </h1>
                 <span
                   className={`text-[10px] font-bold uppercase px-2 py-0.5 rounded-full border ${conn.status === "active"
@@ -921,7 +908,7 @@ export default function ConnectionPage() {
                   {conn.status === "active" ? "Ativo" : conn.status}
                 </span>
               </div>
-              <p className="text-xs text-slate-400 capitalize flex flex-wrap items-center gap-2 mt-1">
+              <p className="text-[10px] sm:text-xs text-slate-400 capitalize flex flex-wrap items-center gap-1 sm:gap-2 mt-0.5 sm:mt-1">
                 <span>{conn.platform}</span>
                 {conn.followers_count > 0 && (
                   <>
@@ -952,7 +939,18 @@ export default function ConnectionPage() {
           </div>
         ) : null}
 
-        <div className="ml-auto shrink-0 flex items-center gap-2">
+        <div className="ml-auto shrink-0 flex items-center gap-3">
+          {usageData && (
+            <span className={`text-xs font-semibold px-2.5 py-1 rounded-full border hidden sm:inline-flex ${
+              usageData.syncs_used >= usageData.syncs_limit
+                ? "bg-rose-50 text-rose-600 border-rose-100"
+                : usageData.syncs_used >= usageData.syncs_limit * 0.8
+                  ? "bg-amber-50 text-amber-600 border-amber-100"
+                  : "bg-violet-50 text-brand-lilacDark border-violet-100"
+            }`}>
+              {usageData.syncs_used}/{usageData.syncs_limit} análises
+            </span>
+          )}
           <button
             onClick={() => setShowSyncSettings((v) => !v)}
             className="h-10 w-10 rounded-full border border-slate-100 text-slate-400 hover:text-brand-lilacDark hover:border-brand-lilac transition-colors flex items-center justify-center"
@@ -965,7 +963,6 @@ export default function ConnectionPage() {
             onComplete={() => {
               loadMain();
               loadTrends(granularity);
-              loadMonthlyTrends();
               loadDetailedTrends(granularity);
               loadComments({ search, sentiment, offset });
             }}
@@ -998,7 +995,7 @@ export default function ConnectionPage() {
               <button
                 onClick={handleSavePersona}
                 disabled={savingPersona || personaText.trim().length < 5}
-                className="px-4 py-2 rounded-lg bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white text-sm font-medium shadow-sm hover:shadow-float transition-all disabled:opacity-60"
+                className="px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 text-sm font-medium shadow-sm transition-all disabled:opacity-60"
               >
                 {savingPersona ? "Salvando..." : "Salvar Persona"}
               </button>
@@ -1007,7 +1004,7 @@ export default function ConnectionPage() {
         </div>
       )}
 
-      <main className="p-6 md:p-8 space-y-8 max-w-screen-xl mx-auto animate-fade-in">
+      <main className="p-4 sm:p-6 md:p-8 space-y-5 sm:space-y-8 max-w-screen-xl mx-auto animate-fade-in">
         <AnimatePresence>
           {showSyncSettings && (
             <motion.div
@@ -1095,231 +1092,53 @@ export default function ConnectionPage() {
           )}
         </AnimatePresence>
 
+        {/* -- Period subtitle -- */}
+        {!loading && dateRange && (
+          <p className="text-sm text-slate-400 font-light -mt-2">{dateRange}</p>
+        )}
+
         {/* -- KPI cards -- */}
-        <div className="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-2 sm:gap-4 md:gap-6">
           {loading ? (
-            Array(6).fill(0).map((_, i) => <SkeletonKpi key={i} />)
+            Array(4).fill(0).map((_, i) => <SkeletonKpi key={i} />)
           ) : (
             <>
               <KpiCard
                 icon="favorite"
-                label="Score médio"
-                value={data?.avg_score != null ? data.avg_score.toFixed(1) : "—"}
-                sub="Score médio"
+                label="Score"
+                value={data?.avg_score != null ? `${data.avg_score.toFixed(1)}/10` : "—"}
+                sub="Score"
                 iconBg="bg-violet-50 text-brand-lilacDark"
                 valueClass={scoreColor(data?.avg_score ?? null)}
                 tooltip="Média aritmética dos scores (0-10) de todos os comentários analisados. Acima de 7 = positivo, abaixo de 4 = negativo."
               />
               <KpiCard
-                icon="bar_chart_4_bars"
-                label="Taxa negativa"
-                value={`${negativeRate}%`}
-                sub="Comentários negativos"
-                iconBg="bg-cyan-50 text-brand-cyanDark"
-                valueClass={negativeRate >= 35 ? "text-rose-500" : negativeRate >= 20 ? "text-amber-500" : "text-emerald-600"}
-                tooltip="Percentual de comentários classificados como negativos no período. Ajuda a monitorar risco reputacional com mais clareza."
+                icon="thumb_up"
+                label="Positivos %"
+                value={dist ? `${posRate}%` : "—"}
+                sub={dist ? `${fmt(dist.positive)} comentários` : ""}
+                iconBg="bg-emerald-50 text-emerald-500"
+                tooltip="Percentual de comentários classificados como positivos (score > 6)."
               />
               <KpiCard
-                icon="sentiment_satisfied"
-                label="Menções positivas"
-                value={dist ? `${dist.positive}` : "—"}
-                sub={dist && distTotal > 0 ? `${Math.round((dist.positive / distTotal) * 100)}% do total` : ""}
-                iconBg="bg-emerald-50 text-emerald-500"
-                tooltip="Total de comentários classificados como positivos (score > 6)."
+                icon="thumb_down"
+                label="Negativos %"
+                value={`${negativeRate}%`}
+                sub={dist ? `${fmt(dist.negative)} comentários` : ""}
+                iconBg="bg-rose-50 text-rose-400"
+                valueClass={negativeRate >= 35 ? "text-rose-500" : negativeRate >= 20 ? "text-amber-500" : "text-emerald-600"}
+                tooltip="Percentual de comentários classificados como negativos no período."
               />
               <KpiCard
                 icon="forum"
-                label="Analisados"
+                label="Volume"
                 value={fmt(data?.total_analyzed ?? 0)}
                 sub={`de ${fmt(data?.total_comments ?? 0)} coletados`}
-                iconBg="bg-rose-50 text-rose-400"
+                iconBg="bg-cyan-50 text-brand-cyanDark"
                 tooltip="Comentários que foram analisados por IA. O restante está pendente de análise."
               />
-              <KpiCard
-                icon="date_range"
-                label="Período"
-                value={dateRange || "—"}
-                sub="Período monitorado"
-                iconBg="bg-indigo-50 text-indigo-500"
-              />
-              <KpiCard
-                icon="article"
-                label="Posts"
-                value={fmt(data?.total_posts ?? 0)}
-                sub={`${fmt(data?.total_analyzed ?? 0)} com análise`}
-                iconBg="bg-emerald-50 text-emerald-500"
-              />
             </>
           )}
-        </div>
-
-        {/* -- Monthly comments chart -- */}
-        <div className="dream-card p-6 md:p-8">
-          <div className="flex items-center justify-between gap-4 mb-6">
-            <div>
-              <h2 className="text-lg font-sans font-medium text-slate-700">Volume de Comentários</h2>
-              <p className="text-sm text-slate-400 font-light mt-0.5">Quantidade de comentários por mês</p>
-            </div>
-          </div>
-          {monthlyLoading ? (
-            <div className="h-56 bg-slate-50 rounded-2xl animate-pulse" />
-          ) : (
-            <MonthlyCommentsChart data={monthlyTrends} />
-          )}
-        </div>
-
-        {/* -- Trend chart -- */}
-        <div className="dream-card p-6 md:p-8">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div>
-              <h2 className="text-lg font-sans font-medium text-slate-700">Tendência de Score</h2>
-              <p className="text-sm text-slate-400 font-light mt-0.5">Score médio ao longo do tempo</p>
-            </div>
-            <div className="flex rounded-xl border border-slate-100 overflow-hidden text-sm shrink-0">
-              {[
-                { label: "30d", value: 30 },
-                { label: "90d", value: 90 },
-                { label: "1a", value: 365 },
-                { label: "Tudo", value: 3650 },
-              ].map((p) => (
-                <button
-                  key={p.value}
-                  onClick={() => setTrendDays(p.value)}
-                  className={`px-3 py-1.5 text-xs font-medium transition-colors ${
-                    trendDays === p.value
-                      ? "bg-brand-lilac text-white"
-                      : "text-slate-400 hover:text-slate-600"
-                  }`}
-                >
-                  {p.label}
-                </button>
-              ))}
-            </div>
-            <div className="flex rounded-xl border border-slate-100 overflow-hidden text-sm shrink-0">
-              {[
-                { label: "Dia", value: "day" },
-                { label: "Semana", value: "week" },
-                { label: "Mês", value: "month" },
-              ].map((g) => (
-                <button
-                  key={g.value}
-                  onClick={() => handleGranularity(g.value)}
-                  className={`px-4 py-1.5 font-medium transition-colors ${granularity === g.value
-                    ? "bg-brand-lilacDark text-white"
-                    : "bg-white text-slate-400 hover:text-slate-600"
-                    }`}
-                >
-                  {g.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          {trendsLoading ? (
-            <div className="h-60 bg-slate-50 rounded-2xl animate-pulse" />
-          ) : (
-            <TrendChart data={trends} granularity={granularity} />
-          )}
-        </div>
-
-        {/* -- Análise Temporal -- */}
-        <div className="dream-card p-6 md:p-8">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
-            <div>
-              <h2 className="text-lg font-sans font-medium text-slate-700">Análise Temporal</h2>
-              <p className="text-sm text-slate-400 font-light mt-0.5">Distribuição por período</p>
-            </div>
-            <div className="flex items-center gap-2 flex-wrap">
-              <div className="flex rounded-xl border border-slate-100 overflow-hidden text-xs">
-                {([
-                  { label: "Sentimento", value: "sentiment" as const },
-                  { label: "Emoções", value: "emotions" as const },
-                  { label: "Tópicos", value: "topics" as const },
-                ] as const).map((t) => (
-                  <button
-                    key={t.value}
-                    onClick={() => setTemporalTab(t.value)}
-                    className={`px-3 py-1.5 font-medium transition-colors ${temporalTab === t.value ? "bg-brand-lilacDark text-white" : "bg-white text-slate-400 hover:text-slate-600"}`}
-                  >
-                    {t.label}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-          {trendsLoading || detailedLoading ? (
-            <div className="h-56 bg-slate-50 rounded-2xl animate-pulse" />
-          ) : (
-            <>
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                <div className="rounded-2xl border border-slate-100 p-3">
-                  <p className="text-xs font-medium text-slate-500 mb-2">Intensidade absoluta</p>
-                  <StackedBarChart
-                    periods={temporalPeriods}
-                    series={temporalSeries}
-                    mode="absolute"
-                  />
-                </div>
-                <div className="rounded-2xl border border-slate-100 p-3">
-                  <p className="text-xs font-medium text-slate-500 mb-2">Distribuição 100%</p>
-                  <StackedBarChart
-                    periods={temporalPeriods}
-                    series={temporalSeries}
-                    mode="pct"
-                  />
-                </div>
-              </div>
-              {temporalSeries.length > 0 && (
-                <div className="flex flex-wrap gap-3 mt-3">
-                  {temporalSeries.map((s) => (
-                    <div key={s.key} className="flex items-center gap-1.5">
-                      <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: s.color }} />
-                      <span className="text-xs text-slate-400 font-light capitalize">{s.label}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* -- Emotions + Topics -- */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="dream-card p-6">
-            <div className="flex items-center gap-2 mb-5">
-              <div className="w-7 h-7 rounded-lg bg-violet-50 text-brand-lilacDark flex items-center justify-center">
-                <span className="material-symbols-outlined text-[16px]">sentiment_satisfied</span>
-              </div>
-              <h2 className="text-base font-sans font-medium text-slate-700">Emoções</h2>
-              <span className="text-xs text-slate-300 font-light ml-1">top 7</span>
-            </div>
-            {loading ? (
-              <div className="space-y-3 animate-pulse">
-                {Array(5).fill(0).map((_, i) => (
-                  <div key={i} className="h-6 bg-slate-50 rounded-lg" />
-                ))}
-              </div>
-            ) : (
-              <HBarChart data={data?.emotions_distribution ? Object.fromEntries(Object.entries(data.emotions_distribution).map(([k, v]) => [`${EMOTION_EMOJI[k] || "📊"} ${k}`, v])) : null} palette="emotion" limit={7} />
-            )}
-          </div>
-          <div className="dream-card p-6">
-            <div className="flex items-center gap-2 mb-5">
-              <div className="w-7 h-7 rounded-lg bg-cyan-50 text-brand-cyanDark flex items-center justify-center">
-                <span className="material-symbols-outlined text-[16px]">label</span>
-              </div>
-              <h2 className="text-base font-sans font-medium text-slate-700">Tópicos</h2>
-              <span className="text-xs text-slate-300 font-light ml-1">top 10</span>
-            </div>
-            {loading ? (
-              <div className="space-y-3 animate-pulse">
-                {Array(6).fill(0).map((_, i) => (
-                  <div key={i} className="h-6 bg-slate-50 rounded-lg" />
-                ))}
-              </div>
-            ) : (
-              <HBarChart data={data?.topics_frequency ?? null} palette="topic" limit={10} />
-            )}
-          </div>
         </div>
 
         {/* -- Sentiment distribution + Engagement -- */}
@@ -1332,13 +1151,13 @@ export default function ConnectionPage() {
               <>
                 <div className="h-3 rounded-full overflow-hidden flex gap-0.5 mb-4">
                   <div className="h-full rounded-l-full bg-emerald-400" style={{ width: `${posRate}%` }} />
-                  <div className="h-full bg-amber-300" style={{ width: `${neuRate}%` }} />
+                  <div className="h-full bg-slate-300" style={{ width: `${neuRate}%` }} />
                   <div className="h-full rounded-r-full bg-rose-400" style={{ width: `${negRate}%` }} />
                 </div>
                 <div className="space-y-3">
                   {[
                     { label: "Positivo", pct: posRate, dot: "bg-emerald-400", text: "text-emerald-600", count: dist.positive },
-                    { label: "Neutro", pct: neuRate, dot: "bg-amber-300", text: "text-amber-600", count: dist.neutral },
+                    { label: "Neutro", pct: neuRate, dot: "bg-slate-300", text: "text-slate-500", count: dist.neutral },
                     { label: "Negativo", pct: negRate, dot: "bg-rose-400", text: "text-rose-600", count: dist.negative },
                   ].map((item) => (
                     <div key={item.label} className="flex items-center justify-between">
@@ -1364,18 +1183,18 @@ export default function ConnectionPage() {
             {loading ? (
               <div className="h-20 bg-slate-50 rounded-xl animate-pulse" />
             ) : (
-              <div className="space-y-4">
+              <div className="grid grid-cols-3 gap-3 sm:gap-4">
                 {[
                   { icon: "favorite", label: "Likes", value: data?.engagement_totals.total_likes ?? 0, color: "text-rose-400 bg-rose-50" },
                   { icon: "visibility", label: "Views", value: data?.engagement_totals.total_views ?? 0, color: "text-blue-400 bg-blue-50" },
                   { icon: "forum", label: "Comentários", value: data?.engagement_totals.total_comments ?? 0, color: "text-violet-400 bg-violet-50" },
                 ].map((e) => (
-                  <div key={e.label} className="flex items-center gap-3">
+                  <div key={e.label} className="flex flex-col items-center sm:flex-row sm:items-center gap-2 sm:gap-3">
                     <div className={`w-9 h-9 rounded-xl ${e.color} flex items-center justify-center shrink-0`}>
                       <span className="material-symbols-outlined text-[18px]">{e.icon}</span>
                     </div>
-                    <div className="flex-1">
-                      <p className="text-xs text-slate-400 font-light">{e.label}</p>
+                    <div className="text-center sm:text-left">
+                      <p className="text-[10px] sm:text-xs text-slate-400 font-light">{e.label}</p>
                       <p className="text-sm font-sans font-semibold text-slate-700">{fmt(e.value)}</p>
                     </div>
                   </div>
@@ -1383,6 +1202,139 @@ export default function ConnectionPage() {
               </div>
             )}
           </div>
+        </div>
+
+        {/* -- Radar + WordCloud -- */}
+        {!loading && (data?.total_analyzed ?? 0) > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="dream-card p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-7 h-7 rounded-lg bg-violet-50 text-brand-lilacDark flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[16px]">radar</span>
+                </div>
+                <h2 className="text-base font-sans font-medium text-slate-700">Radar de Emocoes</h2>
+              </div>
+              <p className="text-xs text-slate-400 font-light mb-2">Perfil emocional desta rede</p>
+              <SentimentRadar distribution={data?.emotions_distribution ?? null} height={260} />
+            </div>
+            <div className="dream-card p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-7 h-7 rounded-lg bg-cyan-50 text-brand-cyanDark flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[16px]">cloud</span>
+                </div>
+                <h2 className="text-base font-sans font-medium text-slate-700">Nuvem de Palavras</h2>
+              </div>
+              <p className="text-xs text-slate-400 font-light mb-2">Palavras mais faladas nos comentarios</p>
+              <WordCloudChart topics={data?.word_frequency ?? null} maxWords={20} height={260} />
+            </div>
+          </div>
+        )}
+
+        {/* -- Análise Temporal (unified: Volume / Score / Sentimento / Emoções / Tópicos) -- */}
+        <div className="dream-card p-6 md:p-8">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+            <div>
+              <h2 className="text-lg font-sans font-medium text-slate-700">Análise Temporal</h2>
+              <p className="text-sm text-slate-400 font-light mt-0.5">Distribuição por período</p>
+            </div>
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex rounded-xl border border-slate-100 overflow-hidden text-sm shrink-0">
+                {[
+                  { label: "30d", value: 30 },
+                  { label: "90d", value: 90 },
+                  { label: "1a", value: 365 },
+                  { label: "Tudo", value: 0 },
+                ].map((p) => (
+                  <button
+                    key={p.value}
+                    onClick={() => setTrendDays(p.value)}
+                    className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                      trendDays === p.value
+                        ? "bg-brand-lilac text-white"
+                        : "text-slate-400 hover:text-slate-600"
+                    }`}
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex rounded-xl border border-slate-100 overflow-hidden text-sm shrink-0">
+                {[
+                  { label: "Dia", value: "day" },
+                  { label: "Semana", value: "week" },
+                  { label: "Mês", value: "month" },
+                ].map((g) => (
+                  <button
+                    key={g.value}
+                    onClick={() => handleGranularity(g.value)}
+                    className={`px-4 py-1.5 font-medium transition-colors ${granularity === g.value
+                      ? "bg-brand-lilacDark text-white"
+                      : "bg-white text-slate-400 hover:text-slate-600"
+                      }`}
+                  >
+                    {g.label}
+                  </button>
+                ))}
+              </div>
+              <div className="flex rounded-xl border border-slate-100 overflow-hidden text-xs">
+                {([
+                  { label: "Volume", value: "volume" as const },
+                  { label: "Score", value: "score" as const },
+                  { label: "Sentimento", value: "sentiment" as const },
+                  { label: "Emoções", value: "emotions" as const },
+                  { label: "Tópicos", value: "topics" as const },
+                ] as const).map((t) => (
+                  <button
+                    key={t.value}
+                    onClick={() => setTemporalTab(t.value)}
+                    className={`px-3 py-1.5 font-medium transition-colors ${temporalTab === t.value ? "bg-brand-lilacDark text-white" : "bg-white text-slate-400 hover:text-slate-600"}`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+          {trendsLoading || detailedLoading ? (
+            <div className="h-56 bg-slate-50 rounded-2xl animate-pulse" />
+          ) : temporalTab === "volume" ? (
+            <MonthlyCommentsChart data={trends} granularity={granularity} />
+          ) : temporalTab === "score" ? (
+            <TrendChart data={trends} granularity={granularity} />
+          ) : (
+            <>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                <div className="rounded-2xl border border-slate-100 p-3">
+                  <p className="text-xs font-medium text-slate-500 mb-2">Intensidade absoluta</p>
+                  <StackedBarChart
+                    periods={temporalPeriods}
+                    series={temporalSeries}
+                    mode="absolute"
+                    granularity={granularity}
+                  />
+                </div>
+                <div className="rounded-2xl border border-slate-100 p-3">
+                  <p className="text-xs font-medium text-slate-500 mb-2">Distribuição 100%</p>
+                  <StackedBarChart
+                    periods={temporalPeriods}
+                    series={temporalSeries}
+                    mode="pct"
+                    granularity={granularity}
+                  />
+                </div>
+              </div>
+              {temporalSeries.length > 0 && (
+                <div className="flex flex-wrap gap-2 sm:gap-3 mt-3">
+                  {temporalSeries.map((s) => (
+                    <div key={s.key} className="flex items-center gap-1.5">
+                      <div className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: s.color }} />
+                      <span className="text-[10px] sm:text-xs text-slate-400 font-light capitalize">{s.label}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
         </div>
 
         {/* -- Posts list -- */}
@@ -1510,9 +1462,10 @@ export default function ConnectionPage() {
                     <tr className="border-b border-slate-50">
                       <th className="py-3 pl-4 pr-2 text-[10px] text-slate-300 uppercase tracking-wider font-medium w-16">Score</th>
                       <th className="py-3 px-2 text-[10px] text-slate-300 uppercase tracking-wider font-medium w-32">Autor</th>
-                      <th className="py-3 px-2 text-[10px] text-slate-300 uppercase tracking-wider font-medium">Comentário</th>
+                      <th className="py-3 px-2 text-[10px] text-slate-300 uppercase tracking-wider font-medium" style={{ maxWidth: 280 }}>Comentário</th>
+                      <th className="py-3 px-2 text-[10px] text-slate-300 uppercase tracking-wider font-medium w-20 text-center">Data</th>
                       <th className="py-3 px-2 text-[10px] text-slate-300 uppercase tracking-wider font-medium w-24 text-center">Sentimento</th>
-                      <th className="py-3 pl-2 pr-4 text-[10px] text-slate-300 uppercase tracking-wider font-medium w-40">Tópico & Emoção</th>
+                      <th className="py-3 pl-2 pr-4 text-[10px] text-slate-300 uppercase tracking-wider font-medium w-56">Tópico & Emoção</th>
                     </tr>
                   </thead>
                   <tbody>

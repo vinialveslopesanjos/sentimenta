@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { authApi } from "@/lib/api";
 import { clearTokens, getToken } from "@/lib/auth";
 import Sidebar from "@/components/Sidebar";
+import BottomNav from "@/components/BottomNav";
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -21,10 +22,18 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     authApi
       .me(token)
       .then((user) => {
+        if (!user.email_verified) {
+          router.replace("/verify-email");
+          return;
+        }
         setUserName(user.name);
         setOk(true);
       })
-      .catch(() => {
+      .catch((err) => {
+        if (err instanceof Error && err.message === "email_not_verified") {
+          router.replace("/verify-email");
+          return;
+        }
         clearTokens();
         router.replace("/login");
       });
@@ -50,9 +59,10 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   return (
     <div className="flex min-h-screen bg-brand-bg">
       <Sidebar userName={userName} />
-      <div className="flex-1 min-w-0 flex flex-col">
+      <div className="flex-1 min-w-0 flex flex-col pb-20 md:pb-0">
         {children}
       </div>
+      <BottomNav />
     </div>
   );
 }

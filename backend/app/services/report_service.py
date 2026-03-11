@@ -1,8 +1,8 @@
 """
 AI Health Report service.
 
-Uses Gemini to generate a narrative reputational health summary
-based on aggregated sentiment data.
+Uses OpenRouter (Gemini 2.5 Flash) to generate a narrative reputational
+health summary based on aggregated sentiment data.
 """
 
 import logging
@@ -14,20 +14,10 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models"
+OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+HEALTH_REPORT_MODEL = "google/gemini-2.5-flash"
 
-
-def generate_health_report(data_summary: dict) -> str:
-    """Generate a markdown health report via Gemini.
-
-    Args:
-        data_summary: Aggregated data dict with keys like
-            platforms, avg_scores, sentiment_distributions, top_emotions, top_topics
-
-    Returns:
-        Markdown string with the report.
-    """
-    prompt = f"""Você é a voz analítica avançada da Sentimenta.
+DEFAULT_HEALTH_PROMPT = """Você é a voz analítica avançada da Sentimenta.
 
 Com base nos dados abaixo, escreva a análise de sentimento da audiência de forma intimista e cirúrgica, em português brasileiro.
 
@@ -47,26 +37,48 @@ Com base nos dados abaixo, escreva a análise de sentimento da audiência de for
 🚀 **Próximo passo sugerido**
 [Dê uma sugestão prática de ação para o criador de conteúdo hoje. Ex: um novo post, um story, melhoria no link, baseado no que o público engajou ou criticou na análise]
 
-**Dados extraídos (Use-os para construir a resposta):**
-{json.dumps(data_summary, ensure_ascii=False, indent=2)}
+**IMPORTANTE:** Nos dados você receberá "sample_comments" com 5 comentários reais de cada sentimento (positivo, neutro, negativo). USE esses comentários para dar exemplos concretos do que a audiência está dizendo. Cite trechos reais entre aspas para enriquecer a análise e dar credibilidade.
 
 Siga EXATAMENTE a estrutura visual pedida com os emojis e títulos fornecidos."""
 
-    url = f"{GEMINI_BASE_URL}/{settings.GEMINI_MODEL}:generateContent?key={settings.GEMINI_API_KEY}"
+
+def generate_health_report(data_summary: dict, custom_prompt: str | None = None) -> str:
+    """Generate a markdown health report via OpenRouter (Gemini 2.5 Flash).
+
+    Args:
+        data_summary: Aggregated data dict with keys like
+            platforms, avg_scores, sentiment_distributions, top_emotions, top_topics
+        custom_prompt: Optional custom prompt to use instead of the default.
+
+    Returns:
+        Markdown string with the report.
+    """
+    base_prompt = custom_prompt if custom_prompt else DEFAULT_HEALTH_PROMPT
+
+    user_message = f"""{base_prompt}
+
+**Dados extraídos:**
+{json.dumps(data_summary, ensure_ascii=False, indent=2)}"""
 
     payload = {
-        "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "temperature": 0.75,
-            "maxOutputTokens": 2000,
-        },
+        "model": HEALTH_REPORT_MODEL,
+        "messages": [
+            {"role": "user", "content": user_message},
+        ],
+        "temperature": 0.75,
+        "max_tokens": 2000,
+    }
+
+    headers = {
+        "Authorization": f"Bearer {settings.OPENROUTER_API_KEY}",
+        "Content-Type": "application/json",
     }
 
     try:
-        resp = requests.post(url, json=payload, timeout=30)
+        resp = requests.post(OPENROUTER_URL, json=payload, headers=headers, timeout=60)
         resp.raise_for_status()
         result = resp.json()
-        text = result["candidates"][0]["content"]["parts"][0]["text"]
+        text = result["choices"][0]["message"]["content"]
         return text.strip()
     except Exception as e:
         logger.error("Failed to generate health report: %s", e)

@@ -4,8 +4,7 @@ import { motion } from "motion/react";
 import { StatusBar } from "./StatusBar";
 import { DreamCard } from "./DreamCard";
 import { api } from "../../lib/api";
-import { type DashboardSummary, type Connection } from "@sentimenta/types";
-import { aiReport, monthlyDistribution } from "./mockData";
+import { type DashboardSummary, type Connection, type UserProfile, type HealthReport, type TrendsDetailedResponse } from "@sentimenta/types";
 import {
   Instagram,
   Youtube,
@@ -135,15 +134,6 @@ function ScoreHero({ score }: { score: number }) {
         </p>
         <div className="flex items-center gap-2 mt-2.5">
           <span
-            className="px-2.5 py-1 rounded-full text-emerald-600 bg-emerald-50"
-            style={{
-              fontSize: "11px",
-              fontWeight: 500,
-            }}
-          >
-            + 0.5 esta semana
-          </span>
-          <span
             className="px-2.5 py-1 rounded-full capitalize"
             style={{
               fontSize: "11px",
@@ -166,16 +156,25 @@ export function DashboardScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [conns, setConns] = useState<Connection[]>([]);
+  const [user, setUser] = useState<UserProfile | null>(null);
+  const [healthReport, setHealthReport] = useState<HealthReport | null>(null);
+  const [trendsData, setTrendsData] = useState<TrendsDetailedResponse | null>(null);
 
   React.useEffect(() => {
     async function loadData() {
       try {
-        const [sumRes, connRes] = await Promise.all([
+        const [sumRes, connRes, userRes, healthRes, trendsRes] = await Promise.all([
           api.dashboard.summary(),
           api.connections.list(),
+          api.auth.me(),
+          api.dashboard.healthReport().catch(() => null),
+          api.dashboard.trendsDetailed({ days: 365 }).catch(() => null),
         ]);
         setSummary(sumRes);
         setConns(connRes);
+        setUser(userRes);
+        if (healthRes) setHealthReport(healthRes);
+        if (trendsRes) setTrendsData(trendsRes);
       } catch (err) {
         console.error("Failed to load dashboard data", err);
       }
@@ -183,10 +182,57 @@ export function DashboardScreen() {
     loadData();
   }, []);
 
-  const handleRefreshAI = () => {
+  const handleRefreshAI = async () => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 2000);
+    try {
+      const res = await api.dashboard.healthReport();
+      setHealthReport(res);
+    } catch (err) {
+      console.error("Failed to refresh health report", err);
+    } finally {
+      setRefreshing(false);
+    }
   };
+
+  const userName = user?.name?.split(" ")[0] || "usuario";
+  const userInitials = user?.name
+    ? user.name.split(" ").map((w) => w[0]).join("").substring(0, 2).toUpperCase()
+    : "??";
+
+  // Transform trends data for the chart
+  const chartData = React.useMemo(() => {
+    if (!trendsData?.data_points?.length) return [];
+    return trendsData.data_points.map((dp) => {
+      const total = dp.positive + dp.neutral + dp.negative || 1;
+      return {
+        month: (() => {
+          try {
+            const d = new Date(dp.period);
+            if (!isNaN(d.getTime())) return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`;
+          } catch {}
+          return dp.period.length > 5 ? dp.period.slice(5, 10).replace('-', '/') : dp.period;
+        })(),
+        positivo: Math.round((dp.positive / total) * 100),
+        neutro: Math.round((dp.neutral / total) * 100),
+        negativo: Math.round((dp.negative / total) * 100),
+      };
+    });
+  }, [trendsData]);
+
+  // Parse health report text into sections
+  const aiReport = React.useMemo(() => {
+    if (!healthReport) return null;
+    const text = healthReport.report_text || "";
+    const lines = text.split("\n").filter((l) => l.trim());
+    return {
+      profile: conns[0]?.username || "",
+      period: `Gerado em ${new Date(healthReport.generated_at).toLocaleDateString("pt-BR")}`,
+      summary: lines[0] || "Sem dados suficientes para gerar relatorio.",
+      strengths: lines[1] || "",
+      attention: lines[2] || "",
+      nextStep: lines[3] || "",
+    };
+  }, [healthReport, conns]);
 
   const stagger = (i: number) => ({
     initial: { opacity: 0, y: 16 },
@@ -212,7 +258,7 @@ export function DashboardScreen() {
               letterSpacing: "-0.4px",
             }}
           >
-            {getGreeting()}, Julia.
+            {getGreeting()}, {userName}.
           </motion.h1>
           <motion.p
             {...stagger(1)}
@@ -228,7 +274,7 @@ export function DashboardScreen() {
             boxShadow: "0 4px 12px rgba(249,168,212,0.35)",
           }}
         >
-          <span style={{ fontSize: "13px", fontWeight: 700, color: "#9F1239" }}>JB</span>
+          <span style={{ fontSize: "13px", fontWeight: 700, color: "#9F1239" }}>{userInitials}</span>
         </div>
       </div>
 
@@ -244,7 +290,7 @@ export function DashboardScreen() {
                   className="absolute -right-12 -top-12 w-48 h-48 rounded-full blur-3xl"
                   style={{ background: "radial-gradient(circle, rgba(103,232,249,0.2) 0%, rgba(196,181,253,0.15) 60%, transparent 100%)" }}
                 />
-                <ScoreHero score={summary.avg_score ?? 0} />
+                <ScoreHero score={summary.avg_score ?? (summary as any).weighted_avg_score ?? 0} />
               </DreamCard>
             </motion.div>
 
@@ -331,11 +377,23 @@ export function DashboardScreen() {
                   >
                     <div className="flex items-center gap-3 mb-3">
                       <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-white border border-slate-50 shadow-sm overflow-hidden flex-shrink-0">
-                        <img
-                          src={`/icons/${conn.platform === "twitter" ? "twitter-x" : conn.platform}.svg`}
-                          alt={conn.platform}
-                          className="w-6 h-6"
-                        />
+                        {conn.profile_image_url ? (
+                          <img
+                            src={`${import.meta.env.VITE_API_URL || "/api/v1"}/posts/thumbnail?url=${encodeURIComponent(conn.profile_image_url)}`}
+                            alt={conn.username}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              (e.target as HTMLImageElement).style.display = "none";
+                              (e.target as HTMLImageElement).parentElement!.innerHTML = `<img src="/icons/${conn.platform === "twitter" ? "twitter-x" : conn.platform}.svg" alt="${conn.platform}" class="w-6 h-6" />`;
+                            }}
+                          />
+                        ) : (
+                          <img
+                            src={`/icons/${conn.platform === "twitter" ? "twitter-x" : conn.platform}.svg`}
+                            alt={conn.platform}
+                            className="w-6 h-6"
+                          />
+                        )}
                       </div>
                       <div>
                         <p style={{ fontSize: "14px", fontWeight: 600, color: "#1E293B" }}>
@@ -398,13 +456,13 @@ export function DashboardScreen() {
                     className="px-2.5 py-1 rounded-lg"
                     style={{ background: "rgba(196,181,253,0.12)" }}
                   >
-                    <span style={{ fontSize: "10px", fontWeight: 500, color: "#7C3AED" }}>30 dias</span>
+                    <span style={{ fontSize: "10px", fontWeight: 500, color: "#7C3AED" }}>12 meses</span>
                   </div>
                 </div>
 
                 <div className="h-[160px]">
                   <ResponsiveContainer width="99%" height="100%">
-                    <AreaChart data={monthlyDistribution}>
+                    <AreaChart data={chartData}>
                       <defs>
                         <linearGradient id="colorPos" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%" stopColor="#34D399" stopOpacity={0.4} />
@@ -419,7 +477,7 @@ export function DashboardScreen() {
                           <stop offset="95%" stopColor="#F472B6" stopOpacity={0} />
                         </linearGradient>
                       </defs>
-                      <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#94A3B8" }} interval={1} />
+                      <XAxis dataKey="month" axisLine={false} tickLine={false} tick={{ fontSize: 8, fill: "#94A3B8" }} interval="preserveStartEnd" angle={-35} textAnchor="end" height={35} />
                       <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 9, fill: "#94A3B8" }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
                       <Tooltip
                         contentStyle={{
@@ -483,57 +541,71 @@ export function DashboardScreen() {
                   </button>
                 </div>
 
-                <p style={{ fontSize: "11px", color: "#94A3B8", marginBottom: "12px" }} className="relative z-10">
-                  Perfil: {aiReport.profile} · {aiReport.period}
-                </p>
-
-                <div className="space-y-3 relative z-10">
-                  <div>
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <span style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>O resumo da vez</span>
-                    </div>
-                    <p style={{ fontSize: "13px", color: "#475569", lineHeight: 1.55 }}>
-                      {aiReport.summary}
+                {aiReport ? (
+                  <>
+                    <p style={{ fontSize: "11px", color: "#94A3B8", marginBottom: "12px" }} className="relative z-10">
+                      Perfil: {aiReport.profile} · {aiReport.period}
                     </p>
-                  </div>
 
-                  {aiExpanded && (
-                    <>
+                    <div className="space-y-3 relative z-10">
                       <div>
                         <div className="flex items-center gap-1.5 mb-1.5">
-                          <span style={{ fontSize: "12px", fontWeight: 600, color: "#059669" }}>O que funcionou</span>
+                          <span style={{ fontSize: "12px", fontWeight: 600, color: "#334155" }}>O resumo da vez</span>
                         </div>
-                        <p style={{ fontSize: "13px", color: "#475569", lineHeight: 1.55 }}>{aiReport.strengths}</p>
+                        <p style={{ fontSize: "13px", color: "#475569", lineHeight: 1.55 }}>
+                          {aiReport.summary}
+                        </p>
                       </div>
 
-                      <div>
-                        <div className="flex items-center gap-1.5 mb-1.5">
-                          <span style={{ fontSize: "12px", fontWeight: 600, color: "#D97706" }}>Pontos de atencao</span>
-                        </div>
-                        <p style={{ fontSize: "13px", color: "#475569", lineHeight: 1.55 }}>{aiReport.attention}</p>
-                      </div>
+                      {aiExpanded && (
+                        <>
+                          {aiReport.strengths && (
+                            <div>
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <span style={{ fontSize: "12px", fontWeight: 600, color: "#059669" }}>O que funcionou</span>
+                              </div>
+                              <p style={{ fontSize: "13px", color: "#475569", lineHeight: 1.55 }}>{aiReport.strengths}</p>
+                            </div>
+                          )}
 
-                      <DreamCard className="p-3.5" tint="violet">
-                        <div className="flex items-center gap-1.5 mb-1.5">
-                          <span style={{ fontSize: "12px", fontWeight: 600, color: "#7C3AED" }}>Proximo passo sugerido</span>
-                        </div>
-                        <p style={{ fontSize: "13px", color: "#475569", lineHeight: 1.55 }}>{aiReport.nextStep}</p>
-                      </DreamCard>
-                    </>
-                  )}
+                          {aiReport.attention && (
+                            <div>
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <span style={{ fontSize: "12px", fontWeight: 600, color: "#D97706" }}>Pontos de atencao</span>
+                              </div>
+                              <p style={{ fontSize: "13px", color: "#475569", lineHeight: 1.55 }}>{aiReport.attention}</p>
+                            </div>
+                          )}
 
-                  <button
-                    onClick={() => setAiExpanded(!aiExpanded)}
-                    className="flex items-center gap-1"
-                    style={{ fontSize: "13px", fontWeight: 500, color: "#8B5CF6" }}
-                  >
-                    {aiExpanded ? "Ver menos" : "Ver relatorio completo"}
-                    <ChevronRight
-                      size={14}
-                      className={`transition-transform ${aiExpanded ? "rotate-90" : ""}`}
-                    />
-                  </button>
-                </div>
+                          {aiReport.nextStep && (
+                            <DreamCard className="p-3.5" tint="violet">
+                              <div className="flex items-center gap-1.5 mb-1.5">
+                                <span style={{ fontSize: "12px", fontWeight: 600, color: "#7C3AED" }}>Proximo passo sugerido</span>
+                              </div>
+                              <p style={{ fontSize: "13px", color: "#475569", lineHeight: 1.55 }}>{aiReport.nextStep}</p>
+                            </DreamCard>
+                          )}
+                        </>
+                      )}
+
+                      <button
+                        onClick={() => setAiExpanded(!aiExpanded)}
+                        className="flex items-center gap-1"
+                        style={{ fontSize: "13px", fontWeight: 500, color: "#8B5CF6" }}
+                      >
+                        {aiExpanded ? "Ver menos" : "Ver relatorio completo"}
+                        <ChevronRight
+                          size={14}
+                          className={`transition-transform ${aiExpanded ? "rotate-90" : ""}`}
+                        />
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <p style={{ fontSize: "13px", color: "#94A3B8" }} className="relative z-10">
+                    Clique em Atualizar para gerar o relatorio de saude.
+                  </p>
+                )}
               </DreamCard>
             </motion.div>
 
@@ -563,12 +635,36 @@ export function DashboardScreen() {
                         tint={tint as any}
                         onClick={() => navigate(`/posts/${post.id}`)}
                       >
-                        <div
-                          className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
-                          style={{ background: "rgba(196,181,253,0.12)" }}
-                        >
-                          <FileText size={16} style={{ color: "#C4B5FD" }} />
-                        </div>
+                        {(() => {
+                          let thumbUrl: string | null = null;
+                          try {
+                            const urls = typeof (post as any).media_urls === "string"
+                              ? JSON.parse((post as any).media_urls)
+                              : (post as any).media_urls;
+                            if (Array.isArray(urls) && urls.length > 0) thumbUrl = urls[0];
+                          } catch {}
+                          if (!thumbUrl && post.thumbnail_url) {
+                            const baseUrl = import.meta.env.VITE_API_URL || "/api/v1";
+                            thumbUrl = post.thumbnail_url.startsWith("http")
+                              ? `${baseUrl}/posts/thumbnail?url=${encodeURIComponent(post.thumbnail_url)}`
+                              : post.thumbnail_url;
+                          }
+                          return thumbUrl ? (
+                            <img
+                              src={thumbUrl}
+                              alt=""
+                              className="w-10 h-10 rounded-xl object-cover flex-shrink-0"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                            />
+                          ) : (
+                            <div
+                              className="w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0"
+                              style={{ background: "rgba(196,181,253,0.12)" }}
+                            >
+                              <FileText size={16} style={{ color: "#C4B5FD" }} />
+                            </div>
+                          );
+                        })()}
                         <div className="flex-1 min-w-0">
                           <p style={{ fontSize: "13px", fontWeight: 500, color: "#1E293B" }} className="truncate">
                             {post.content_text ? post.content_text.substring(0, 30) + "..." : "Sem texto"}

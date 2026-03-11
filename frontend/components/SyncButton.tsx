@@ -158,23 +158,19 @@ export default function SyncButton({ connectionId, onComplete }: Props) {
     const token = getToken();
     if (!token) return;
     setState("syncing");
-    setStatusText("Iniciando...");
+    setStatusText("Iniciando análise...");
     setProgress(0);
-    toast.info("Iniciando analise...", {
-      description: "Buscando posts e comentarios.",
+    toast.info("Iniciando análise de sentimento...", {
+      description: "Analisando comentários existentes.",
     });
     try {
-      const res = await connectionsApi.sync(
-        token,
-        connectionId,
-        toSyncPayload(loadSyncSettings())
-      );
+      const res = await connectionsApi.analyze(token, connectionId);
       setTaskId(res.task_id);
     } catch (err: unknown) {
       setState("error");
       const message = err instanceof Error ? err.message : "Erro ao iniciar";
       setStatusText(message);
-      toast.error("Erro ao iniciar analise", { description: message });
+      toast.error("Erro ao iniciar análise", { description: message });
     }
   }
 

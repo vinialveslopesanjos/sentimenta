@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { authApi } from "@/lib/api";
+import { useSearchParams } from "next/navigation";
+import { authApi, connectionsApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 
-type Tab = "profile" | "billing" | "notifications" | "security";
+type Tab = "profile" | "billing" | "notifications" | "security" | "integrations";
 
 type User = {
   id: string;
@@ -15,9 +16,22 @@ type User = {
 };
 
 export default function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<Tab>("profile");
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get("tab") as Tab) || "profile";
+  const oauthStatus = searchParams.get("status");
+
+  const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Integrations state
+  const [igConnections, setIgConnections] = useState<Array<{ id: string; username: string; has_oauth_token: boolean }>>([]);
+  const [connectingOAuth, setConnectingOAuth] = useState(false);
+  const [integrationMsg, setIntegrationMsg] = useState<{ type: "success" | "error"; text: string } | null>(
+    oauthStatus === "success" ? { type: "success", text: "Conta Instagram conectada com sucesso!" }
+    : oauthStatus === "error" ? { type: "error", text: `Erro na conexao: ${searchParams.get("error") || "desconhecido"}` }
+    : null
+  );
 
   // Profile form
   const [firstName, setFirstName] = useState("");
@@ -53,15 +67,29 @@ export default function SettingsPage() {
       setLastName(parts.slice(1).join(" ") || "");
       setLoading(false);
     });
+    connectionsApi.list(token).then((conns) => {
+      setIgConnections(
+        conns
+          .filter((c) => c.platform === "instagram")
+          .map((c) => ({ id: c.id, username: c.username, has_oauth_token: c.has_oauth_token }))
+      );
+    }).catch(() => {});
   }, []);
 
   const initials = user?.name
     ? user.name.trim().split(" ").map((w) => w[0]).slice(0, 2).join("").toUpperCase()
     : user?.email?.[0]?.toUpperCase() || "U";
 
-  const planName = user?.plan === "pro" ? "Pro Plan" : user?.plan === "enterprise" ? "Enterprise" : "Starter";
-  const planPrice = user?.plan === "pro" ? "R$199/mês" : user?.plan === "enterprise" ? "R$599/mês" : "R$79/mês";
-  const usagePercent = 84; // would come from API
+  const PLAN_DISPLAY: Record<string, { name: string; price: string }> = {
+    free: { name: "Free", price: "Grátis" },
+    creator: { name: "Creator", price: "R$67/mês" },
+    pro: { name: "Pro", price: "R$167/mês" },
+    agency: { name: "Agency", price: "R$397/mês" },
+    admin: { name: "Admin", price: "Ilimitado" },
+  };
+  const planInfo = PLAN_DISPLAY[user?.plan || "free"] || PLAN_DISPLAY.free;
+  const planName = planInfo.name;
+  const planPrice = planInfo.price;
 
   async function handleSaveProfile() {
     const token = getToken();
@@ -106,7 +134,8 @@ export default function SettingsPage() {
     { id: "profile", label: "Perfil", icon: "person" },
     { id: "billing", label: "Plano & Cobrança", icon: "credit_card" },
     { id: "notifications", label: "Notificações", icon: "notifications" },
-    { id: "security", label: "Segurança", icon: "shield" },
+    { id: "security", label: "Seguranca", icon: "shield" },
+    { id: "integrations", label: "Integracoes", icon: "link" },
   ];
 
   if (loading) {
@@ -124,10 +153,10 @@ export default function SettingsPage() {
   }
 
   return (
-    <div className="flex-1 p-6 md:p-10 overflow-y-auto">
+    <div className="flex-1 p-4 sm:p-6 md:p-10 overflow-y-auto">
       {/* Header */}
       <div className="mb-8">
-        <h1 className="text-3xl font-sans font-light text-brand-heading">Configurações da Conta</h1>
+        <h1 className="text-xl sm:text-3xl font-sans font-light text-brand-heading">Configurações da Conta</h1>
         <p className="text-brand-text text-sm font-light mt-1">
           Gerencie seu perfil, plano e preferências de notificação.
         </p>
@@ -257,25 +286,21 @@ export default function SettingsPage() {
                 </span>
               </div>
 
+              {user?.plan !== "admin" && (
               <div className="space-y-3 mb-6">
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-slate-500">Uso de Análise de Comentários</span>
-                  <span className="text-brand-heading font-medium">847 / 1.000</span>
-                </div>
-                <div className="w-full h-3 bg-slate-50 rounded-full overflow-hidden border border-slate-100">
-                  <div
-                    className="h-full bg-gradient-to-r from-cyan-300 to-brand-lilac rounded-full shadow-[0_0_10px_rgba(196,181,253,0.5)] transition-all"
-                    style={{ width: `${usagePercent}%` }}
-                  />
-                </div>
                 <p className="text-xs text-slate-400 font-light">
-                  Seu plano renova em{" "}
-                  <span className="font-medium text-slate-500">24 de outubro de 2026</span>.
+                  Seu plano renova no dia 1 de cada mês.
                 </p>
               </div>
+              )}
+              {user?.plan === "admin" && (
+              <div className="space-y-3 mb-6">
+                <p className="text-sm text-emerald-600 font-medium">Sem limites de uso.</p>
+              </div>
+              )}
 
               <div className="flex gap-3">
-                <button className="flex-1 px-4 py-2.5 bg-gradient-to-r from-brand-lilac to-brand-cyan text-white text-sm font-medium rounded-xl hover:opacity-90 transition-all shadow-dream">
+                <button className="flex-1 px-4 py-2.5 bg-slate-900 text-white hover:bg-slate-800 text-sm font-medium rounded-xl transition-all shadow-sm">
                   Fazer Upgrade
                 </button>
                 <button className="px-4 py-2.5 bg-white border border-slate-200 text-slate-600 text-sm font-medium rounded-xl hover:bg-slate-50 transition-colors">
@@ -404,6 +429,69 @@ export default function SettingsPage() {
                   </button>
                 </div>
               </form>
+            </section>
+          )}
+
+          {/* ── INTEGRATIONS ── */}
+          {activeTab === "integrations" && (
+            <section className="dream-card p-8">
+              <h2 className="text-lg font-sans font-medium text-brand-heading mb-2">Integracoes</h2>
+              <p className="text-sm text-slate-400 font-light mb-6">
+                Conecte contas oficiais para enriquecer seus dados com metricas da API.
+              </p>
+
+              {integrationMsg && (
+                <div className={`mb-6 p-3 rounded-xl text-sm ${integrationMsg.type === "success" ? "bg-green-50 text-green-700 border border-green-100" : "bg-red-50 text-red-600 border border-red-100"}`}>
+                  {integrationMsg.text}
+                </div>
+              )}
+
+              {/* Instagram OAuth Card */}
+              <div className="p-5 rounded-2xl border border-slate-100 bg-slate-50/30">
+                <div className="flex items-center gap-3 mb-3">
+                  <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-purple-500 to-pink-500 flex items-center justify-center text-white text-sm font-bold">
+                    IG
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm font-medium text-brand-heading">Instagram Graph API</p>
+                    <p className="text-xs text-slate-400 font-light">Opcional — enriquece dados com metricas oficiais</p>
+                  </div>
+                  {igConnections.some((c) => c.has_oauth_token) && (
+                    <span className="px-2.5 py-1 bg-green-50 text-green-600 text-xs font-semibold rounded-full border border-green-100">
+                      Conectado
+                    </span>
+                  )}
+                </div>
+
+                {igConnections.length === 0 ? (
+                  <p className="text-xs text-slate-400 font-light">
+                    Adicione uma conexao Instagram primeiro no dashboard para depois conectar via OAuth.
+                  </p>
+                ) : igConnections.some((c) => c.has_oauth_token) ? (
+                  <p className="text-xs text-slate-400 font-light">
+                    Conta oficial conectada. Dados serao enriquecidos automaticamente nas proximas sincronizacoes.
+                  </p>
+                ) : (
+                  <button
+                    onClick={async () => {
+                      const token = getToken();
+                      if (!token) return;
+                      setConnectingOAuth(true);
+                      try {
+                        const { auth_url } = await connectionsApi.getInstagramAuthUrl(token);
+                        window.location.href = auth_url;
+                      } catch (err: any) {
+                        setIntegrationMsg({ type: "error", text: err.message || "Erro ao gerar URL de autorizacao" });
+                        setConnectingOAuth(false);
+                      }
+                    }}
+                    disabled={connectingOAuth}
+                    className="mt-2 px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 hover:border-slate-300 transition-colors disabled:opacity-50"
+                  >
+                    {connectingOAuth ? "Redirecionando..." : "Conectar conta oficial"}
+                  </button>
+                )}
+              </div>
             </section>
           )}
 

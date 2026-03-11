@@ -43,6 +43,13 @@ class SocialConnection(Base):
     ignore_author_comments: Mapped[bool] = mapped_column(
         default=True, server_default="true", nullable=False
     )
+    auto_sync: Mapped[bool] = mapped_column(
+        default=True, server_default="true", nullable=False
+    )
+
+    @property
+    def has_oauth_token(self) -> bool:
+        return bool(self.access_token_enc)
 
     __table_args__ = (
         UniqueConstraint("user_id", "platform", "username", name="uq_user_platform_username"),

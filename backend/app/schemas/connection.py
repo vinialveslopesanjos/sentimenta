@@ -10,6 +10,7 @@ class YouTubeConnectRequest(BaseModel):
 class ConnectionUpdateRequest(BaseModel):
     persona: str | None = None
     ignore_author_comments: bool | None = None
+    auto_sync: bool | None = None
 
 class ConnectionResponse(BaseModel):
     id: uuid.UUID
@@ -26,6 +27,8 @@ class ConnectionResponse(BaseModel):
     last_sync_at: datetime | None
     persona: str | None
     ignore_author_comments: bool
+    auto_sync: bool
+    has_oauth_token: bool = False
 
     model_config = {"from_attributes": True}
 

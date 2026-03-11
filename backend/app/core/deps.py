@@ -11,10 +11,14 @@ from app.models.user import User
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
 
-def get_current_user(
+def get_current_user_unverified(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ) -> User:
+    """Authenticate user by JWT but do NOT check email_verified.
+    Use this for endpoints that must work before email verification
+    (e.g. /auth/me, /auth/send-verification, /auth/logout).
+    """
     payload = decode_token(token)
     if payload is None or payload.get("type") != "access":
         raise HTTPException(
@@ -39,6 +43,22 @@ def get_current_user(
 
     return user
 
+
+def get_current_user(
+    user: User = Depends(get_current_user_unverified),
+) -> User:
+    """Authenticate user AND require email_verified=True.
+    Returns 403 with a specific detail code when email is not verified,
+    so the frontend can redirect to the verification page.
+    """
+    if not user.email_verified:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="email_not_verified",
+        )
+    return user
+
+
 async def get_current_user_token_or_query(
     token: str = Depends(OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)),
     query_token: str | None = Query(None, alias="token"),
@@ -52,4 +72,4 @@ async def get_current_user_token_or_query(
             detail="Not authenticated",
             headers={"WWW-Authenticate": "Bearer"},
         )
-    return get_current_user(actual_token, db)
+    return get_current_user_unverified(actual_token, db)

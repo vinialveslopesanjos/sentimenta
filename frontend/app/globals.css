@@ -45,7 +45,7 @@ body {
   background: #CBD5E1;
 }
 
-/* Text gradient utility */
+/* Text gradient utility — DECORATIVE only, for headings on landing page. Never use on CTAs or buttons. */
 .text-gradient {
   background: linear-gradient(to right, #8B5CF6, #06B6D4);
   -webkit-background-clip: text;
@@ -218,14 +218,6 @@ body {
   border-bottom: 1px solid rgba(255, 255, 255, 0.5);
 }
 
-/* Glassmorphism sidebar */
-.glass-sidebar {
-  background: rgba(255, 255, 255, 0.7);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border-right: 1px solid rgba(255, 255, 255, 0.5);
-}
-
 /* Landing-only liquid glass */
 .liquid-panel {
   background: rgba(255, 255, 255, 0.58);
@@ -272,15 +264,6 @@ body {
     inset 0 1px 0 rgba(255, 255, 255, 0.9);
 }
 
-/* Glass tooltip */
-.glass-tooltip {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(196, 181, 253, 0.4);
-  box-shadow: 0 4px 16px -4px rgba(139, 92, 246, 0.2);
-}
-
 /* Selection */
 ::selection {
   background-color: #CFFAFE;
@@ -302,4 +285,64 @@ body {
 
 .animate-slide-in-right {
   animation: slideInRight 0.4s ease-out forwards;
+}
+
+/* =====================
+   Design System — Button Classes
+   Gradient colors are DECORATIVE only (logo, glow effects).
+   NEVER use gradients on buttons or CTAs.
+   ===================== */
+
+/* Primary action button — dark, solid, trustworthy */
+.btn-primary {
+  background-color: #0f172a; /* slate-900 */
+  color: white;
+  border-radius: 1rem; /* rounded-2xl */
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn-primary:hover {
+  background-color: #1e293b; /* slate-800 */
+}
+
+/* Secondary / ghost button */
+.btn-secondary {
+  background: rgba(255, 255, 255, 0.8);
+  border: 1px solid #e2e8f0; /* slate-200 */
+  color: #334155; /* slate-700 */
+  border-radius: 1rem;
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.btn-secondary:hover {
+  background: #f8fafc; /* slate-50 */
+}
+
+/* KPI value — big bold number */
+.kpi-value {
+  font-size: 1.875rem; /* text-3xl = 30px */
+  font-weight: 700;
+  font-family: var(--font-sans, 'Outfit', sans-serif);
+  line-height: 1.2;
+}
+
+@media (min-width: 640px) {
+  .kpi-value {
+    font-size: 2.25rem; /* text-4xl = 36px on sm+ */
+  }
+}
+
+/* KPI delta indicators */
+.kpi-delta-up {
+  color: #059669; /* emerald-600 */
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.kpi-delta-down {
+  color: #e11d48; /* rose-600 */
+  font-size: 0.875rem;
+  font-weight: 500;
 }

@@ -1,15 +1,17 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense } from "react";
 import { authApi } from "@/lib/api";
 import { getToken, setTokens } from "@/lib/auth";
 import FogBackground from "@/components/FogBackground";
 
 type Mode = "login" | "register";
 
-export default function LoginPage() {
+function LoginPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [mode, setMode] = useState<Mode>("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -19,11 +21,60 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [mounted, setMounted] = useState(false);
+  const [socialLoading, setSocialLoading] = useState<string | null>(null);
+  const [acceptedTerms, setAcceptedTerms] = useState(false);
+
+  // Handle OAuth callback — exchange one-time code for tokens via POST
+  useEffect(() => {
+    const oauthCode = searchParams.get("oauth_code");
+    const oauthError = searchParams.get("error");
+
+    if (oauthCode) {
+      // Clean URL immediately so code is not visible
+      window.history.replaceState({}, "", "/login");
+      setSocialLoading("exchanging");
+
+      authApi.exchangeOAuthCode(oauthCode)
+        .then((res) => {
+          setTokens(res.access_token, res.refresh_token);
+          setSuccess(`Login via ${res.provider || "social"} realizado!`);
+          if (res.pipeline_started) {
+            localStorage.setItem("sentimenta_pipeline_started", Date.now().toString());
+          }
+          router.replace("/dashboard");
+        })
+        .catch((err) => {
+          setError(err instanceof Error ? err.message : "Falha ao autenticar via login social.");
+          setSocialLoading(null);
+        });
+      return;
+    }
+
+    if (oauthError) {
+      setError(`Falha no login social: ${decodeURIComponent(oauthError)}`);
+      window.history.replaceState({}, "", "/login");
+    }
+  }, [searchParams, router]);
 
   useEffect(() => {
     if (getToken()) router.replace("/dashboard");
     setMounted(true);
   }, [router]);
+
+  const handleSocialLogin = async (provider: "instagram" | "tiktok") => {
+    setSocialLoading(provider);
+    setError("");
+    try {
+      const res =
+        provider === "instagram"
+          ? await authApi.instagramAuthUrl()
+          : await authApi.tiktokAuthUrl();
+      window.location.href = res.auth_url;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Falha ao conectar com ${provider}.`);
+      setSocialLoading(null);
+    }
+  };
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -51,8 +102,13 @@ export default function LoginPage() {
           : await authApi.register(email.trim(), password, name.trim() || undefined);
 
       setTokens(res.access_token, res.refresh_token);
-      setSuccess(mode === "login" ? "Login realizado!" : "Conta criada!");
-      router.replace("/dashboard");
+      if (mode === "register") {
+        setSuccess("Conta criada! Verifique seu email.");
+        router.replace("/verify-email");
+      } else {
+        setSuccess("Login realizado!");
+        router.replace("/dashboard");
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Falha na autenticação.");
     } finally {
@@ -119,24 +175,12 @@ export default function LoginPage() {
               className={`grid grid-cols-2 gap-3 pt-2 transition-all duration-500 delay-[400ms] ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
                 }`}
             >
-              {[
-                { val: "8.4M", label: "comentários analisados" },
-                { val: "2.000+", label: "perfis conectados" },
-              ].map((s) => (
-                <div key={s.val} className="bg-white/60 backdrop-blur-sm border border-white/70 rounded-2xl p-3 shadow-sm">
-                  <p className="font-sans font-bold text-xl text-slate-800">{s.val}</p>
-                  <p className="text-xs text-slate-400">{s.label}</p>
-                </div>
-              ))}
+              <div className="bg-white/60 backdrop-blur-sm border border-white/70 rounded-2xl p-4 shadow-sm col-span-2">
+                <p className="text-sm text-slate-500 font-light leading-relaxed">Analise de sentimento para redes sociais. Conecte seu perfil e entenda o que seu publico sente.</p>
+              </div>
             </div>
           </div>
 
-          {/* Dots */}
-          <div className="relative z-10 flex gap-2">
-            <div className="w-2 h-2 rounded-full bg-brand-lilacDark" />
-            <div className="w-2 h-2 rounded-full bg-slate-200" />
-            <div className="w-2 h-2 rounded-full bg-slate-200" />
-          </div>
         </div>
 
         {/* Right panel — form */}
@@ -182,20 +226,49 @@ export default function LoginPage() {
               ))}
             </div>
 
-            {/* Google button */}
-            <button
-              type="button"
-              className="w-full flex items-center justify-center gap-3 bg-white/80 border border-slate-200 text-slate-600 hover:bg-white hover:border-slate-300 transition-all font-medium py-3 rounded-2xl shadow-sm group"
-              onClick={() => setError("Login com Google em breve. Use email/senha por enquanto.")}
-            >
-              <svg className="w-5 h-5" viewBox="0 0 24 24">
-                <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
-                <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-                <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.84z" fill="#FBBC05" />
-                <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-              </svg>
-              <span>Entrar com Google</span>
-            </button>
+            {/* Social login buttons */}
+            <div className="space-y-2.5">
+              {/* Instagram */}
+              <button
+                type="button"
+                onClick={() => handleSocialLogin("instagram")}
+                disabled={socialLoading !== null}
+                className="w-full flex items-center justify-center gap-3 bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400 text-white font-medium py-3 rounded-2xl shadow-sm hover:shadow-lg hover:scale-[1.01] active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {socialLoading === "instagram" ? (
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z" />
+                  </svg>
+                )}
+                <span>{socialLoading === "instagram" ? "Redirecionando..." : "Entrar com Instagram"}</span>
+              </button>
+
+              {/* TikTok */}
+              <button
+                type="button"
+                onClick={() => handleSocialLogin("tiktok")}
+                disabled={socialLoading !== null}
+                className="w-full flex items-center justify-center gap-3 bg-black text-white font-medium py-3 rounded-2xl shadow-sm hover:shadow-lg hover:bg-slate-900 hover:scale-[1.01] active:scale-[0.98] transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                {socialLoading === "tiktok" ? (
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+                  </svg>
+                ) : (
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-2.88 2.5 2.89 2.89 0 01-2.89-2.89 2.89 2.89 0 012.89-2.89c.28 0 .54.04.79.1v-3.51a6.37 6.37 0 00-.79-.05A6.34 6.34 0 003.15 15.2a6.34 6.34 0 0010.86 4.46V13a8.28 8.28 0 005.58 2.14v-3.47a4.85 4.85 0 01-3.77-1.75V6.69h3.77z" />
+                  </svg>
+                )}
+                <span>{socialLoading === "tiktok" ? "Redirecionando..." : "Entrar com TikTok"}</span>
+              </button>
+
+            </div>
 
             <div className="relative flex items-center">
               <div className="flex-grow border-t border-slate-100" />
@@ -236,11 +309,6 @@ export default function LoginPage() {
               <div className="space-y-1.5">
                 <div className="flex justify-between items-center ml-1">
                   <label className="text-xs font-semibold text-slate-500" htmlFor="password">Senha</label>
-                  {mode === "login" && (
-                    <button type="button" className="text-xs font-medium text-brand-lilacDark hover:text-brand-cyanDark transition-colors">
-                      Esqueceu a senha?
-                    </button>
-                  )}
                 </div>
                 <div className="relative">
                   <span className="absolute left-3.5 top-1/2 -translate-y-1/2 material-symbols-outlined text-[18px] text-brand-lilac">lock</span>
@@ -264,6 +332,23 @@ export default function LoginPage() {
                 </div>
               </div>
 
+              {mode === "register" && (
+                <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={acceptedTerms}
+                    onChange={(e) => setAcceptedTerms(e.target.checked)}
+                    className="mt-0.5 w-4 h-4 rounded border-slate-300 text-violet-600 focus:ring-violet-500 accent-violet-600"
+                  />
+                  <span className="text-xs text-slate-500 leading-relaxed">
+                    Li e aceito os{" "}
+                    <a href="/termos" target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:text-violet-800 underline">Termos de Uso</a>
+                    {" "}e a{" "}
+                    <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="text-violet-600 hover:text-violet-800 underline">Política de Privacidade</a>.
+                  </span>
+                </label>
+              )}
+
               {error && (
                 <p className="text-xs text-rose-600 bg-rose-50 border border-rose-100 rounded-xl px-3 py-2">{error}</p>
               )}
@@ -273,8 +358,8 @@ export default function LoginPage() {
 
               <button
                 type="submit"
-                disabled={loading}
-                className="w-full py-4 bg-gradient-to-r from-brand-lilacDark to-brand-cyanDark text-white font-sans font-bold rounded-2xl shadow-lg shadow-violet-200/60 hover:shadow-xl hover:shadow-violet-300/40 hover:scale-[1.01] active:scale-[0.98] transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed disabled:scale-100 text-sm"
+                disabled={loading || (mode === "register" && !acceptedTerms)}
+                className="w-full py-4 bg-slate-900 text-white font-sans font-bold rounded-2xl shadow-lg shadow-slate-200/60 hover:shadow-xl hover:shadow-slate-300/40 hover:scale-[1.01] active:scale-[0.98] transition-all duration-300 disabled:opacity-60 disabled:cursor-not-allowed disabled:scale-100 text-sm"
               >
                 {loading ? (
                   <span className="flex items-center justify-center gap-2">
@@ -290,13 +375,21 @@ export default function LoginPage() {
 
             <p className="text-center text-xs text-slate-300 leading-relaxed">
               Ao continuar, você concorda com nossos{" "}
-              <button className="text-slate-400 hover:text-brand-lilacDark transition-colors underline">Termos de Uso</button>
+              <a href="/termos" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-brand-lilacDark transition-colors underline">Termos de Uso</a>
               {" "}e{" "}
-              <button className="text-slate-400 hover:text-brand-lilacDark transition-colors underline">Privacidade</button>.
+              <a href="/privacidade" target="_blank" rel="noopener noreferrer" className="text-slate-400 hover:text-brand-lilacDark transition-colors underline">Privacidade</a>.
             </p>
           </div>
         </div>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center bg-[#FDFBFF]"><div className="animate-spin h-8 w-8 border-2 border-violet-300 border-t-transparent rounded-full" /></div>}>
+      <LoginPageInner />
+    </Suspense>
   );
 }

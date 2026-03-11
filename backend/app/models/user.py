@@ -20,6 +20,17 @@ class User(Base):
     plan: Mapped[str] = mapped_column(String(50), default="free")
     google_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
     stripe_customer_id: Mapped[str | None] = mapped_column(String(255), unique=True, nullable=True)
+
+    # Email verification
+    email_verified: Mapped[bool] = mapped_column(default=False)
+    email_verification_token: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    email_verification_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # Stripe subscription
+    stripe_subscription_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    subscription_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    plan_changed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

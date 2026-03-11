@@ -56,6 +56,8 @@ const config: Config = {
         "fade-in": "fadeIn 0.3s ease-out",
         "slide-up": "slideUp 0.4s ease-out",
         blob: "blob 7s infinite",
+        wave: "wave 1.8s ease-in-out infinite",
+        blink: "blink 1s step-end infinite",
       },
       keyframes: {
         shimmer: {
@@ -75,6 +77,19 @@ const config: Config = {
           "33%": { transform: "translate(30px, -50px) scale(1.1)" },
           "66%": { transform: "translate(-20px, 20px) scale(0.9)" },
           "100%": { transform: "translate(0px, 0px) scale(1)" },
+        },
+        wave: {
+          "0%": { transform: "rotate(0deg)" },
+          "10%": { transform: "rotate(14deg)" },
+          "20%": { transform: "rotate(-8deg)" },
+          "30%": { transform: "rotate(14deg)" },
+          "40%": { transform: "rotate(-4deg)" },
+          "50%": { transform: "rotate(10deg)" },
+          "60%": { transform: "rotate(0deg)" },
+          "100%": { transform: "rotate(0deg)" },
+        },
+        blink: {
+          "50%": { opacity: "0" },
         },
       },
     },

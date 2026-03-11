@@ -16,6 +16,8 @@ export interface PipelineRun {
     started_at: string;
     ended_at: string | null;
     notes: string | null;
+    target_posts?: number | null;
+    target_comments?: number | null;
 }
 
 export interface PipelineStatus {

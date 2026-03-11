@@ -6,44 +6,9 @@ import { useParams } from "next/navigation";
 import { postsApi, commentsApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import type { CommentWithAnalysis, CommentListResponse } from "@/lib/types";
-
-// ─── helpers ────────────────────────────────────────────────────────────────
-
-function scoreColor(s: number | null) {
-  if (s === null) return "text-slate-300";
-  if (s >= 7) return "text-emerald-600";
-  if (s >= 4) return "text-amber-500";
-  return "text-rose-500";
-}
-
-function scoreBg(s: number | null) {
-  if (s === null) return "bg-slate-50 text-slate-400 border-slate-100";
-  if (s >= 7) return "bg-emerald-50 text-emerald-600 border-emerald-100";
-  if (s >= 4) return "bg-amber-50 text-amber-600 border-amber-100";
-  return "bg-rose-50 text-rose-500 border-rose-100";
-}
-
-function fmt(n: number) {
-  return n.toLocaleString("pt-BR");
-}
-
-function fmtDate(s: string | null | undefined) {
-  if (!s) return "—";
-  return new Date(s).toLocaleDateString("pt-BR", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-}
-
-function platformIcon(platform: string, size = 16) {
-  const isInstagram = String(platform).toLowerCase() === "instagram";
-  const isTwitter = String(platform).toLowerCase() === "twitter";
-  const src = isInstagram ? "/icons/instagram.svg" : isTwitter ? "/icons/twitter-x.svg" : "/icons/youtube.svg";
-  return <img src={src} alt={platform} style={{ width: size, height: size }} />;
-}
+import { scoreColor, scoreBg, fmt, fmtDatetime as fmtDate, platformIcon } from "@/lib/helpers";
+import SentimentRadar from "@/components/charts/SentimentRadar";
+import WordCloudChart from "@/components/charts/WordCloudChart";
 
 // ─── types ───────────────────────────────────────────────────────────────────
 
@@ -90,7 +55,7 @@ function KpiCard({
       <div className={`w-10 h-10 rounded-xl ${iconBg} flex items-center justify-center mb-4 group-hover:scale-110 transition-transform`}>
         <span className="material-symbols-outlined text-[20px]">{icon}</span>
       </div>
-      <h3 className={`text-2xl font-sans font-semibold ${valueClass ?? "text-slate-700"}`}>{value}</h3>
+      <h3 className={`text-2xl sm:text-3xl font-bold ${valueClass ?? "text-slate-700"}`}>{value}</h3>
       <p className="text-xs text-slate-400 font-light mt-1">{label}</p>
     </div>
   );
@@ -145,7 +110,7 @@ function CommentCard({ comment }: { comment: CommentWithAnalysis }) {
       <div className="shrink-0 pt-0.5">
         {score !== null ? (
           <span className={`inline-block text-sm font-bold px-2.5 py-1 rounded-xl border ${scoreBg(score)} min-w-[3rem] text-center`}>
-            {score.toFixed(1)}
+            {score.toFixed(1)}<span className="text-[10px] font-normal opacity-60">/10</span>
           </span>
         ) : (
           <span className="inline-block text-sm px-2.5 py-1 rounded-xl bg-slate-50 text-slate-300 border border-slate-100 min-w-[3rem] text-center">
@@ -162,7 +127,7 @@ function CommentCard({ comment }: { comment: CommentWithAnalysis }) {
             {comment.author_name || comment.author_username || "Anônimo"}
           </span>
           {comment.author_username && comment.author_name && (
-            <span className="text-xs text-slate-300">@{comment.author_username}</span>
+            <span className="text-xs text-slate-300">{comment.author_username?.startsWith('@') ? '' : '@'}{comment.author_username}</span>
           )}
           {comment.like_count > 0 && (
             <span className="text-xs text-slate-300 flex items-center gap-1 ml-auto">
@@ -182,7 +147,7 @@ function CommentCard({ comment }: { comment: CommentWithAnalysis }) {
         {/* AI summary */}
         {summary && (
           <p className="text-xs text-slate-400 italic mt-1.5">
-            <span className="not-italic font-medium text-brand-lilacDark">IA:</span> {summary}
+            <span className="not-italic font-medium text-brand-lilacDark">Resumo:</span> {summary}
           </p>
         )}
 
@@ -314,6 +279,7 @@ export default function PostDetailPage() {
   // emotions & topics from summary if available
   const emotionsDist = (summaryAny?.emotions_distribution as Record<string, number> | null) ?? null;
   const topicsDist = (summaryAny?.topics_distribution as Record<string, number> | null) ?? null;
+  const wordFreq = (summaryAny?.word_frequency as Record<string, number> | null) ?? null;
 
   const emotionsList = emotionsDist
     ? Object.entries(emotionsDist)
@@ -448,32 +414,38 @@ export default function PostDetailPage() {
             Array(4).fill(0).map((_, i) => <SkeletonKpi key={i} />)
           ) : (
             <>
-              <KpiCard
-                icon="favorite"
-                label="Score médio"
-                value={avgScore != null ? avgScore.toFixed(1) : "—"}
-                iconBg="bg-violet-50 text-brand-lilacDark"
-                valueClass={scoreColor(avgScore)}
-              />
-              <KpiCard
-                icon="bar_chart_4_bars"
-                label="Score ponderado"
-                value={weightedScore != null ? weightedScore.toFixed(1) : "—"}
-                iconBg="bg-cyan-50 text-brand-cyanDark"
-                valueClass={scoreColor(weightedScore)}
-              />
+              {(weightedScore != null || avgScore != null) && (
+                <KpiCard
+                  icon="favorite"
+                  label="Score"
+                  value={weightedScore != null ? `${weightedScore.toFixed(1)}/10` : avgScore != null ? `${avgScore.toFixed(1)}/10` : "—"}
+                  iconBg="bg-violet-50 text-brand-lilacDark"
+                  valueClass={scoreColor(weightedScore ?? avgScore)}
+                />
+              )}
+              {avgPolarity != null && (
+                <KpiCard
+                  icon="ssid_chart"
+                  label="Positividade"
+                  value={avgPolarity.toFixed(2)}
+                  iconBg="bg-indigo-50 text-indigo-500"
+                />
+              )}
               <KpiCard
                 icon="check_circle"
                 label="Analisados"
                 value={fmt(summary?.total_analyzed ?? 0)}
                 iconBg="bg-emerald-50 text-emerald-500"
               />
-              <KpiCard
-                icon="ssid_chart"
-                label="Polaridade"
-                value={avgPolarity != null ? avgPolarity.toFixed(2) : "—"}
-                iconBg="bg-indigo-50 text-indigo-500"
-              />
+              {posRate > 0 && (
+                <KpiCard
+                  icon="thumb_up"
+                  label="Positivos"
+                  value={`${posRate}%`}
+                  iconBg="bg-emerald-50 text-emerald-500"
+                  valueClass="text-emerald-600"
+                />
+              )}
             </>
           )}
         </div>
@@ -491,7 +463,7 @@ export default function PostDetailPage() {
                   style={{ width: `${posRate}%` }}
                 />
                 <div
-                  className="h-full bg-amber-300 transition-all duration-700"
+                  className="h-full bg-slate-300 transition-all duration-700"
                   style={{ width: `${neuRate}%` }}
                 />
                 <div
@@ -502,7 +474,7 @@ export default function PostDetailPage() {
               <div className="flex gap-6">
                 {[
                   { label: "Positivo", pct: posRate, count: dist.positive, dot: "bg-emerald-400", text: "text-emerald-600" },
-                  { label: "Neutro", pct: neuRate, count: dist.neutral, dot: "bg-amber-300", text: "text-amber-600" },
+                  { label: "Neutro", pct: neuRate, count: dist.neutral, dot: "bg-slate-300", text: "text-slate-500" },
                   { label: "Negativo", pct: negRate, count: dist.negative, dot: "bg-rose-400", text: "text-rose-600" },
                 ].map((item) => (
                   <div key={item.label} className="flex items-center gap-2">
@@ -567,6 +539,32 @@ export default function PostDetailPage() {
             )}
           </div>
         </div>
+
+        {/* ── Radar + WordCloud ── */}
+        {!loading && (summary?.total_analyzed ?? 0) > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="dream-card p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-7 h-7 rounded-lg bg-violet-50 text-brand-lilacDark flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[16px]">radar</span>
+                </div>
+                <h2 className="text-base font-sans font-medium text-slate-700">Radar de Emocoes</h2>
+              </div>
+              <p className="text-xs text-slate-400 font-light mb-2">Emocoes nos comentarios deste post</p>
+              <SentimentRadar distribution={emotionsDist} height={240} />
+            </div>
+            <div className="dream-card p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="w-7 h-7 rounded-lg bg-cyan-50 text-brand-cyanDark flex items-center justify-center">
+                  <span className="material-symbols-outlined text-[16px]">cloud</span>
+                </div>
+                <h2 className="text-base font-sans font-medium text-slate-700">Nuvem de Palavras</h2>
+              </div>
+              <p className="text-xs text-slate-400 font-light mb-2">Palavras mais faladas nos comentarios</p>
+              <WordCloudChart topics={wordFreq} maxWords={15} height={240} />
+            </div>
+          </div>
+        )}
 
         {/* ── Comments section ── */}
         <div className="dream-card overflow-hidden">

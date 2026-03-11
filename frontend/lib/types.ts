@@ -12,6 +12,8 @@ export interface PipelineRun {
   comments_analyzed: number;
   llm_calls: number;
   errors_count: number;
+  target_posts?: number | null;
+  target_comments?: number | null;
   total_cost_usd: number;
   started_at: string;
   ended_at: string | null;
@@ -61,6 +63,9 @@ export interface DashboardSummary {
   avg_score: number | null;
   avg_polarity: number | null;
   sentiment_distribution: SentimentDistribution | null;
+  emotions_distribution: Record<string, number> | null;
+  topics_frequency: Record<string, number> | null;
+  word_frequency: Record<string, number> | null;
   recent_posts: PostSummary[];
   connections: Connection[];
 }
@@ -95,6 +100,7 @@ export interface ConnectionDashboard {
   sentiment_distribution: SentimentDistribution | null;
   emotions_distribution: Record<string, number> | null;
   topics_frequency: Record<string, number> | null;
+  word_frequency: Record<string, number> | null;
   posts: PostSummary[];
   engagement_totals: {
     total_likes: number;
@@ -173,7 +179,8 @@ export interface TrendsDetailedResponse {
 // --- Health Report ---
 
 export interface HealthReport {
-  report_text: string;
-  generated_at: string;
+  report_text: string | null;
+  generated_at: string | null;
   data_summary: Record<string, unknown>;
+  has_new_data?: boolean;
 }

@@ -3,22 +3,66 @@ from collections import Counter
 from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from pydantic import BaseModel
 from sqlalchemy import func, case, cast, Date, select
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
-from app.core.cache import cached, invalidate_pattern
+from app.core.cache import cached, invalidate_pattern, get_redis
 from app.db.session import get_db
 from app.models.comment import Comment
 from app.models.analysis import CommentAnalysis, PostAnalysisSummary
 from app.models.post import Post
 from app.models.social_connection import SocialConnection
 from app.models.user import User
-from app.services.report_service import generate_health_report
+from app.services.report_service import generate_health_report, DEFAULT_HEALTH_PROMPT
+from app.utils.queries import latest_analysis_subquery as _latest_analysis_subquery
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 import re
+
+_STOPWORDS_PT = frozenset({
+    "de", "da", "do", "das", "dos", "a", "o", "as", "os", "e", "em", "na", "no",
+    "nas", "nos", "um", "uma", "uns", "umas", "para", "por", "com", "sem",
+    "que", "se", "mais", "menos", "muito", "pouco", "bem", "mal", "ja", "ainda",
+    "tambem", "como", "mas", "ou", "nem", "nao", "sim", "ao", "aos", "pela",
+    "pelo", "pelas", "pelos", "entre", "sobre", "ate", "isso", "isto", "esse",
+    "essa", "este", "esta", "esses", "essas", "estes", "estas", "aquele", "aquela",
+    "ele", "ela", "eles", "elas", "eu", "tu", "voce", "nos", "vos", "meu", "minha",
+    "seu", "sua", "nosso", "nossa", "ter", "ser", "estar", "fazer", "ir", "ver",
+    "vai", "vou", "foi", "sao", "tem", "tao", "tava", "era", "sou", "eh",
+    "pra", "pro", "vc", "vcs", "tb", "tbm", "q", "ne", "hj", "ai", "la",
+    "aqui", "ali", "assim", "depois", "antes", "agora", "onde", "quando",
+    "porque", "pq", "so", "todo", "toda", "todos", "todas", "cada", "outro",
+    "outra", "outros", "outras", "mesmo", "mesma", "nada", "tudo", "algo",
+    "gente", "coisa", "dia", "vez", "tipo", "acho", "pode", "quem", "ja",
+    "the", "and", "or", "is", "are", "was", "were", "in", "on", "at", "to", "for",
+    "of", "with", "from", "by", "it", "this", "that", "these", "those", "an",
+    "you", "your", "my", "me", "we", "they", "them", "he", "she", "his", "her",
+    "not", "but", "so", "if", "be", "has", "have", "had", "will", "can", "do",
+    "did", "would", "should", "could", "just", "very", "really", "too", "also",
+    "been", "being", "get", "got", "its", "than", "then", "when", "what", "how",
+    "all", "any", "each", "some", "no", "about", "up", "out", "into",
+})
+
+_WORD_RE = re.compile(r'[a-záàâãéèêíïóôõúüçñ]{3,}', re.IGNORECASE)
+
+
+def _compute_word_frequency(texts: list[str], limit: int = 30) -> dict[str, int] | None:
+    """Tokenize comment texts and return top word frequencies, filtering stopwords."""
+    if not texts:
+        return None
+    counter: Counter = Counter()
+    for text in texts:
+        words = _WORD_RE.findall(text.lower())
+        for w in words:
+            if w not in _STOPWORDS_PT and len(w) >= 3:
+                counter[w] += 1
+    if not counter:
+        return None
+    return dict(counter.most_common(limit))
+
 
 def _clean_post_text(text: str | None, max_len: int = 100) -> str | None:
     """Remove generic CTA prefixes and hashtags, return meaningful first sentence."""
@@ -45,44 +89,8 @@ def _clean_post_text(text: str | None, max_len: int = 100) -> str | None:
     return t
 
 
-def _latest_analysis_subquery():
-    ranked = (
-        select(
-            CommentAnalysis.id.label("id"),
-            CommentAnalysis.comment_id.label("comment_id"),
-            CommentAnalysis.score_0_10.label("score_0_10"),
-            CommentAnalysis.polarity.label("polarity"),
-            CommentAnalysis.intensity.label("intensity"),
-            CommentAnalysis.emotions.label("emotions"),
-            CommentAnalysis.topics.label("topics"),
-            CommentAnalysis.sarcasm.label("sarcasm"),
-            CommentAnalysis.analyzed_at.label("analyzed_at"),
-            func.row_number()
-            .over(
-                partition_by=CommentAnalysis.comment_id,
-                order_by=(
-                    CommentAnalysis.analyzed_at.desc().nullslast(),
-                    CommentAnalysis.id.desc(),
-                ),
-            )
-            .label("rn"),
-        ).subquery()
-    )
-    return (
-        select(
-            ranked.c.id,
-            ranked.c.comment_id,
-            ranked.c.score_0_10,
-            ranked.c.polarity,
-            ranked.c.intensity,
-            ranked.c.emotions,
-            ranked.c.topics,
-            ranked.c.sarcasm,
-            ranked.c.analyzed_at,
-        )
-        .where(ranked.c.rn == 1)
-        .subquery()
-    )
+
+# _latest_analysis_subquery is imported from app.utils.queries
 
 
 @cached(prefix="dashboard_summary", ttl=300)
@@ -105,6 +113,9 @@ def _build_dashboard_summary(user_id: str, db: Session) -> dict:
             "avg_score": None,
             "avg_polarity": None,
             "sentiment_distribution": None,
+            "emotions_distribution": None,
+            "topics_frequency": None,
+            "word_frequency": None,
             "recent_posts": [],
             "connections": [],
         }
@@ -188,6 +199,40 @@ def _build_dashboard_summary(user_id: str, db: Session) -> dict:
             "positive": positive,
         }
 
+    # Aggregate emotions & topics from PostAnalysisSummary
+    post_ids = [
+        row[0]
+        for row in db.query(Post.id).filter(Post.connection_id.in_(conn_ids)).all()
+    ]
+    emotions_agg = Counter()
+    topics_agg = Counter()
+    if post_ids:
+        summaries = (
+            db.query(PostAnalysisSummary)
+            .filter(PostAnalysisSummary.post_id.in_(post_ids))
+            .all()
+        )
+        for s in summaries:
+            if s.emotions_distribution:
+                for emo, cnt in s.emotions_distribution.items():
+                    emotions_agg[emo] += cnt
+            if s.topics_frequency:
+                for topic, cnt in s.topics_frequency.items():
+                    topics_agg[topic] += cnt
+
+    # Word frequency from comment texts
+    comment_texts = [
+        row[0]
+        for row in db.query(
+            func.coalesce(Comment.text_clean, Comment.text_original)
+        ).filter(
+            Comment.connection_id.in_(conn_ids),
+            Comment.status == "processed",
+        ).all()
+        if row[0]
+    ]
+    word_frequency = _compute_word_frequency(comment_texts, limit=30)
+
     recent_posts = (
         db.query(Post)
         .filter(Post.connection_id.in_(conn_ids))
@@ -204,6 +249,9 @@ def _build_dashboard_summary(user_id: str, db: Session) -> dict:
         "avg_score": avg_score,
         "avg_polarity": avg_polarity,
         "sentiment_distribution": sentiment_distribution,
+        "emotions_distribution": dict(emotions_agg.most_common(10)) if emotions_agg else None,
+        "topics_frequency": dict(topics_agg.most_common(20)) if topics_agg else None,
+        "word_frequency": word_frequency,
         "recent_posts": [
             {
                 "id": str(p.id),
@@ -324,6 +372,19 @@ def get_connection_dashboard(
                 for topic, cnt in s.topics_frequency.items():
                     topics_agg[topic] += cnt
 
+    # Word frequency from comment texts
+    conn_comment_texts = [
+        row[0]
+        for row in db.query(
+            func.coalesce(Comment.text_clean, Comment.text_original)
+        ).filter(
+            Comment.connection_id == connection_id,
+            Comment.status == "processed",
+        ).all()
+        if row[0]
+    ]
+    word_frequency = _compute_word_frequency(conn_comment_texts, limit=30)
+
     # Engagement totals
     engagement = {
         "total_likes": sum(p.like_count for p in posts),
@@ -383,6 +444,7 @@ def get_connection_dashboard(
         "sentiment_distribution": sentiment_distribution,
         "emotions_distribution": dict(emotions_agg.most_common(10)),
         "topics_frequency": dict(topics_agg.most_common(15)),
+        "word_frequency": word_frequency,
         "posts": posts_with_summary,
         "engagement_totals": engagement,
     }
@@ -437,10 +499,13 @@ def _build_trends(user_id: str, connection_id_str: str | None, granularity: str,
             .all()
         )
 
-    # Query comments grouped by date. If there is no data in recent window, fallback to all-time.
-    query = trends_query(with_cutoff=True)
-    if not query:
+    # Query comments grouped by date. days=0 means all-time; otherwise fallback if empty.
+    if days <= 0:
         query = trends_query(with_cutoff=False)
+    else:
+        query = trends_query(with_cutoff=True)
+        if not query:
+            query = trends_query(with_cutoff=False)
 
     # Aggregate by granularity
     data_points_map = {}
@@ -499,7 +564,7 @@ def _build_trends(user_id: str, connection_id_str: str | None, granularity: str,
 def get_trends(
     connection_id: uuid.UUID | None = Query(None),
     granularity: str = Query("day", pattern="^(day|week|month)$"),
-    days: int = Query(30, ge=7, le=3650),
+    days: int = Query(30, ge=0, le=36500),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -516,7 +581,7 @@ def get_trends(
 def get_trends_detailed(
     connection_id: uuid.UUID | None = Query(None),
     granularity: str = Query("day", pattern="^(day|week|month)$"),
-    days: int = Query(30, ge=7, le=3650),
+    days: int = Query(30, ge=0, le=36500),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -550,9 +615,12 @@ def get_trends_detailed(
             query = query.filter(Comment.published_at >= cutoff)
         return query.all()
 
-    rows = detailed_rows(with_cutoff=True)
-    if not rows:
+    if days <= 0:
         rows = detailed_rows(with_cutoff=False)
+    else:
+        rows = detailed_rows(with_cutoff=True)
+        if not rows:
+            rows = detailed_rows(with_cutoff=False)
 
     data_points_map: dict = {}
 
@@ -613,20 +681,20 @@ def get_trends_detailed(
     return {"data_points": data_points, "granularity": granularity}
 
 
-@router.get("/health-report")
-def get_health_report(
-    current_user: User = Depends(get_current_user),
-    db: Session = Depends(get_db),
-):
+class HealthReportRequest(BaseModel):
+    custom_prompt: str | None = None
+
+
+def _build_health_report(db: Session, user_id, custom_prompt: str | None = None):
     connections = (
         db.query(SocialConnection)
-        .filter(SocialConnection.user_id == current_user.id)
+        .filter(SocialConnection.user_id == user_id)
         .all()
     )
 
     if not connections:
         return {
-            "report_text": "Nenhuma rede social conectada. Conecte suas contas para gerar o relatÃ³rio.",
+            "report_text": "Nenhuma rede social conectada. Conecte suas contas para gerar o relatório.",
             "generated_at": datetime.now(timezone.utc).isoformat(),
             "data_summary": {},
         }
@@ -682,13 +750,41 @@ def get_health_report(
             "sentiment_distribution": sent,
         })
 
+    # Fetch 5 sample comments per sentiment (positive, neutral, negative)
+    conn_ids = [c.id for c in connections]
+    sample_comments = {"positive": [], "neutral": [], "negative": []}
+    sentiment_ranges = {
+        "positive": (7.0, 10.0),
+        "neutral": (4.0, 6.99),
+        "negative": (0.0, 3.99),
+    }
+    for sentiment, (lo, hi) in sentiment_ranges.items():
+        rows = (
+            db.query(Comment.text_clean, CommentAnalysis.score_0_10)
+            .join(CommentAnalysis, CommentAnalysis.comment_id == Comment.id)
+            .filter(
+                Comment.connection_id.in_(conn_ids),
+                Comment.status == "processed",
+                CommentAnalysis.score_0_10 >= lo,
+                CommentAnalysis.score_0_10 <= hi,
+            )
+            .order_by(CommentAnalysis.score_0_10.desc() if sentiment == "positive" else CommentAnalysis.score_0_10.asc())
+            .limit(5)
+            .all()
+        )
+        sample_comments[sentiment] = [
+            {"text": r.text_clean[:200], "score": r.score_0_10}
+            for r in rows
+        ]
+
     data_summary = {
         "platforms": platforms_data,
         "top_emotions": dict(all_emotions.most_common(7)),
         "top_topics": dict(all_topics.most_common(10)),
+        "sample_comments": sample_comments,
     }
 
-    report_text = generate_health_report(data_summary)
+    report_text = generate_health_report(data_summary, custom_prompt=custom_prompt)
 
     return {
         "report_text": report_text,
@@ -697,9 +793,93 @@ def get_health_report(
     }
 
 
+HEALTH_REPORT_TTL = 86400  # 24h cache — only regenerated on demand or new data
+
+
+def _count_analyzed(db: Session, user_id) -> int:
+    """Count total analyzed comments for a user (used to detect new data)."""
+    conn_ids = [
+        c.id for c in
+        db.query(SocialConnection.id).filter(SocialConnection.user_id == user_id).all()
+    ]
+    if not conn_ids:
+        return 0
+    return db.query(func.count(Comment.id)).filter(
+        Comment.connection_id.in_(conn_ids),
+        Comment.status == "processed",
+    ).scalar() or 0
+
+
+@router.get("/health-report")
+def get_health_report(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return cached report only. Never generates a new one.
+    Includes has_new_data flag so frontend knows if refresh is worthwhile."""
+    import json as _json
+
+    cache_key = f"health_report:{current_user.id}"
+    r = get_redis()
+    cached_report = None
+
+    if r:
+        try:
+            cached_val = r.get(cache_key)
+            if cached_val:
+                cached_report = _json.loads(cached_val)
+        except Exception:
+            pass
+
+    if cached_report:
+        # Check if there's new data since last report
+        cached_analyzed = 0
+        for p in cached_report.get("data_summary", {}).get("platforms", []):
+            cached_analyzed += p.get("total_analyzed", 0)
+        current_analyzed = _count_analyzed(db, current_user.id)
+        cached_report["has_new_data"] = current_analyzed > cached_analyzed
+        return cached_report
+
+    # No cache — return empty so frontend shows "Gerar relatório" button
+    return {
+        "report_text": None,
+        "generated_at": None,
+        "data_summary": {},
+        "has_new_data": _count_analyzed(db, current_user.id) > 0,
+    }
+
+
+@router.post("/health-report")
+def post_health_report(
+    body: HealthReportRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Generate a fresh report (user clicked 'Gerar' or 'Atualizar')."""
+    import json as _json
+
+    result = _build_health_report(db, current_user.id, custom_prompt=body.custom_prompt)
+
+    r = get_redis()
+    if r and "indisponível" not in result.get("report_text", ""):
+        try:
+            cache_key = f"health_report:{current_user.id}"
+            r.setex(cache_key, HEALTH_REPORT_TTL, _json.dumps(result, default=str))
+        except Exception:
+            pass
+
+    result["has_new_data"] = False
+    return result
+
+
+@router.get("/health-report/prompt")
+def get_health_report_prompt():
+    return {"prompt": DEFAULT_HEALTH_PROMPT}
+
+
 @router.get("/compare")
 def get_platform_compare(
-    days: int = Query(30, ge=7, le=3650),
+    days: int = Query(30, ge=0, le=36500),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
