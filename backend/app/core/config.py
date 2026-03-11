@@ -85,7 +85,8 @@ class Settings(BaseSettings):
         "https://sentimenta.com.br",
         "http://www.sentimenta.com.br",
         "https://www.sentimenta.com.br",
-        "http://147.93.13.49:8080",
+        "https://app.sentimenta.com.br",
+        "https://sentimenta.vercel.app",
     ]
 
     @field_validator("CORS_ORIGINS", mode="before")
