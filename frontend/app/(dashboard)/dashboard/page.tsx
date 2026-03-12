@@ -135,7 +135,7 @@ function ScoreDonut({ score }: { score: number | null }) {
   );
 }
 
-function SentimentBarChart({ data, granularity }: { data: TrendResponse | null; granularity: string }) {
+function SentimentBarChart({ data, granularity, stacked100 = false }: { data: TrendResponse | null; granularity: string; stacked100?: boolean }) {
   if (!data || data.data_points.length === 0) {
     return (
       <div className="h-56 flex items-center justify-center text-slate-200">
@@ -144,13 +144,27 @@ function SentimentBarChart({ data, granularity }: { data: TrendResponse | null; 
     );
   }
 
-  const pts = data.data_points.map((p) => ({
-    period: p.period,
-    positive: p.positive,
-    neutral: p.neutral,
-    negative: p.negative,
-    total_comments: p.total_comments,
-  }));
+  const pts = data.data_points.map((p) => {
+    if (stacked100) {
+      const total = p.positive + p.neutral + p.negative;
+      if (total === 0) return { period: p.period, positive: 0, neutral: 0, negative: 0, total_comments: p.total_comments, _total: 0 };
+      return {
+        period: p.period,
+        positive: Math.round((p.positive / total) * 100),
+        neutral: Math.round((p.neutral / total) * 100),
+        negative: Math.round((p.negative / total) * 100),
+        total_comments: p.total_comments,
+        _total: total,
+      };
+    }
+    return {
+      period: p.period,
+      positive: p.positive,
+      neutral: p.neutral,
+      negative: p.negative,
+      total_comments: p.total_comments,
+    };
+  });
 
   return (
     <div className="h-56 w-full">
@@ -184,6 +198,8 @@ function SentimentBarChart({ data, granularity }: { data: TrendResponse | null; 
             axisLine={false}
             tickLine={false}
             allowDecimals={false}
+            domain={stacked100 ? [0, 100] : undefined}
+            tickFormatter={stacked100 ? (v: number) => `${v}%` : undefined}
           />
           <Tooltip
             cursor={{ fill: "rgba(139, 92, 246, 0.05)" }}
@@ -194,7 +210,7 @@ function SentimentBarChart({ data, granularity }: { data: TrendResponse | null; 
                 neutral: "Neutro",
                 negative: "Negativo",
               };
-              return [Math.round(value), labels[name] || name];
+              return [stacked100 ? `${Math.round(value)}%` : Math.round(value), labels[name] || name];
             }}
             contentStyle={{
               borderRadius: 14,
@@ -318,10 +334,10 @@ function RecentPostItem({ post, index }: { post: PostSummary; index: number }) {
       </div>
       <div className="flex-1 min-w-0">
         <p className="text-sm font-medium text-slate-700 truncate">
-          {post.content_text?.slice(0, 50) || "Post sem texto"}
+          {(post.content_text && post.content_text !== "null") ? post.content_text.slice(0, 50) : "Post sem texto"}
         </p>
         <p className="text-xs text-slate-400 mt-0.5 capitalize">
-          {post.platform} · {post.comment_count} comentários
+          {post.platform} · {post.comment_count} {post.comment_count === 1 ? "comentário" : "comentários"}
           {" · "}{post.published_at && post.published_at !== "null" ? new Date(post.published_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }) : "Sem data"}
         </p>
       </div>
@@ -346,7 +362,8 @@ export default function DashboardPage() {
   const [defaultPrompt, setDefaultPrompt] = useState("");
   const [pipelineBanner, setPipelineBanner] = useState(false);
   const [trendGranularity, setTrendGranularity] = useState("day");
-  const [trendDays, setTrendDays] = useState(30);
+  const [trendDays, setTrendDays] = useState(0);
+  const [stacked100, setStacked100] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [usageData, setUsageData] = useState<{ syncs_used: number; syncs_limit: number } | null>(null);
   const healthCacheKey = userId ? `sentimenta_health_report_${userId}` : null;
@@ -755,7 +772,13 @@ export default function DashboardPage() {
                     ].map((p) => (
                       <button
                         key={p.value}
-                        onClick={() => { setTrendDays(p.value); track("period_changed", { days: p.value }); }}
+                        onClick={() => {
+                          setTrendDays(p.value);
+                          // Auto-adjust granularity for large ranges
+                          if (p.value === 0 && trendGranularity === "day") setTrendGranularity("week");
+                          if (p.value === 365 && trendGranularity === "day") setTrendGranularity("week");
+                          track("period_changed", { days: p.value });
+                        }}
                         className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                           trendDays === p.value
                             ? "bg-brand-lilac text-white"
@@ -785,12 +808,23 @@ export default function DashboardPage() {
                       </button>
                     ))}
                   </div>
+                  <button
+                    onClick={() => setStacked100((v) => !v)}
+                    className={`px-3 py-1.5 text-xs font-medium rounded-xl border transition-colors shrink-0 ${
+                      stacked100
+                        ? "bg-brand-lilac text-white border-brand-lilac"
+                        : "text-slate-400 hover:text-slate-600 border-slate-100"
+                    }`}
+                    title="Visualizar como 100% empilhado"
+                  >
+                    100%
+                  </button>
                 </div>
               </div>
               {loading ? (
                 <div className="h-48 bg-slate-50 rounded-2xl animate-pulse" />
               ) : (
-                <SentimentBarChart data={trends} granularity={trendGranularity} />
+                <SentimentBarChart data={trends} granularity={trendGranularity} stacked100={stacked100} />
               )}
               <div className="flex items-center gap-4 text-[11px] text-slate-500 mt-3">
                 <span className="inline-flex items-center gap-1.5"><span className="w-2 h-2 rounded-sm bg-emerald-400" />Positivo</span>

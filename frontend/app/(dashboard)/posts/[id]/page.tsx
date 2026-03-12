@@ -223,7 +223,7 @@ export default function PostDetailPage() {
           search: q.search || undefined,
           limit: LIMIT,
           offset: q.offset,
-          sort: "score",
+          sort: "date",
           order: "desc",
         });
         setComments(c);

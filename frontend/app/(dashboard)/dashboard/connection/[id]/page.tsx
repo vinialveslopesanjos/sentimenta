@@ -622,7 +622,7 @@ export default function ConnectionPage() {
   const [personaText, setPersonaText] = useState("");
   const [savingPersona, setSavingPersona] = useState(false);
   const [savingIgnore, setSavingIgnore] = useState(false);
-  const [trendDays, setTrendDays] = useState(90);
+  const [trendDays, setTrendDays] = useState(0);
 
   // temporal chart tabs
   const [temporalTab, setTemporalTab] = useState<"volume" | "score" | "sentiment" | "emotions" | "topics">("volume");
@@ -737,7 +737,7 @@ export default function ConnectionPage() {
           search: q.search || undefined,
           limit: LIMIT,
           offset: q.offset,
-          sort: "score",
+          sort: "date",
           order: "desc",
         });
         setComments(c);
