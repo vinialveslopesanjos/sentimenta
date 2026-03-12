@@ -35,58 +35,69 @@ function formatMonthTooltip(period: string) {
 }
 
 function LandingSentimentTrendChart() {
-  const chartData = landingMonthlySentiment.map((row) => ({
-    month: row.month,
-    positivePct: (row.positive / row.total) * 100,
-    neutralPct: (row.neutral / row.total) * 100,
-    negativePct: (row.negative / row.total) * 100,
+  const pts = landingMonthlySentiment.map((row) => ({
+    period: row.month,
     positive: row.positive,
     neutral: row.neutral,
     negative: row.negative,
-    total: row.total,
+    total_comments: row.total,
   }));
 
   return (
     <div className="h-56 w-full">
       <ResponsiveContainer width="100%" height="100%">
-        <BarChart data={chartData} margin={{ top: 8, right: 8, left: -18, bottom: 8 }}>
-          <CartesianGrid stroke="#EEF2FF" strokeDasharray="3 3" vertical={false} />
+        <BarChart data={pts} margin={{ top: 8, right: 8, left: -14, bottom: 8 }}>
+          <defs>
+            <linearGradient id="gradPositiveLanding" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#34D399" stopOpacity={0.9} />
+              <stop offset="100%" stopColor="#34D399" stopOpacity={0.6} />
+            </linearGradient>
+            <linearGradient id="gradNeutralLanding" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#94A3B8" stopOpacity={0.7} />
+              <stop offset="100%" stopColor="#94A3B8" stopOpacity={0.4} />
+            </linearGradient>
+            <linearGradient id="gradNegativeLanding" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#FB7185" stopOpacity={0.9} />
+              <stop offset="100%" stopColor="#FB7185" stopOpacity={0.6} />
+            </linearGradient>
+          </defs>
+          <CartesianGrid stroke="#F1F5F9" strokeDasharray="4 4" vertical={false} />
           <XAxis
-            dataKey="month"
-            minTickGap={26}
-            tick={{ fill: "#94A3B8", fontSize: 10 }}
+            dataKey="period"
+            minTickGap={40}
+            tick={{ fill: "#94a3b8", fontSize: 11 }}
             tickFormatter={formatMonthYear}
-            axisLine={{ stroke: "#E2E8F0" }}
+            axisLine={false}
             tickLine={false}
           />
           <YAxis
-            domain={[0, 100]}
-            tick={{ fill: "#94A3B8", fontSize: 10 }}
-            tickFormatter={(value: number) => `${Math.round(value)}%`}
-            axisLine={{ stroke: "#E2E8F0" }}
+            tick={{ fill: "#94a3b8", fontSize: 11 }}
+            axisLine={false}
             tickLine={false}
+            allowDecimals={false}
           />
           <Tooltip
-            cursor={{ fill: "rgba(139, 92, 246, 0.08)" }}
+            cursor={{ fill: "rgba(139, 92, 246, 0.05)" }}
             labelFormatter={formatMonthTooltip}
-            formatter={(value: number, name: string, payload) => {
-              const row = payload?.payload;
-              const map: Record<string, string> = {
-                positivePct: "Positivo",
-                neutralPct: "Neutro",
-                negativePct: "Negativo",
+            formatter={(value: number, name: string) => {
+              const labels: Record<string, string> = {
+                positive: "Positivo",
+                neutral: "Neutro",
+                negative: "Negativo",
               };
-              const rawMap: Record<string, number> = {
-                positivePct: row?.positive ?? 0,
-                neutralPct: row?.neutral ?? 0,
-                negativePct: row?.negative ?? 0,
-              };
-              return [`${value.toFixed(1)}% - ${rawMap[name].toLocaleString("pt-BR")}`, map[name] || name];
+              return [Math.round(value).toLocaleString("pt-BR"), labels[name] || name];
+            }}
+            contentStyle={{
+              borderRadius: 14,
+              border: "1px solid #f1f5f9",
+              fontSize: 11,
+              boxShadow: "0 8px 24px rgba(0,0,0,0.06)",
+              padding: "10px 14px",
             }}
           />
-          <Bar dataKey="positivePct" stackId="pct" fill="#34D399" radius={[2, 2, 0, 0]} />
-          <Bar dataKey="neutralPct" stackId="pct" fill="#FCD34D" radius={[2, 2, 0, 0]} />
-          <Bar dataKey="negativePct" stackId="pct" fill="#FB7185" radius={[2, 2, 0, 0]} />
+          <Bar dataKey="positive" stackId="sent" fill="url(#gradPositiveLanding)" radius={[0, 0, 0, 0]} animationDuration={800} animationEasing="ease-out" />
+          <Bar dataKey="neutral" stackId="sent" fill="url(#gradNeutralLanding)" radius={[0, 0, 0, 0]} animationDuration={800} animationEasing="ease-out" />
+          <Bar dataKey="negative" stackId="sent" fill="url(#gradNegativeLanding)" radius={[6, 6, 0, 0]} animationDuration={800} animationEasing="ease-out" />
         </BarChart>
       </ResponsiveContainer>
     </div>
