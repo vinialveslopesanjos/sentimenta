@@ -18,6 +18,12 @@ export default function CookieBanner() {
   const handleAccept = () => {
     localStorage.setItem(COOKIE_CONSENT_KEY, "accepted");
     setVisible(false);
+    window.dispatchEvent(new Event("analytics-consent"));
+  };
+
+  const handleDecline = () => {
+    localStorage.setItem(COOKIE_CONSENT_KEY, "declined");
+    setVisible(false);
   };
 
   if (!visible) return null;
@@ -35,6 +41,12 @@ export default function CookieBanner() {
           >
             Saiba mais
           </Link>
+          <button
+            onClick={handleDecline}
+            className="px-5 py-2 text-slate-500 text-sm font-medium rounded-xl hover:bg-slate-100 transition-colors whitespace-nowrap"
+          >
+            Recusar
+          </button>
           <button
             onClick={handleAccept}
             className="px-5 py-2 bg-slate-900 text-white text-sm font-medium rounded-xl hover:bg-slate-800 transition-colors whitespace-nowrap"

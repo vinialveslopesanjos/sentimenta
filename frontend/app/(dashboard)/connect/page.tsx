@@ -12,6 +12,7 @@ import {
   type SyncSettings,
 } from "@/lib/syncSettings";
 import { relativeTime } from "@/lib/helpers";
+import { track } from "@/lib/tracking";
 
 type Connection = {
   id: string;
@@ -138,6 +139,7 @@ export default function ConnectPage() {
       }
       setInputs(i => ({ ...i, [platformId]: "" }));
       setPotentials(p => ({ ...p, [platformId]: null }));
+      track("profile_connected", { platform: platformId });
       setSuccess(s => ({ ...s, [platformId]: "Perfil conectado!" }));
       setTimeout(() => setSuccess(s => ({ ...s, [platformId]: "" })), 3000);
       await loadConnections();
@@ -151,6 +153,7 @@ export default function ConnectPage() {
   const handleSync = async (connId: string) => {
     const token = getToken()!;
     setSyncing(s => ({ ...s, [connId]: true }));
+    track("sync_triggered", { connection_id: connId });
     try {
       await connectionsApi.sync(token, connId, toSyncPayload(syncParams));
     } finally {
@@ -161,6 +164,7 @@ export default function ConnectPage() {
   const handleSyncAll = async () => {
     const token = getToken();
     if (!token || connections.length === 0) return;
+    track("sync_all_triggered", { count: connections.length });
     const payload = toSyncPayload(syncParams);
     for (const conn of connections) {
       setSyncing(s => ({ ...s, [conn.id]: true }));
@@ -174,6 +178,7 @@ export default function ConnectPage() {
 
   const handleDelete = async (connId: string) => {
     const token = getToken()!;
+    track("profile_deleted", { connection_id: connId });
     try {
       await connectionsApi.delete(token, connId);
       setConnections(c => c.filter(x => x.id !== connId));

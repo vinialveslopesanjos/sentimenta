@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { authApi } from "@/lib/api";
 import { clearTokens, getToken } from "@/lib/auth";
+import { identifyUser } from "@/lib/tracking";
 import Sidebar from "@/components/Sidebar";
 import BottomNav from "@/components/BottomNav";
 
@@ -27,6 +28,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           return;
         }
         setUserName(user.name);
+        identifyUser(user.id, { email: user.email, name: user.name, plan: user.plan });
         setOk(true);
       })
       .catch((err) => {

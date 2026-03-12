@@ -13,6 +13,7 @@ import {
   Tooltip,
 } from "recharts";
 import { landingLatestTotals, landingMonthlySentiment } from "@/lib/landingMockData";
+import { track } from "@/lib/tracking";
 
 declare global {
   interface Window {
@@ -301,6 +302,7 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4 pt-4">
             <Link
               href="/login"
+              onClick={() => track("landing_cta_clicked", { cta: "hero_primary" })}
               className="px-8 py-4 rounded-full liquid-btn bg-slate-900 text-white font-medium text-lg hover:bg-slate-800 hover:scale-105 transition-all duration-300"
             >
               Comece grátis 14 dias
@@ -528,6 +530,7 @@ export default function LandingPage() {
                 </ul>
                 <Link
                   href="/login"
+                  onClick={() => track("landing_cta_clicked", { cta: "pricing", plan: plan.name })}
                   className={`block text-center py-3.5 rounded-2xl font-medium text-sm transition-all ${
                     plan.highlight
                       ? "bg-white text-brand-lilacDark hover:bg-violet-50 shadow-lg"
@@ -587,6 +590,7 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <Link
               href="/login"
+              onClick={() => track("landing_cta_clicked", { cta: "bottom_primary" })}
               className="px-8 py-4 rounded-full bg-white text-brand-lilacDark font-medium text-lg hover:bg-violet-50 transition-all shadow-lg hover:shadow-xl"
             >
               Comece grátis 14 dias

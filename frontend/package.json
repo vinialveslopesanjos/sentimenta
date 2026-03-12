@@ -10,20 +10,21 @@
     "type-check": "tsc --noEmit"
   },
   "dependencies": {
+    "@sentimenta/api-client": "*",
+    "@sentimenta/types": "*",
     "@tailwindcss/typography": "^0.5.19",
     "clsx": "^2.1.0",
     "framer-motion": "^11.18.2",
     "lucide-react": "^0.344.0",
     "next": "^14.2.0",
     "next-auth": "^4.24.0",
+    "posthog-js": "^1.360.1",
     "react": "^18.3.0",
     "react-dom": "^18.3.0",
     "react-markdown": "^10.1.0",
     "recharts": "^2.12.0",
     "sonner": "^1.7.4",
-    "tailwind-merge": "^2.2.0",
-    "@sentimenta/types": "*",
-    "@sentimenta/api-client": "*"
+    "tailwind-merge": "^2.2.0"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

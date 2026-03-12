@@ -2,6 +2,7 @@
 import Script from "next/script";
 import { Toaster } from "@/components/ui/toast";
 import CookieBanner from "@/components/CookieBanner";
+import AnalyticsProvider from "@/app/providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,7 +27,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" />
       </head>
       <body className="min-h-screen font-body antialiased">
-        {children}
+        <AnalyticsProvider>
+          {children}
+        </AnalyticsProvider>
         <Toaster />
         <CookieBanner />
       </body>

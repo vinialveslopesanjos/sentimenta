@@ -20,6 +20,7 @@ import { loadSyncSettings, toSyncPayload } from "@/lib/syncSettings";
 import { scoreColor, scoreLabel, parsePeriod, formatDayLabel, formatTickLabel } from "@/lib/helpers";
 import SentimentRadar from "@/components/charts/SentimentRadar";
 import WordCloudChart from "@/components/charts/WordCloudChart";
+import { track } from "@/lib/tracking";
 
 const API_URL = "/api/v1";
 
@@ -297,6 +298,7 @@ function RecentPostItem({ post, index }: { post: PostSummary; index: number }) {
   return (
     <Link
       href={`/posts/${post.id}`}
+      onClick={() => track("post_clicked", { post_id: post.id, platform: post.platform })}
       className={`flex items-center gap-3 p-3 rounded-2xl hover:-translate-y-px transition-all duration-200 group ${tint || "hover:bg-slate-50/60"}`}
       style={{ animationDelay: `${index * 60}ms` }}
     >
@@ -753,7 +755,7 @@ export default function DashboardPage() {
                     ].map((p) => (
                       <button
                         key={p.value}
-                        onClick={() => setTrendDays(p.value)}
+                        onClick={() => { setTrendDays(p.value); track("period_changed", { days: p.value }); }}
                         className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                           trendDays === p.value
                             ? "bg-brand-lilac text-white"
@@ -772,7 +774,7 @@ export default function DashboardPage() {
                     ].map((g) => (
                       <button
                         key={g.value}
-                        onClick={() => setTrendGranularity(g.value)}
+                        onClick={() => { setTrendGranularity(g.value); track("filter_changed", { granularity: g.value }); }}
                         className={`px-3 py-1.5 text-xs font-medium transition-colors ${
                           trendGranularity === g.value
                             ? "bg-brand-lilacDark text-white"
