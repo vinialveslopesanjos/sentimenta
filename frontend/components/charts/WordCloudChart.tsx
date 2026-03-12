@@ -2,18 +2,33 @@
 
 import { useState, useEffect, useMemo } from "react";
 
-// Stopwords PT-BR + common connectors
+// Stopwords PT-BR + EN — articles, prepositions, conjunctions, pronouns, common verbs, adverbs
 const STOPWORDS = new Set([
-  "de", "da", "do", "das", "dos", "a", "o", "as", "os", "e", "em", "na", "no",
-  "nas", "nos", "um", "uma", "uns", "umas", "para", "por", "com", "sem",
-  "que", "se", "mais", "menos", "muito", "pouco", "bem", "mal", "ja", "ainda",
-  "tambem", "como", "mas", "ou", "nem", "nao", "sim", "ao", "aos", "pela",
-  "pelo", "pelas", "pelos", "entre", "sobre", "ate", "isso", "isto", "esse",
-  "essa", "este", "esta", "esses", "essas", "estes", "estas", "aquele", "aquela",
-  "ele", "ela", "eles", "elas", "eu", "tu", "voce", "nos", "vos", "meu", "minha",
-  "seu", "sua", "nosso", "nossa", "ter", "ser", "estar", "fazer", "ir", "ver",
+  // Artigos
+  "o", "a", "os", "as", "um", "uma", "uns", "umas",
+  // Preposições / Conjunções
+  "de", "do", "da", "dos", "das", "em", "no", "na", "nos", "nas",
+  "para", "pra", "pro", "com", "por", "que", "e", "ou", "se", "mas",
+  "nem", "ao", "aos", "pela", "pelo", "pelas", "pelos", "entre",
+  "sobre", "ate", "sem", "como",
+  // Pronomes
+  "eu", "tu", "voce", "você", "ele", "ela", "eles", "elas",
+  "meu", "minha", "meus", "minhas", "seu", "sua", "seus", "suas",
+  "nos", "nós", "vos", "nosso", "nossa", "nossos", "nossas",
+  "tudo", "nada", "isso", "isto", "esse", "essa", "este", "esta",
+  "esses", "essas", "estes", "estas", "aquele", "aquela",
+  // Verbos comuns (sem ação relevante)
+  "ser", "estar", "ter", "fazer", "ir", "ver", "pode", "vai",
+  "foi", "tem", "era", "faz", "deu", "sao", "são",
+  // Advérbios / Outros
+  "mais", "muito", "muita", "muitos", "muitas",
+  "não", "nao", "sim", "aqui", "então", "entao", "quando",
+  "menos", "pouco", "bem", "mal", "ja", "já", "ainda", "também", "tambem",
+  "só", "so", "também", "agora", "depois", "antes",
+  // EN common
   "the", "and", "or", "is", "are", "was", "were", "in", "on", "at", "to", "for",
   "of", "with", "from", "by", "it", "this", "that", "these", "those", "a", "an",
+  "you", "i", "he", "she", "we", "they", "my", "your", "his", "her",
 ]);
 
 const PALETTE = [
@@ -98,16 +113,28 @@ function buildWordCloud(words: WordItem[], width: number, height: number): Place
       }
     }
 
+    // If spiral exhausted, try again at minimum font size before giving up
     if (!wasPlaced) {
-      placed.push({
-        x: 20 + Math.random() * (width - 40),
-        y: 20 + Math.random() * (height - 40),
-        w, h,
-        text: word.text,
-        fontSize: minSize,
-        value: word.value,
-        color,
-      });
+      const smallSize = minSize;
+      const { w: sw, h: sh } = measureText(word.text, smallSize);
+      let fallbackPlaced = false;
+      for (let t = 0; t < 200; t += 0.15) {
+        const [sx, sy] = spiral(t);
+        const cx = width / 2 + sx;
+        const cy = height / 2 + sy;
+        const candidate: PlacedWord = { x: cx, y: cy, w: sw, h: sh, text: word.text, fontSize: smallSize, value: word.value, color };
+        const margin = 10;
+        if (
+          cx - sw / 2 < margin || cx + sw / 2 > width - margin ||
+          cy - sh / 2 < margin || cy + sh / 2 > height - margin
+        ) continue;
+        if (!placed.some((p) => overlaps(p, candidate))) {
+          placed.push(candidate);
+          fallbackPlaced = true;
+          break;
+        }
+      }
+      // Drop the word entirely if it still can't fit — no random placement
     }
   }
 

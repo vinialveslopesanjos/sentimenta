@@ -66,8 +66,8 @@ def _compute_word_frequency(texts: list[str], limit: int = 30) -> dict[str, int]
 
 def _clean_post_text(text: str | None, max_len: int = 100) -> str | None:
     """Remove generic CTA prefixes and hashtags, return meaningful first sentence."""
-    if not text:
-        return text
+    if not text or text.strip().lower() == "null":
+        return None
     # Normalize escaped newlines to real newlines
     t = text.replace("\\n", "\n")
     # Remove common CTA prefix patterns (e.g. "➡️Coloca pra me seguir...")
@@ -233,13 +233,31 @@ def _build_dashboard_summary(user_id: str, db: Session) -> dict:
     ]
     word_frequency = _compute_word_frequency(comment_texts, limit=30)
 
+    # Prioritize posts with comments and text content; fallback to recent
     recent_posts = (
         db.query(Post)
-        .filter(Post.connection_id.in_(conn_ids))
+        .filter(
+            Post.connection_id.in_(conn_ids),
+            Post.comment_count > 0,
+        )
         .order_by(Post.published_at.desc().nullslast())
         .limit(10)
         .all()
     )
+    # If fewer than 5 with comments, fill with remaining recent posts
+    if len(recent_posts) < 5:
+        existing_ids = {p.id for p in recent_posts}
+        filler = (
+            db.query(Post)
+            .filter(
+                Post.connection_id.in_(conn_ids),
+                Post.id.notin_(existing_ids) if existing_ids else True,
+            )
+            .order_by(Post.published_at.desc().nullslast())
+            .limit(10 - len(recent_posts))
+            .all()
+        )
+        recent_posts.extend(filler)
 
     return {
         "total_connections": len(connections),

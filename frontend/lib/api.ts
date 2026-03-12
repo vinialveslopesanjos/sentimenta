@@ -287,7 +287,7 @@ export const dashboardApi = {
     const query = new URLSearchParams();
     if (params.connection_id) query.set("connection_id", params.connection_id);
     if (params.granularity) query.set("granularity", params.granularity);
-    if (params.days) query.set("days", String(params.days));
+    if (params.days !== undefined) query.set("days", String(params.days));
     const qs = query.toString();
     return apiFetch<TrendResponse>(
       `/dashboard/trends${qs ? `?${qs}` : ""}`,
@@ -302,7 +302,7 @@ export const dashboardApi = {
     const query = new URLSearchParams();
     if (params.connection_id) query.set("connection_id", params.connection_id);
     if (params.granularity) query.set("granularity", params.granularity);
-    if (params.days) query.set("days", String(params.days));
+    if (params.days !== undefined) query.set("days", String(params.days));
     const qs = query.toString();
     return apiFetch<TrendsDetailedResponse>(
       `/dashboard/trends-detailed${qs ? `?${qs}` : ""}`,
