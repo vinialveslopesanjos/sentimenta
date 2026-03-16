@@ -2,13 +2,13 @@
 
 
 def test_list_posts_empty(client, auth_headers):
-    res = client.get("/api/v1/posts/", headers=auth_headers)
+    res = client.get("/api/v1/posts", headers=auth_headers)
     assert res.status_code == 200
     assert res.json() == []
 
 
 def test_list_posts_with_data(client, auth_headers, test_post):
-    res = client.get("/api/v1/posts/", headers=auth_headers)
+    res = client.get("/api/v1/posts", headers=auth_headers)
     assert res.status_code == 200
     data = res.json()
     assert len(data) == 1
@@ -34,7 +34,7 @@ def test_post_detail_not_found(client, auth_headers):
 
 
 def test_posts_require_auth(client):
-    res = client.get("/api/v1/posts/")
+    res = client.get("/api/v1/posts")
     assert res.status_code == 401
 
 

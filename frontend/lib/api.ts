@@ -96,10 +96,10 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
 
 // Auth
 export const authApi = {
-  register: (email: string, password: string, name?: string) =>
+  register: (email: string, password: string, name?: string, acceptedTerms = true) =>
     apiFetch<{ access_token: string; refresh_token: string }>("/auth/register", {
       method: "POST",
-      body: JSON.stringify({ email, password, name }),
+      body: JSON.stringify({ email, password, name, accepted_terms: acceptedTerms }),
     }),
 
   login: (email: string, password: string) =>
@@ -108,8 +108,12 @@ export const authApi = {
       body: JSON.stringify({ email, password }),
     }),
 
-  logout: (token: string) =>
-    apiFetch<{ message: string }>("/auth/logout", { method: "POST", token }),
+  logout: (token: string, refreshToken?: string | null) =>
+    apiFetch<{ message: string }>("/auth/logout", {
+      method: "POST",
+      token,
+      body: JSON.stringify({ refresh_token: refreshToken || null }),
+    }),
 
   googleLogin: (googleToken: string) =>
     apiFetch<{ access_token: string; refresh_token: string }>("/auth/google", {
@@ -161,6 +165,26 @@ export const authApi = {
       method: "PATCH",
       token,
       body: JSON.stringify(payload),
+    }),
+
+  changePassword: (token: string, currentPassword: string, newPassword: string) =>
+    apiFetch<{ access_token: string; refresh_token: string }>("/auth/change-password", {
+      method: "POST",
+      token,
+      body: JSON.stringify({
+        current_password: currentPassword,
+        new_password: newPassword,
+      }),
+    }),
+
+  deleteAccount: (token: string, confirmationText: string, password?: string) =>
+    apiFetch<void>("/auth/me", {
+      method: "DELETE",
+      token,
+      body: JSON.stringify({
+        confirmation_text: confirmationText,
+        password: password || null,
+      }),
     }),
 };
 
@@ -391,9 +415,22 @@ export const dashboardApi = {
 
 // Billing
 export const billingApi = {
+  plans: (token: string) =>
+    apiFetch<{
+      plans: Array<{
+        slug: string;
+        name: string;
+        price_brl: number;
+        description: string;
+        highlight?: boolean;
+        limits: Record<string, unknown>;
+      }>;
+    }>("/billing/plans", { token }),
+
   usage: (token: string) =>
     apiFetch<{
       plan: string;
+      subscription_status?: string | null;
       usage: {
         syncs_used_this_month: number;
         syncs_limit: number;
@@ -405,6 +442,19 @@ export const billingApi = {
         billing_period_end: string;
       };
     }>("/billing/usage", { token }),
+
+  createCheckoutSession: (token: string, planSlug: string) =>
+    apiFetch<{ url: string }>("/billing/checkout-session", {
+      method: "POST",
+      token,
+      body: JSON.stringify({ plan_slug: planSlug }),
+    }),
+
+  createPortalSession: (token: string) =>
+    apiFetch<{ url: string }>("/billing/portal-session", {
+      method: "POST",
+      token,
+    }),
 };
 
 // Pipeline

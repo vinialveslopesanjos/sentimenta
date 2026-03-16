@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 
 import httpx
 from sqlalchemy.orm import Session
@@ -8,6 +9,7 @@ from app.core.security import (
     create_refresh_token,
     decode_token,
     hash_password,
+    token_version_matches,
     verify_password,
 )
 from app.models.user import User
@@ -30,6 +32,12 @@ def register_user(db: Session, email: str, password: str, name: str | None = Non
     db.commit()
     db.refresh(user)
     return user
+
+
+def mark_terms_accepted(user: User, accepted_ip: str | None, version: str) -> None:
+    user.terms_accepted_at = datetime.now(timezone.utc)
+    user.terms_accepted_ip = accepted_ip
+    user.terms_accepted_version = version
 
 
 def authenticate_user(db: Session, email: str, password: str) -> User | None:
@@ -92,7 +100,7 @@ async def authenticate_google(db: Session, google_token: str) -> User:
 
 
 def create_tokens(user: User) -> dict:
-    data = {"sub": str(user.id)}
+    data = {"sub": str(user.id), "token_version": user.token_version}
     return {
         "access_token": create_access_token(data),
         "refresh_token": create_refresh_token(data),
@@ -109,5 +117,28 @@ def refresh_access_token(db: Session, refresh_token: str) -> dict | None:
     user = db.query(User).filter(User.id == uuid.UUID(user_id)).first()
     if not user:
         return None
+    if not token_version_matches(payload, user.token_version):
+        return None
 
     return create_tokens(user)
+
+
+def revoke_all_tokens(db: Session, user: User) -> User:
+    user.token_version += 1
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user
+
+
+def change_password(db: Session, user: User, current_password: str, new_password: str) -> User:
+    if not user.password_hash:
+        raise ValueError("Esta conta usa login social e nao tem senha local cadastrada")
+    if not verify_password(current_password, user.password_hash):
+        raise ValueError("Senha atual incorreta")
+    user.password_hash = hash_password(new_password)
+    user.token_version += 1
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    return user

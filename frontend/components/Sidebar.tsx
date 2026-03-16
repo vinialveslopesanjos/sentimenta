@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { authApi } from "@/lib/api";
-import { clearTokens, getToken } from "@/lib/auth";
+import { clearTokens, getRefreshToken, getToken } from "@/lib/auth";
 
 const navItems = [
   { href: "/dashboard", icon: "grid_view", label: "Dashboard" },
@@ -20,9 +20,10 @@ export default function Sidebar({ userName }: { userName?: string | null }) {
 
   const handleLogout = async () => {
     const token = getToken();
+    const refreshToken = getRefreshToken();
     if (token) {
       try {
-        await authApi.logout?.(token);
+        await authApi.logout?.(token, refreshToken);
       } catch {
         // ignore
       }

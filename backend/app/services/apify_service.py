@@ -424,6 +424,7 @@ def _apply_smart_sample(
 def fetch_comments_apify(
     post_urls: list[str],
     max_per_post: int = 10000,
+    per_post_limits: Optional[dict[str, int]] = None,
     sample_mode: str = "all",
     comment_counts: Optional[dict[str, int]] = None,
     step_callback=None,
@@ -469,7 +470,9 @@ def fetch_comments_apify(
     # Calculate limits per URL
     limits: dict[str, int] = {}
     for url in post_urls:
-        if sample_mode == "sample" and url in comment_counts and comment_counts[url] > 0:
+        if per_post_limits and url in per_post_limits:
+            limits[url] = per_post_limits[url]
+        elif sample_mode == "sample" and url in comment_counts and comment_counts[url] > 0:
             limits[url] = _calc_sample_size(comment_counts[url])
         else:
             limits[url] = max_per_post

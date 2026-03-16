@@ -1,5 +1,3 @@
-// ─── Billing & Plans ──────────────────────────────────────────────
-
 import type { PlanSlug } from "./user";
 
 export interface PlanLimits {
@@ -7,13 +5,9 @@ export interface PlanLimits {
     max_posts_per_sync: number;
     max_comments_per_post: number;
     syncs_per_month: number;
-    /** Maximum Apify cost in BRL allowed per billing cycle */
     apify_budget_brl: number;
-    /** Whether the plan includes health report generation */
     health_report: boolean;
-    /** Whether the plan includes PDF export */
     pdf_export: boolean;
-    /** Whether the plan supports multi-connection comparison */
     comparison: boolean;
 }
 
@@ -21,7 +15,7 @@ export const PLAN_CONFIG: Record<PlanSlug, PlanLimits> = {
     free: {
         max_connections: 1,
         max_posts_per_sync: 2,
-        max_comments_per_post: 100, // TOTAL across all posts, not per post
+        max_comments_per_post: 100,
         syncs_per_month: 1,
         apify_budget_brl: 10,
         health_report: false,
@@ -58,9 +52,27 @@ export const PLAN_CONFIG: Record<PlanSlug, PlanLimits> = {
         pdf_export: true,
         comparison: true,
     },
+    enterprise: {
+        max_connections: 30,
+        max_posts_per_sync: 200,
+        max_comments_per_post: 2500,
+        syncs_per_month: 120,
+        apify_budget_brl: 2000,
+        health_report: true,
+        pdf_export: true,
+        comparison: true,
+    },
+    admin: {
+        max_connections: 100,
+        max_posts_per_sync: 999999,
+        max_comments_per_post: 999999,
+        syncs_per_month: 999999,
+        apify_budget_brl: 999999,
+        health_report: true,
+        pdf_export: true,
+        comparison: true,
+    },
 };
-
-// ─── Pricing Display ──────────────────────────────────────────────
 
 export interface PlanPricing {
     slug: PlanSlug;
@@ -73,27 +85,33 @@ export interface PlanPricing {
 export const PLAN_PRICING: PlanPricing[] = [
     {
         slug: "free",
-        name: "Grátis",
+        name: "Gratis",
         price_brl: 0,
-        description: "Teste a Sentimenta com uma conexão e uma análise por mês.",
+        description: "Teste a Sentimenta com uma conexao e uma analise por mes.",
     },
     {
         slug: "creator",
         name: "Creator",
         price_brl: 67,
-        description: "Para criadores que querem entender seu público de verdade.",
+        description: "Para criadores que querem entender seu publico de verdade.",
     },
     {
         slug: "pro",
         name: "Pro",
         price_brl: 167,
-        description: "Para marcas e profissionais que levam redes sociais a sério.",
+        description: "Para marcas e profissionais que levam redes sociais a serio.",
         highlight: true,
     },
     {
         slug: "agency",
         name: "Agency",
         price_brl: 397,
-        description: "Para agências que gerenciam múltiplos perfis.",
+        description: "Para agencias que gerenciam multiplos perfis.",
+    },
+    {
+        slug: "enterprise",
+        name: "Enterprise",
+        price_brl: 0,
+        description: "Sob consulta para operacoes de maior porte.",
     },
 ];

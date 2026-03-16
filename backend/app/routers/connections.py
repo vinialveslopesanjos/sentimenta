@@ -309,9 +309,14 @@ def delete_connection(
 @router.get("/instagram/auth-url", response_model=OAuthURLResponse)
 def get_instagram_auth_url(current_user: User = Depends(get_current_user)):
     from app.services.instagram_service import generate_auth_url
+    r = get_redis()
+    if not r:
+        raise HTTPException(status_code=503, detail="Redis unavailable")
 
+    state = secrets.token_urlsafe(32)
+    r.setex(f"oauth_conn_state:{state}", 600, f"instagram:{current_user.id}")
     auth_url = generate_auth_url(
-        state=str(current_user.id),
+        state=state,
         redirect_uri=settings.INSTAGRAM_CONNECTIONS_REDIRECT_URI,
     )
     return OAuthURLResponse(auth_url=auth_url)
@@ -342,9 +347,30 @@ async def instagram_callback(
 
     from app.services.instagram_service import handle_oauth_callback
 
+    r = get_redis()
+    if not r:
+        return RedirectResponse(
+            url=f"{base_url}/settings?tab=integrations&status=error&platform=instagram&error=server_error"
+        )
+    stored = r.get(f"oauth_conn_state:{state}")
+    if not stored or not str(stored).startswith("instagram:"):
+        logger.error("Instagram OAuth connection: invalid state %s", state)
+        return RedirectResponse(
+            url=f"{base_url}/settings?tab=integrations&status=error&platform=instagram&error=invalid_state"
+        )
+    r.delete(f"oauth_conn_state:{state}")
+
+    user_id_str = str(stored).split(":", 1)[1]
+    try:
+        user_id = uuid.UUID(user_id_str)
+    except ValueError:
+        return RedirectResponse(
+            url=f"{base_url}/settings?tab=integrations&status=error&platform=instagram&error=invalid_state"
+        )
+
     try:
         logger.info("Instagram OAuth connection callback - state: %s", state)
-        connection = await handle_oauth_callback(db, code, state)
+        connection = await handle_oauth_callback(db, code, user_id)
         logger.info("Instagram connection created: %s", connection.id)
     except ValueError as e:
         logger.error("Instagram OAuth connection callback failed: %s", e)

@@ -87,12 +87,16 @@ function LoginPageInner() {
       setError("Preencha email e senha.");
       return;
     }
-    if (password.length < 6) {
-      setError("A senha deve ter pelo menos 6 caracteres.");
+    if (password.length < 8) {
+      setError("A senha deve ter pelo menos 8 caracteres.");
       return;
     }
     if (mode === "register" && !name.trim()) {
       setError("Informe seu nome.");
+      return;
+    }
+    if (mode === "register" && !acceptedTerms) {
+      setError("Voce precisa aceitar os termos para criar a conta.");
       return;
     }
 
@@ -102,7 +106,7 @@ function LoginPageInner() {
       const res =
         mode === "login"
           ? await authApi.login(email.trim(), password)
-          : await authApi.register(email.trim(), password, name.trim() || undefined);
+          : await authApi.register(email.trim(), password, name.trim() || undefined, acceptedTerms);
 
       setTokens(res.access_token, res.refresh_token);
       if (mode === "register") {

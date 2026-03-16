@@ -1,14 +1,16 @@
 """Tests for connections endpoints."""
 
+from unittest.mock import patch
+
 
 def test_list_connections_empty(client, auth_headers):
-    res = client.get("/api/v1/connections/", headers=auth_headers)
+    res = client.get("/api/v1/connections", headers=auth_headers)
     assert res.status_code == 200
     assert res.json() == []
 
 
 def test_list_connections_with_data(client, auth_headers, test_connection):
-    res = client.get("/api/v1/connections/", headers=auth_headers)
+    res = client.get("/api/v1/connections", headers=auth_headers)
     assert res.status_code == 200
     data = res.json()
     assert len(data) == 1
@@ -39,18 +41,23 @@ def test_delete_connection(client, auth_headers, test_connection):
     assert res.status_code == 204
 
     # Verify it's gone
-    res = client.get("/api/v1/connections/", headers=auth_headers)
+    res = client.get("/api/v1/connections", headers=auth_headers)
     assert len(res.json()) == 0
 
 
 def test_connections_require_auth(client):
-    res = client.get("/api/v1/connections/")
+    res = client.get("/api/v1/connections")
     assert res.status_code == 401
 
 
 def test_instagram_auth_url(client, auth_headers):
-    res = client.get("/api/v1/connections/instagram/auth-url", headers=auth_headers)
-    # Should return 200 even with empty INSTAGRAM_APP_ID (generates URL with empty params)
+    class FakeRedis:
+        def setex(self, *args, **kwargs):
+            return True
+
+    with patch("app.routers.connections.get_redis", return_value=FakeRedis()):
+        res = client.get("/api/v1/connections/instagram/auth-url", headers=auth_headers)
+
     assert res.status_code == 200
     data = res.json()
     assert "auth_url" in data

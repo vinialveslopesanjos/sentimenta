@@ -15,7 +15,10 @@ from app.core.deps import get_current_user, get_current_user_unverified
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.auth import (
+    ChangePasswordRequest,
+    DeleteAccountRequest,
     GoogleLogin,
+    LogoutRequest,
     TokenRefresh,
     TokenResponse,
     UserLogin,
@@ -26,9 +29,12 @@ from app.schemas.auth import (
 from app.services.auth_service import (
     authenticate_google,
     authenticate_user,
+    change_password,
     create_tokens,
+    mark_terms_accepted,
     refresh_access_token,
     register_user,
+    revoke_all_tokens,
 )
 from app.services.email_service import send_verification_email
 
@@ -38,9 +44,17 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-def register(data: UserRegister, db: Session = Depends(get_db)):
+def register(data: UserRegister, request: Request, db: Session = Depends(get_db)):
     try:
         user = register_user(db, data.email, data.password, data.name)
+        mark_terms_accepted(
+            user,
+            accepted_ip=request.client.host if request.client else None,
+            version=settings.TERMS_VERSION,
+        )
+        db.add(user)
+        db.commit()
+        db.refresh(user)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(e))
 
@@ -115,13 +129,24 @@ def update_me(
 
 @router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
 def delete_account(
+    data: DeleteAccountRequest,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_unverified),
 ):
     """Delete user account and all associated data (LGPD compliance)."""
-    # TODO: If user has stripe_customer_id, cancel Stripe subscription
-    # if current_user.stripe_customer_id:
-    #     stripe.Customer.delete(current_user.stripe_customer_id)
+    if current_user.password_hash:
+        from app.core.security import verify_password
+
+        if not data.password or not verify_password(data.password, current_user.password_hash):
+            raise HTTPException(status_code=401, detail="Senha atual incorreta")
+
+    if current_user.stripe_subscription_id:
+        try:
+            from app.services.stripe_service import cancel_subscription
+
+            cancel_subscription(current_user.stripe_subscription_id)
+        except Exception as exc:
+            logger.warning("Failed to cancel Stripe subscription for user %s: %s", current_user.id, exc)
 
     # The User model has cascade="all, delete-orphan" on:
     #   - connections (SocialConnection) -> which cascades to posts, comments
@@ -134,13 +159,38 @@ def delete_account(
 
 
 @router.post("/logout")
-async def logout(request: Request, current_user: User = Depends(get_current_user_unverified)):
+async def logout(
+    payload: LogoutRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_unverified),
+):
     token = request.headers.get("Authorization", "").replace("Bearer ", "")
-    if token:
-        r = get_redis()
-        if r:
+    r = get_redis()
+    if r:
+        if token:
             r.setex(f"blacklist:{token}", 3600, "1")
+        if payload.refresh_token:
+            r.setex(
+                f"blacklist:{payload.refresh_token}",
+                settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600,
+                "1",
+            )
+    revoke_all_tokens(db, current_user)
     return {"message": "Logged out successfully"}
+
+
+@router.post("/change-password", response_model=TokenResponse)
+def change_password_endpoint(
+    data: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user_unverified),
+):
+    try:
+        updated_user = change_password(db, current_user, data.current_password, data.new_password)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    return create_tokens(updated_user)
 
 
 # ---------------------------------------------------------------------------

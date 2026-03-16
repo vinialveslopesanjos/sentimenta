@@ -6,7 +6,7 @@ import asyncio
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.tasks.celery_app import celery_app
 from app.db.session import SessionLocal
@@ -17,6 +17,26 @@ from app.models.social_connection import SocialConnection
 from app.models.follower_snapshot import FollowerSnapshot
 
 logger = logging.getLogger(__name__)
+
+
+def _mark_stale_running_runs(db, max_age_hours: int = 6) -> int:
+    cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
+    stale_runs = (
+        db.query(PipelineRun)
+        .filter(
+            PipelineRun.status == "running",
+            PipelineRun.started_at < cutoff,
+        )
+        .all()
+    )
+    for run in stale_runs:
+        run.status = "failed"
+        run.ended_at = datetime.now(timezone.utc)
+        _append_step(db, run, "Execucao reconciliada automaticamente apos ficar presa em running")
+    if stale_runs:
+        db.commit()
+        logger.warning("Reconciled %d stale pipeline runs", len(stale_runs))
+    return len(stale_runs)
 
 
 def _append_step(db, run, message: str):
@@ -450,6 +470,7 @@ def task_daily_sync(self) -> dict:
         from datetime import timedelta
         from app.models.user import User
         from app.services.plan_service import get_plan_limits, count_syncs_this_month
+        _mark_stale_running_runs(db)
         connections = (
             db.query(SocialConnection)
             .filter(SocialConnection.status == "active")
@@ -457,6 +478,7 @@ def task_daily_sync(self) -> dict:
         )
         results = {}
         for conn in connections:
+            run = None
             try:
                 # Skip connections with auto_sync disabled
                 if not conn.auto_sync:
@@ -594,6 +616,13 @@ def task_daily_sync(self) -> dict:
 
             except Exception as exc:
                 logger.error("Weekly sync failed for @%s: %s", conn.username, exc)
+                if run is not None:
+                    try:
+                        run.status = "failed"
+                        run.ended_at = datetime.now(timezone.utc)
+                        _append_step(db, run, f"Erro: {str(exc)[:200]}")
+                    except Exception:
+                        db.rollback()
                 results[conn.username] = {"error": str(exc)}
 
         return results

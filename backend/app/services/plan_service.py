@@ -7,7 +7,7 @@ starting the Apify/instaloader pipeline.
 """
 
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Optional
 
 from sqlalchemy import func
@@ -63,6 +63,16 @@ PLAN_LIMITS = {
         "pdf_export": True,
         "comparison": True,
     },
+    "enterprise": {
+        "max_connections": 30,
+        "max_posts_per_sync": 200,
+        "max_comments_per_post": 2500,
+        "syncs_per_month": 120,
+        "apify_budget_brl": 2000.0,
+        "health_report": True,
+        "pdf_export": True,
+        "comparison": True,
+    },
     "admin": {
         "max_connections": 100,
         "max_posts_per_sync": 999999,
@@ -95,13 +105,19 @@ def get_billing_period_start() -> datetime:
 def count_syncs_this_month(db: Session, user_id) -> int:
     """Count how many pipeline runs the user triggered this billing period."""
     period_start = get_billing_period_start()
+    recent_running_cutoff = datetime.now(timezone.utc) - timedelta(hours=6)
     return (
         db.query(func.count(PipelineRun.id))
         .filter(
             PipelineRun.user_id == user_id,
             PipelineRun.started_at >= period_start,
-            # Only count runs that actually ran (not cancelled/failed)
-            PipelineRun.status.in_(["completed", "partial", "running"]),
+            (
+                PipelineRun.status.in_(["completed", "partial"])
+                | (
+                    (PipelineRun.status == "running")
+                    & (PipelineRun.started_at >= recent_running_cutoff)
+                )
+            ),
         )
         .scalar()
         or 0
