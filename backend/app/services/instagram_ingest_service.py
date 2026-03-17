@@ -19,7 +19,7 @@ from app.models.comment import Comment
 from app.models.post import Post
 from app.models.social_connection import SocialConnection
 from app.models.user import User
-from app.services.media_cache_service import cache_remote_image
+from app.services.media_cache_service import cache_remote_image, cache_image_stable
 from app.services.instagram_scrape_service import (
     fetch_post_comments,
     fetch_recent_posts,
@@ -188,7 +188,7 @@ def ingest_instagram_profile(
                 media_url = post_data.get("media_url")
                 if media_url:
                     existing.media_urls = {"url": media_url, "thumbnail_url": media_url}
-                    cache_remote_image(media_url)
+                    cache_image_stable(media_url, pid)
                 existing.engagement_rate = _calc_engagement_rate(
                     existing.like_count or 0, existing.comment_count or 0, 0, followers
                 )
@@ -244,7 +244,7 @@ def ingest_instagram_profile(
                 stats["posts_fetched"] += 1
                 posts_need_comments.append((post_data, post))
                 if media_url:
-                    cache_remote_image(media_url)
+                    cache_image_stable(media_url, pid)
 
         db.commit()
         _step(f"Diff: {skipped} completos (skip), {len(posts_need_comments)} precisam comentários")
@@ -604,7 +604,7 @@ def _enrich_via_apify(db, connection_id, platform_post_ids, followers, step_call
             # Always update thumbnail (Apify URLs are fresher)
             if data.get("display_url"):
                 post.media_urls = {"url": data["display_url"], "thumbnail_url": data["display_url"]}
-                cache_remote_image(data["display_url"])
+                cache_image_stable(data["display_url"], post.platform_post_id)
                 changed = True
             if data.get("post_type"):
                 post.post_type = data["post_type"]

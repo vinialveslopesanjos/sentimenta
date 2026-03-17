@@ -72,6 +72,7 @@ interface PostItem {
   comment_count: number;
   published_at: string | null;
   post_url: string | null;
+  thumbnail_url: string | null;
 }
 
 interface EngagementPeaksResponse {
@@ -185,6 +186,10 @@ export default function DashboardPage() {
     detractors: Array<{ username: string; count: number; avg_score: number; dominant_emotion: string }>;
   } | null>(null);
 
+  // Chart filters
+  const [chartGranularity, setChartGranularity] = useState<"day" | "week" | "month">("week");
+  const [chartDays, setChartDays] = useState<number>(30);
+
   // Prompt editing
   const [editingPrompt, setEditingPrompt] = useState(false);
   const [promptText, setPromptText] = useState("");
@@ -251,6 +256,22 @@ export default function DashboardPage() {
     fetchData();
   }, [fetchData]);
 
+  // ── Refetch trends when chart filters change ──
+  useEffect(() => {
+    const token = getToken();
+    if (!token || loading) return;
+    Promise.allSettled([
+      dashboardApi.trends(token, { granularity: chartGranularity, days: chartDays }),
+      dashboardApi.trendsDetailed(token, { granularity: chartGranularity, days: chartDays }),
+      dashboardApi.trendsByPlatform(token, { days: chartDays }),
+    ]).then(results => {
+      if (results[0].status === "fulfilled") setScoreTrend(results[0].value);
+      if (results[1].status === "fulfilled") setTrendsDetailed(results[1].value);
+      if (results[2].status === "fulfilled") setTrendsByPlatform(results[2].value);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chartGranularity, chartDays]);
+
   // ── Derived data ──
   const score = summary?.avg_score ?? 0;
   const scorePercent = (score / 10) * 100;
@@ -282,8 +303,18 @@ export default function DashboardPage() {
   // Word cloud — handled by WordCloudChart component
 
   // Score trend chart data
+  const formatTrendLabel = (period: string, idx: number) => {
+    if (chartGranularity === "week") return `Sem ${idx + 1}`;
+    if (chartGranularity === "month") {
+      const d = new Date(period);
+      return d.toLocaleDateString("pt-BR", { month: "short" });
+    }
+    const d = new Date(period);
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+  };
+
   const scoreTrendData = scoreTrend?.data_points?.map((dp, i) => ({
-    date: `Sem ${i + 1}`,
+    date: formatTrendLabel(dp.period, i),
     score: dp.avg_score ?? 0,
   })) ?? [];
 
@@ -295,7 +326,7 @@ export default function DashboardPage() {
     const maxLen = Math.max(...Object.values(platforms).map(arr => arr.length), 0);
     const result: Record<string, unknown>[] = [];
     for (let i = 0; i < maxLen; i++) {
-      const row: Record<string, unknown> = { date: `Sem ${i + 1}` };
+      const row: Record<string, unknown> = { date: formatTrendLabel(scoreTrend?.data_points?.[i]?.period ?? "", i) };
       for (const [platform, points] of Object.entries(platforms)) {
         row[platform.toLowerCase()] = points[i]?.score ?? null;
       }
@@ -577,12 +608,34 @@ export default function DashboardPage() {
         </Section>
       </div>
 
+      {/* ═══ CHART FILTERS ═══ */}
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="flex items-center rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)", backgroundColor: "var(--bg-card)" }}>
+          {(["day", "week", "month"] as const).map(g => (
+            <button key={g} onClick={() => setChartGranularity(g)}
+              className="px-3 py-1.5 transition-colors"
+              style={{ fontSize: "0.68rem", fontWeight: 600, backgroundColor: chartGranularity === g ? "var(--primary)" : "transparent", color: chartGranularity === g ? "white" : "var(--text-muted)" }}>
+              {g === "day" ? "Dia" : g === "week" ? "Semana" : "Mês"}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)", backgroundColor: "var(--bg-card)" }}>
+          {[{ label: "7d", v: 7 }, { label: "30d", v: 30 }, { label: "90d", v: 90 }, { label: "Total", v: 0 }].map(p => (
+            <button key={p.v} onClick={() => setChartDays(p.v)}
+              className="px-3 py-1.5 transition-colors"
+              style={{ fontSize: "0.68rem", fontWeight: 600, backgroundColor: chartDays === p.v ? "var(--primary)" : "transparent", color: chartDays === p.v ? "white" : "var(--text-muted)" }}>
+              {p.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* ═══ CHARTS ROW 1: Score Trend + Score by Platform ═══ */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Section title="Tendência do Score" subtitle="Média geral — Evolução semanal">
+        <Section title="Tendência do Score" subtitle={`Média geral — ${chartGranularity === "day" ? "Diário" : chartGranularity === "week" ? "Semanal" : "Mensal"}`}>
           {loading ? <ChartSkeleton /> : scoreTrendData.length > 0 ? (
             <ResponsiveContainer width="100%" height={240}>
-              <AreaChart id="dash-score-area" data={scoreTrendData}>
+              <AreaChart id="dash-score-area" data={scoreTrendData} margin={{ left: -10, right: 8 }}>
                 <defs>
                   <linearGradient id="dash-scoreGradient" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor={t.primary} stopOpacity={0.15} />
@@ -591,7 +644,7 @@ export default function DashboardPage() {
                 </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke={t.primaryBg} vertical={false} />
                 <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
-                <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
                 <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
                 <Area type="monotone" dataKey="score" stroke={t.primary} strokeWidth={2.5} fill="url(#dash-scoreGradient)" dot={{ r: 3, fill: t.primary, strokeWidth: 0 }} />
               </AreaChart>
@@ -600,13 +653,13 @@ export default function DashboardPage() {
             <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "60px 0" }}>Sem dados de tendência disponíveis.</p>
           )}
         </Section>
-        <Section title="Score por Rede Social" subtitle="Comparativo semanal entre plataformas">
+        <Section title="Score por Rede Social" subtitle="Comparativo entre plataformas">
           {loading ? <ChartSkeleton /> : scoreTrendByNetwork.length > 0 ? (
             <ResponsiveContainer width="100%" height={240}>
-              <LineChart id="dash-network-line" data={scoreTrendByNetwork}>
+              <LineChart id="dash-network-line" data={scoreTrendByNetwork} margin={{ left: -10, right: 8 }}>
                 <CartesianGrid strokeDasharray="3 3" stroke={t.primaryBg} vertical={false} />
                 <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
-                <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
                 <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
                 <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
                 {platformKeys.map((pk, i) => (
@@ -680,7 +733,7 @@ export default function DashboardPage() {
         </div>
         {loading ? <ChartSkeleton height={260} /> : timeRange === "Volume" && volumeTemporalData.length > 0 ? (
           <ResponsiveContainer width="100%" height={260}>
-            <AreaChart id="dash-temporal-volume" data={volumeTemporalData}>
+            <AreaChart id="dash-temporal-volume" data={volumeTemporalData} margin={{ left: -10, right: 8 }}>
               <defs>
                 <linearGradient id="dash-volGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor={t.primary} stopOpacity={0.15} />
@@ -689,14 +742,14 @@ export default function DashboardPage() {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={t.primaryBg} vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
               <Area type="monotone" dataKey="volume" name="Volume" stroke={t.primary} strokeWidth={2} fill="url(#dash-volGradient)" dot={{ r: 2.5, fill: t.primary, strokeWidth: 0 }} />
             </AreaChart>
           </ResponsiveContainer>
         ) : timeRange === "Score" && scoreTemporalData.length > 0 ? (
           <ResponsiveContainer width="100%" height={260}>
-            <AreaChart id="dash-temporal-score" data={scoreTemporalData}>
+            <AreaChart id="dash-temporal-score" data={scoreTemporalData} margin={{ left: -10, right: 8 }}>
               <defs>
                 <linearGradient id="dash-scoreTemporalGrad" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor={t.secondary} stopOpacity={0.15} />
@@ -705,22 +758,22 @@ export default function DashboardPage() {
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={t.primaryBg} vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
-              <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+              <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
               <Area type="monotone" dataKey="score" name="Score" stroke={t.secondary} strokeWidth={2.5} fill="url(#dash-scoreTemporalGrad)" dot={{ r: 3, fill: t.secondary, strokeWidth: 0 }} />
             </AreaChart>
           </ResponsiveContainer>
         ) : timeRange === "Sentimento" && temporalData.length > 0 ? (
           <ResponsiveContainer width="100%" height={260}>
-            <BarChart id="dash-temporal-bar" data={temporalData} barGap={2}>
+            <BarChart id="dash-temporal-bar" data={temporalData} barGap={2} margin={{ left: -10, right: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={t.primaryBg} vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
               <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
-              <Bar dataKey="positivo" fill={t.sentimentPositive} radius={[4, 4, 0, 0]} />
-              <Bar dataKey="neutro" fill={t.sentimentNeutral} radius={[4, 4, 0, 0]} />
-              <Bar dataKey="negativo" fill={t.sentimentNegative} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="positivo" fill={t.sentimentPositive} stackId="sentiment" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="neutro" fill={t.sentimentNeutral} stackId="sentiment" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="negativo" fill={t.sentimentNegative} stackId="sentiment" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         ) : (
@@ -732,7 +785,7 @@ export default function DashboardPage() {
       <Section title="Pico de Engajamento" subtitle="Horários com maior volume de interação">
         {loading ? <ChartSkeleton height={180} /> : engagementData.length > 0 ? (
           <ResponsiveContainer width="100%" height={180}>
-            <AreaChart id="dash-engagement-area" data={engagementData}>
+            <AreaChart id="dash-engagement-area" data={engagementData} margin={{ left: -10, right: 8 }}>
               <defs>
                 <linearGradient id="dash-engGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor={t.secondary} stopOpacity={0.15} />
@@ -740,7 +793,7 @@ export default function DashboardPage() {
                 </linearGradient>
               </defs>
               <XAxis dataKey="hour" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
               <Area type="monotone" dataKey="volume" stroke={t.secondary} strokeWidth={2} fill="url(#dash-engGradient)" dot={{ r: 2.5, fill: t.secondary, strokeWidth: 0 }} />
             </AreaChart>
@@ -858,15 +911,20 @@ export default function DashboardPage() {
           <div className="space-y-2">
             {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-14 w-full" />)}
           </div>
-        ) : recentPosts.length > 0 ? (
+        ) : recentPosts.filter(p => p.content_text && p.content_text !== "null").length > 0 ? (
           <div className="space-y-1">
-            {recentPosts.map((post, i) => {
-              const postTitle = post.content_text
-                ? post.content_text.length > 60 ? post.content_text.slice(0, 60) + "..." : post.content_text
-                : `Post ${post.platform_post_id}`;
+            {recentPosts.filter(p => p.content_text && p.content_text !== "null").map((post, i) => {
+              const postTitle = post.content_text!.length > 60 ? post.content_text!.slice(0, 60) + "..." : post.content_text!;
+              const thumbSrc = post.thumbnail_url ? `/api/v1/posts/thumbnail?url=${encodeURIComponent(post.thumbnail_url)}` : null;
               return (
                 <div key={post.id || i} onClick={() => router.push(`/dashboard/post/${post.id}`)} className="flex items-center gap-3 md:gap-4 p-3 md:p-3.5 rounded-xl cursor-pointer transition-colors group" style={{ backgroundColor: "transparent" }}>
-                  <GlassSocialIcon platform={post.platform?.toLowerCase() ?? "instagram"} size={28} />
+                  {thumbSrc ? (
+                    <div className="w-10 h-10 rounded-lg overflow-hidden shrink-0" style={{ backgroundColor: "var(--bg-subtle)" }}>
+                      <img src={thumbSrc} alt="" className="w-full h-full object-cover" onError={e => { (e.target as HTMLImageElement).style.display = "none"; (e.target as HTMLImageElement).parentElement!.innerHTML = '<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center"><span style="font-size:0.7rem;color:var(--text-faint)">📷</span></div>'; }} />
+                    </div>
+                  ) : (
+                    <GlassSocialIcon platform={post.platform?.toLowerCase() ?? "instagram"} size={28} />
+                  )}
                   <div className="flex-1 min-w-0">
                     <p className="truncate" style={{ fontSize: "0.88rem", fontWeight: 500, color: "var(--text-primary)" }}>{postTitle}</p>
                     <p style={{ fontSize: "0.72rem", color: "var(--text-faint)" }}>{post.comment_count} comentários · {formatDate(post.published_at)}</p>

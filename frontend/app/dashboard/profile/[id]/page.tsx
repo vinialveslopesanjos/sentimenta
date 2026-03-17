@@ -78,12 +78,12 @@ function getPlatformLabel(platform: string): string {
 }
 
 // ─── time range to days mapping ────────────
-const timeRangeDays: Record<string, number | undefined> = {
+const timeRangeDays: Record<string, number> = {
   "7d": 7,
   "30d": 30,
   "90d": 90,
   "1a": 365,
-  "Tudo": undefined,
+  "Tudo": 0,
 };
 
 // ─── Component ─────────────────────────────
@@ -139,8 +139,6 @@ export default function ProfileDetailPage() {
     setError(null);
 
     try {
-      const days = timeRangeDays[timeRange];
-
       const [
         dashRes,
         trendsRes,
@@ -152,8 +150,8 @@ export default function ProfileDetailPage() {
         connectionsRes,
       ] = await Promise.allSettled([
         dashboardApi.connectionDashboard(token, id),
-        dashboardApi.trends(token, { connection_id: id, granularity, ...(days ? { days } : {}) }),
-        dashboardApi.trendsDetailed(token, { connection_id: id, granularity, ...(days ? { days } : {}) }),
+        dashboardApi.trends(token, { connection_id: id, granularity: "week", days: 90 }),
+        dashboardApi.trendsDetailed(token, { connection_id: id, granularity: "week", days: 90 }),
         commentsApi.list(token, { connection_id: id, limit: 200 }),
         dashboardApi.gapAnalysis(token, id),
         dashboardApi.ambassadorsDetractors(token, id),
@@ -193,7 +191,7 @@ export default function ProfileDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [id, timeRange, router]);
+  }, [id, router]);
 
   useEffect(() => {
     fetchData();
@@ -203,11 +201,11 @@ export default function ProfileDetailPage() {
   const fetchTrends = useCallback(async () => {
     const token = getToken();
     if (!token || loading) return;
-    const days = timeRangeDays[timeRange];
+    const days = timeRangeDays[timeRange] ?? 90;
     try {
       const [tr, trd] = await Promise.all([
-        dashboardApi.trends(token, { connection_id: id, granularity, ...(days ? { days } : {}) }),
-        dashboardApi.trendsDetailed(token, { connection_id: id, granularity, ...(days ? { days } : {}) }),
+        dashboardApi.trends(token, { connection_id: id, granularity, days }),
+        dashboardApi.trendsDetailed(token, { connection_id: id, granularity, days }),
       ]);
       setTrends(tr);
       setTrendsDetailed(trd);
@@ -334,20 +332,23 @@ export default function ProfileDetailPage() {
 
   // ── posts for list ──
   const posts = useMemo(() => {
-    const allPosts = (dashboard?.posts ?? []).map((p: any) => {
-      const mediaUrls = p.media_urls || [];
-      const imageUrl = mediaUrls[0] || p.thumbnail_url || p.image_url || null;
-      return {
-        id: p.id,
-        title: p.content_text?.slice(0, 80) || "Post sem texto",
-        comments: p.comment_count,
-        date: formatDate(p.published_at),
-        dateRaw: p.published_at || "",
-        score: p.summary?.avg_score ?? 0,
-        platform: p.platform,
-        imageUrl,
-      };
-    });
+    const allPosts = (dashboard?.posts ?? [])
+      .filter((p: any) => p.content_text && p.content_text !== "null")
+      .map((p: any) => {
+        const mu = p.media_urls;
+        const imageUrl = p.thumbnail_url || (typeof mu === "object" && mu && !Array.isArray(mu) ? (mu.thumbnail_url || mu.url) : Array.isArray(mu) ? mu[0] : null) || p.image_url || null;
+        return {
+          id: p.id,
+          shortcode: p.platform_post_id || "",
+          title: p.content_text!.slice(0, 80),
+          comments: p.comment_count,
+          date: formatDate(p.published_at),
+          dateRaw: p.published_at || "",
+          score: p.summary?.avg_score ?? 0,
+          platform: p.platform,
+          imageUrl,
+        };
+      });
     // Sort
     if (postSort === "score") {
       allPosts.sort((a, b) => b.score - a.score);
@@ -486,7 +487,7 @@ export default function ProfileDetailPage() {
             <AreaChart data={volumeData}>
               <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: `0 4px 16px ${t.primary}15`, fontSize: "0.78rem", backgroundColor: t.bgCard }} />
               <Area type="monotone" dataKey="volume" stroke={t.primary} fill={t.primary} fillOpacity={0.08} strokeWidth={2} />
             </AreaChart>
@@ -498,7 +499,7 @@ export default function ProfileDetailPage() {
             <AreaChart data={scoreTemporalData}>
               <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
-              <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+              <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
               <Area type="monotone" dataKey="score" stroke={t.secondary} fill={t.secondary} fillOpacity={0.08} strokeWidth={2.5} dot={{ r: 3, fill: t.secondary, strokeWidth: 0 }} />
             </AreaChart>
@@ -510,12 +511,12 @@ export default function ProfileDetailPage() {
             <BarChart data={sentimentTemporalData} barGap={2}>
               <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
               <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
-              <Bar dataKey="positivo" name="Positivo" fill={t.sentimentPositive} radius={[4, 4, 0, 0]} />
-              <Bar dataKey="neutro" name="Neutro" fill={t.sentimentNeutral} radius={[4, 4, 0, 0]} />
-              <Bar dataKey="negativo" name="Negativo" fill={t.sentimentNegative} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="positivo" name="Positivo" fill={t.sentimentPositive} stackId="sentiment" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="neutro" name="Neutro" fill={t.sentimentNeutral} stackId="sentiment" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="negativo" name="Negativo" fill={t.sentimentNegative} stackId="sentiment" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         );
@@ -525,7 +526,7 @@ export default function ProfileDetailPage() {
             <AreaChart data={emotionTemporalData}>
               <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
               <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
               {emotionKeys.map((key, i) => (
@@ -540,7 +541,7 @@ export default function ProfileDetailPage() {
             <AreaChart data={topicTemporalData}>
               <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
               <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
               {topicKeys.map((key, i) => (
@@ -582,32 +583,20 @@ export default function ProfileDetailPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <button onClick={() => router.push("/dashboard")} className="p-2 rounded-xl transition-colors">
-            <ArrowLeft className="w-5 h-5" style={{ color: "var(--primary)" }} />
-          </button>
-          <div className="flex items-center gap-3">
-            <GlassSocialIcon platform={platform} size={44} />
-            <div>
-              <div className="flex items-center gap-2">
-                <h1 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.25rem", fontWeight: 700, color: "var(--text-primary)" }}>
-                  @{username}
-                </h1>
-                <Badge variant={connectionStatus === "active" ? "positive" : "muted"} dot>
-                  {connectionStatus === "active" ? "ATIVO" : connectionStatus.toUpperCase()}
-                </Badge>
-              </div>
-              <p style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
-                {platformLabel}
-                {followersCount > 0 && ` \u00B7 ${fmtNum(followersCount)} Seguidores`}
-                {followingCount > 0 && ` \u00B7 ${fmtNum(followingCount)} Seguindo`}
-                {mediaCount > 0 && ` \u00B7 ${fmtNum(mediaCount)} Posts`}
-              </p>
-            </div>
-          </div>
+      <div className="flex items-center gap-3">
+        <button onClick={() => router.push("/dashboard")} className="p-1.5 rounded-xl transition-colors shrink-0">
+          <ArrowLeft className="w-4 h-4" style={{ color: "var(--primary)" }} />
+        </button>
+        <GlassSocialIcon platform={platform} size={36} />
+        <div className="flex-1 min-w-0 flex items-center gap-2">
+          <h1 className="truncate" style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>
+            @{username}
+          </h1>
+          <Badge variant={connectionStatus === "active" ? "positive" : "muted"} dot>
+            {connectionStatus === "active" ? "ATIVO" : connectionStatus.toUpperCase()}
+          </Badge>
         </div>
-        <Button variant="primary" icon={<RefreshCw className="w-4 h-4" />} onClick={handleAnalyze}>
+        <Button variant="primary" size="sm" icon={<RefreshCw className="w-3.5 h-3.5" />} onClick={handleAnalyze} className="shrink-0">
           Analisar
         </Button>
       </div>
@@ -670,19 +659,19 @@ export default function ProfileDetailPage() {
           </div>
         </Section>
         <Section title="Engajamento">
-          <div className="space-y-4">
+          <div className="space-y-3">
             {[
               { label: "Likes", value: fmtNum(totalLikes), icon: Heart },
               { label: "Views", value: fmtNum(totalViews), icon: Eye },
-              { label: "Comentarios", value: fmtNum(totalCommentsEng), icon: MessageCircle },
+              { label: "Comentários", value: fmtNum(totalCommentsEng), icon: MessageCircle },
             ].map((s) => (
               <div key={s.label} className="flex items-center gap-3">
-                <div className="w-9 h-9 rounded-xl flex items-center justify-center" style={{ backgroundColor: "var(--primary-bg)" }}>
-                  <s.icon className="w-4 h-4" style={{ color: "var(--primary)" }} />
+                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "var(--primary-bg)" }}>
+                  <s.icon className="w-3.5 h-3.5" style={{ color: "var(--primary)" }} />
                 </div>
                 <div>
-                  <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.95rem", fontWeight: 700, color: "var(--text-primary)" }}>{s.value}</p>
-                  <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>{s.label}</p>
+                  <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.88rem", fontWeight: 700, color: "var(--text-primary)" }}>{s.value}</p>
+                  <p style={{ fontSize: "0.62rem", color: "var(--text-muted)" }}>{s.label}</p>
                 </div>
               </div>
             ))}
@@ -789,12 +778,13 @@ export default function ProfileDetailPage() {
               const ss = getScoreStyle(post.score);
               return (
                 <div key={post.id || i} onClick={() => router.push(`/dashboard/post/${post.id}`)} className="flex items-center gap-4 p-3 rounded-xl cursor-pointer transition-colors group">
-                  <div className="w-12 h-12 rounded-lg overflow-hidden shrink-0 bg-[var(--bg-subtle)]">
+                  <div className="w-10 h-10 rounded-lg shrink-0 overflow-hidden flex items-center justify-center" style={{ backgroundColor: "var(--bg-subtle)" }}>
                     {post.imageUrl ? (
-                      <img src={`/api/v1/posts/thumbnail?url=${encodeURIComponent(post.imageUrl)}`} alt="" className="w-full h-full object-cover" />
-                    ) : (
-                      <GlassSocialIcon platform={platform} size={48} />
-                    )}
+                      <img src={`/api/v1/posts/thumbnail?url=${encodeURIComponent(post.imageUrl)}&post_id=${encodeURIComponent(post.shortcode)}`} alt="" className="w-full h-full object-cover" onError={e => { const el = e.target as HTMLImageElement; el.style.display = "none"; el.parentElement!.querySelector("span")?.removeAttribute("style"); }} />
+                    ) : null}
+                    <span style={post.imageUrl ? { display: "none" } : {}}>
+                      <GlassSocialIcon platform={platform} size={24} />
+                    </span>
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="truncate" style={{ fontSize: "0.82rem", fontWeight: 500, color: "var(--text-primary)" }}>{post.title}</p>

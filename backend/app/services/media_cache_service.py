@@ -153,6 +153,35 @@ def cache_remote_image(url: str) -> Path | None:
         return None
 
 
+def cache_image_stable(url: str, shortcode: str) -> Path | None:
+    """Download image and save with a stable name based on shortcode.
+
+    This ensures the cached file never expires even if the CDN URL changes.
+    Falls back to URL-hash cache if stable cache already exists.
+    """
+    if not url or not shortcode:
+        return None
+
+    # Check if stable cache already exists
+    stable_key = f"post_{shortcode}"
+    existing = _find_existing_file(stable_key)
+    if existing and existing.exists():
+        return existing
+
+    # Download via standard cache first
+    cached = cache_remote_image(url)
+    if not cached or not cached.exists():
+        return None
+
+    # Copy to stable name
+    stable_path = CACHE_DIR / f"{stable_key}{cached.suffix}"
+    if not stable_path.exists():
+        import shutil
+        shutil.copy2(cached, stable_path)
+
+    return stable_path
+
+
 def cache_path_for_url(url: str) -> str | None:
     cached = cache_remote_image(url)
     if not cached:

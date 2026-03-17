@@ -50,7 +50,7 @@ function GlassCard({ children, className = "", active = false }: { children: Rea
   );
 }
 
-function PillSelector({ items, selected, onSelect, icon }: { items: string[]; selected: string[]; onSelect: (v: string) => void; icon?: boolean }) {
+function PillSelector({ items, selected, onSelect, icon, grid }: { items: string[]; selected: string[]; onSelect: (v: string) => void; icon?: boolean; grid?: boolean }) {
   const icons: Record<string, React.ReactNode> = {
     Alegria: <Smile className="w-3.5 h-3.5" />, Raiva: <Flame className="w-3.5 h-3.5" />,
     Tristeza: <Frown className="w-3.5 h-3.5" />, Neutro: <Meh className="w-3.5 h-3.5" />,
@@ -58,7 +58,7 @@ function PillSelector({ items, selected, onSelect, icon }: { items: string[]; se
     Surpresa: <Sparkles className="w-3.5 h-3.5" />, Medo: <AlertTriangle className="w-3.5 h-3.5" />,
   };
   return (
-    <div className="flex flex-wrap gap-2">
+    <div className={grid ? "grid grid-cols-2 gap-2" : "flex flex-wrap gap-2"}>
       {items.map(item => {
         const isSelected = selected.includes(item);
         return (
@@ -122,17 +122,17 @@ const demoResults: Record<string, { emotion: string; score: number; sentiment: s
 const demoSuggestions = Object.keys(demoResults);
 
 const plans = [
-  { name: "Gratis", price: "0", desc: "Teste com 500 comentarios/mes.", features: ["1 perfil conectado", "500 comentarios/mes", "Analise de sentimento + demographics", "Sync semanal", "30 dias de historico"], popular: false },
-  { name: "Starter", price: "97", desc: "Para criadores e marcas pequenas.", features: ["3 perfis conectados", "5.000 comentários/mês", "Análise de sentimento + demographics", "Health report semanal", "Excedente: R$0,04/comment"], popular: false },
-  { name: "Pro", price: "247", desc: "Para marcas e profissionais em crescimento.", features: ["7 perfis conectados", "20.000 comentários/mês", "Sync diário automático", "PDF export + comparativos", "Excedente: R$0,035/comment"], popular: true },
-  { name: "Business", price: "597", desc: "Para agências e operações de alto volume.", features: ["20 perfis conectados", "80.000 comentários/mês", "Acesso via API", "12 meses de histórico", "Excedente: R$0,03/comment"], popular: false },
+  { name: "Grátis", price: "0", desc: "Teste com 500 comentários/mês.", features: ["1 perfil conectado", "500 comentários/mês", "Análise de sentimento + demographics", "30 dias de histórico"], popular: false },
+  { name: "Starter", price: "97", desc: "Para criadores e marcas pequenas.", features: ["3 perfis conectados", "5.000 comentários/mês", "Análise de sentimento + demographics", "Health report semanal", "Excedente: R$0,04/comentário"], popular: false },
+  { name: "Pro", price: "247", desc: "Para marcas e profissionais em crescimento.", features: ["7 perfis conectados", "20.000 comentários/mês", "Sync diário automático", "PDF export + comparativos", "Excedente: R$0,035/comentário"], popular: true },
+  { name: "Business", price: "597", desc: "Para agências e operações de alto volume.", features: ["20 perfis conectados", "80.000 comentários/mês", "Acesso via API", "12 meses de histórico", "Excedente: R$0,03/comentário"], popular: false },
 ];
 
 const faqs = [
   { q: "Preciso de login no Instagram para conectar?", a: "Não! Funciona com perfis públicos. Basta informar o @ e nós fazemos o resto." },
   { q: "Quanto tempo leva para analisar uma conta?", a: "Primeira análise completa em menos de 2 minutos. Sincronizações diárias levam segundos." },
   { q: "Meus dados ficam seguros?", a: "Criptografia ponta a ponta, servidores brasileiros, compliance LGPD." },
-  { q: "O que acontece se eu exceder meu limite?", a: "No plano gratis, a analise pausa ate o proximo mes. Nos planos pagos, voce pode continuar analisando com cobranca de excedente proporcional." },
+  { q: "O que acontece se eu exceder meu limite?", a: "No plano grátis, a análise pausa até o próximo mês. Nos planos pagos, você pode continuar analisando com cobrança de excedente proporcional." },
 ];
 
 const t = {
@@ -244,14 +244,14 @@ export default function LandingPage() {
       {/* HERO */}
       <section className="relative pt-28 pb-0 px-4 md:px-8 overflow-hidden min-h-[100vh]">
         <div className="max-w-[1200px] mx-auto relative">
-          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex items-center justify-center mb-12">
-            <div className="flex items-center gap-3 px-6 py-2.5 rounded-full transition-all" style={{ backgroundColor: "#ffffff", border: "1px solid #bce8ec", boxShadow: "0 4px 16px -6px rgba(57,184,198,0.1)" }}>
-              <div className="w-2.5 h-2.5 rounded-full animate-pulse shrink-0" style={{ backgroundColor: "#39b8c6" }} />
-              <span className="shrink-0" style={{ fontSize: "0.85rem", color: "#1a6f78", fontWeight: 600, letterSpacing: "0.02em" }}>ANALISANDO AO VIVO</span>
+          <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex items-center justify-center mb-4 md:mb-12">
+            <div className="flex items-center gap-2 px-4 py-2 rounded-full transition-all max-w-[95vw]" style={{ backgroundColor: "#ffffff", border: "1px solid #bce8ec", boxShadow: "0 4px 16px -6px rgba(57,184,198,0.1)" }}>
+              <div className="w-2 h-2 rounded-full animate-pulse shrink-0" style={{ backgroundColor: "#39b8c6" }} />
+              <span className="shrink-0" style={{ fontSize: "0.72rem", color: "#1a6f78", fontWeight: 600, letterSpacing: "0.02em" }}>AO VIVO</span>
               <AnimatePresence mode="wait">
                 <motion.span key={tickerIdx} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.3 }}
-                  style={{ fontSize: "0.9rem", fontWeight: 500, color: getColor(tickerItems[tickerIdx].type) }}
-                  className="whitespace-nowrap overflow-hidden text-ellipsis"
+                  style={{ fontSize: "0.75rem", fontWeight: 500, color: getColor(tickerItems[tickerIdx].type) }}
+                  className="whitespace-nowrap overflow-hidden text-ellipsis min-w-0"
                 >
                   {tickerItems[tickerIdx].emotion}: &ldquo;{tickerItems[tickerIdx].text}&rdquo;
                 </motion.span>
@@ -272,14 +272,14 @@ export default function LandingPage() {
                 </span>.
               </motion.h1>
               <motion.p initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.35 }} className="mt-7 max-w-[420px]" style={{ fontSize: "1.1rem", lineHeight: 1.75, color: "var(--text-muted)" }}>
-                O Sentimenta analisa comentários das suas redes, identifica sentimento, emocoes e temas criticos, e mostra em minutos o que esta ajudando ou prejudicando sua reputacao.
+                O Sentimenta analisa comentários das suas redes, identifica <strong>sentimento</strong>, <strong>emoções</strong> e <strong>temas críticos</strong>, e mostra em minutos o que está ajudando ou prejudicando sua <strong>reputação</strong>.
               </motion.p>
               <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.5 }} className="flex items-center gap-3 mt-10 flex-wrap">
-                <Link href="/login"><Button variant="pill" size="lg" iconRight={<ArrowRight className="w-4 h-4" />}>Comece gratis</Button></Link>
+                <Link href="/login"><Button variant="pill" size="lg" iconRight={<ArrowRight className="w-4 h-4" />}>Comece grátis</Button></Link>
                 <a href="#demo"><Button variant="pill-glass" size="lg" icon={<Play className="w-3.5 h-3.5" />}>Testar ao vivo</Button></a>
               </motion.div>
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }} className="flex items-center gap-6 mt-8 flex-wrap">
-                {[{ v: "12K+", l: "comentários analisados" }, { v: "8", l: "emocoes mapeadas" }, { v: "<2min", l: "primeira leitura" }].map(s => (
+                {[{ v: "12K+", l: "comentários analisados" }, { v: "8", l: "emoções mapeadas" }, { v: "<2min", l: "primeira leitura" }].map(s => (
                   <div key={s.l} className="flex items-center gap-2">
                     <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>{s.v}</span>
                     <span style={{ fontSize: "0.72rem", color: "var(--text-faint)" }}>{s.l}</span>
@@ -294,8 +294,8 @@ export default function LandingPage() {
                   <div className="p-6">
                     <div className="flex items-center justify-between mb-4">
                       <div>
-                        <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>Mapa de Emocoes</h3>
-                        <p style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: 2 }}>Distribuicao emocional da audiencia</p>
+                        <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>Mapa de Emoções</h3>
+                        <p style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: 2 }}>Distribuição emocional da audiência</p>
                       </div>
                       <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ backgroundColor: "var(--primary)" }}><Info className="w-3.5 h-3.5 text-white" /></div>
                     </div>
@@ -332,7 +332,7 @@ export default function LandingPage() {
                         </div>
                       </div>
                       <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)" }}>Score</p>
-                      <p style={{ fontSize: "0.65rem", color: "var(--text-faint)" }}>Reputacao geral</p>
+                      <p style={{ fontSize: "0.65rem", color: "var(--text-faint)" }}>Reputação geral</p>
                     </div>
                   </GlassCard>
                   <GlassCard>
@@ -341,7 +341,7 @@ export default function LandingPage() {
                         <Shield className="w-4 h-4" style={{ color: "var(--sentiment-negative)" }} />
                       </div>
                       <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>Alerta de Crise</p>
-                      <p style={{ fontSize: "0.68rem", lineHeight: 1.5, color: "var(--text-muted)" }}>Negatividade subiu 23% nas ultimas 2h</p>
+                      <p style={{ fontSize: "0.68rem", lineHeight: 1.5, color: "var(--text-muted)" }}>Negatividade subiu 23% nas últimas 2h</p>
                       <div className="mt-3 flex items-center gap-1">
                         <div className="flex-1 rounded-full h-1.5" style={{ backgroundColor: "var(--sentiment-negative-bg)" }}>
                           <motion.div initial={{ width: 0 }} animate={{ width: "72%" }} transition={{ duration: 1, delay: 1 }} className="h-full rounded-full" style={{ backgroundColor: "var(--sentiment-negative)" }} />
@@ -354,7 +354,7 @@ export default function LandingPage() {
                 <GlassCard>
                   <div className="p-5 flex items-center gap-5">
                     <div className="flex-1">
-                      <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)", marginBottom: 8 }}>Tendencia Semanal</p>
+                      <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)", marginBottom: 8 }}>Tendência Semanal</p>
                       <div className="flex items-end gap-[3px] h-10">
                         {[30, 45, 35, 55, 40, 65, 50, 70, 45, 60, 55, 75, 48, 80].map((v, i) => (
                           <motion.div key={i} initial={{ height: 0 }} animate={{ height: `${(v / 80) * 100}%` }} transition={{ duration: 0.4, delay: 0.8 + i * 0.05 }} className="flex-1 rounded-sm" style={{ backgroundColor: i >= 10 ? t.primary : t.textXfaint }} />
@@ -407,11 +407,11 @@ export default function LandingPage() {
                     <Send className="w-5 h-5" />
                   </button>
                 </div>
-                <div className="flex flex-wrap gap-2 mb-6">
-                  <span style={{ fontSize: "0.72rem", color: "var(--text-faint)", fontWeight: 500, paddingTop: 4 }}>Experimente:</span>
+                <div className="flex flex-wrap gap-1.5 mb-6">
+                  <span className="w-full" style={{ fontSize: "0.72rem", color: "var(--text-faint)", fontWeight: 500, marginBottom: 2 }}>Experimente:</span>
                   {demoSuggestions.map(s => (
-                    <button key={s} onClick={() => analyzeSentiment(s)} className="px-3 py-1.5 rounded-xl transition-colors" style={{ fontSize: "0.72rem", fontWeight: 500, backgroundColor: "var(--bg-subtle)", color: "var(--primary)", border: "1px solid var(--border)" }}>
-                      {s.length > 35 ? s.slice(0, 35) + "..." : s}
+                    <button key={s} onClick={() => analyzeSentiment(s)} className="px-3 py-1.5 rounded-xl transition-colors" style={{ fontSize: "0.68rem", fontWeight: 500, backgroundColor: "var(--bg-subtle)", color: "var(--primary)", border: "1px solid var(--border)" }}>
+                      {s.length > 40 ? s.slice(0, 40) + "..." : s}
                     </button>
                   ))}
                 </div>
@@ -427,7 +427,7 @@ export default function LandingPage() {
                       <div className="rounded-2xl p-5 text-center" style={{ backgroundColor: "var(--bg-subtle)" }}>
                         <span style={{ fontSize: "2rem" }}>{demoResult.emoji}</span>
                         <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.95rem", fontWeight: 600, color: "var(--text-primary)", marginTop: 6 }}>{demoResult.emotion}</p>
-                        <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>emocao detectada</p>
+                        <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>emoção detectada</p>
                       </div>
                       <div className="rounded-2xl p-5 text-center" style={{ backgroundColor: "var(--bg-subtle)" }}>
                         <div className="relative w-14 h-14 mx-auto mb-2">
@@ -441,11 +441,11 @@ export default function LandingPage() {
                       </div>
                       <div className="rounded-2xl p-5 text-center text-white" style={{ backgroundColor: getColor(demoResult.type) }}>
                         <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.3rem", fontWeight: 700, marginBottom: 4 }}>{demoResult.sentiment}</p>
-                        <p style={{ fontSize: "0.68rem", opacity: 0.7 }}>classificacao</p>
+                        <p style={{ fontSize: "0.68rem", opacity: 0.7 }}>classificação</p>
                       </div>
                       <div className="rounded-2xl p-5 text-center" style={{ backgroundColor: "var(--bg-subtle)" }}>
                         <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.8rem", fontWeight: 700, color: "var(--primary)" }}>94%</p>
-                        <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>confianca da IA</p>
+                        <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>confiança da IA</p>
                       </div>
                     </motion.div>
                   )}
@@ -465,15 +465,15 @@ export default function LandingPage() {
                 Configure seu<br />monitoramento.
               </h2>
               <p className="max-w-[380px] md:text-right" style={{ fontSize: "0.92rem", lineHeight: 1.7, color: "var(--text-muted)" }}>
-                Escolha quais emocoes monitorar, conecte um perfil e receba diagnosticos inteligentes.
+                Escolha quais emoções monitorar, conecte um perfil e receba <strong>diagnósticos inteligentes</strong>.
               </p>
             </div>
           </FadeIn>
           <FadeIn delay={0.1}>
             <GlassCard className="mb-4">
               <div className="p-5 md:p-7">
-                <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>Emocoes Monitoradas</h3>
-                <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>Selecione pelo menos duas emocoes.</p>
+                <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>Emoções Monitoradas</h3>
+                <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>Selecione pelo menos duas emoções.</p>
                 <div className="mt-5"><PillSelector items={["Alegria", "Raiva", "Tristeza", "Neutro", "Amor", "Nojo", "Surpresa", "Medo"]} selected={selectedEmotions} onSelect={toggleEmotion} icon /></div>
               </div>
             </GlassCard>
@@ -484,15 +484,15 @@ export default function LandingPage() {
                 <div className="p-5 md:p-7">
                   <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>Plataformas</h3>
                   <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>Escolha onde monitorar.</p>
-                  <div className="mt-5"><PillSelector items={["Instagram", "TikTok", "YouTube", "X/Twitter"]} selected={["Instagram"]} onSelect={() => {}} /></div>
+                  <div className="mt-5"><PillSelector items={["Instagram", "TikTok", "YouTube", "X/Twitter"]} selected={["Instagram"]} onSelect={() => {}} grid /></div>
                 </div>
               </GlassCard>
             </FadeIn>
             <FadeIn delay={0.2}>
               <GlassCard>
                 <div className="p-5 md:p-7">
-                  <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>Frequencia</h3>
-                  <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>Intervalo de sincronizacao.</p>
+                  <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>Frequência</h3>
+                  <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>Intervalo de sincronização.</p>
                   <div className="mt-5"><PillSelector items={["A cada hora", "Diário", "Semanal"]} selected={["Diário"]} onSelect={() => {}} /></div>
                 </div>
               </GlassCard>
@@ -512,7 +512,7 @@ export default function LandingPage() {
                 </div>
                 <div className="flex items-center justify-between mt-3">
                   <span style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>Relaxado</span>
-                  <span style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>Sensivel</span>
+                  <span style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>Sensível</span>
                 </div>
               </div>
             </GlassCard>
@@ -530,7 +530,7 @@ export default function LandingPage() {
           </FadeIn>
           <FadeIn delay={0.4}>
             <div className="flex justify-end mt-6">
-              <Link href="/login"><Button size="lg" icon={<Sparkles className="w-4 h-4" />} iconRight={<ArrowRight className="w-4 h-4" />}>Comecar monitoramento</Button></Link>
+              <Link href="/login"><Button size="lg" icon={<Sparkles className="w-4 h-4" />} iconRight={<ArrowRight className="w-4 h-4" />}>Começar monitoramento</Button></Link>
             </div>
           </FadeIn>
         </div>
@@ -542,19 +542,19 @@ export default function LandingPage() {
           <FadeIn>
             <div className="text-center mb-10">
               <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.5rem)", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.03em" }}>
-                Sua audiencia deixa sinais.<br />O Sentimenta organiza e alerta.
+                Sua audiência deixa sinais.<br />O Sentimenta organiza e alerta.
               </h2>
             </div>
           </FadeIn>
           <div className="grid grid-cols-1 md:grid-cols-3 auto-rows-[180px] gap-4">
             {[
-              { glassIcon: <GlassZapIcon size={44} />, title: "Diagnostico por IA", desc: "A IA identifica o que esta virando crise, quais comentarios exigem resposta e quais temas mais inflamam sua audiencia.", tall: true },
-              { glassIcon: <GlassShieldIcon size={40} />, title: "Alertas de Crise", desc: "Saiba imediatamente quando negatividade sobe alem do normal antes que vire problema." },
+              { glassIcon: <GlassZapIcon size={44} />, title: "Diagnóstico por IA", desc: "A IA identifica o que está virando crise, quais comentários exigem resposta e quais temas mais inflamam sua audiência.", tall: true },
+              { glassIcon: <GlassShieldIcon size={40} />, title: "Alertas de Crise", desc: "Saiba imediatamente quando negatividade sobe além do normal antes que vire problema." },
               { glassIcon: <GlassChartIcon size={40} />, title: "Score 0-10", desc: "Cada post e perfil recebe um score que evolui ao longo do tempo." },
-              { glassIcon: <GlassHeartIcon size={40} />, title: "8 Emocoes Mapeadas", desc: "Veja quais comentarios sao apoio, critica, ataque, duvida ou risco reputacional.", wide: true },
-              { glassIcon: <GlassTargetIcon size={40} />, title: "Comparativos", desc: "Compare sentimento entre perfis e periodos." },
+              { glassIcon: <GlassHeartIcon size={40} />, title: "8 Emoções Mapeadas", desc: "Veja quais comentários são apoio, crítica, ataque, dúvida ou risco reputacional.", wide: true },
+              { glassIcon: <GlassTargetIcon size={40} />, title: "Comparativos", desc: "Compare sentimento entre perfis e períodos." },
               { glassIcon: <GlassEyeIcon size={40} />, title: "Nuvem de Palavras", desc: "Identifique termos emergentes e temas recorrentes." },
-              { glassIcon: <GlassBellIcon size={40} />, title: "Heatmap Temporal", desc: "Veja quando sua audiencia esta mais ativa e emocional." },
+              { glassIcon: <GlassBellIcon size={40} />, title: "Heatmap Temporal", desc: "Veja quando sua audiência está mais ativa e emocional." },
             ].map((f, i) => (
               <FadeIn key={f.title} delay={i * 0.05} className={`${(f as any).tall ? "md:row-span-2" : ""} ${(f as any).wide ? "md:col-span-2" : ""}`}>
                 <GlassCard active={(f as any).tall} className="h-full">
@@ -580,7 +580,7 @@ export default function LandingPage() {
                   {[1, 2, 3, 4, 5].map(i => <Star key={i} className="w-5 h-5" style={{ fill: t.primary, color: t.primary }} />)}
                 </div>
                 <blockquote style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.3rem", fontWeight: 500, color: "var(--text-primary)", lineHeight: 1.5 }}>
-                  &ldquo;Em 15 minutos identificamos que a rejeicao vinha de um tema especifico nos comentarios do Reels. Mudamos a estrategia e o score subiu 2 pontos em uma semana.&rdquo;
+                  &ldquo;Em 15 minutos identificamos que a rejeição vinha de um tema específico nos comentários do Reels. Mudamos a estratégia e o score subiu 2 pontos em uma semana.&rdquo;
                 </blockquote>
                 <div className="mt-7 flex items-center justify-center gap-3">
                   <div className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${t.secondary}, ${t.primary})` }}>
@@ -588,7 +588,7 @@ export default function LandingPage() {
                   </div>
                   <div className="text-left">
                     <p style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--text-primary)" }}>Ana Oliveira</p>
-                    <p style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>Social Media Manager - Agencia Digital - Salvador, BA</p>
+                    <p style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>Social Media Manager — Agência Digital — Salvador, BA</p>
                   </div>
                 </div>
               </div>
@@ -602,9 +602,9 @@ export default function LandingPage() {
         <div className="max-w-[1200px] mx-auto">
           <FadeIn>
             <div className="text-center mb-14">
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-5" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--primary)", backgroundColor: "var(--bg-subtle)", border: "1px solid var(--border)" }}>PRECOS</span>
+              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-5" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--primary)", backgroundColor: "var(--bg-subtle)", border: "1px solid var(--border)" }}>PREÇOS</span>
               <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.5rem)", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.03em" }}>Simples e transparente.</h2>
-              <p className="mt-3" style={{ fontSize: "0.92rem", color: "var(--text-muted)" }}>Plano gratis com 500 comentarios/mes. Demographics em todos os planos.</p>
+              <p className="mt-3" style={{ fontSize: "0.92rem", color: "var(--text-muted)" }}>Plano grátis com 500 comentários/mês. Demographics em todos os planos.</p>
             </div>
           </FadeIn>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -620,7 +620,7 @@ export default function LandingPage() {
                       <div className="flex items-baseline gap-0.5 mt-6 mb-8">
                         <span style={{ fontSize: "0.82rem", color: plan.popular ? "rgba(255,255,255,0.6)" : "var(--text-faint)" }}>R$</span>
                         <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "3rem", fontWeight: 800, lineHeight: 1, color: plan.popular ? "white" : "var(--text-primary)" }}>{plan.price}</span>
-                        <span style={{ fontSize: "0.82rem", color: plan.popular ? "rgba(255,255,255,0.6)" : "var(--text-faint)" }}>/mes</span>
+                        <span style={{ fontSize: "0.82rem", color: plan.popular ? "rgba(255,255,255,0.6)" : "var(--text-faint)" }}>/mês</span>
                       </div>
                       <div className="space-y-3.5 mb-8 flex-1">
                         {plan.features.map(f => (
@@ -631,7 +631,7 @@ export default function LandingPage() {
                         ))}
                       </div>
                       <Link href="/login" className="w-full py-3.5 rounded-xl transition-all text-center block" style={plan.popular ? { backgroundColor: "white", color: "#0e2325", fontSize: "0.88rem", fontWeight: 600, boxShadow: `0 4px 16px -4px rgba(255,255,255,0.3)` } : { backgroundColor: "var(--primary)", color: "white", fontSize: "0.88rem", fontWeight: 600, boxShadow: "0 4px 16px -4px rgba(57,184,198,0.4)" }}>
-                        Comecar gratis
+                        Começar grátis
                       </Link>
                     </div>
                   </GlassCard>
@@ -678,9 +678,9 @@ export default function LandingPage() {
                 <svg fill="none" height="24" stroke="white" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" viewBox="0 0 24 24" width="24"><path d="M3 17C3 17 7 22 12 19C17 16 18 10 22 8" /></svg>
               </div>
               <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.4rem)", fontWeight: 800, color: "white", lineHeight: 1.1, letterSpacing: "-0.03em" }}>Pare de adivinhar.<br />Comece a sentir.</h2>
-              <p className="mt-4 mb-10 mx-auto max-w-[420px]" style={{ fontSize: "0.95rem", color: "rgba(255,255,255,0.45)", lineHeight: 1.7 }}>Plano gratis pra sempre. Setup em 2 minutos.</p>
+              <p className="mt-4 mb-10 mx-auto max-w-[420px]" style={{ fontSize: "0.95rem", color: "rgba(255,255,255,0.45)", lineHeight: 1.7 }}>Plano grátis pra sempre. Setup em 2 minutos.</p>
               <Link href="/login" className="inline-block px-10 py-4 bg-white rounded-full hover:bg-white/90 transition-all shadow-[0_8px_32px_-8px_rgba(0,0,0,0.2)]" style={{ fontSize: "0.95rem", fontWeight: 600, color: "#0e2325" }}>
-                Comece gratis agora
+                Comece grátis agora
               </Link>
             </div>
           </div>

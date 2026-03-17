@@ -42,6 +42,12 @@ class Post(Base):
         UniqueConstraint("connection_id", "platform_post_id", name="uq_connection_post"),
     )
 
+    @property
+    def thumbnail_url(self) -> str | None:
+        if isinstance(self.media_urls, dict):
+            return self.media_urls.get("thumbnail_url") or self.media_urls.get("url")
+        return None
+
     # Relationships
     connection = relationship("SocialConnection", back_populates="posts")
     comments = relationship("Comment", back_populates="post", cascade="all, delete-orphan")
