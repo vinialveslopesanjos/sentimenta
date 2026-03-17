@@ -154,8 +154,8 @@ export default function ProfileDetailPage() {
         connectionsRes,
       ] = await Promise.allSettled([
         dashboardApi.connectionDashboard(token, id),
-        dashboardApi.trends(token, { connection_id: id, granularity: "week", days: 90 }),
-        dashboardApi.trendsDetailed(token, { connection_id: id, granularity: "week", days: 90 }),
+        dashboardApi.trends(token, { connection_id: id, granularity: "week", days: 0 }),
+        dashboardApi.trendsDetailed(token, { connection_id: id, granularity: "week", days: 0 }),
         commentsApi.list(token, { connection_id: id, limit: 200 }),
         dashboardApi.gapAnalysis(token, id),
         dashboardApi.ambassadorsDetractors(token, id),
@@ -205,7 +205,7 @@ export default function ProfileDetailPage() {
   const fetchTrends = useCallback(async () => {
     const token = getToken();
     if (!token || loading) return;
-    const days = timeRangeDays[timeRange] ?? 90;
+    const days = timeRangeDays[timeRange] ?? 0;
     try {
       const [tr, trd] = await Promise.all([
         dashboardApi.trends(token, { connection_id: id, granularity, days }),
