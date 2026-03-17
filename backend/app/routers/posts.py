@@ -27,9 +27,25 @@ router = APIRouter(prefix="/posts", tags=["posts"])
 
 @router.get("/thumbnail")
 def get_thumbnail_proxy(
-    url: str = Query(..., min_length=5),
-    current_user: User = Depends(get_current_user),
+    url: str = Query("", min_length=0),
+    post_id: str = Query("", description="Optional shortcode for stable cache lookup"),
 ):
+    from app.services.media_cache_service import CACHE_DIR, _find_existing_file
+
+    # 1. Try stable cache by post shortcode (never expires)
+    if post_id:
+        stable_key = f"post_{post_id}"
+        stable = _find_existing_file(stable_key)
+        if stable and stable.exists():
+            return FileResponse(
+                stable,
+                media_type="image/*",
+                headers={"Cache-Control": "public, max-age=2592000"},
+            )
+
+    # 2. Try URL-based cache or download
+    if not url:
+        raise HTTPException(status_code=404, detail="Thumbnail not available")
     cached = cache_remote_image(url)
     if not cached or not cached.exists():
         raise HTTPException(status_code=404, detail="Thumbnail not available")

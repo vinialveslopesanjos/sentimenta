@@ -231,10 +231,10 @@ export default function SidebarNew() {
       {/* Mobile hamburger */}
       <button
         onClick={() => setMobileOpen(true)}
-        className="fixed top-3.5 left-3.5 z-[60] md:hidden p-2 rounded-xl"
-        style={{ backgroundColor: "var(--bg-card)", color: "var(--text-primary)", boxShadow: "0 2px 8px rgba(0,0,0,0.1)" }}
+        className="fixed z-[60] md:hidden w-10 h-10 rounded-full flex items-center justify-center"
+        style={{ top: "7px", left: "12px", backgroundColor: "var(--bg-card)", color: "var(--text-muted)", border: "1px solid var(--border)", boxShadow: "0 2px 12px -2px rgba(0,0,0,0.08)" }}
       >
-        <Menu className="w-5 h-5" />
+        <Menu className="w-[18px] h-[18px]" strokeWidth={1.8} />
       </button>
 
       {/* Mobile overlay */}

@@ -283,6 +283,7 @@ export const postsApi = {
         comment_count: number;
         published_at: string | null;
         post_url: string | null;
+        thumbnail_url: string | null;
       }>
     >(`/posts${qs ? `?${qs}` : ""}`, { token });
   },

@@ -210,31 +210,25 @@ export function AmbassadorsVsDetractors({ ambassadors, detractors, platformLabel
   const UserCard = ({ user, type }: { user: Ambassador; type: "fan" | "hater" }) => {
     const isFan = type === "fan";
     return (
-      <div className="flex items-center gap-3 p-3 rounded-xl transition-colors" style={{ backgroundColor: "var(--bg-subtle)" }}>
-        <div
-          className="w-9 h-9 rounded-full flex items-center justify-center shrink-0"
-          style={{
-            backgroundColor: isFan ? `${t.sentimentPositive}18` : `${t.sentimentNegative}18`,
-          }}
-        >
-          {isFan ? <Shield className="w-4 h-4" style={{ color: t.sentimentPositive }} /> : <Flame className="w-4 h-4" style={{ color: t.sentimentNegative }} />}
-        </div>
+      <div className="flex items-center gap-2 p-2.5 rounded-xl transition-colors" style={{ backgroundColor: "var(--bg-subtle)" }}>
         <div className="flex-1 min-w-0">
-          <p className="truncate" style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)" }}>@{user.username}</p>
-          <p style={{ fontSize: "0.62rem", color: "var(--text-muted)" }}>
-            {user.comments} com. · {user.dominantEmotion} · Visto: {user.lastSeen}
+          <div className="flex items-center gap-1.5">
+            <p className="truncate" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-primary)" }}>@{user.username}</p>
+            <span
+              className="px-1.5 py-0.5 rounded-md shrink-0"
+              style={{
+                fontSize: "0.62rem", fontWeight: 700,
+                color: isFan ? t.sentimentPositive : t.sentimentNegative,
+                backgroundColor: isFan ? `${t.sentimentPositive}15` : `${t.sentimentNegative}15`,
+              }}
+            >
+              {user.avgScore.toFixed(1)}
+            </span>
+          </div>
+          <p style={{ fontSize: "0.58rem", color: "var(--text-muted)", marginTop: 1 }}>
+            {user.comments} com. · {user.dominantEmotion}
           </p>
         </div>
-        <span
-          className="px-2 py-0.5 rounded-lg shrink-0"
-          style={{
-            fontSize: "0.72rem", fontWeight: 700,
-            color: isFan ? t.sentimentPositive : t.sentimentNegative,
-            backgroundColor: isFan ? `${t.sentimentPositive}15` : `${t.sentimentNegative}15`,
-          }}
-        >
-          {user.avgScore.toFixed(1)}
-        </span>
       </div>
     );
   };
@@ -244,22 +238,20 @@ export function AmbassadorsVsDetractors({ ambassadors, detractors, platformLabel
       <div className="flex items-center gap-2 mb-4">
         <Badge variant="primary">Insight Premium</Badge>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 gap-3">
         <div>
-          <div className="flex items-center gap-2 mb-3">
-            <Shield className="w-4 h-4" style={{ color: t.sentimentPositive }} />
-            <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)" }}>Fans</span>
-            <span style={{ fontSize: "0.62rem", color: "var(--text-faint)" }}>Score médio ≥ 7.0</span>
+          <div className="flex items-center gap-1.5 mb-2">
+            <Shield className="w-3.5 h-3.5" style={{ color: t.sentimentPositive }} />
+            <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)" }}>Fans</span>
           </div>
           <div className="space-y-1.5">
             {ambassadors.map(u => <UserCard key={u.username} user={u} type="fan" />)}
           </div>
         </div>
         <div>
-          <div className="flex items-center gap-2 mb-3">
-            <Flame className="w-4 h-4" style={{ color: t.sentimentNegative }} />
-            <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)" }}>Haters</span>
-            <span style={{ fontSize: "0.62rem", color: "var(--text-faint)" }}>Score médio ≤ 4.0</span>
+          <div className="flex items-center gap-1.5 mb-2">
+            <Flame className="w-3.5 h-3.5" style={{ color: t.sentimentNegative }} />
+            <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)" }}>Haters</span>
           </div>
           <div className="space-y-1.5">
             {detractors.map(u => <UserCard key={u.username} user={u} type="hater" />)}
@@ -445,9 +437,19 @@ interface TopicEmotionMatrix {
 // Fixed set of 7 canonical emotions (matching the radar chart)
 const CANONICAL_EMOTIONS = ["Alegria", "Tristeza", "Raiva", "Surpresa", "Nojo", "Medo", "Amor"];
 
+// Abbreviated emotion labels for compact pills
+const EMOTION_ABBREV: Record<string, string> = {
+  "Alegria": "Ale",
+  "Tristeza": "Tri",
+  "Raiva": "Rai",
+  "Surpresa": "Sur",
+  "Nojo": "Noj",
+  "Medo": "Med",
+  "Amor": "Amo",
+};
+
 export function TopicEmotionHeatmap({ matrix, platformLabel }: { matrix: TopicEmotionMatrix; platformLabel: string }) {
   const { t } = useTheme();
-  const [hoveredCell, setHoveredCell] = useState<{ t: number; e: number } | null>(null);
 
   // Always use exactly 7 canonical emotions
   // Map from API emotions to canonical ones
@@ -469,18 +471,21 @@ export function TopicEmotionHeatmap({ matrix, platformLabel }: { matrix: TopicEm
 
   const maxVal = Math.max(...filteredData.flat(), 1);
 
-  const getIntensityColor = (value: number) => {
+  const getCellBg = (value: number) => {
+    if (value === 0) return `${t.primary}08`;
     const ratio = value / maxVal;
-    if (ratio >= 0.8) return t.primary;
-    if (ratio >= 0.6) return t.primaryMuted;
-    if (ratio >= 0.4) return t.secondary;
-    if (ratio >= 0.2) return t.primaryFaint;
-    return t.primaryBg;
+    // opacity steps: 15%, 30%, 50%, 70%, 90%
+    if (ratio >= 0.8) return `${t.primary}E6`;
+    if (ratio >= 0.6) return `${t.primary}B3`;
+    if (ratio >= 0.4) return `${t.primary}80`;
+    if (ratio >= 0.2) return `${t.primary}4D`;
+    return `${t.primary}26`;
   };
 
-  const getIntensityOpacity = (value: number) => {
+  const getCellTextColor = (value: number) => {
+    if (value === 0) return "transparent";
     const ratio = value / maxVal;
-    return Math.max(0.15, ratio);
+    return ratio >= 0.5 ? "#fff" : "var(--text-primary)";
   };
 
   return (
@@ -489,48 +494,75 @@ export function TopicEmotionHeatmap({ matrix, platformLabel }: { matrix: TopicEm
         <Badge variant="primary">Insight Premium</Badge>
         <span style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>Intensidade = volume de menções</span>
       </div>
+      {/* Heatmap grid */}
       <div className="overflow-x-auto">
-        <div className="min-w-[500px]">
-          {/* Header row — always 7 canonical emotions */}
-          <div className="flex gap-1 mb-1 pl-24">
-            {CANONICAL_EMOTIONS.map(e => (
-              <div key={e} className="flex-1 text-center" style={{ fontSize: "0.6rem", fontWeight: 600, color: "var(--text-muted)", writingMode: "horizontal-tb" }}>
-                {e}
-              </div>
+        <table className="border-collapse" style={{ minWidth: "420px" }}>
+          {/* Emotion column headers */}
+          <thead>
+            <tr>
+              <th style={{ width: "90px" }} />
+              {CANONICAL_EMOTIONS.map((emotion) => (
+                <th
+                  key={emotion}
+                  className="text-center"
+                  style={{
+                    fontSize: "0.62rem",
+                    fontWeight: 600,
+                    color: "var(--text-muted)",
+                    padding: "0 2px 6px",
+                    width: "32px",
+                  }}
+                  title={emotion}
+                >
+                  <span className="hidden sm:inline">{emotion}</span>
+                  <span className="sm:hidden">{EMOTION_ABBREV[emotion]}</span>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {filteredTopics.map((topic, ti) => (
+              <tr key={topic}>
+                {/* Topic name on the left */}
+                <td
+                  className="truncate pr-2"
+                  style={{
+                    fontSize: "0.72rem",
+                    fontWeight: 600,
+                    color: "var(--text-primary)",
+                    maxWidth: "90px",
+                  }}
+                  title={topic}
+                >
+                  {topic}
+                </td>
+                {/* Heatmap cells */}
+                {CANONICAL_EMOTIONS.map((emotion, ei) => {
+                  const value = filteredData[ti][ei];
+                  return (
+                    <td key={emotion} className="text-center" style={{ padding: "1.5px" }}>
+                      <div
+                        className="rounded flex items-center justify-center mx-auto"
+                        style={{
+                          width: "30px",
+                          height: "30px",
+                          backgroundColor: getCellBg(value),
+                          fontSize: "0.6rem",
+                          fontWeight: 700,
+                          color: getCellTextColor(value),
+                          transition: "background-color 0.2s",
+                        }}
+                        title={`${topic} × ${emotion}: ${value}`}
+                      >
+                        {value > 0 ? value : ""}
+                      </div>
+                    </td>
+                  );
+                })}
+              </tr>
             ))}
-          </div>
-          {/* Data rows */}
-          {filteredTopics.map((topic, ti) => (
-            <div key={topic} className="flex gap-1 mb-1 items-center">
-              <span className="w-22 shrink-0 text-right pr-2 truncate" style={{ fontSize: "0.72rem", fontWeight: 500, color: "var(--text-muted)" }}>
-                {topic}
-              </span>
-              {filteredData[ti].map((val, ei) => {
-                const isHovered = hoveredCell?.t === ti && hoveredCell?.e === ei;
-                return (
-                  <div
-                    key={ei}
-                    className="flex-1 rounded-md transition-all cursor-default flex items-center justify-center"
-                    style={{
-                      height: 36,
-                      backgroundColor: getIntensityColor(val),
-                      opacity: getIntensityOpacity(val),
-                      transform: isHovered ? "scale(1.08)" : "scale(1)",
-                      border: isHovered ? `2px solid ${t.primary}` : "2px solid transparent",
-                    }}
-                    onMouseEnter={() => setHoveredCell({ t: ti, e: ei })}
-                    onMouseLeave={() => setHoveredCell(null)}
-                    title={`${topic} × ${CANONICAL_EMOTIONS[ei]}: ${val}`}
-                  >
-                    <span style={{ fontSize: "0.6rem", fontWeight: 600, color: "var(--text-primary)", mixBlendMode: "multiply" }}>
-                      {val > 0 ? val : ""}
-                    </span>
-                  </div>
-                );
-              })}
-            </div>
-          ))}
-        </div>
+          </tbody>
+        </table>
       </div>
       {/* Legend */}
       <div className="flex items-center gap-2 mt-3 justify-end" style={{ fontSize: "0.58rem", color: "var(--text-faint)" }}>

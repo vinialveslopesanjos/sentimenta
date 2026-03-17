@@ -220,7 +220,7 @@ export default function PostDetailPage() {
 
       {/* Sentiment */}
       {!loading && dist && (
-        <Section title="Distribuicao de Sentimento">
+        <Section title="Distribuição de Sentimento">
           <SentimentBar positive={dist.positive} neutral={dist.neutral} negative={dist.negative} height={24} showLabels />
         </Section>
       )}
@@ -228,14 +228,14 @@ export default function PostDetailPage() {
       {/* Emotions + Topics */}
       {!loading && (emotionsList.length > 0 || topicsList.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Section title="Emocoes">
+          <Section title="Emoções">
             <div className="flex flex-wrap gap-2">
               {emotionsList.map(e => (
                 <span key={e} className="px-3 py-1.5 rounded-lg capitalize" style={{ fontSize: "0.72rem", fontWeight: 500, backgroundColor: "var(--primary-bg)", color: "var(--primary)" }}>{e}</span>
               ))}
             </div>
           </Section>
-          <Section title="Topicos">
+          <Section title="Tópicos">
             <div className="flex flex-wrap gap-2">
               {topicsList.map(tp => (
                 <span key={tp} className="px-3 py-1.5 rounded-lg capitalize" style={{ fontSize: "0.72rem", fontWeight: 500, backgroundColor: "var(--secondary-bg)", color: "var(--secondary)" }}>{tp}</span>
@@ -248,7 +248,7 @@ export default function PostDetailPage() {
       {/* Radar + Words */}
       {!loading && (summary?.total_analyzed ?? 0) > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Section title="Radar de Emocoes" subtitle="Emocoes nos comentarios deste post">
+          <Section title="Radar de Emocoes" subtitle="Emoções nos comentários deste post">
             <SentimentRadar distribution={emotionsDist} height={200} />
           </Section>
           <Section title="Nuvem de Palavras" subtitle="Palavras mais faladas">

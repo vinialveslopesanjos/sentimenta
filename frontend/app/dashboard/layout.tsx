@@ -7,7 +7,7 @@ import { clearTokens, getToken } from "@/lib/auth";
 import { identifyUser } from "@/lib/tracking";
 import SidebarNew from "@/components/SidebarNew";
 import { ThemeProvider, useTheme } from "@/components/ThemeContext";
-import { Bell, Search, Plus, Moon, Sun } from "lucide-react";
+import { Bell, Plus, Moon, Sun } from "lucide-react";
 
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -71,15 +71,6 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           }}
         >
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl" style={{ backgroundColor: "var(--bg-subtle)" }}>
-              <Search className="w-3.5 h-3.5" style={{ color: "var(--text-faint)" }} />
-              <input
-                type="text"
-                placeholder="Buscar..."
-                className="bg-transparent focus:outline-none w-32 md:w-64"
-                style={{ fontSize: "0.82rem", color: "var(--text-primary)" }}
-              />
-            </div>
           </div>
           <div className="flex items-center gap-2 md:gap-3">
             <button
