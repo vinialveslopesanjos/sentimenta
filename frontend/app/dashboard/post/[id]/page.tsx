@@ -268,7 +268,7 @@ export default function PostDetailPage() {
 
       {/* Comments */}
       <Section title={t("comments")} action={
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl" style={{ backgroundColor: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
             <Search className="w-3.5 h-3.5" style={{ color: "var(--text-faint)" }} />
             <input type="text" placeholder={tc("search")} value={searchQuery} onChange={e => handleSearch(e.target.value)} className="bg-transparent focus:outline-none w-28" style={{ fontSize: "0.78rem", color: "var(--text-primary)" }} />
@@ -305,15 +305,16 @@ export default function PostDetailPage() {
           </div>
         ) : (
           <>
-            <div className="overflow-x-auto">
+            {/* Desktop: table */}
+            <div className="hidden md:block overflow-x-auto">
               <table className="w-full" style={{ fontSize: "0.78rem" }}>
                 <thead>
                   <tr style={{ borderBottom: "1px solid var(--border)" }}>
                     <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{t("tableHeaders.score")}</th>
                     <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{t("tableHeaders.user")}</th>
                     <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{t("tableHeaders.comment")}</th>
-                    <th className="text-left py-2.5 px-3 hidden md:table-cell" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{t("tableHeaders.emotion")}</th>
-                    <th className="text-left py-2.5 px-3 hidden md:table-cell" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{t("tableHeaders.date")}</th>
+                    <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{t("tableHeaders.emotion")}</th>
+                    <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{t("tableHeaders.date")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -331,10 +332,10 @@ export default function PostDetailPage() {
                         <td className="py-2.5 px-3">
                           <span style={{ fontWeight: 500, color: "var(--text-primary)" }}>{c.author_name || c.author_username || tc("anonymous")}</span>
                         </td>
-                        <td className="py-2.5 px-3 max-w-[300px]">
-                          <p className="truncate" style={{ color: "var(--text-muted)" }}>{c.text_original}</p>
+                        <td className="py-2.5 px-3 max-w-[400px]">
+                          <p className="line-clamp-2" style={{ color: "var(--text-muted)" }}>{c.text_original}</p>
                         </td>
-                        <td className="py-2.5 px-3 hidden md:table-cell">
+                        <td className="py-2.5 px-3">
                           {emotions.length > 0 && (
                             <div className="flex flex-wrap gap-1">
                               {emotions.map((e: string) => (
@@ -343,9 +344,9 @@ export default function PostDetailPage() {
                             </div>
                           )}
                         </td>
-                        <td className="py-2.5 px-3 hidden md:table-cell">
+                        <td className="py-2.5 px-3">
                           {c.published_at && (
-                            <span style={{ color: "var(--text-faint)", fontSize: "0.72rem" }}>{fmtDatetime(c.published_at)}</span>
+                            <span style={{ color: "var(--text-faint)", fontSize: "0.72rem", whiteSpace: "nowrap" }}>{fmtDatetime(c.published_at)}</span>
                           )}
                         </td>
                       </tr>
@@ -353,6 +354,36 @@ export default function PostDetailPage() {
                   })}
                 </tbody>
               </table>
+            </div>
+
+            {/* Mobile: card list */}
+            <div className="md:hidden space-y-2">
+              {(comments?.items ?? []).map((c) => {
+                const score = c.analysis?.score_0_10 ?? null;
+                const emotions = c.analysis?.emotions ?? [];
+                const ss = score !== null ? getScoreStyle(score) : null;
+                return (
+                  <div key={c.id} className="p-3 rounded-xl" style={{ backgroundColor: "var(--bg-subtle)" }}>
+                    <div className="flex items-center gap-2 mb-1.5">
+                      {score !== null && ss && (
+                        <span className="px-2 py-0.5 rounded-md" style={{ fontSize: "0.65rem", fontWeight: 600, color: ss.color, backgroundColor: ss.bg }}>{score.toFixed(1)}</span>
+                      )}
+                      <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "var(--text-primary)" }}>{c.author_name || c.author_username || tc("anonymous")}</span>
+                      {c.published_at && (
+                        <span className="ml-auto" style={{ fontSize: "0.62rem", color: "var(--text-faint)" }}>{fmtDatetime(c.published_at)}</span>
+                      )}
+                    </div>
+                    <p style={{ fontSize: "0.78rem", lineHeight: 1.6, color: "var(--text-muted)", wordBreak: "break-word" }}>{c.text_original}</p>
+                    {emotions.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1.5">
+                        {emotions.map((e: string) => (
+                          <span key={e} className="px-2 py-0.5 rounded capitalize" style={{ fontSize: "0.6rem", fontWeight: 500, backgroundColor: "var(--primary-bg)", color: "var(--primary)" }}>{e}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
             {/* Pagination */}
