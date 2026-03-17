@@ -65,6 +65,7 @@ class Settings(BaseSettings):
     # Apify (Instagram comments)
     APIFY_API_TOKEN: str = os.getenv("APIFY_API_TOKEN", "")
     APIFY_DAILY_LIMIT_USD: float = float(os.getenv("APIFY_DAILY_LIMIT_USD", "3.0"))
+    XPOZ_TOKEN: str = os.getenv("XPOZ_TOKEN", "")
 
     # LLM (OpenRouter — OpenAI-compatible)
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
@@ -90,7 +91,6 @@ class Settings(BaseSettings):
         "http://www.sentimenta.com.br",
         "https://www.sentimenta.com.br",
         "https://app.sentimenta.com.br",
-        "https://sentimenta.vercel.app",
     ]
 
     @field_validator("CORS_ORIGINS", mode="before")
@@ -108,13 +108,15 @@ class Settings(BaseSettings):
 
     # App URL (for email links)
     APP_URL: str = os.getenv("APP_URL", "http://localhost:3000")
+    TERMS_VERSION: str = os.getenv("TERMS_VERSION", "2026-03")
 
     # Stripe (payments)
     STRIPE_SECRET_KEY: str = os.getenv("STRIPE_SECRET_KEY", "")
     STRIPE_WEBHOOK_SECRET: str = os.getenv("STRIPE_WEBHOOK_SECRET", "")
-    STRIPE_PRICE_CREATOR: str = os.getenv("STRIPE_PRICE_CREATOR", "")
+    STRIPE_PRICE_STARTER: str = os.getenv("STRIPE_PRICE_STARTER", "")
     STRIPE_PRICE_PRO: str = os.getenv("STRIPE_PRICE_PRO", "")
-    STRIPE_PRICE_AGENCY: str = os.getenv("STRIPE_PRICE_AGENCY", "")
+    STRIPE_PRICE_BUSINESS: str = os.getenv("STRIPE_PRICE_BUSINESS", "")
+    STRIPE_PRICE_ENTERPRISE: str = os.getenv("STRIPE_PRICE_ENTERPRISE", "")
     STRIPE_SUCCESS_URL: str = os.getenv("STRIPE_SUCCESS_URL", "http://localhost:3000/settings?payment=success")
     STRIPE_CANCEL_URL: str = os.getenv("STRIPE_CANCEL_URL", "http://localhost:3000/pricing")
 

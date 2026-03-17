@@ -91,12 +91,13 @@ def test_user(db):
         password_hash=hash_password("testpass123"),
         name="Test User",
         plan="free",
+        email_verified=True,
     )
     db.add(user)
     db.commit()
     db.refresh(user)
 
-    token = create_access_token({"sub": str(user.id)})
+    token = create_access_token({"sub": str(user.id), "token_version": user.token_version})
     return user, token
 
 

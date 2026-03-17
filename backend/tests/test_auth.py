@@ -4,7 +4,7 @@
 def test_register_success(client):
     res = client.post(
         "/api/v1/auth/register",
-        json={"email": "new@example.com", "password": "secret123", "name": "New User"},
+        json={"email": "new@example.com", "password": "Secret123", "name": "New User", "accepted_terms": True},
     )
     assert res.status_code == 201
     data = res.json()
@@ -16,11 +16,11 @@ def test_register_success(client):
 def test_register_duplicate_email(client):
     client.post(
         "/api/v1/auth/register",
-        json={"email": "dup@example.com", "password": "secret123"},
+        json={"email": "dup@example.com", "password": "Secret123", "accepted_terms": True},
     )
     res = client.post(
         "/api/v1/auth/register",
-        json={"email": "dup@example.com", "password": "secret123"},
+        json={"email": "dup@example.com", "password": "Secret123", "accepted_terms": True},
     )
     assert res.status_code == 409
 
@@ -29,11 +29,11 @@ def test_login_success(client):
     # Register first
     client.post(
         "/api/v1/auth/register",
-        json={"email": "login@example.com", "password": "mypass123"},
+        json={"email": "login@example.com", "password": "MyPass123", "accepted_terms": True},
     )
     res = client.post(
         "/api/v1/auth/login",
-        json={"email": "login@example.com", "password": "mypass123"},
+        json={"email": "login@example.com", "password": "MyPass123"},
     )
     assert res.status_code == 200
     assert "access_token" in res.json()
@@ -42,7 +42,7 @@ def test_login_success(client):
 def test_login_wrong_password(client):
     client.post(
         "/api/v1/auth/register",
-        json={"email": "wrong@example.com", "password": "correct"},
+        json={"email": "wrong@example.com", "password": "Correct123", "accepted_terms": True},
     )
     res = client.post(
         "/api/v1/auth/login",
@@ -82,7 +82,7 @@ def test_me_invalid_token(client):
 def test_refresh_token(client):
     reg = client.post(
         "/api/v1/auth/register",
-        json={"email": "refresh@example.com", "password": "secret123"},
+        json={"email": "refresh@example.com", "password": "Secret123", "accepted_terms": True},
     )
     refresh_token = reg.json()["refresh_token"]
 

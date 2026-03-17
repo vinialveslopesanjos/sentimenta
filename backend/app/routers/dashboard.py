@@ -4,7 +4,7 @@ from datetime import datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
-from sqlalchemy import func, case, cast, Date, select
+from sqlalchemy import func, case, cast, Date, select, extract, Integer as SAInteger
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
@@ -14,9 +14,11 @@ from app.models.comment import Comment
 from app.models.analysis import CommentAnalysis, PostAnalysisSummary
 from app.models.post import Post
 from app.models.social_connection import SocialConnection
+from app.models.follower_snapshot import FollowerSnapshot
 from app.models.user import User
 from app.services.report_service import generate_health_report, DEFAULT_HEALTH_PROMPT
 from app.utils.queries import latest_analysis_subquery as _latest_analysis_subquery
+from app.services.plan_service import enforce_feature_access, PlanLimitError
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -404,11 +406,61 @@ def get_connection_dashboard(
     word_frequency = _compute_word_frequency(conn_comment_texts, limit=30)
 
     # Engagement totals
+    total_likes = sum(p.like_count for p in posts)
+    total_views = sum(p.view_count for p in posts)
+    total_shares = sum(p.share_count for p in posts)
+    total_post_comments = sum(p.comment_count for p in posts)
     engagement = {
-        "total_likes": sum(p.like_count for p in posts),
-        "total_comments": sum(p.comment_count for p in posts),
-        "total_views": sum(p.view_count for p in posts),
+        "total_likes": total_likes,
+        "total_comments": total_post_comments,
+        "total_views": total_views,
+        "total_shares": total_shares,
     }
+
+    # Engagement rate: (total_likes + total_comments) / (followers × posts_count)
+    posts_count = len(posts)
+    engagement_rate = None
+    if conn.followers_count and conn.followers_count > 0 and posts_count > 0:
+        engagement_rate = round(
+            (total_likes + total_post_comments) / (conn.followers_count * posts_count), 4
+        )
+
+    # Topics with scores
+    topics_with_scores = []
+    if topics_agg:
+        # Get avg score per topic from latest analyses
+        latest_analysis = _latest_analysis_subquery()
+        topic_rows = (
+            db.query(
+                latest_analysis.c.topics,
+                latest_analysis.c.score_0_10,
+            )
+            .join(Comment, Comment.id == latest_analysis.c.comment_id)
+            .filter(
+                Comment.connection_id == connection_id,
+                latest_analysis.c.topics.isnot(None),
+                latest_analysis.c.score_0_10.isnot(None),
+            )
+            .all()
+        )
+        topic_scores: dict[str, list[float]] = {}
+        for row in topic_rows:
+            if isinstance(row.topics, list):
+                for t in row.topics:
+                    topic_scores.setdefault(str(t), []).append(float(row.score_0_10))
+        topics_with_scores = sorted(
+            [
+                {
+                    "topic": topic,
+                    "count": topics_agg.get(topic, len(scores)),
+                    "avg_score": round(sum(scores) / len(scores), 2),
+                }
+                for topic, scores in topic_scores.items()
+                if scores
+            ],
+            key=lambda x: x["count"],
+            reverse=True,
+        )[:15]
 
     # Posts with their summaries
     summary_map = {str(s.post_id): s for s in summaries}
@@ -465,6 +517,11 @@ def get_connection_dashboard(
         "word_frequency": word_frequency,
         "posts": posts_with_summary,
         "engagement_totals": engagement,
+        "total_likes": total_likes,
+        "total_views": total_views,
+        "total_shares": total_shares,
+        "engagement_rate": engagement_rate,
+        "topics_with_scores": topics_with_scores,
     }
 
 
@@ -874,6 +931,11 @@ def post_health_report(
     db: Session = Depends(get_db),
 ):
     """Generate a fresh report (user clicked 'Gerar' or 'Atualizar')."""
+    try:
+        enforce_feature_access(current_user, "health_report")
+    except PlanLimitError as e:
+        raise HTTPException(status_code=403, detail=e.message)
+
     import json as _json
 
     result = _build_health_report(db, current_user.id, custom_prompt=body.custom_prompt)
@@ -1137,4 +1199,677 @@ def get_reputation_alerts(
         "alerts": alerts,
         "generated_at": datetime.now(timezone.utc).isoformat(),
     }
+
+
+# ---------------------------------------------------------------------------
+# Helper: verify connection ownership
+# ---------------------------------------------------------------------------
+def _get_connection_or_404(
+    connection_id: uuid.UUID, current_user: User, db: Session
+) -> SocialConnection:
+    conn = db.query(SocialConnection).filter(
+        SocialConnection.id == connection_id,
+        SocialConnection.user_id == current_user.id,
+    ).first()
+    if not conn:
+        raise HTTPException(status_code=404, detail="Connection not found")
+    return conn
+
+
+# ---------------------------------------------------------------------------
+# 1. Engagement Heatmap
+# ---------------------------------------------------------------------------
+@router.get("/engagement-heatmap")
+def get_engagement_heatmap(
+    connection_id: uuid.UUID | None = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    conn_query = db.query(SocialConnection.id).filter(
+        SocialConnection.user_id == current_user.id
+    )
+    if connection_id:
+        conn_query = conn_query.filter(SocialConnection.id == connection_id)
+    conn_ids = [c.id for c in conn_query.all()]
+
+    if not conn_ids:
+        return {"data": []}
+
+    bucket_expr = (
+        cast(extract("hour", Comment.published_at), SAInteger) / 2
+    ) * 2
+
+    rows = (
+        db.query(
+            extract("dow", Comment.published_at).label("day"),
+            bucket_expr.label("bucket"),
+            func.count(Comment.id).label("count"),
+        )
+        .filter(
+            Comment.connection_id.in_(conn_ids),
+            Comment.published_at.isnot(None),
+        )
+        .group_by("day", "bucket")
+        .all()
+    )
+
+    # Build 7x12 matrix (Mon=0 .. Sun=6, buckets 0,2,4,...,22)
+    # PostgreSQL dow: 0=Sun,1=Mon,...,6=Sat → remap to Mon=0..Sun=6
+    pg_to_mono = {1: 0, 2: 1, 3: 2, 4: 3, 5: 4, 6: 5, 0: 6}
+    buckets = [h for h in range(0, 24, 2)]  # 12 slots
+    bucket_index = {b: i for i, b in enumerate(buckets)}
+
+    matrix = [[0] * 12 for _ in range(7)]
+    for r in rows:
+        day_idx = pg_to_mono.get(int(r.day), 0)
+        b_idx = bucket_index.get(int(r.bucket), 0)
+        matrix[day_idx][b_idx] = int(r.count)
+
+    return {"data": matrix}
+
+
+# ---------------------------------------------------------------------------
+# 2. Engagement Peaks
+# ---------------------------------------------------------------------------
+@router.get("/engagement-peaks")
+def get_engagement_peaks(
+    connection_id: uuid.UUID | None = Query(None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    conn_query = db.query(SocialConnection.id).filter(
+        SocialConnection.user_id == current_user.id
+    )
+    if connection_id:
+        conn_query = conn_query.filter(SocialConnection.id == connection_id)
+    conn_ids = [c.id for c in conn_query.all()]
+
+    if not conn_ids:
+        return {"hours": [{"hour": h, "volume": 0} for h in range(24)]}
+
+    rows = (
+        db.query(
+            extract("hour", Comment.published_at).label("hour"),
+            func.count(Comment.id).label("volume"),
+        )
+        .filter(
+            Comment.connection_id.in_(conn_ids),
+            Comment.published_at.isnot(None),
+        )
+        .group_by("hour")
+        .order_by("hour")
+        .all()
+    )
+
+    hour_map = {int(r.hour): int(r.volume) for r in rows}
+    hours = [{"hour": h, "volume": hour_map.get(h, 0)} for h in range(24)]
+    return {"hours": hours}
+
+
+# ---------------------------------------------------------------------------
+# 3. Trends by Platform
+# ---------------------------------------------------------------------------
+@router.get("/trends-by-platform")
+def get_trends_by_platform(
+    days: int = Query(30, ge=0, le=36500),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    conn_query = db.query(SocialConnection).filter(
+        SocialConnection.user_id == current_user.id
+    )
+    connections = conn_query.all()
+    if not connections:
+        return {"platforms": {}}
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days) if days > 0 else None
+    latest_analysis = _latest_analysis_subquery()
+
+    platforms: dict[str, list] = {}
+    for conn in connections:
+        query = (
+            db.query(
+                cast(Comment.published_at, Date).label("period"),
+                func.avg(latest_analysis.c.score_0_10).label("avg_score"),
+            )
+            .outerjoin(latest_analysis, latest_analysis.c.comment_id == Comment.id)
+            .filter(
+                Comment.connection_id == conn.id,
+                Comment.published_at.isnot(None),
+            )
+        )
+        if cutoff:
+            query = query.filter(Comment.published_at >= cutoff)
+
+        rows = (
+            query.group_by(cast(Comment.published_at, Date))
+            .order_by(cast(Comment.published_at, Date))
+            .all()
+        )
+
+        platform_key = conn.platform
+        if platform_key not in platforms:
+            platforms[platform_key] = []
+
+        for row in rows:
+            if row.period is not None:
+                platforms[platform_key].append({
+                    "date": row.period.isoformat(),
+                    "score": round(float(row.avg_score), 2) if row.avg_score is not None else None,
+                })
+
+    return {"platforms": platforms}
+
+
+# ---------------------------------------------------------------------------
+# 4. Gap Analysis (Engagement vs Sentiment)
+# ---------------------------------------------------------------------------
+@router.get("/connection/{connection_id}/gap-analysis")
+def get_gap_analysis(
+    connection_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        enforce_feature_access(current_user, "comparison")
+    except PlanLimitError as e:
+        raise HTTPException(status_code=403, detail=e.message)
+
+    _get_connection_or_404(connection_id, current_user, db)
+
+    posts_data = (
+        db.query(Post)
+        .filter(Post.connection_id == connection_id)
+        .all()
+    )
+
+    if not posts_data:
+        return {"posts": []}
+
+    post_ids = [p.id for p in posts_data]
+    summaries = (
+        db.query(PostAnalysisSummary)
+        .filter(PostAnalysisSummary.post_id.in_(post_ids))
+        .all()
+    )
+    summary_map = {s.post_id: s for s in summaries}
+
+    result = []
+    for p in posts_data:
+        s = summary_map.get(p.id)
+        if not s or s.avg_score is None:
+            continue
+        eng = p.engagement_rate if p.engagement_rate is not None else 0.0
+        result.append({
+            "id": str(p.id),
+            "title": _clean_post_text(p.content_text, 80),
+            "engagement": round(eng, 4),
+            "sentiment": round(s.avg_score, 2),
+            "comments": p.comment_count,
+        })
+
+    return {"posts": result}
+
+
+# ---------------------------------------------------------------------------
+# 5. Ambassadors & Detractors
+# ---------------------------------------------------------------------------
+@router.get("/connection/{connection_id}/ambassadors-detractors")
+def get_ambassadors_detractors(
+    connection_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        enforce_feature_access(current_user, "comparison")
+    except PlanLimitError as e:
+        raise HTTPException(status_code=403, detail=e.message)
+
+    conn = _get_connection_or_404(connection_id, current_user, db)
+
+    latest_analysis = _latest_analysis_subquery()
+
+    rows = (
+        db.query(
+            Comment.author_username,
+            latest_analysis.c.score_0_10,
+            latest_analysis.c.emotions,
+        )
+        .join(latest_analysis, latest_analysis.c.comment_id == Comment.id)
+        .filter(
+            Comment.connection_id == connection_id,
+            Comment.author_username.isnot(None),
+            latest_analysis.c.score_0_10.isnot(None),
+        )
+    ).all()
+
+    # Aggregate per username
+    user_stats: dict[str, dict] = {}
+    for row in rows:
+        username = row.author_username
+        if not username:
+            continue
+        # Skip connection owner's own comments
+        if conn.ignore_author_comments and username.lower() == conn.username.lower():
+            continue
+        if username not in user_stats:
+            user_stats[username] = {"scores": [], "emotions": Counter(), "count": 0}
+        user_stats[username]["scores"].append((float(row.score_0_10), 1))
+        user_stats[username]["count"] += 1
+        if row.emotions and isinstance(row.emotions, list):
+            for e in row.emotions:
+                user_stats[username]["emotions"][str(e)] += 1
+
+    def _build_entry(username: str, stats: dict) -> dict:
+        total_weight = sum(n for _, n in stats["scores"])
+        avg = sum(s * n for s, n in stats["scores"]) / total_weight if total_weight else 0
+        dominant_emotion = stats["emotions"].most_common(1)[0][0] if stats["emotions"] else None
+        return {
+            "username": username,
+            "count": stats["count"],
+            "avg_score": round(avg, 2),
+            "dominant_emotion": dominant_emotion,
+        }
+
+    # Filter users with >= 2 comments
+    qualified = {u: s for u, s in user_stats.items() if s["count"] >= 2}
+
+    # Sort by weighted avg score
+    sorted_users = sorted(
+        qualified.items(),
+        key=lambda x: sum(s * n for s, n in x[1]["scores"]) / max(sum(n for _, n in x[1]["scores"]), 1),
+    )
+
+    detractors = [_build_entry(u, s) for u, s in sorted_users[:5]]
+    ambassadors = [_build_entry(u, s) for u, s in sorted_users[-5:][::-1]]
+
+    return {"ambassadors": ambassadors, "detractors": detractors}
+
+
+# ---------------------------------------------------------------------------
+# 6. Topic-Emotion Matrix
+# ---------------------------------------------------------------------------
+@router.get("/connection/{connection_id}/topic-emotion-matrix")
+def get_topic_emotion_matrix(
+    connection_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_connection_or_404(connection_id, current_user, db)
+
+    latest_analysis = _latest_analysis_subquery()
+    rows = (
+        db.query(
+            latest_analysis.c.topics,
+            latest_analysis.c.emotions,
+        )
+        .join(Comment, Comment.id == latest_analysis.c.comment_id)
+        .filter(
+            Comment.connection_id == connection_id,
+            latest_analysis.c.topics.isnot(None),
+            latest_analysis.c.emotions.isnot(None),
+        )
+        .all()
+    )
+
+    # Build cross-tab
+    topic_set: set[str] = set()
+    emotion_set: set[str] = set()
+    cross: dict[tuple[str, str], int] = Counter()
+
+    for row in rows:
+        topics = row.topics if isinstance(row.topics, list) else []
+        emotions = row.emotions if isinstance(row.emotions, list) else []
+        for t in topics:
+            t_str = str(t)
+            topic_set.add(t_str)
+            for e in emotions:
+                e_str = str(e)
+                emotion_set.add(e_str)
+                cross[(t_str, e_str)] += 1
+
+    topics_list = sorted(topic_set)
+    emotions_list = sorted(emotion_set)
+
+    matrix = [
+        [cross.get((t, e), 0) for e in emotions_list]
+        for t in topics_list
+    ]
+
+    return {"topics": topics_list, "emotions": emotions_list, "matrix": matrix}
+
+
+# ---------------------------------------------------------------------------
+# 7. Post Lifecycle
+# ---------------------------------------------------------------------------
+@router.get("/connection/{connection_id}/post-lifecycle")
+def get_post_lifecycle(
+    connection_id: uuid.UUID,
+    post_id: uuid.UUID = Query(...),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_connection_or_404(connection_id, current_user, db)
+
+    post = db.query(Post).filter(
+        Post.id == post_id,
+        Post.connection_id == connection_id,
+    ).first()
+
+    if not post:
+        raise HTTPException(status_code=404, detail="Post not found")
+
+    if not post.published_at:
+        return {"post_id": str(post_id), "datapoints": []}
+
+    latest_analysis = _latest_analysis_subquery()
+
+    rows = (
+        db.query(
+            Comment.published_at,
+            latest_analysis.c.score_0_10,
+        )
+        .outerjoin(latest_analysis, latest_analysis.c.comment_id == Comment.id)
+        .filter(
+            Comment.post_id == post_id,
+            Comment.published_at.isnot(None),
+        )
+        .all()
+    )
+
+    if not rows:
+        return {"post_id": str(post_id), "datapoints": []}
+
+    # Group by hours after publication
+    buckets: dict[int, dict] = {}
+    for row in rows:
+        delta = row.published_at - post.published_at
+        hours_after = max(int(delta.total_seconds() / 3600), 0)
+        if hours_after not in buckets:
+            buckets[hours_after] = {"scores": [], "volume": 0}
+        buckets[hours_after]["volume"] += 1
+        if row.score_0_10 is not None:
+            buckets[hours_after]["scores"].append(float(row.score_0_10))
+
+    datapoints = sorted(
+        [
+            {
+                "hours_after": h,
+                "avg_score": round(sum(b["scores"]) / len(b["scores"]), 2) if b["scores"] else None,
+                "volume": b["volume"],
+            }
+            for h, b in buckets.items()
+        ],
+        key=lambda x: x["hours_after"],
+    )
+
+    return {"post_id": str(post_id), "datapoints": datapoints}
+
+
+# ---------------------------------------------------------------------------
+# 10. Interaction Types (by week)
+# ---------------------------------------------------------------------------
+@router.get("/connection/{connection_id}/interaction-types")
+def get_interaction_types(
+    connection_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    _get_connection_or_404(connection_id, current_user, db)
+
+    posts_data = (
+        db.query(Post)
+        .filter(
+            Post.connection_id == connection_id,
+            Post.published_at.isnot(None),
+        )
+        .order_by(Post.published_at)
+        .all()
+    )
+
+    if not posts_data:
+        return {"weeks": []}
+
+    # Group by ISO week start (Monday)
+    weeks_map: dict[str, dict] = {}
+    for p in posts_data:
+        d = p.published_at.date()
+        week_start = d - timedelta(days=d.weekday())
+        key = week_start.isoformat()
+        if key not in weeks_map:
+            weeks_map[key] = {"date": key, "comments": 0, "shares": 0, "likes": 0}
+        weeks_map[key]["comments"] += p.comment_count
+        weeks_map[key]["shares"] += p.share_count
+        weeks_map[key]["likes"] += p.like_count
+
+    weeks = sorted(weeks_map.values(), key=lambda w: w["date"])
+    return {"weeks": weeks}
+
+
+# ---------------------------------------------------------------------------
+# 11. Compare Radar
+# ---------------------------------------------------------------------------
+@router.get("/compare-radar")
+def get_compare_radar(
+    connection_ids: str = Query(..., description="Comma-separated connection UUIDs (2)"),
+    days: int = Query(90, ge=7, le=3650),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    try:
+        enforce_feature_access(current_user, "comparison")
+    except PlanLimitError as e:
+        raise HTTPException(status_code=403, detail=e.message)
+
+    ids = [uuid.UUID(cid.strip()) for cid in connection_ids.split(",") if cid.strip()]
+    if len(ids) != 2:
+        raise HTTPException(status_code=400, detail="Exactly 2 connection_ids required")
+
+    valid_conns = (
+        db.query(SocialConnection)
+        .filter(
+            SocialConnection.id.in_(ids),
+            SocialConnection.user_id == current_user.id,
+        )
+        .all()
+    )
+    if len(valid_conns) != 2:
+        raise HTTPException(status_code=404, detail="One or both connections not found")
+
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    latest_analysis = _latest_analysis_subquery()
+
+    result = []
+    for conn in valid_conns:
+        # Basic stats
+        stats = (
+            db.query(
+                func.count(Comment.id).label("total"),
+                func.count(latest_analysis.c.id).label("analyzed"),
+                func.avg(latest_analysis.c.score_0_10).label("avg_score"),
+                func.sum(case((latest_analysis.c.score_0_10 > 6, 1), else_=0)).label("positive"),
+            )
+            .outerjoin(latest_analysis, latest_analysis.c.comment_id == Comment.id)
+            .filter(
+                Comment.connection_id == conn.id,
+                Comment.published_at.isnot(None),
+                Comment.published_at >= cutoff,
+            )
+            .first()
+        )
+
+        total = int(stats.total or 0) if stats else 0
+        analyzed = int(stats.analyzed or 0) if stats else 0
+        avg_score = float(stats.avg_score) if stats and stats.avg_score else 0.0
+        positive = int(stats.positive or 0) if stats else 0
+
+        # Engagement: avg engagement_rate from posts
+        post_stats = (
+            db.query(
+                func.count(Post.id).label("post_count"),
+                func.sum(Post.like_count).label("total_likes"),
+                func.sum(Post.comment_count).label("total_comments"),
+            )
+            .filter(
+                Post.connection_id == conn.id,
+                Post.published_at.isnot(None),
+                Post.published_at >= cutoff,
+            )
+            .first()
+        )
+
+        post_count = int(post_stats.post_count or 0) if post_stats else 0
+        total_likes = int(post_stats.total_likes or 0) if post_stats else 0
+        total_comments_posts = int(post_stats.total_comments or 0) if post_stats else 0
+
+        engagement = 0.0
+        if conn.followers_count and conn.followers_count > 0 and post_count > 0:
+            engagement = round(
+                (total_likes + total_comments_posts) / (conn.followers_count * post_count), 4
+            )
+
+        # Positivity rate
+        positivity = round(positive / analyzed, 2) if analyzed > 0 else 0.0
+
+        # Consistency: how many days in the period had comments vs total days
+        days_with_comments = (
+            db.query(func.count(func.distinct(cast(Comment.published_at, Date))))
+            .filter(
+                Comment.connection_id == conn.id,
+                Comment.published_at.isnot(None),
+                Comment.published_at >= cutoff,
+            )
+            .scalar() or 0
+        )
+        consistency = round(days_with_comments / days, 2) if days > 0 else 0.0
+
+        # Growth: follower growth from snapshots
+        snapshots = (
+            db.query(FollowerSnapshot.followers_count, FollowerSnapshot.snapshot_at)
+            .filter(
+                FollowerSnapshot.connection_id == conn.id,
+                FollowerSnapshot.snapshot_at >= cutoff,
+            )
+            .order_by(FollowerSnapshot.snapshot_at)
+            .all()
+        )
+        growth = 0.0
+        if len(snapshots) >= 2:
+            first_val = snapshots[0].followers_count or 0
+            last_val = snapshots[-1].followers_count or 0
+            if first_val > 0:
+                growth = round((last_val - first_val) / first_val, 4)
+
+        result.append({
+            "connection_id": str(conn.id),
+            "username": conn.username,
+            "axes": {
+                "score": round(avg_score, 2),
+                "engagement": engagement,
+                "positivity": positivity,
+                "volume": total,
+                "consistency": min(consistency, 1.0),
+                "growth": growth,
+            },
+        })
+
+    return {"connections": result}
+
+
+# ---------------------------------------------------------------------------
+# 12. Auto-generated Insights
+# ---------------------------------------------------------------------------
+@router.get("/insights")
+def get_insights(
+    connection_ids: str = Query(..., description="Comma-separated connection UUIDs"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    ids = [uuid.UUID(cid.strip()) for cid in connection_ids.split(",") if cid.strip()]
+
+    valid_conns = (
+        db.query(SocialConnection)
+        .filter(
+            SocialConnection.id.in_(ids),
+            SocialConnection.user_id == current_user.id,
+        )
+        .all()
+    )
+    if len(valid_conns) < 2:
+        raise HTTPException(status_code=400, detail="At least 2 valid connections required")
+
+    latest_analysis = _latest_analysis_subquery()
+
+    conn_data = []
+    for conn in valid_conns:
+        stats = (
+            db.query(
+                func.count(Comment.id).label("total"),
+                func.count(latest_analysis.c.id).label("analyzed"),
+                func.avg(latest_analysis.c.score_0_10).label("avg_score"),
+                func.sum(case((latest_analysis.c.score_0_10 > 6, 1), else_=0)).label("positive"),
+                func.sum(case((latest_analysis.c.score_0_10 < 4, 1), else_=0)).label("negative"),
+            )
+            .outerjoin(latest_analysis, latest_analysis.c.comment_id == Comment.id)
+            .filter(Comment.connection_id == conn.id)
+            .first()
+        )
+
+        total = int(stats.total or 0) if stats else 0
+        analyzed = int(stats.analyzed or 0) if stats else 0
+        avg_score = float(stats.avg_score) if stats and stats.avg_score else 0.0
+        positive = int(stats.positive or 0) if stats else 0
+        negative = int(stats.negative or 0) if stats else 0
+        positivity = positive / analyzed if analyzed > 0 else 0
+        negativity = negative / analyzed if analyzed > 0 else 0
+
+        conn_data.append({
+            "conn": conn,
+            "total": total,
+            "analyzed": analyzed,
+            "avg_score": avg_score,
+            "positive": positive,
+            "negative": negative,
+            "positivity": positivity,
+            "negativity": negativity,
+        })
+
+    # Sort by avg score descending
+    conn_data.sort(key=lambda x: x["avg_score"], reverse=True)
+    best = conn_data[0]
+    worst = conn_data[-1]
+
+    # Advantage: what the best connection does well
+    advantage = {
+        "title": f"@{best['conn'].username} lidera em sentimento",
+        "description": (
+            f"Com score médio de {round(best['avg_score'], 1)}/10 e "
+            f"{round(best['positivity'] * 100, 1)}% de positividade, "
+            f"@{best['conn'].username} tem a melhor recepção entre seus perfis."
+        ),
+    }
+
+    # Opportunity: where the worst can improve
+    opportunity = {
+        "title": f"Oportunidade para @{worst['conn'].username}",
+        "description": (
+            f"@{worst['conn'].username} tem score {round(worst['avg_score'], 1)}/10. "
+            f"Reduzir a taxa de negatividade ({round(worst['negativity'] * 100, 1)}%) "
+            f"pode melhorar o engajamento geral."
+        ),
+    }
+
+    # Risk: highest negativity
+    most_negative = max(conn_data, key=lambda x: x["negativity"])
+    risk = {
+        "title": f"Atenção à negatividade em @{most_negative['conn'].username}",
+        "description": (
+            f"{round(most_negative['negativity'] * 100, 1)}% dos comentários analisados "
+            f"de @{most_negative['conn'].username} são negativos "
+            f"({most_negative['negative']} de {most_negative['analyzed']}). "
+            f"Monitore os tópicos recorrentes para identificar a causa."
+        ),
+    }
+
+    return {"advantage": advantage, "opportunity": opportunity, "risk": risk}
 

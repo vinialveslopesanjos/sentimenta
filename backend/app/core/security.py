@@ -74,6 +74,14 @@ def decode_token(token: str) -> dict | None:
     return payload
 
 
+def token_version_matches(payload: dict, current_version: int) -> bool:
+    token_version = payload.get("token_version", 0)
+    try:
+        return int(token_version) == int(current_version)
+    except (TypeError, ValueError):
+        return False
+
+
 # Social token encryption (AES-256 via Fernet)
 def encrypt_token(token: str) -> str:
     return _get_fernet().encrypt(token.encode()).decode()

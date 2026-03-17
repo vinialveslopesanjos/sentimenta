@@ -37,6 +37,15 @@ interface FetchOptions extends RequestInit {
     skipAuth?: boolean;
 }
 
+interface BillingPlan {
+    slug: string;
+    name: string;
+    price_brl: number;
+    description: string;
+    highlight?: boolean;
+    limits: Record<string, unknown>;
+}
+
 // ─── Client factory ───────────────────────────────────────────────
 
 export function createApiClient(config: ClientConfig) {
@@ -92,16 +101,20 @@ export function createApiClient(config: ClientConfig) {
             );
         }
 
+        if (res.status === 204 || res.headers.get("content-length") === "0") {
+            return null as T;
+        }
+
         return res.json();
     }
 
     // ── API namespaces ────────────────────────────────────────────
 
     const auth = {
-        register: (email: string, password: string, name?: string) =>
+        register: (email: string, password: string, name?: string, acceptedTerms = true) =>
             apiFetch<AuthTokens>("/auth/register", {
                 method: "POST",
-                body: JSON.stringify({ email, password, name }),
+                body: JSON.stringify({ email, password, name, accepted_terms: acceptedTerms }),
                 skipAuth: true,
             }),
 
@@ -119,7 +132,11 @@ export function createApiClient(config: ClientConfig) {
                 skipAuth: true,
             }),
 
-        logout: () => apiFetch<{ message: string }>("/auth/logout", { method: "POST" }),
+        logout: (refreshToken?: string | null) =>
+            apiFetch<{ message: string }>("/auth/logout", {
+                method: "POST",
+                body: JSON.stringify({ refresh_token: refreshToken || null }),
+            }),
 
         me: () => apiFetch<UserProfile>("/auth/me"),
 
@@ -127,6 +144,24 @@ export function createApiClient(config: ClientConfig) {
             apiFetch<UserProfile>("/auth/me", {
                 method: "PATCH",
                 body: JSON.stringify(payload),
+            }),
+
+        changePassword: (currentPassword: string, newPassword: string) =>
+            apiFetch<AuthTokens>("/auth/change-password", {
+                method: "POST",
+                body: JSON.stringify({
+                    current_password: currentPassword,
+                    new_password: newPassword,
+                }),
+            }),
+
+        deleteAccount: (confirmationText: string, password?: string) =>
+            apiFetch<void>("/auth/me", {
+                method: "DELETE",
+                body: JSON.stringify({
+                    confirmation_text: confirmationText,
+                    password: password || null,
+                }),
             }),
 
         instagramAuthUrl: () =>
@@ -326,7 +361,27 @@ export function createApiClient(config: ClientConfig) {
         },
     };
 
-    return { auth, connections, dashboard, pipeline, posts, comments, apiFetch };
+    const billing = {
+        plans: () => apiFetch<{ plans: BillingPlan[] }>("/billing/plans"),
+
+        usage: () =>
+            apiFetch<{
+                plan: string;
+                subscription_status?: string | null;
+                usage: Record<string, unknown>;
+            }>("/billing/usage"),
+
+        createCheckoutSession: (planSlug: string) =>
+            apiFetch<{ url: string }>("/billing/checkout-session", {
+                method: "POST",
+                body: JSON.stringify({ plan_slug: planSlug }),
+            }),
+
+        createPortalSession: () =>
+            apiFetch<{ url: string }>("/billing/portal-session", { method: "POST" }),
+    };
+
+    return { auth, connections, dashboard, pipeline, posts, comments, billing, apiFetch };
 }
 
 export type ApiClient = ReturnType<typeof createApiClient>;

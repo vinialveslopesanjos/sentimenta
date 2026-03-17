@@ -50,7 +50,7 @@ def generate_auth_url(state: str, redirect_uri: str | None = None) -> str:
 async def handle_oauth_callback(
     db: Session,
     code: str,
-    state: str,
+    user_id: uuid.UUID,
 ) -> SocialConnection:
     """Exchange the authorization code for tokens, fetch the user profile,
     and persist a ``SocialConnection`` record.
@@ -58,7 +58,7 @@ async def handle_oauth_callback(
     Args:
         db: SQLAlchemy database session.
         code: Authorization code returned by Instagram.
-        state: The ``state`` value (user ID) we sent in the auth URL.
+        user_id: Authenticated user ID resolved from a server-side OAuth state.
 
     Returns:
         The created or updated ``SocialConnection`` instance.
@@ -66,14 +66,6 @@ async def handle_oauth_callback(
     Raises:
         ValueError: When any step of the OAuth flow fails.
     """
-    if not state:
-        raise ValueError("Missing OAuth state parameter")
-
-    try:
-        user_id = uuid.UUID(state)
-    except ValueError:
-        raise ValueError("Invalid OAuth state: not a valid user ID")
-
     # --- Step 1: Exchange code for a short-lived token -----------------
     # Use connections redirect URI since this callback is called from connections flow
     short_lived_token = await _exchange_code_for_short_token(

@@ -26,7 +26,10 @@ router = APIRouter(prefix="/posts", tags=["posts"])
 
 
 @router.get("/thumbnail")
-def get_thumbnail_proxy(url: str = Query(..., min_length=5)):
+def get_thumbnail_proxy(
+    url: str = Query(..., min_length=5),
+    current_user: User = Depends(get_current_user),
+):
     cached = cache_remote_image(url)
     if not cached or not cached.exists():
         raise HTTPException(status_code=404, detail="Thumbnail not available")

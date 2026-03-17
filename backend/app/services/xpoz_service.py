@@ -7,13 +7,24 @@ from app.core.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Fallback token if not in settings, although it should be there.
-XPOZ_TOKEN = getattr(settings, "XPOZ_TOKEN", "K3A5NyyhdkSEc846EUvAlu5tSwziHbbCSTFWRGX7jCPPLR2yT2zpubtrg44wH9w519O1tF4")
 XPOZ_BASE = "https://mcp.xpoz.ai/mcp"
 
+
+def _require_token() -> str:
+    token = settings.XPOZ_TOKEN.strip()
+    if not token:
+        raise RuntimeError("XPOZ_TOKEN is not configured")
+    return token
+
 def _call_mcp(name: str, arguments: dict) -> dict:
+    try:
+        token = _require_token()
+    except RuntimeError as exc:
+        logger.error("XPoz disabled: %s", exc)
+        return {}
+
     headers = {
-        "Authorization": f"Bearer {XPOZ_TOKEN}",
+        "Authorization": f"Bearer {token}",
         "Content-Type": "application/json",
         "Accept": "application/json, text/event-stream"
     }

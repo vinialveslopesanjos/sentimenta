@@ -1,72 +1,53 @@
 "use client";
 
-import { cn } from "@/lib/utils";
-import { HTMLAttributes, forwardRef, useState } from "react";
+import * as React from "react";
+import * as AvatarPrimitive from "@radix-ui/react-avatar";
 
-interface AvatarProps extends HTMLAttributes<HTMLDivElement> {
-  src?: string | null;
-  alt?: string;
-  fallback?: string;
-  size?: "sm" | "md" | "lg";
-  platform?: "youtube" | "instagram" | "twitter" | null;
+import { cn } from "./utils";
+
+function Avatar({
+  className,
+  ...props
+}: React.ComponentProps<typeof AvatarPrimitive.Root>) {
+  return (
+    <AvatarPrimitive.Root
+      data-slot="avatar"
+      className={cn(
+        "relative flex size-10 shrink-0 overflow-hidden rounded-full",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
-function getInitials(name: string): string {
-  return name
-    .split(" ")
-    .map((word) => word[0])
-    .slice(0, 2)
-    .join("")
-    .toUpperCase();
+function AvatarImage({
+  className,
+  ...props
+}: React.ComponentProps<typeof AvatarPrimitive.Image>) {
+  return (
+    <AvatarPrimitive.Image
+      data-slot="avatar-image"
+      className={cn("aspect-square size-full", className)}
+      {...props}
+    />
+  );
 }
 
-const platformRingColors: Record<string, string> = {
-  youtube: "ring-[#FF0000]",
-  instagram: "ring-[#E4405F]",
-  twitter: "ring-[#1D9BF0]",
-};
+function AvatarFallback({
+  className,
+  ...props
+}: React.ComponentProps<typeof AvatarPrimitive.Fallback>) {
+  return (
+    <AvatarPrimitive.Fallback
+      data-slot="avatar-fallback"
+      className={cn(
+        "bg-muted flex size-full items-center justify-center rounded-full",
+        className,
+      )}
+      {...props}
+    />
+  );
+}
 
-const Avatar = forwardRef<HTMLDivElement, AvatarProps>(
-  (
-    { className, src, alt = "", fallback, size = "md", platform, ...props },
-    ref
-  ) => {
-    const [imgError, setImgError] = useState(false);
-    const showImage = src && !imgError;
-    const initials = fallback ? getInitials(fallback) : alt ? getInitials(alt) : "?";
-
-    const ringClass = platform ? platformRingColors[platform] : null;
-
-    return (
-      <div
-        ref={ref}
-        className={cn(
-          "relative inline-flex items-center justify-center rounded-full bg-surface-hover text-text-secondary font-medium overflow-hidden shrink-0",
-          ringClass && `ring-2 ${ringClass}`,
-          {
-            "h-8 w-8 text-xs": size === "sm",
-            "h-10 w-10 text-sm": size === "md",
-            "h-12 w-12 text-base": size === "lg",
-          },
-          className
-        )}
-        {...props}
-      >
-        {showImage ? (
-          <img
-            src={src}
-            alt={alt}
-            onError={() => setImgError(true)}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <span className="select-none">{initials}</span>
-        )}
-      </div>
-    );
-  }
-);
-Avatar.displayName = "Avatar";
-
-export { Avatar };
-export type { AvatarProps };
+export { Avatar, AvatarImage, AvatarFallback };

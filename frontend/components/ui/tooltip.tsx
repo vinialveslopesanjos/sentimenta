@@ -1,91 +1,61 @@
 "use client";
 
-import { cn } from "@/lib/utils";
-import {
-  HTMLAttributes,
-  ReactNode,
-  forwardRef,
-  useCallback,
-  useRef,
-  useState,
-} from "react";
+import * as React from "react";
+import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 
-interface TooltipProps extends Omit<HTMLAttributes<HTMLDivElement>, "content"> {
-  content: ReactNode;
-  position?: "top" | "bottom" | "left" | "right";
-  delay?: number;
+import { cn } from "./utils";
+
+function TooltipProvider({
+  delayDuration = 0,
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Provider>) {
+  return (
+    <TooltipPrimitive.Provider
+      data-slot="tooltip-provider"
+      delayDuration={delayDuration}
+      {...props}
+    />
+  );
 }
 
-const positionClasses: Record<string, string> = {
-  top: "bottom-full left-1/2 -translate-x-1/2 mb-2",
-  bottom: "top-full left-1/2 -translate-x-1/2 mt-2",
-  left: "right-full top-1/2 -translate-y-1/2 mr-2",
-  right: "left-full top-1/2 -translate-y-1/2 ml-2",
-};
+function Tooltip({
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Root>) {
+  return (
+    <TooltipProvider>
+      <TooltipPrimitive.Root data-slot="tooltip" {...props} />
+    </TooltipProvider>
+  );
+}
 
-const arrowClasses: Record<string, string> = {
-  top: "top-full left-1/2 -translate-x-1/2 border-t-[#21262d] border-x-transparent border-b-transparent",
-  bottom:
-    "bottom-full left-1/2 -translate-x-1/2 border-b-[#21262d] border-x-transparent border-t-transparent",
-  left: "left-full top-1/2 -translate-y-1/2 border-l-[#21262d] border-y-transparent border-r-transparent",
-  right:
-    "right-full top-1/2 -translate-y-1/2 border-r-[#21262d] border-y-transparent border-l-transparent",
-};
+function TooltipTrigger({
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Trigger>) {
+  return <TooltipPrimitive.Trigger data-slot="tooltip-trigger" {...props} />;
+}
 
-const Tooltip = forwardRef<HTMLDivElement, TooltipProps>(
-  (
-    { className, content, position = "top", delay = 200, children, ...props },
-    ref
-  ) => {
-    const [visible, setVisible] = useState(false);
-    const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-    const showTooltip = useCallback(() => {
-      timeoutRef.current = setTimeout(() => setVisible(true), delay);
-    }, [delay]);
-
-    const hideTooltip = useCallback(() => {
-      if (timeoutRef.current) {
-        clearTimeout(timeoutRef.current);
-        timeoutRef.current = null;
-      }
-      setVisible(false);
-    }, []);
-
-    return (
-      <div
-        ref={ref}
-        className={cn("relative inline-flex", className)}
-        onMouseEnter={showTooltip}
-        onMouseLeave={hideTooltip}
-        onFocus={showTooltip}
-        onBlur={hideTooltip}
+function TooltipContent({
+  className,
+  sideOffset = 0,
+  children,
+  ...props
+}: React.ComponentProps<typeof TooltipPrimitive.Content>) {
+  return (
+    <TooltipPrimitive.Portal>
+      <TooltipPrimitive.Content
+        data-slot="tooltip-content"
+        sideOffset={sideOffset}
+        className={cn(
+          "bg-primary text-primary-foreground animate-in fade-in-0 zoom-in-95 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[side=bottom]:slide-in-from-top-2 data-[side=left]:slide-in-from-right-2 data-[side=right]:slide-in-from-left-2 data-[side=top]:slide-in-from-bottom-2 z-50 w-fit origin-(--radix-tooltip-content-transform-origin) rounded-md px-3 py-1.5 text-xs text-balance",
+          className,
+        )}
         {...props}
       >
         {children}
-        {visible && (
-          <div
-            role="tooltip"
-            className={cn(
-              "absolute z-50 px-3 py-1.5 text-xs font-medium text-text-primary bg-[#21262d] rounded-md shadow-lg whitespace-nowrap pointer-events-none",
-              "animate-in fade-in-0 zoom-in-95 duration-150",
-              positionClasses[position]
-            )}
-          >
-            {content}
-            <span
-              className={cn(
-                "absolute border-4",
-                arrowClasses[position]
-              )}
-            />
-          </div>
-        )}
-      </div>
-    );
-  }
-);
-Tooltip.displayName = "Tooltip";
+        <TooltipPrimitive.Arrow className="bg-primary fill-primary z-50 size-2.5 translate-y-[calc(-50%_-_2px)] rotate-45 rounded-[2px]" />
+      </TooltipPrimitive.Content>
+    </TooltipPrimitive.Portal>
+  );
+}
 
-export { Tooltip };
-export type { TooltipProps };
+export { Tooltip, TooltipTrigger, TooltipContent, TooltipProvider };

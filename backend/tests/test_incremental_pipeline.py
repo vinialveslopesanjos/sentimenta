@@ -59,14 +59,14 @@ def test_instagram_ingest_is_incremental(db, test_user, monkeypatch):
         },
     ]
 
+    monkeypatch.setattr("app.services.apify_service.fetch_posts_apify", lambda username, max_posts, step_callback=None: posts_round_1)
     monkeypatch.setattr(
-        "app.services.instagram_ingest_service.fetch_recent_posts",
-        lambda username, max_posts, since_date: posts_round_1,
+        "app.services.apify_service.fetch_comments_apify",
+        lambda post_urls, max_per_post, per_post_limits=None, sample_mode="all", comment_counts=None, step_callback=None: {
+            "https://instagram.com/p/ABC123/": comments_round_1
+        },
     )
-    monkeypatch.setattr(
-        "app.services.instagram_ingest_service.fetch_post_comments",
-        lambda shortcode, max_comments: comments_round_1,
-    )
+    monkeypatch.setattr("app.services.instagram_ingest_service.cache_remote_image", lambda url: None)
 
     first_stats = ingest_instagram_profile(db, connection, max_posts=50, max_comments_per_post=100)
     assert first_stats["posts_fetched"] == 1
@@ -111,20 +111,25 @@ def test_instagram_ingest_is_incremental(db, test_user, monkeypatch):
         },
     ]
 
+    monkeypatch.setattr("app.services.apify_service.fetch_posts_apify", lambda username, max_posts, step_callback=None: posts_round_2)
     monkeypatch.setattr(
-        "app.services.instagram_ingest_service.fetch_recent_posts",
-        lambda username, max_posts, since_date: posts_round_2,
-    )
-    monkeypatch.setattr(
-        "app.services.instagram_ingest_service.fetch_post_comments",
-        lambda shortcode, max_comments: comments_round_2,
+        "app.services.apify_service.fetch_comments_apify",
+        lambda post_urls, max_per_post, per_post_limits=None, sample_mode="all", comment_counts=None, step_callback=None: {
+            "https://instagram.com/p/ABC123/": comments_round_2
+        },
     )
 
-    second_stats = ingest_instagram_profile(db, connection, max_posts=50, max_comments_per_post=100)
+    second_stats = ingest_instagram_profile(
+        db,
+        connection,
+        max_posts=50,
+        max_comments_per_post=100,
+        is_incremental=True,
+    )
     assert second_stats["posts_fetched"] == 0
     assert second_stats["posts_updated"] == 1
     assert second_stats["comments_fetched"] == 1
-    assert second_stats["comments_updated"] == 2
+    assert second_stats["comments_updated"] == 0
 
     assert db.query(Post).filter(Post.connection_id == connection.id).count() == 1
     assert db.query(Comment).filter(Comment.connection_id == connection.id).count() == 3
@@ -133,11 +138,14 @@ def test_instagram_ingest_is_incremental(db, test_user, monkeypatch):
     assert post.like_count == 22
 
     comment_c1 = db.query(Comment).filter(Comment.platform_comment_id == "C1").first()
-    assert comment_c1.like_count == 7
-    assert comment_c1.text_original == "bom demais"
+    assert comment_c1.like_count == 1
+    assert comment_c1.text_original == "bom"
 
 
 def test_analyze_post_comments_skips_existing_analysis(db, test_connection, monkeypatch):
+    test_connection.ignore_author_comments = False
+    db.commit()
+
     post = Post(
         id=uuid.uuid4(),
         connection_id=test_connection.id,
@@ -179,7 +187,7 @@ def test_analyze_post_comments_skips_existing_analysis(db, test_connection, monk
 
     existing = CommentAnalysis(
         comment_id=comment_with_analysis.id,
-        model=settings.GEMINI_MODEL,
+        model=settings.LLM_MODEL,
         prompt_version="v1",
         score_0_10=5.0,
         confidence=0.9,
@@ -190,11 +198,10 @@ def test_analyze_post_comments_skips_existing_analysis(db, test_connection, monk
     captured_comment_ids = []
 
     class DummyLLM:
-        def __init__(self, api_key: str, model: str):
-            self.api_key = api_key
-            self.model = model
+        def __init__(self):
+            pass
 
-        def analyze_comments(self, comments_payload, prompt_version):
+        def analyze_comments(self, comments_payload, prompt_version, context=None):
             for item in comments_payload:
                 captured_comment_ids.append(item["comment_id"])
                 yield {
@@ -234,7 +241,7 @@ def test_analyze_post_comments_skips_existing_analysis(db, test_connection, monk
         db.query(CommentAnalysis)
         .filter(
             CommentAnalysis.comment_id == comment_with_analysis.id,
-            CommentAnalysis.model == settings.GEMINI_MODEL,
+            CommentAnalysis.model == settings.LLM_MODEL,
             CommentAnalysis.prompt_version == "v1",
         )
         .count()

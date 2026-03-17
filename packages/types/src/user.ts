@@ -1,6 +1,6 @@
 // ─── User & Auth ───────────────────────────────────────────────────
 
-export type PlanSlug = "free" | "creator" | "pro" | "agency";
+export type PlanSlug = "free" | "creator" | "pro" | "agency" | "enterprise" | "admin";
 
 export interface User {
     id: string;

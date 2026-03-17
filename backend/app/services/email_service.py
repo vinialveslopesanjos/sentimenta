@@ -208,7 +208,7 @@ def send_plan_upgrade_email(email: str, name: Optional[str], plan: str) -> bool:
     if not resend:
         return False
 
-    plan_names = {"creator": "Creator", "pro": "Pro", "agency": "Agency"}
+    plan_names = {"starter": "Starter", "pro": "Pro", "business": "Business", "creator": "Starter", "agency": "Business"}
     plan_display = plan_names.get(plan, plan.capitalize())
     display_name = name or "criador"
 

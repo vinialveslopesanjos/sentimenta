@@ -18,6 +18,7 @@ from sqlalchemy.orm import Session
 from app.models.comment import Comment
 from app.models.post import Post
 from app.models.social_connection import SocialConnection
+from app.models.user import User
 from app.services.media_cache_service import cache_remote_image
 from app.services.instagram_scrape_service import (
     fetch_post_comments,
@@ -130,6 +131,8 @@ def ingest_instagram_profile(
     try:
         # ── Phase 1: Fetch post catalog from Apify ─────────────────────
         _step("Buscando catálogo de posts via Apify...")
+        user_plan = db.query(User.plan).filter(User.id == connection.user_id).scalar() or "free"
+        total_comment_budget = max_comments_per_post if user_plan == "free" else None
         from app.services.apify_service import fetch_posts_apify
         posts_data = fetch_posts_apify(username, max_posts=max_posts, step_callback=_step)
 
@@ -255,6 +258,7 @@ def ingest_instagram_profile(
             _fetch_comments_apify_path(
                 db, connection, posts_need_comments,
                 max_comments=max_comments_per_post,
+                total_comments_cap=total_comment_budget,
                 sample_mode=comment_sample_mode,
                 stats=stats,
                 step_callback=_step,
@@ -425,6 +429,7 @@ def _fetch_comments_apify_path(
     connection: SocialConnection,
     posts_need_comments: list,
     max_comments: int = 10000,
+    total_comments_cap: int | None = None,
     sample_mode: str = "all",
     stats: dict = None,
     step_callback=None,
@@ -446,11 +451,24 @@ def _fetch_comments_apify_path(
         comment_counts[url] = post_data.get("comment_count", 0) or 0
 
     post_urls = list(post_map.keys())
+    per_post_limits: dict[str, int] | None = None
+    if total_comments_cap is not None and post_urls:
+        remaining = total_comments_cap
+        per_post_limits = {}
+        for index, url in enumerate(post_urls):
+            posts_left = len(post_urls) - index
+            if remaining <= 0:
+                per_post_limits[url] = 0
+                continue
+            fair_share = max(1, remaining // posts_left)
+            per_post_limits[url] = min(max_comments, fair_share)
+            remaining -= per_post_limits[url]
 
     # Fetch comments via Apify
     comments_by_url = fetch_comments_apify(
         post_urls=post_urls,
         max_per_post=max_comments,
+        per_post_limits=per_post_limits,
         sample_mode=sample_mode,
         comment_counts=comment_counts,
         step_callback=_step,
@@ -649,6 +667,8 @@ def ingest_instagram_via_graph_api(
     try:
         access_token = decrypt_token(connection.access_token_enc)
         platform_user_id = connection.platform_user_id
+        user_plan = db.query(User.plan).filter(User.id == connection.user_id).scalar() or "free"
+        remaining_comment_budget = max_comments_per_post if user_plan == "free" else None
 
         # ── Phase 1: Fetch posts from Graph API ──────────────────────
         _step("Buscando posts via Instagram Graph API...")
@@ -780,10 +800,17 @@ def ingest_instagram_via_graph_api(
 
             for idx, (pid, post_obj) in enumerate(posts_with_comments, 1):
                 try:
+                    if remaining_comment_budget is not None and remaining_comment_budget <= 0:
+                        break
+                    fetch_limit = (
+                        min(max_comments_per_post, remaining_comment_budget)
+                        if remaining_comment_budget is not None
+                        else max_comments_per_post
+                    )
                     loop = asyncio.new_event_loop()
                     try:
                         comments_data = loop.run_until_complete(
-                            graph_fetch_comments(access_token, pid, limit=max_comments_per_post)
+                            graph_fetch_comments(access_token, pid, limit=fetch_limit)
                         )
                     finally:
                         loop.close()
@@ -836,6 +863,8 @@ def ingest_instagram_via_graph_api(
                         stats["comments_fetched"] += 1
 
                     db.commit()
+                    if remaining_comment_budget is not None:
+                        remaining_comment_budget -= len(comments_data)
                     _step(f"Post {idx}/{len(posts_with_comments)}: {new_count} comentários novos")
 
                     if progress_callback:
