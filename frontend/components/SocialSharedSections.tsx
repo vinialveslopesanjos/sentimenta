@@ -134,7 +134,7 @@ export function CommentsTable({ comments, platformName }: { comments: CommentRow
               <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{tc("commentsTable.headerScore")}</th>
               <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{tc("commentsTable.headerUser")}</th>
               <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{tc("commentsTable.headerComment")}</th>
-              <th className="text-left py-2.5 px-3 hidden md:table-cell" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{tc("commentsTable.headerEmotion")}</th>
+              <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{tc("commentsTable.headerEmotion")}</th>
               <th className="text-left py-2.5 px-3 hidden md:table-cell" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{tc("commentsTable.headerDate")}</th>
             </tr>
           </thead>
@@ -150,11 +150,11 @@ export function CommentsTable({ comments, platformName }: { comments: CommentRow
                   <td className="py-2.5 px-3">
                     <span style={{ fontWeight: 500, color: "var(--text-primary)" }}>@{c.user}</span>
                   </td>
-                  <td className="py-2.5 px-3 max-w-[300px]">
-                    <p className="truncate" style={{ color: "var(--text-muted)" }}>{c.text}</p>
+                  <td className="py-2.5 px-3">
+                    <p className="line-clamp-2" style={{ color: "var(--text-muted)", wordBreak: "break-word" }}>{c.text}</p>
                   </td>
-                  <td className="py-2.5 px-3 hidden md:table-cell">
-                    <span className="px-2 py-0.5 rounded-md" style={{ fontSize: "0.62rem", fontWeight: 600, color: emotionStyle.color, backgroundColor: emotionStyle.bg }}>{c.emotion}</span>
+                  <td className="py-2.5 px-3">
+                    <span className="px-2 py-0.5 rounded-md whitespace-nowrap" style={{ fontSize: "0.62rem", fontWeight: 600, color: emotionStyle.color, backgroundColor: emotionStyle.bg }}>{c.emotion}</span>
                   </td>
                   <td className="py-2.5 px-3 hidden md:table-cell">
                     <span style={{ color: "var(--text-faint)", fontSize: "0.72rem" }}>{c.date}</span>

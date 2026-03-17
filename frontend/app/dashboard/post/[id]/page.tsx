@@ -267,8 +267,8 @@ export default function PostDetailPage() {
       )}
 
       {/* Comments */}
-      <Section title={t("comments")} action={
-        <div className="flex flex-wrap items-center gap-2">
+      <Section title={t("comments")}>
+        <div className="flex flex-wrap items-center gap-2 mb-4">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl" style={{ backgroundColor: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
             <Search className="w-3.5 h-3.5" style={{ color: "var(--text-faint)" }} />
             <input type="text" placeholder={tc("search")} value={searchQuery} onChange={e => handleSearch(e.target.value)} className="bg-transparent focus:outline-none w-28" style={{ fontSize: "0.78rem", color: "var(--text-primary)" }} />
@@ -286,7 +286,6 @@ export default function PostDetailPage() {
             ))}
           </select>
         </div>
-      }>
         {commentsLoading ? (
           <div className="space-y-3 animate-pulse">
             {[0, 1, 2, 3, 4].map(i => (
