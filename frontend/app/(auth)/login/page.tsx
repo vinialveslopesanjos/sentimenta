@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Mail, Lock, Eye, EyeOff, Instagram, Music2 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { authApi } from "@/lib/api";
 import { getToken, setTokens } from "@/lib/auth";
 import { track } from "@/lib/tracking";
@@ -15,6 +16,8 @@ type Mode = "login" | "register";
 function LoginPageInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const t = useTranslations("login");
+  const tl = useTranslations("landing");
   const [mode, setMode] = useState<Mode>("login");
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
@@ -38,21 +41,21 @@ function LoginPageInner() {
       authApi.exchangeOAuthCode(oauthCode)
         .then((res) => {
           setTokens(res.access_token, res.refresh_token);
-          setSuccess(`Login via ${res.provider || "social"} realizado!`);
+          setSuccess(t("socialLoginSuccess", { provider: res.provider || "social" }));
           if (res.pipeline_started) {
             localStorage.setItem("sentimenta_pipeline_started", Date.now().toString());
           }
           router.replace("/dashboard");
         })
         .catch((err) => {
-          setError(err instanceof Error ? err.message : "Falha ao autenticar via login social.");
+          setError(err instanceof Error ? err.message : t("errors.socialLoginFailed"));
           setSocialLoading(null);
         });
       return;
     }
 
     if (oauthError) {
-      setError(`Falha no login social: ${decodeURIComponent(oauthError)}`);
+      setError(`${t("errors.socialLoginFailed")}: ${decodeURIComponent(oauthError)}`);
       window.history.replaceState({}, "", "/login");
     }
   }, [searchParams, router]);
@@ -70,7 +73,7 @@ function LoginPageInner() {
       const res = provider === "instagram" ? await authApi.instagramAuthUrl() : await authApi.tiktokAuthUrl();
       window.location.href = res.auth_url;
     } catch (err) {
-      setError(err instanceof Error ? err.message : `Falha ao conectar com ${provider}.`);
+      setError(err instanceof Error ? err.message : t("errors.socialConnectFailed", { provider }));
       setSocialLoading(null);
     }
   };
@@ -79,10 +82,10 @@ function LoginPageInner() {
     e?.preventDefault();
     setError(""); setSuccess("");
 
-    if (!email.trim() || !password) { setError("Preencha email e senha."); return; }
-    if (password.length < 8) { setError("A senha deve ter pelo menos 8 caracteres."); return; }
-    if (mode === "register" && !name.trim()) { setError("Informe seu nome."); return; }
-    if (mode === "register" && !acceptedTerms) { setError("Voce precisa aceitar os termos para criar a conta."); return; }
+    if (!email.trim() || !password) { setError(t("errors.fillEmailPassword")); return; }
+    if (password.length < 8) { setError(t("errors.passwordMinLength")); return; }
+    if (mode === "register" && !name.trim()) { setError(t("errors.enterName")); return; }
+    if (mode === "register" && !acceptedTerms) { setError(t("errors.acceptTerms")); return; }
 
     setLoading(true);
     track(mode === "login" ? "login_attempt" : "register_attempt");
@@ -94,15 +97,14 @@ function LoginPageInner() {
       setTokens(res.access_token, res.refresh_token);
       if (mode === "register") {
         track("register_success");
-        setSuccess("Conta criada! Verifique seu email.");
+        setSuccess(t("accountCreated"));
         router.replace("/verify-email");
       } else {
         track("login_success");
-        setSuccess("Login realizado!");
         router.replace("/dashboard");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Falha na autenticacao.");
+      setError(err instanceof Error ? err.message : t("errors.authFailed"));
     } finally { setLoading(false); }
   };
 
@@ -125,20 +127,20 @@ function LoginPageInner() {
 
           <div className={`transition-all duration-500 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
             <h1 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2.4rem", fontWeight: 700, lineHeight: 1.1, color: "white" }}>
-              Escute o que o<br />mundo{" "}
-              <span style={{ background: "linear-gradient(135deg, #61c6d1, #88d4dd)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>sente.</span>
+              {t("brandHeadline")}<br />{" "}
+              <span style={{ background: "linear-gradient(135deg, #61c6d1, #88d4dd)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>{t("brandHighlight")}</span>
             </h1>
             <p className="mt-5 max-w-[300px]" style={{ fontSize: "0.9rem", lineHeight: 1.7, color: "rgba(255,255,255,0.4)" }}>
-              Clareza emocional em tempo real. Monitoramento de sentimentos que traz direcao, nao ruido.
+              {t("brandSubtitle")}
             </p>
           </div>
         </div>
 
         <div className={`relative z-10 grid grid-cols-3 gap-4 mb-6 transition-all duration-500 delay-200 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
           {[
-            { label: "Emocoes rastreadas", value: "8" },
-            { label: "Plataformas", value: "4" },
-            { label: "Precisao IA", value: "94%" },
+            { label: t("stats.emotionsTracked"), value: "8" },
+            { label: t("stats.platforms"), value: "4" },
+            { label: t("stats.aiAccuracy"), value: "94%" },
           ].map(stat => (
             <div key={stat.label} className="text-center">
               <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.5rem", fontWeight: 700, color: "white" }}>{stat.value}</p>
@@ -149,9 +151,9 @@ function LoginPageInner() {
 
         <div className={`relative z-10 rounded-2xl p-6 border border-white/[0.08] transition-all duration-500 delay-300 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`} style={{ backgroundColor: "rgba(255,255,255,0.04)", backdropFilter: "blur(12px)" }}>
           <p style={{ fontSize: "0.85rem", lineHeight: 1.7, color: "rgba(255,255,255,0.6)" }}>
-            &ldquo;Conectei meu perfil e em 2 minutos ja tinha um diagnostico completo.&rdquo;
+            &ldquo;{t("testimonial")}&rdquo;
           </p>
-          <p className="mt-3" style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.3)" }}>&mdash; Usuario beta</p>
+          <p className="mt-3" style={{ fontSize: "0.72rem", color: "rgba(255,255,255,0.3)" }}>{t("testimonialAuthor")}</p>
         </div>
       </div>
 
@@ -163,10 +165,10 @@ function LoginPageInner() {
           </div>
 
           <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.6rem", fontWeight: 700, color: "var(--text-primary)" }}>
-            {mode === "login" ? "Bem-vindo de volta" : "Crie sua conta"}
+            {mode === "login" ? t("welcomeBack") : t("createAccount")}
           </h2>
           <p className="mt-1.5 mb-8" style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
-            {mode === "login" ? "Acesse seu painel de sentimentos." : "Plano gratis com 500 comentarios/mes."}
+            {mode === "login" ? t("accessDashboard") : t("freePlanInfo")}
           </p>
 
           {/* Toggle */}
@@ -178,7 +180,7 @@ function LoginPageInner() {
                 className="flex-1 py-2.5 rounded-lg transition-all duration-200"
                 style={{ fontSize: "0.85rem", fontWeight: 500, backgroundColor: mode === m ? "var(--bg-card)" : "transparent", color: mode === m ? "var(--text-primary)" : "var(--text-muted)", boxShadow: mode === m ? "0 1px 3px rgba(0,0,0,0.08)" : "none" }}
               >
-                {m === "login" ? "Login" : "Cadastrar"}
+                {m === "login" ? t("loginTab") : t("registerTab")}
               </button>
             ))}
           </div>
@@ -194,7 +196,7 @@ function LoginPageInner() {
               style={{ fontSize: "0.85rem", fontWeight: 500 }}
             >
               <Instagram className="w-4 h-4" />
-              {socialLoading === "instagram" ? "Redirecionando..." : "Continuar com Instagram"}
+              {socialLoading === "instagram" ? t("redirecting") : t("continueWithInstagram")}
             </button>
             <button
               type="button"
@@ -204,7 +206,7 @@ function LoginPageInner() {
               style={{ fontSize: "0.85rem", fontWeight: 500, backgroundColor: "#010119" }}
             >
               <Music2 className="w-4 h-4" />
-              {socialLoading === "tiktok" ? "Redirecionando..." : "Continuar com TikTok"}
+              {socialLoading === "tiktok" ? t("redirecting") : t("continueWithTiktok")}
             </button>
           </div>
           )}
@@ -213,7 +215,7 @@ function LoginPageInner() {
           {false && (
           <div className="flex items-center gap-4 mb-6">
             <div className="flex-1 h-px" style={{ backgroundColor: "var(--border)" }} />
-            <span style={{ fontSize: "0.68rem", fontWeight: 500, color: "var(--text-faint)" }}>ou e-mail</span>
+            <span style={{ fontSize: "0.68rem", fontWeight: 500, color: "var(--text-faint)" }}>{t("orEmail")}</span>
             <div className="flex-1 h-px" style={{ backgroundColor: "var(--border)" }} />
           </div>
           )}
@@ -222,10 +224,10 @@ function LoginPageInner() {
           <form onSubmit={handleSubmit} className="space-y-4">
             {mode === "register" && (
               <div>
-                <label className="block mb-2" style={{ fontSize: "0.78rem", fontWeight: 500, color: "var(--text-primary)" }}>Nome</label>
+                <label className="block mb-2" style={{ fontSize: "0.78rem", fontWeight: 500, color: "var(--text-primary)" }}>{t("nameLabel")}</label>
                 <input
                   type="text"
-                  placeholder="Seu nome"
+                  placeholder={t("namePlaceholder")}
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full px-4 py-3 rounded-xl transition-all"
@@ -234,12 +236,12 @@ function LoginPageInner() {
               </div>
             )}
             <div>
-              <label className="block mb-2" style={{ fontSize: "0.78rem", fontWeight: 500, color: "var(--text-primary)" }}>Email</label>
+              <label className="block mb-2" style={{ fontSize: "0.78rem", fontWeight: 500, color: "var(--text-primary)" }}>{t("emailLabel")}</label>
               <div className="relative">
                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-faint)" }} />
                 <input
                   type="email"
-                  placeholder="nome@exemplo.com"
+                  placeholder={t("emailPlaceholder")}
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="w-full pl-11 pr-4 py-3 rounded-xl transition-all"
@@ -248,7 +250,7 @@ function LoginPageInner() {
               </div>
             </div>
             <div>
-              <label className="block mb-2" style={{ fontSize: "0.78rem", fontWeight: 500, color: "var(--text-primary)" }}>Senha</label>
+              <label className="block mb-2" style={{ fontSize: "0.78rem", fontWeight: 500, color: "var(--text-primary)" }}>{t("passwordLabel")}</label>
               <div className="relative">
                 <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4" style={{ color: "var(--text-faint)" }} />
                 <input
@@ -274,17 +276,17 @@ function LoginPageInner() {
                   className="mt-0.5 w-4 h-4 rounded accent-[var(--primary)]"
                 />
                 <span style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
-                  Li e aceito os{" "}
-                  <a href="/termos" target="_blank" rel="noopener noreferrer" style={{ color: "var(--primary)" }}>Termos de Uso</a>
-                  {" "}e a{" "}
-                  <a href="/privacidade" target="_blank" rel="noopener noreferrer" style={{ color: "var(--primary)" }}>Politica de Privacidade</a>.
+                  {t("termsCheckbox")}{" "}
+                  <a href="/termos" target="_blank" rel="noopener noreferrer" style={{ color: "var(--primary)" }}>{t("termsOfUse")}</a>
+                  {" "}{t("and")}{" "}
+                  <a href="/privacidade" target="_blank" rel="noopener noreferrer" style={{ color: "var(--primary)" }}>{t("privacyPolicy")}</a>.
                 </span>
               </label>
             )}
 
             {mode === "login" && (
               <div className="text-right">
-                <a href="#" style={{ fontSize: "0.78rem", color: "var(--primary)" }}>Esqueceu a senha?</a>
+                <a href="#" style={{ fontSize: "0.78rem", color: "var(--primary)" }}>{t("forgotPassword")}</a>
               </div>
             )}
 
@@ -302,14 +304,14 @@ function LoginPageInner() {
               className="!mt-6"
               disabled={loading || (mode === "register" && !acceptedTerms)}
             >
-              {loading ? (mode === "login" ? "Conectando..." : "Criando conta...") : mode === "login" ? "Entrar" : "Criar conta"}
+              {loading ? (mode === "login" ? t("loggingIn") : t("creatingAccount")) : mode === "login" ? t("loginButton") : t("registerButton")}
             </Button>
           </form>
 
           <p className="text-center mt-6" style={{ fontSize: "0.72rem", color: "var(--text-faint)" }}>
-            Ao continuar, voce concorda com nossos{" "}
-            <a href="/termos" style={{ color: "var(--primary)" }}>Termos</a> e{" "}
-            <a href="/privacidade" style={{ color: "var(--primary)" }}>Privacidade</a>.
+            {t("termsConsent")}{" "}
+            <a href="/termos" style={{ color: "var(--primary)" }}>{t("terms")}</a> e{" "}
+            <a href="/privacidade" style={{ color: "var(--primary)" }}>{t("privacy")}</a>.
           </p>
         </div>
       </div>

@@ -10,6 +10,8 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/ds/Logo";
 import { Button } from "@/components/ds/Button";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import { useTranslations } from "next-intl";
 import {
   GlassChartIcon,
   GlassHeartIcon,
@@ -101,41 +103,22 @@ function Counter({ target, suffix = "" }: { target: number; suffix?: string }) {
 
 /* ── Data ── */
 
-const tickerItems = [
-  { user: "@ana_marketing", text: "Parabéns pelo conteúdo!", emotion: "Alegria", type: "pos" },
-  { user: "@carlos.dev", text: "Isso é um absurdo!", emotion: "Raiva", type: "neg" },
-  { user: "@mari_design", text: "Quando sai o próximo?", emotion: "Neutro", type: "neu" },
-  { user: "@joao_ba", text: "Meu deputado favorito!", emotion: "Amor", type: "pos" },
-  { user: "@lucia.sp", text: "Não concordo nada", emotion: "Raiva", type: "neg" },
-  { user: "@beto_salva", text: "Finalmente alguém falou", emotion: "Surpresa", type: "pos" },
-  { user: "@cris.art", text: "Emocionante demais", emotion: "Tristeza", type: "neg" },
-  { user: "@dani_fit", text: "Isso dá esperança!", emotion: "Alegria", type: "pos" },
+const tickerItemsBase = [
+  { user: "@ana_marketing", textKey: "tickerItems.congratsContent" as const, emotionKey: "joy", type: "pos" },
+  { user: "@carlos.dev", textKey: "tickerItems.totalAbsurd" as const, emotionKey: "anger", type: "neg" },
+  { user: "@mari_design", textKey: "tickerItems.whenNext" as const, emotionKey: "neutral", type: "neu" },
+  { user: "@joao_ba", textKey: "tickerItems.favoriteDeputy" as const, emotionKey: "love", type: "pos" },
+  { user: "@lucia.sp", textKey: "tickerItems.disagreeCompletely" as const, emotionKey: "anger", type: "neg" },
+  { user: "@beto_salva", textKey: "tickerItems.finallySomeone" as const, emotionKey: "surprise", type: "pos" },
+  { user: "@cris.art", textKey: "tickerItems.tooEmotional" as const, emotionKey: "sadness", type: "neg" },
+  { user: "@dani_fit", textKey: "tickerItems.givesHope" as const, emotionKey: "joy", type: "pos" },
 ];
 
-const demoResults: Record<string, { emotion: string; score: number; sentiment: string; type: "pos" | "neg" | "neu"; emoji: string }> = {
-  "Parabéns pelo trabalho incrível!": { emotion: "Alegria", score: 9.2, sentiment: "Positivo", type: "pos", emoji: "😊" },
-  "Isso é um absurdo total e vergonhoso": { emotion: "Raiva", score: 2.1, sentiment: "Negativo", type: "neg", emoji: "😡" },
-  "Quando vai entregar o projeto?": { emotion: "Neutro", score: 5.5, sentiment: "Neutro", type: "neu", emoji: "😐" },
-  "Que horror, não acredito nisso": { emotion: "Nojo", score: 1.8, sentiment: "Negativo", type: "neg", emoji: "🤢" },
-  "Nossa que surpresa maravilhosa!": { emotion: "Surpresa", score: 8.7, sentiment: "Positivo", type: "pos", emoji: "😮" },
-};
-const demoSuggestions = Object.keys(demoResults);
+/* demoResults and demoSuggestions are constructed inside the component using translations */
 
-const plans = [
-  { name: "Grátis", price: "0", desc: "Teste com 500 comentários/mês.", features: ["1 perfil conectado", "500 comentários/mês", "Análise de sentimento + demographics", "30 dias de histórico"], popular: false },
-  { name: "Starter", price: "97", desc: "Para criadores e marcas pequenas.", features: ["3 perfis conectados", "5.000 comentários/mês", "Análise de sentimento + demographics", "Health report semanal", "Excedente: R$0,04/comentário"], popular: false },
-  { name: "Pro", price: "247", desc: "Para marcas e profissionais em crescimento.", features: ["7 perfis conectados", "20.000 comentários/mês", "Sync diário automático", "PDF export + comparativos", "Excedente: R$0,035/comentário"], popular: true },
-  { name: "Business", price: "597", desc: "Para agências e operações de alto volume.", features: ["20 perfis conectados", "80.000 comentários/mês", "Acesso via API", "12 meses de histórico", "Excedente: R$0,03/comentário"], popular: false },
-];
+/* plans and faqs are now constructed inside the component using translations */
 
-const faqs = [
-  { q: "Preciso de login no Instagram para conectar?", a: "Não! Funciona com perfis públicos. Basta informar o @ e nós fazemos o resto." },
-  { q: "Quanto tempo leva para analisar uma conta?", a: "Primeira análise completa em menos de 2 minutos. Sincronizações diárias levam segundos." },
-  { q: "Meus dados ficam seguros?", a: "Criptografia ponta a ponta, servidores brasileiros, compliance LGPD." },
-  { q: "O que acontece se eu exceder meu limite?", a: "No plano grátis, a análise pausa até o próximo mês. Nos planos pagos, você pode continuar analisando com cobrança de excedente proporcional." },
-];
-
-const t = {
+const theme = {
   primary: "#39b8c6",
   secondary: "#b6496b",
   accent: "#b88147",
@@ -149,10 +132,41 @@ const t = {
 /* ── Component ── */
 
 export default function LandingPage() {
+  const t = useTranslations("landing");
+  const tc = useTranslations("common");
+
+  const demoKeys = ["s1", "s2", "s3", "s4", "s5"] as const;
+  const demoMeta = t.raw("demoResultsMeta") as Record<string, { emotion: string; score: number; sentiment: string; emoji: string }>;
+  const demoResults: Record<string, { emotion: string; score: number; sentiment: string; type: "pos" | "neg" | "neu"; emoji: string }> = {};
+  const demoSuggestions: string[] = [];
+  for (const k of demoKeys) {
+    const text = t(`demoResults.${k}`);
+    const meta = demoMeta[k];
+    demoSuggestions.push(text);
+    demoResults[text] = { ...meta, type: meta.score >= 7 ? "pos" : meta.score <= 4 ? "neg" : "neu" };
+  }
+
+  const emotionNames = t.raw("emotions") as Record<string, string>;
+  const emotionList = ["joy", "anger", "sadness", "neutral", "love", "disgust", "surprise", "fear"];
+
+  const plans = [
+    { name: t("pricing.freePlan"), price: t("pricing.freePlanPrice"), desc: t("pricing.freePlanDesc"), features: [t("pricing.freePlanFeature1"), t("pricing.freePlanFeature2"), t("pricing.freePlanFeature3"), t("pricing.freePlanFeature4")], popular: false },
+    { name: t("pricing.starterPlan"), price: t("pricing.starterPlanPrice"), desc: t("pricing.starterPlanDesc"), features: [t("pricing.starterPlanFeature1"), t("pricing.starterPlanFeature2"), t("pricing.starterPlanFeature3"), t("pricing.starterPlanFeature4"), t("pricing.starterPlanFeature5")], popular: false },
+    { name: t("pricing.proPlan"), price: t("pricing.proPlanPrice"), desc: t("pricing.proPlanDesc"), features: [t("pricing.proPlanFeature1"), t("pricing.proPlanFeature2"), t("pricing.proPlanFeature3"), t("pricing.proPlanFeature4"), t("pricing.proPlanFeature5")], popular: true },
+    { name: t("pricing.businessPlan"), price: t("pricing.businessPlanPrice"), desc: t("pricing.businessPlanDesc"), features: [t("pricing.businessPlanFeature1"), t("pricing.businessPlanFeature2"), t("pricing.businessPlanFeature3"), t("pricing.businessPlanFeature4"), t("pricing.businessPlanFeature5")], popular: false },
+  ];
+
+  const faqs = [
+    { q: t("faq.q1"), a: t("faq.a1") },
+    { q: t("faq.q2"), a: t("faq.a2") },
+    { q: t("faq.q3"), a: t("faq.a3") },
+    { q: t("faq.q4"), a: t("faq.a4") },
+  ];
+
   const [scrolled, setScrolled] = useState(false);
   const [openFaq, setOpenFaq] = useState<number | null>(null);
   const [tickerIdx, setTickerIdx] = useState(0);
-  useEffect(() => { const ti = setInterval(() => setTickerIdx(i => (i + 1) % tickerItems.length), 2200); return () => clearInterval(ti); }, []);
+  useEffect(() => { const ti = setInterval(() => setTickerIdx(i => (i + 1) % tickerItemsBase.length), 2200); return () => clearInterval(ti); }, []);
 
   const [demoInput, setDemoInput] = useState("");
   const [demoResult, setDemoResult] = useState<typeof demoResults[string] | null>(null);
@@ -183,7 +197,7 @@ export default function LandingPage() {
     }, 1200);
   }, []);
 
-  const [selectedEmotions, setSelectedEmotions] = useState(["Alegria", "Raiva"]);
+  const [selectedEmotions, setSelectedEmotions] = useState([emotionNames.joy, emotionNames.anger]);
   const toggleEmotion = (e: string) => setSelectedEmotions(prev => prev.includes(e) ? prev.filter(x => x !== e) : [...prev, e]);
 
   useEffect(() => { const onScroll = () => setScrolled(window.scrollY > 10); window.addEventListener("scroll", onScroll); return () => window.removeEventListener("scroll", onScroll); }, []);
@@ -191,7 +205,7 @@ export default function LandingPage() {
   const { scrollY } = useScroll();
   const heroY = useTransform(scrollY, [0, 800], [0, 120]);
 
-  const getColor = (type?: string) => type === "neg" ? t.secondary : type === "neu" ? t.accent : t.primary;
+  const getColor = (type?: string) => type === "neg" ? theme.secondary : type === "neu" ? theme.accent : theme.primary;
 
   return (
     <div className="min-h-screen relative" style={{ backgroundColor: "var(--bg-page)", fontFamily: "'Inter', sans-serif" }}>
@@ -231,13 +245,17 @@ export default function LandingPage() {
         <div className="max-w-[1200px] mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
           <Logo size="md" />
           <div className="hidden md:flex items-center gap-8">
-            <a href="#demo" style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>Teste ao vivo</a>
-            <a href="#como" style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>Como funciona</a>
-            <a href="#preco" style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>Precos</a>
-            <Link href="/login" style={{ fontSize: "0.85rem", fontWeight: 500, color: "var(--primary)" }}>Login</Link>
-            <Link href="/login"><Button size="sm">Comece gratis</Button></Link>
+            <a href="#demo" style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>{t("nav.liveTest")}</a>
+            <a href="#como" style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>{t("nav.howItWorks")}</a>
+            <a href="#preco" style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>{t("nav.pricing")}</a>
+            <LanguageSwitcher />
+            <Link href="/login" style={{ fontSize: "0.85rem", fontWeight: 500, color: "var(--primary)" }}>{t("nav.login")}</Link>
+            <Link href="/login"><Button size="sm">{t("nav.startFree")}</Button></Link>
           </div>
-          <Link href="/login" className="md:hidden"><Button size="sm">Entrar</Button></Link>
+          <div className="flex items-center gap-2 md:hidden">
+            <LanguageSwitcher compact />
+            <Link href="/login"><Button size="sm">{t("nav.enter")}</Button></Link>
+          </div>
         </div>
       </nav>
 
@@ -247,13 +265,13 @@ export default function LandingPage() {
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex items-center justify-center mb-4 md:mb-12">
             <div className="flex items-center gap-2 px-4 py-2 rounded-full transition-all max-w-[95vw]" style={{ backgroundColor: "#ffffff", border: "1px solid #bce8ec", boxShadow: "0 4px 16px -6px rgba(57,184,198,0.1)" }}>
               <div className="w-2 h-2 rounded-full animate-pulse shrink-0" style={{ backgroundColor: "#39b8c6" }} />
-              <span className="shrink-0" style={{ fontSize: "0.72rem", color: "#1a6f78", fontWeight: 600, letterSpacing: "0.02em" }}>AO VIVO</span>
+              <span className="shrink-0" style={{ fontSize: "0.72rem", color: "#1a6f78", fontWeight: 600, letterSpacing: "0.02em" }}>{t("hero.live")}</span>
               <AnimatePresence mode="wait">
                 <motion.span key={tickerIdx} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }} transition={{ duration: 0.3 }}
-                  style={{ fontSize: "0.75rem", fontWeight: 500, color: getColor(tickerItems[tickerIdx].type) }}
+                  style={{ fontSize: "0.75rem", fontWeight: 500, color: getColor(tickerItemsBase[tickerIdx].type) }}
                   className="whitespace-nowrap overflow-hidden text-ellipsis min-w-0"
                 >
-                  {tickerItems[tickerIdx].emotion}: &ldquo;{tickerItems[tickerIdx].text}&rdquo;
+                  {emotionNames[tickerItemsBase[tickerIdx].emotionKey]}: &ldquo;{t(tickerItemsBase[tickerIdx].textKey)}&rdquo;
                 </motion.span>
               </AnimatePresence>
             </div>
@@ -263,23 +281,18 @@ export default function LandingPage() {
             <div>
               <motion.h1 initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.1 }}
                 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(2.5rem, 5vw, 4rem)", fontWeight: 800, lineHeight: 1.02, color: "var(--text-primary)", letterSpacing: "-0.04em" }}>
-                Entenda o humor<br />antes que vire<br />
-                <span className="relative inline-block">
-                  <span style={{ color: "var(--primary)" }}>crise</span>
-                  <motion.svg initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 1, delay: 0.8 }} className="absolute -bottom-2 left-0 w-full h-3" viewBox="0 0 200 12" fill="none" preserveAspectRatio="none">
-                    <motion.path d="M2 8C2 8 60 2 100 6C140 10 198 4 198 4" stroke={t.secondary} strokeWidth="4" strokeLinecap="round" />
-                  </motion.svg>
-                </span>.
+                {t("hero.title")}<br />
+                <span style={{ color: "var(--primary)" }}>{t("hero.titleBreak")}</span>
               </motion.h1>
-              <motion.p initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.35 }} className="mt-7 max-w-[420px]" style={{ fontSize: "1.1rem", lineHeight: 1.75, color: "var(--text-muted)" }}>
-                O Sentimenta analisa comentários das suas redes, identifica <strong>sentimento</strong>, <strong>emoções</strong> e <strong>temas críticos</strong>, e mostra em minutos o que está ajudando ou prejudicando sua <strong>reputação</strong>.
-              </motion.p>
+              <motion.p initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.35 }} className="mt-7 max-w-[420px]" style={{ fontSize: "1.1rem", lineHeight: 1.75, color: "var(--text-muted)" }}
+                dangerouslySetInnerHTML={{ __html: t.raw("hero.subtitle") }}
+              />
               <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.5 }} className="flex items-center gap-3 mt-10 flex-wrap">
-                <Link href="/login"><Button variant="pill" size="lg" iconRight={<ArrowRight className="w-4 h-4" />}>Comece grátis</Button></Link>
-                <a href="#demo"><Button variant="pill-glass" size="lg" icon={<Play className="w-3.5 h-3.5" />}>Testar ao vivo</Button></a>
+                <Link href="/login"><Button variant="pill" size="lg" iconRight={<ArrowRight className="w-4 h-4" />}>{t("hero.ctaPrimary")}</Button></Link>
+                <a href="#demo"><Button variant="pill-glass" size="lg" icon={<Play className="w-3.5 h-3.5" />}>{t("hero.ctaSecondary")}</Button></a>
               </motion.div>
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }} className="flex items-center gap-6 mt-8 flex-wrap">
-                {[{ v: "12K+", l: "comentários analisados" }, { v: "8", l: "emoções mapeadas" }, { v: "<2min", l: "primeira leitura" }].map(s => (
+                {[{ v: "12K+", l: t("hero.statsComments") }, { v: "8", l: t("hero.statsEmotions") }, { v: "<2min", l: t("hero.statsFirstRead") }].map(s => (
                   <div key={s.l} className="flex items-center gap-2">
                     <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>{s.v}</span>
                     <span style={{ fontSize: "0.72rem", color: "var(--text-faint)" }}>{s.l}</span>
@@ -294,19 +307,19 @@ export default function LandingPage() {
                   <div className="p-6">
                     <div className="flex items-center justify-between mb-4">
                       <div>
-                        <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>Mapa de Emoções</h3>
-                        <p style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: 2 }}>Distribuição emocional da audiência</p>
+                        <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>{t("heroCards.emotionMapTitle")}</h3>
+                        <p style={{ fontSize: "0.72rem", color: "var(--text-muted)", marginTop: 2 }}>{t("heroCards.emotionMapSubtitle")}</p>
                       </div>
                       <div className="w-7 h-7 rounded-full flex items-center justify-center" style={{ backgroundColor: "var(--primary)" }}><Info className="w-3.5 h-3.5 text-white" /></div>
                     </div>
                     <div className="space-y-2.5">
                       {[
-                        { name: "Alegria", pct: 34, color: t.chart[0] },
-                        { name: "Raiva", pct: 28, color: t.sentimentNegative },
-                        { name: "Neutro", pct: 19, color: t.sentimentNeutral },
-                        { name: "Nojo", pct: 8, color: t.chart[4] },
-                        { name: "Surpresa", pct: 6, color: t.chart[6] },
-                        { name: "Outros", pct: 5, color: t.chart[7] },
+                        { name: emotionNames.joy, pct: 34, color: theme.chart[0] },
+                        { name: emotionNames.anger, pct: 28, color: theme.sentimentNegative },
+                        { name: emotionNames.neutral, pct: 19, color: theme.sentimentNeutral },
+                        { name: emotionNames.disgust, pct: 8, color: theme.chart[4] },
+                        { name: emotionNames.surprise, pct: 6, color: theme.chart[6] },
+                        { name: t("heroCards.others"), pct: 5, color: theme.chart[7] },
                       ].map(e => (
                         <div key={e.name} className="flex items-center gap-3">
                           <span className="w-16 shrink-0" style={{ fontSize: "0.72rem", color: "var(--text-muted)", fontWeight: 500 }}>{e.name}</span>
@@ -324,15 +337,15 @@ export default function LandingPage() {
                     <div className="p-5 flex flex-col items-center">
                       <div className="relative w-20 h-20 mb-3">
                         <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                          <circle cx="50" cy="50" r="38" fill="none" stroke={t.primaryBg} strokeWidth="8" />
-                          <motion.circle cx="50" cy="50" r="38" fill="none" stroke={t.primary} strokeWidth="8" strokeLinecap="round" initial={{ strokeDasharray: "0 240" }} animate={{ strokeDasharray: "110 130" }} transition={{ duration: 1, delay: 0.8 }} />
+                          <circle cx="50" cy="50" r="38" fill="none" stroke={theme.primaryBg} strokeWidth="8" />
+                          <motion.circle cx="50" cy="50" r="38" fill="none" stroke={theme.primary} strokeWidth="8" strokeLinecap="round" initial={{ strokeDasharray: "0 240" }} animate={{ strokeDasharray: "110 130" }} transition={{ duration: 1, delay: 0.8 }} />
                         </svg>
                         <div className="absolute inset-0 flex flex-col items-center justify-center">
                           <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.4rem", fontWeight: 700, color: "var(--primary)" }}>4.6</span>
                         </div>
                       </div>
-                      <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)" }}>Score</p>
-                      <p style={{ fontSize: "0.65rem", color: "var(--text-faint)" }}>Reputação geral</p>
+                      <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)" }}>{t("heroCards.scoreLabel")}</p>
+                      <p style={{ fontSize: "0.65rem", color: "var(--text-faint)" }}>{t("heroCards.reputationLabel")}</p>
                     </div>
                   </GlassCard>
                   <GlassCard>
@@ -340,8 +353,8 @@ export default function LandingPage() {
                       <div className="w-9 h-9 rounded-xl flex items-center justify-center mb-3" style={{ backgroundColor: "var(--sentiment-negative-bg)" }}>
                         <Shield className="w-4 h-4" style={{ color: "var(--sentiment-negative)" }} />
                       </div>
-                      <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>Alerta de Crise</p>
-                      <p style={{ fontSize: "0.68rem", lineHeight: 1.5, color: "var(--text-muted)" }}>Negatividade subiu 23% nas últimas 2h</p>
+                      <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>{t("heroCards.crisisAlertTitle")}</p>
+                      <p style={{ fontSize: "0.68rem", lineHeight: 1.5, color: "var(--text-muted)" }}>{t("heroCards.crisisAlertDesc")}</p>
                       <div className="mt-3 flex items-center gap-1">
                         <div className="flex-1 rounded-full h-1.5" style={{ backgroundColor: "var(--sentiment-negative-bg)" }}>
                           <motion.div initial={{ width: 0 }} animate={{ width: "72%" }} transition={{ duration: 1, delay: 1 }} className="h-full rounded-full" style={{ backgroundColor: "var(--sentiment-negative)" }} />
@@ -354,16 +367,16 @@ export default function LandingPage() {
                 <GlassCard>
                   <div className="p-5 flex items-center gap-5">
                     <div className="flex-1">
-                      <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)", marginBottom: 8 }}>Tendência Semanal</p>
+                      <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)", marginBottom: 8 }}>{t("heroCards.weeklyTrendTitle")}</p>
                       <div className="flex items-end gap-[3px] h-10">
                         {[30, 45, 35, 55, 40, 65, 50, 70, 45, 60, 55, 75, 48, 80].map((v, i) => (
-                          <motion.div key={i} initial={{ height: 0 }} animate={{ height: `${(v / 80) * 100}%` }} transition={{ duration: 0.4, delay: 0.8 + i * 0.05 }} className="flex-1 rounded-sm" style={{ backgroundColor: i >= 10 ? t.primary : t.textXfaint }} />
+                          <motion.div key={i} initial={{ height: 0 }} animate={{ height: `${(v / 80) * 100}%` }} transition={{ duration: 0.4, delay: 0.8 + i * 0.05 }} className="flex-1 rounded-sm" style={{ backgroundColor: i >= 10 ? theme.primary : theme.textXfaint }} />
                         ))}
                       </div>
                     </div>
                     <div className="text-right shrink-0">
                       <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.8rem", fontWeight: 700, color: "var(--primary)" }}>+12%</p>
-                      <p style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>vs semana anterior</p>
+                      <p style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>{t("heroCards.vsPreviousWeek")}</p>
                     </div>
                   </div>
                 </GlassCard>
@@ -385,10 +398,10 @@ export default function LandingPage() {
           <FadeIn>
             <div className="text-center mb-12">
               <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-5" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--primary)", backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
-                <Zap className="w-3 h-3" /> TESTE AO VIVO
+                <Zap className="w-3 h-3" /> {t("demo.badge")}
               </span>
               <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.5rem)", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.03em" }}>
-                Digite um comentário.<br />Veja a IA analisar.
+                {t("demo.title")}<br />{t("demo.titleLine2")}
               </h2>
             </div>
           </FadeIn>
@@ -398,17 +411,17 @@ export default function LandingPage() {
                 <div className="flex items-center gap-3 mb-6">
                   <div className="flex-1 relative">
                     <input type="text" value={demoInput} onChange={e => setDemoInput(e.target.value)} onKeyDown={e => e.key === "Enter" && demoInput.trim() && analyzeSentiment(demoInput)}
-                      placeholder="Escreva algo... ex: 'Parabéns pelo trabalho incrível!'"
+                      placeholder={t("demo.inputPlaceholder")}
                       className="w-full px-5 py-4 rounded-2xl transition-all"
                       style={{ fontSize: "0.95rem", backgroundColor: "var(--bg-subtle)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
                     />
                   </div>
-                  <button onClick={() => demoInput.trim() && analyzeSentiment(demoInput)} className="w-12 h-12 rounded-2xl flex items-center justify-center text-white transition-colors" style={{ backgroundColor: "var(--primary)", boxShadow: `0 4px 16px -4px ${t.primary}60` }}>
+                  <button onClick={() => demoInput.trim() && analyzeSentiment(demoInput)} className="w-12 h-12 rounded-2xl flex items-center justify-center text-white transition-colors" style={{ backgroundColor: "var(--primary)", boxShadow: `0 4px 16px -4px ${theme.primary}60` }}>
                     <Send className="w-5 h-5" />
                   </button>
                 </div>
                 <div className="flex flex-wrap gap-1.5 mb-6">
-                  <span className="w-full" style={{ fontSize: "0.72rem", color: "var(--text-faint)", fontWeight: 500, marginBottom: 2 }}>Experimente:</span>
+                  <span className="w-full" style={{ fontSize: "0.72rem", color: "var(--text-faint)", fontWeight: 500, marginBottom: 2 }}>{t("demo.trySuggestions")}</span>
                   {demoSuggestions.map(s => (
                     <button key={s} onClick={() => analyzeSentiment(s)} className="px-3 py-1.5 rounded-xl transition-colors" style={{ fontSize: "0.68rem", fontWeight: 500, backgroundColor: "var(--bg-subtle)", color: "var(--primary)", border: "1px solid var(--border)" }}>
                       {s.length > 40 ? s.slice(0, 40) + "..." : s}
@@ -419,7 +432,7 @@ export default function LandingPage() {
                   {analyzing && (
                     <motion.div key="analyzing" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex items-center justify-center py-8 gap-3">
                       <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }} className="w-5 h-5 border-2 rounded-full" style={{ borderColor: "var(--primary)", borderTopColor: "transparent" }} />
-                      <span style={{ fontSize: "0.88rem", color: "var(--primary)", fontWeight: 500 }}>Analisando com IA...</span>
+                      <span style={{ fontSize: "0.88rem", color: "var(--primary)", fontWeight: 500 }}>{t("demo.analyzingWithAI")}</span>
                     </motion.div>
                   )}
                   {demoResult && !analyzing && (
@@ -427,25 +440,25 @@ export default function LandingPage() {
                       <div className="rounded-2xl p-5 text-center" style={{ backgroundColor: "var(--bg-subtle)" }}>
                         <span style={{ fontSize: "2rem" }}>{demoResult.emoji}</span>
                         <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.95rem", fontWeight: 600, color: "var(--text-primary)", marginTop: 6 }}>{demoResult.emotion}</p>
-                        <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>emoção detectada</p>
+                        <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>{t("demo.emotionDetected")}</p>
                       </div>
                       <div className="rounded-2xl p-5 text-center" style={{ backgroundColor: "var(--bg-subtle)" }}>
                         <div className="relative w-14 h-14 mx-auto mb-2">
                           <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                            <circle cx="50" cy="50" r="38" fill="none" stroke={t.primaryBg} strokeWidth="8" />
+                            <circle cx="50" cy="50" r="38" fill="none" stroke={theme.primaryBg} strokeWidth="8" />
                             <circle cx="50" cy="50" r="38" fill="none" stroke={getColor(demoResult.type)} strokeWidth="8" strokeLinecap="round" strokeDasharray={`${(demoResult.score / 10) * 240} ${240 - (demoResult.score / 10) * 240}`} />
                           </svg>
                           <span className="absolute inset-0 flex items-center justify-center" style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1rem", fontWeight: 700, color: getColor(demoResult.type) }}>{demoResult.score.toFixed(1)}</span>
                         </div>
-                        <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>score de 10</p>
+                        <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>{t("demo.scoreOf10")}</p>
                       </div>
                       <div className="rounded-2xl p-5 text-center text-white" style={{ backgroundColor: getColor(demoResult.type) }}>
                         <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.3rem", fontWeight: 700, marginBottom: 4 }}>{demoResult.sentiment}</p>
-                        <p style={{ fontSize: "0.68rem", opacity: 0.7 }}>classificação</p>
+                        <p style={{ fontSize: "0.68rem", opacity: 0.7 }}>{t("demo.classification")}</p>
                       </div>
                       <div className="rounded-2xl p-5 text-center" style={{ backgroundColor: "var(--bg-subtle)" }}>
                         <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.8rem", fontWeight: 700, color: "var(--primary)" }}>94%</p>
-                        <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>confiança da IA</p>
+                        <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>{t("demo.aiConfidence")}</p>
                       </div>
                     </motion.div>
                   )}
@@ -461,20 +474,20 @@ export default function LandingPage() {
         <div className="max-w-[1000px] mx-auto">
           <FadeIn>
             <div className="flex flex-col md:flex-row md:items-start justify-between mb-14 gap-6">
-              <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.5rem)", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.03em", lineHeight: 1.05 }}>
-                Configure seu<br />monitoramento.
-              </h2>
-              <p className="max-w-[380px] md:text-right" style={{ fontSize: "0.92rem", lineHeight: 1.7, color: "var(--text-muted)" }}>
-                Escolha quais emoções monitorar, conecte um perfil e receba <strong>diagnósticos inteligentes</strong>.
-              </p>
+              <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.5rem)", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.03em", lineHeight: 1.05 }}
+                dangerouslySetInnerHTML={{ __html: t.raw("configure.title").replace(/\n/g, "<br/>") }}
+              />
+              <p className="max-w-[380px] md:text-right" style={{ fontSize: "0.92rem", lineHeight: 1.7, color: "var(--text-muted)" }}
+                dangerouslySetInnerHTML={{ __html: t.raw("configure.subtitle") }}
+              />
             </div>
           </FadeIn>
           <FadeIn delay={0.1}>
             <GlassCard className="mb-4">
               <div className="p-5 md:p-7">
-                <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>Emoções Monitoradas</h3>
-                <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>Selecione pelo menos duas emoções.</p>
-                <div className="mt-5"><PillSelector items={["Alegria", "Raiva", "Tristeza", "Neutro", "Amor", "Nojo", "Surpresa", "Medo"]} selected={selectedEmotions} onSelect={toggleEmotion} icon /></div>
+                <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>{t("configure.monitoredEmotions")}</h3>
+                <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>{t("configure.monitoredEmotionsSub")}</p>
+                <div className="mt-5"><PillSelector items={emotionList.map(e => emotionNames[e])} selected={selectedEmotions} onSelect={toggleEmotion} icon /></div>
               </div>
             </GlassCard>
           </FadeIn>
@@ -482,8 +495,8 @@ export default function LandingPage() {
             <FadeIn delay={0.15}>
               <GlassCard>
                 <div className="p-5 md:p-7">
-                  <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>Plataformas</h3>
-                  <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>Escolha onde monitorar.</p>
+                  <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>{t("configure.platforms")}</h3>
+                  <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>{t("configure.platformsSub")}</p>
                   <div className="mt-5"><PillSelector items={["Instagram", "TikTok", "YouTube", "X/Twitter"]} selected={["Instagram"]} onSelect={() => {}} grid /></div>
                 </div>
               </GlassCard>
@@ -491,9 +504,9 @@ export default function LandingPage() {
             <FadeIn delay={0.2}>
               <GlassCard>
                 <div className="p-5 md:p-7">
-                  <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>Frequência</h3>
-                  <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>Intervalo de sincronização.</p>
-                  <div className="mt-5"><PillSelector items={["A cada hora", "Diário", "Semanal"]} selected={["Diário"]} onSelect={() => {}} /></div>
+                  <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>{t("configure.frequency")}</h3>
+                  <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>{t("configure.frequencySub")}</p>
+                  <div className="mt-5"><PillSelector items={[t("configure.frequencyHourly"), t("configure.frequencyDaily"), t("configure.frequencyWeekly")]} selected={[t("configure.frequencyDaily")]} onSelect={() => {}} /></div>
                 </div>
               </GlassCard>
             </FadeIn>
@@ -501,18 +514,18 @@ export default function LandingPage() {
           <FadeIn delay={0.25}>
             <GlassCard>
               <div className="p-5 md:p-7">
-                <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>Limiar de Alerta</h3>
-                <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>Quando a IA deve alertar sobre uma crise.</p>
+                <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>{t("configure.alertThreshold")}</h3>
+                <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>{t("configure.alertThresholdSub")}</p>
                 <div className="mt-5 flex items-center gap-5">
                   <div className="flex-1 relative h-3 rounded-full overflow-hidden" style={{ backgroundColor: "var(--bg-subtle)" }}>
-                    <div className="absolute left-0 top-0 h-full rounded-full" style={{ width: "65%", background: `linear-gradient(90deg, ${t.primary}, ${t.sentimentNegative})` }} />
-                    <div className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full shadow-md" style={{ left: "calc(65% - 10px)", backgroundColor: "var(--bg-card)", border: `2px solid ${t.primary}` }} />
+                    <div className="absolute left-0 top-0 h-full rounded-full" style={{ width: "65%", background: `linear-gradient(90deg, ${theme.primary}, ${theme.sentimentNegative})` }} />
+                    <div className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full shadow-md" style={{ left: "calc(65% - 10px)", backgroundColor: "var(--bg-card)", border: `2px solid ${theme.primary}` }} />
                   </div>
                   <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)", width: 60, textAlign: "right" }}>65%</span>
                 </div>
                 <div className="flex items-center justify-between mt-3">
-                  <span style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>Relaxado</span>
-                  <span style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>Sensível</span>
+                  <span style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>{t("configure.relaxed")}</span>
+                  <span style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>{t("configure.sensitive")}</span>
                 </div>
               </div>
             </GlassCard>
@@ -521,7 +534,7 @@ export default function LandingPage() {
             <GlassCard className="mt-4">
               <div className="p-5 flex items-center gap-4">
                 <span style={{ color: "var(--text-faint)" }}>+</span>
-                <input type="text" placeholder="Digite o @ do perfil que quer monitorar..." className="flex-1 bg-transparent focus:outline-none" style={{ fontSize: "0.92rem", color: "var(--text-primary)" }} readOnly />
+                <input type="text" placeholder={t("configure.profilePlaceholder")} className="flex-1 bg-transparent focus:outline-none" style={{ fontSize: "0.92rem", color: "var(--text-primary)" }} readOnly />
                 <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: "var(--primary-bg)" }}>
                   <Sparkles className="w-4 h-4" style={{ color: "var(--primary)" }} />
                 </div>
@@ -530,7 +543,7 @@ export default function LandingPage() {
           </FadeIn>
           <FadeIn delay={0.4}>
             <div className="flex justify-end mt-6">
-              <Link href="/login"><Button size="lg" icon={<Sparkles className="w-4 h-4" />} iconRight={<ArrowRight className="w-4 h-4" />}>Começar monitoramento</Button></Link>
+              <Link href="/login"><Button size="lg" icon={<Sparkles className="w-4 h-4" />} iconRight={<ArrowRight className="w-4 h-4" />}>{t("configure.startMonitoring")}</Button></Link>
             </div>
           </FadeIn>
         </div>
@@ -542,19 +555,19 @@ export default function LandingPage() {
           <FadeIn>
             <div className="text-center mb-10">
               <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.5rem)", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.03em" }}>
-                Sua audiência deixa sinais.<br />O Sentimenta organiza e alerta.
+                {t("features.title")}<br />{t("features.titleLine2")}
               </h2>
             </div>
           </FadeIn>
           <div className="grid grid-cols-1 md:grid-cols-3 auto-rows-[180px] gap-4">
             {[
-              { glassIcon: <GlassZapIcon size={44} />, title: "Diagnóstico por IA", desc: "A IA identifica o que está virando crise, quais comentários exigem resposta e quais temas mais inflamam sua audiência.", tall: true },
-              { glassIcon: <GlassShieldIcon size={40} />, title: "Alertas de Crise", desc: "Saiba imediatamente quando negatividade sobe além do normal antes que vire problema." },
-              { glassIcon: <GlassChartIcon size={40} />, title: "Score 0-10", desc: "Cada post e perfil recebe um score que evolui ao longo do tempo." },
-              { glassIcon: <GlassHeartIcon size={40} />, title: "8 Emoções Mapeadas", desc: "Veja quais comentários são apoio, crítica, ataque, dúvida ou risco reputacional.", wide: true },
-              { glassIcon: <GlassTargetIcon size={40} />, title: "Comparativos", desc: "Compare sentimento entre perfis e períodos." },
-              { glassIcon: <GlassEyeIcon size={40} />, title: "Nuvem de Palavras", desc: "Identifique termos emergentes e temas recorrentes." },
-              { glassIcon: <GlassBellIcon size={40} />, title: "Heatmap Temporal", desc: "Veja quando sua audiência está mais ativa e emocional." },
+              { glassIcon: <GlassZapIcon size={44} />, title: t("features.aiDiagnosis"), desc: t("features.aiDiagnosisDesc"), tall: true },
+              { glassIcon: <GlassShieldIcon size={40} />, title: t("features.crisisAlerts"), desc: t("features.crisisAlertsDesc") },
+              { glassIcon: <GlassChartIcon size={40} />, title: t("features.score010"), desc: t("features.score010Desc") },
+              { glassIcon: <GlassHeartIcon size={40} />, title: t("features.emotionsMapped"), desc: t("features.emotionsMappedDesc"), wide: true },
+              { glassIcon: <GlassTargetIcon size={40} />, title: t("features.comparatives"), desc: t("features.comparativesDesc") },
+              { glassIcon: <GlassEyeIcon size={40} />, title: t("features.wordCloud"), desc: t("features.wordCloudDesc") },
+              { glassIcon: <GlassBellIcon size={40} />, title: t("features.temporalHeatmap"), desc: t("features.temporalHeatmapDesc") },
             ].map((f, i) => (
               <FadeIn key={f.title} delay={i * 0.05} className={`${(f as any).tall ? "md:row-span-2" : ""} ${(f as any).wide ? "md:col-span-2" : ""}`}>
                 <GlassCard active={(f as any).tall} className="h-full">
@@ -577,18 +590,18 @@ export default function LandingPage() {
             <GlassCard active>
               <div className="p-8 md:p-10 text-center">
                 <div className="flex items-center justify-center gap-1 mb-6">
-                  {[1, 2, 3, 4, 5].map(i => <Star key={i} className="w-5 h-5" style={{ fill: t.primary, color: t.primary }} />)}
+                  {[1, 2, 3, 4, 5].map(i => <Star key={i} className="w-5 h-5" style={{ fill: theme.primary, color: theme.primary }} />)}
                 </div>
                 <blockquote style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.3rem", fontWeight: 500, color: "var(--text-primary)", lineHeight: 1.5 }}>
-                  &ldquo;Em 15 minutos identificamos que a rejeição vinha de um tema específico nos comentários do Reels. Mudamos a estratégia e o score subiu 2 pontos em uma semana.&rdquo;
+                  &ldquo;{t("socialProof.quote")}&rdquo;
                 </blockquote>
                 <div className="mt-7 flex items-center justify-center gap-3">
-                  <div className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${t.secondary}, ${t.primary})` }}>
+                  <div className="w-11 h-11 rounded-full flex items-center justify-center" style={{ background: `linear-gradient(135deg, ${theme.secondary}, ${theme.primary})` }}>
                     <span className="text-white" style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.88rem", fontWeight: 600 }}>A</span>
                   </div>
                   <div className="text-left">
-                    <p style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--text-primary)" }}>Ana Oliveira</p>
-                    <p style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>Social Media Manager — Agência Digital — Salvador, BA</p>
+                    <p style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--text-primary)" }}>{t("socialProof.authorName")}</p>
+                    <p style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>{t("socialProof.authorRole")}</p>
                   </div>
                 </div>
               </div>
@@ -602,16 +615,16 @@ export default function LandingPage() {
         <div className="max-w-[1200px] mx-auto">
           <FadeIn>
             <div className="text-center mb-14">
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-5" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--primary)", backgroundColor: "var(--bg-subtle)", border: "1px solid var(--border)" }}>PREÇOS</span>
-              <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.5rem)", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.03em" }}>Simples e transparente.</h2>
-              <p className="mt-3" style={{ fontSize: "0.92rem", color: "var(--text-muted)" }}>Plano grátis com 500 comentários/mês. Demographics em todos os planos.</p>
+              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-5" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--primary)", backgroundColor: "var(--bg-subtle)", border: "1px solid var(--border)" }}>{t("pricing.badge")}</span>
+              <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.5rem)", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.03em" }}>{t("pricing.title")}</h2>
+              <p className="mt-3" style={{ fontSize: "0.92rem", color: "var(--text-muted)" }}>{t("pricing.subtitle")}</p>
             </div>
           </FadeIn>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
             {plans.map((plan, i) => (
               <FadeIn key={plan.name} delay={i * 0.08} className="h-full">
                 <div className="relative h-full">
-                  {plan.popular && <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-white z-20" style={{ fontSize: "0.68rem", fontWeight: 600, backgroundColor: "var(--primary)" }}>MAIS POPULAR</span>}
+                  {plan.popular && <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-4 py-1 rounded-full text-white z-20" style={{ fontSize: "0.68rem", fontWeight: 600, backgroundColor: "var(--primary)" }}>{t("pricing.mostPopular")}</span>}
                   <GlassCard active={plan.popular} className={`h-full flex flex-col ${plan.popular ? "text-white" : ""}`}>
                     <div className="absolute inset-0 z-0 pointer-events-none rounded-[20px]" style={plan.popular ? { background: `linear-gradient(135deg, rgba(14,35,37,0.92) 0%, rgba(29,70,73,0.92) 50%, rgba(57,184,198,0.92) 100%)` } : {}} />
                     <div className="relative z-10 flex flex-col h-full p-8">
@@ -620,7 +633,7 @@ export default function LandingPage() {
                       <div className="flex items-baseline gap-0.5 mt-6 mb-8">
                         <span style={{ fontSize: "0.82rem", color: plan.popular ? "rgba(255,255,255,0.6)" : "var(--text-faint)" }}>R$</span>
                         <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "3rem", fontWeight: 800, lineHeight: 1, color: plan.popular ? "white" : "var(--text-primary)" }}>{plan.price}</span>
-                        <span style={{ fontSize: "0.82rem", color: plan.popular ? "rgba(255,255,255,0.6)" : "var(--text-faint)" }}>/mês</span>
+                        <span style={{ fontSize: "0.82rem", color: plan.popular ? "rgba(255,255,255,0.6)" : "var(--text-faint)" }}>{tc("perMonth")}</span>
                       </div>
                       <div className="space-y-3.5 mb-8 flex-1">
                         {plan.features.map(f => (
@@ -631,7 +644,7 @@ export default function LandingPage() {
                         ))}
                       </div>
                       <Link href="/login" className="w-full py-3.5 rounded-xl transition-all text-center block" style={plan.popular ? { backgroundColor: "white", color: "#0e2325", fontSize: "0.88rem", fontWeight: 600, boxShadow: `0 4px 16px -4px rgba(255,255,255,0.3)` } : { backgroundColor: "var(--primary)", color: "white", fontSize: "0.88rem", fontWeight: 600, boxShadow: "0 4px 16px -4px rgba(57,184,198,0.4)" }}>
-                        Começar grátis
+                        {t("pricing.startFree")}
                       </Link>
                     </div>
                   </GlassCard>
@@ -645,7 +658,7 @@ export default function LandingPage() {
       {/* FAQ */}
       <section className="py-12 md:py-18 px-4 md:px-8 relative">
         <div className="max-w-[640px] mx-auto">
-          <FadeIn><h2 className="text-center mb-12" style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 800, color: "var(--text-primary)" }}>Perguntas frequentes</h2></FadeIn>
+          <FadeIn><h2 className="text-center mb-12" style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 800, color: "var(--text-primary)" }}>{t("faq.title")}</h2></FadeIn>
           <div className="space-y-3">
             {faqs.map((faq, i) => (
               <FadeIn key={i} delay={i * 0.04}>
@@ -671,16 +684,16 @@ export default function LandingPage() {
       {/* CTA */}
       <FadeIn>
         <section className="pb-12 md:pb-18 px-4 md:px-8">
-          <div className="max-w-[900px] mx-auto rounded-[32px] overflow-hidden relative" style={{ background: `linear-gradient(135deg, #0e2325 0%, #1d4649 50%, ${t.primary} 100%)` }}>
-            <div className="absolute top-[-80px] right-[-40px] w-[260px] h-[260px] rounded-full opacity-10" style={{ background: `radial-gradient(circle, ${t.secondary} 0%, transparent 70%)` }} />
+          <div className="max-w-[900px] mx-auto rounded-[32px] overflow-hidden relative" style={{ background: `linear-gradient(135deg, #0e2325 0%, #1d4649 50%, ${theme.primary} 100%)` }}>
+            <div className="absolute top-[-80px] right-[-40px] w-[260px] h-[260px] rounded-full opacity-10" style={{ background: `radial-gradient(circle, ${theme.secondary} 0%, transparent 70%)` }} />
             <div className="relative px-8 md:px-12 py-16 md:py-20 text-center">
               <div className="w-14 h-14 rounded-2xl mx-auto mb-6 flex items-center justify-center" style={{ background: "linear-gradient(135deg, #88d4dd, #61c6d1, #39b8c6)" }}>
                 <svg fill="none" height="24" stroke="white" strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" viewBox="0 0 24 24" width="24"><path d="M3 17C3 17 7 22 12 19C17 16 18 10 22 8" /></svg>
               </div>
-              <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.4rem)", fontWeight: 800, color: "white", lineHeight: 1.1, letterSpacing: "-0.03em" }}>Pare de adivinhar.<br />Comece a sentir.</h2>
-              <p className="mt-4 mb-10 mx-auto max-w-[420px]" style={{ fontSize: "0.95rem", color: "rgba(255,255,255,0.45)", lineHeight: 1.7 }}>Plano grátis pra sempre. Setup em 2 minutos.</p>
+              <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.4rem)", fontWeight: 800, color: "white", lineHeight: 1.1, letterSpacing: "-0.03em" }}>{t("cta.title")}<br />{t("cta.titleLine2")}</h2>
+              <p className="mt-4 mb-10 mx-auto max-w-[420px]" style={{ fontSize: "0.95rem", color: "rgba(255,255,255,0.45)", lineHeight: 1.7 }}>{t("cta.subtitle")}</p>
               <Link href="/login" className="inline-block px-10 py-4 bg-white rounded-full hover:bg-white/90 transition-all shadow-[0_8px_32px_-8px_rgba(0,0,0,0.2)]" style={{ fontSize: "0.95rem", fontWeight: 600, color: "#0e2325" }}>
-                Comece grátis agora
+                {t("cta.button")}
               </Link>
             </div>
           </div>
@@ -692,11 +705,11 @@ export default function LandingPage() {
         <div className="max-w-[1200px] mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <Logo size="sm" />
           <div className="flex items-center gap-8">
-            {[{ name: "Privacidade", path: "/privacidade" }, { name: "Termos", path: "/termos" }, { name: "Suporte", path: "/suporte" }, { name: "Blog", path: "/blog" }].map(link => (
+            {[{ name: t("footer.privacy"), path: "/privacidade" }, { name: t("footer.terms"), path: "/termos" }, { name: t("footer.support"), path: "/suporte" }, { name: t("footer.blog"), path: "/blog" }].map(link => (
               <Link key={link.name} href={link.path} style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>{link.name}</Link>
             ))}
           </div>
-          <p style={{ fontSize: "0.72rem", color: "var(--text-faint)" }}>&copy; 2026 Sentimenta</p>
+          <p style={{ fontSize: "0.72rem", color: "var(--text-faint)" }}>&copy; {t("footer.copyright")}</p>
         </div>
       </footer>
     </div>

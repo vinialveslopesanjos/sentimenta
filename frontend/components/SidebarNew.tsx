@@ -17,6 +17,7 @@ import {
   Menu,
   X,
 } from "lucide-react";
+import { useTranslations } from "next-intl";
 import { Logo } from "./ds/Logo";
 import { GlassInstagram, GlassYoutube, GlassTiktok, GlassTwitter, GlassX } from "./GlassSocialIcons";
 import { authApi, connectionsApi } from "@/lib/api";
@@ -44,21 +45,24 @@ const platformShortMap: Record<string, string> = {
   twitter: "X",
 };
 
-const navItems = [
-  { icon: Link2, label: "Conectar Perfis", path: "/dashboard/connect" },
-  { icon: GitBranch, label: "Pipeline Logs", path: "/dashboard/logs" },
-  { icon: BarChart3, label: "Análise", path: "/dashboard/analysis" },
-  { icon: Bell, label: "Alertas", path: "/dashboard/alerts" },
-  { icon: UserCircle, label: "Conta", path: "/dashboard/settings" },
+const navItemDefs = [
+  { icon: Link2, labelKey: "connectProfiles" as const, path: "/dashboard/connect" },
+  { icon: GitBranch, labelKey: "pipelineLogs" as const, path: "/dashboard/logs" },
+  { icon: BarChart3, labelKey: "analysis" as const, path: "/dashboard/analysis" },
+  { icon: Bell, labelKey: "alerts" as const, path: "/dashboard/alerts" },
+  { icon: UserCircle, labelKey: "account" as const, path: "/dashboard/settings" },
 ];
 
 export default function SidebarNew() {
+  const tn = useTranslations("nav");
   const [collapsed, setCollapsed] = useState(false);
   const [dashExpanded, setDashExpanded] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [connections, setConnections] = useState<SubItem[]>([]);
   const router = useRouter();
   const pathname = usePathname();
+
+  const navItems = navItemDefs.map(d => ({ ...d, label: tn(d.labelKey) }));
 
   useEffect(() => {
     const token = getToken();
@@ -212,7 +216,7 @@ export default function SidebarNew() {
           style={{ color: "var(--text-faint)" }}
         >
           {collapsed ? <ChevronRight className="w-[18px] h-[18px]" /> : <ChevronLeft className="w-[18px] h-[18px]" />}
-          {!collapsed && <span style={{ fontSize: "0.85rem" }}>Recolher</span>}
+          {!collapsed && <span style={{ fontSize: "0.85rem" }}>{tn("collapse")}</span>}
         </button>
         <button
           onClick={handleLogout}
@@ -220,7 +224,7 @@ export default function SidebarNew() {
           style={{ color: "var(--text-faint)" }}
         >
           <LogOut className="w-[18px] h-[18px]" strokeWidth={1.5} />
-          {!collapsed && <span style={{ fontSize: "0.85rem" }}>Sair</span>}
+          {!collapsed && <span style={{ fontSize: "0.85rem" }}>{tn("logout")}</span>}
         </button>
       </div>
     </>
