@@ -3,6 +3,7 @@ import {
   ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip,
   LineChart, Line, Legend, Cell, ZAxis,
 } from "recharts";
+import { useTranslations } from "next-intl";
 import { Section } from "./ds/Section";
 import { Badge } from "./ds/Badge";
 import { getScoreStyle } from "./ds/tokens";
@@ -22,6 +23,7 @@ interface GapPost {
 
 export function GapAnalysis({ posts, platformLabel }: { posts: GapPost[]; platformLabel: string }) {
   const { t } = useTheme();
+  const tc = useTranslations("charts");
   const [hovered, setHovered] = useState<number | null>(null);
 
   const getQuadrantColor = (eng: number, sent: number) => {
@@ -32,39 +34,39 @@ export function GapAnalysis({ posts, platformLabel }: { posts: GapPost[]; platfo
   };
 
   return (
-    <Section title="Gap Analysis: Engajamento vs. Sentimento" subtitle="Posts plotados por taxa de engajamento e score médio de sentimento">
+    <Section title={tc("gapAnalysis.title")} subtitle={tc("gapAnalysis.subtitle")}>
       <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <Badge variant="primary">Insight Premium</Badge>
-        <span style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>Cada ponto = 1 post</span>
+        <Badge variant="primary">{tc("insightPremium")}</Badge>
+        <span style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>{tc("gapAnalysis.eachDot")}</span>
       </div>
       {/* Quadrant labels */}
       <div className="relative">
         <div className="absolute top-2 left-12 z-10 px-2 py-0.5 rounded" style={{ fontSize: "0.58rem", fontWeight: 600, color: t.secondary, backgroundColor: `${t.secondaryBg}` }}>
-          💎 Joia Escondida
+          💎 {tc("gapAnalysis.hiddenGem")}
         </div>
         <div className="absolute top-2 right-4 z-10 px-2 py-0.5 rounded" style={{ fontSize: "0.58rem", fontWeight: 600, color: t.sentimentPositive, backgroundColor: `${t.sentimentPositive}15` }}>
-          🚀 Viral Positivo
+          🚀 {tc("gapAnalysis.viralPositive")}
         </div>
         <div className="absolute bottom-8 left-12 z-10 px-2 py-0.5 rounded" style={{ fontSize: "0.58rem", fontWeight: 600, color: t.sentimentNeutral, backgroundColor: `${t.sentimentNeutral}15` }}>
-          😐 Baixo Impacto
+          😐 {tc("gapAnalysis.lowImpact")}
         </div>
         <div className="absolute bottom-8 right-4 z-10 px-2 py-0.5 rounded" style={{ fontSize: "0.58rem", fontWeight: 600, color: t.sentimentNegative, backgroundColor: `${t.sentimentNegative}15` }}>
-          🔥 Crise Viral
+          🔥 {tc("gapAnalysis.viralCrisis")}
         </div>
         <ResponsiveContainer width="100%" height={300}>
           <ScatterChart id={`gap-scatter-${platformLabel}`} margin={{ top: 20, right: 20, bottom: 10, left: 10 }}>
             <CartesianGrid strokeDasharray="3 3" stroke={t.border} />
             <XAxis
-              type="number" dataKey="engagement" name="Engajamento" unit="%"
+              type="number" dataKey="engagement" name={tc("gapAnalysis.engagementLabel")} unit="%"
               domain={[0, 100]} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false}
-              label={{ value: "Taxa de Engajamento →", position: "insideBottom", offset: -5, style: { fontSize: 10, fill: t.textMuted } }}
+              label={{ value: `${tc("gapAnalysis.engagementAxis")} →`, position: "insideBottom", offset: -5, style: { fontSize: 10, fill: t.textMuted } }}
             />
             <YAxis
-              type="number" dataKey="sentiment" name="Sentimento"
+              type="number" dataKey="sentiment" name={tc("gapAnalysis.sentiment")}
               domain={[0, 10]} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false}
-              label={{ value: "Score Sentimento →", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 10, fill: t.textMuted } }}
+              label={{ value: `${tc("gapAnalysis.sentimentAxis")} →`, angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 10, fill: t.textMuted } }}
             />
-            <ZAxis type="number" dataKey="comments" range={[40, 200]} name="Comentários" />
+            <ZAxis type="number" dataKey="comments" range={[40, 200]} name={tc("gapAnalysis.commentsLabel")} />
             {/* Reference lines for quadrants */}
             <Tooltip
               content={({ payload }) => {
@@ -73,7 +75,7 @@ export function GapAnalysis({ posts, platformLabel }: { posts: GapPost[]; platfo
                 return (
                   <div className="rounded-xl p-3 shadow-lg" style={{ backgroundColor: t.bgCard, border: `1px solid ${t.border}` }}>
                     <p style={{ fontSize: "0.78rem", fontWeight: 600, color: t.textPrimary }}>{d.title}</p>
-                    <p style={{ fontSize: "0.68rem", color: t.textMuted }}>Engajamento: {d.engagement}% · Score: {d.sentiment.toFixed(1)} · {d.comments} com.</p>
+                    <p style={{ fontSize: "0.68rem", color: t.textMuted }}>{tc("gapAnalysis.engagementLabel")}: {d.engagement}% · Score: {d.sentiment.toFixed(1)} · {d.comments} com.</p>
                   </div>
                 );
               }}
@@ -107,15 +109,16 @@ interface LifecyclePost {
 
 export function PostLifecycle({ posts, platformLabel }: { posts: LifecyclePost[]; platformLabel: string }) {
   const { t } = useTheme();
+  const tc = useTranslations("charts");
   const [selectedPost, setSelectedPost] = useState(0);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const post = posts[selectedPost];
   const lineColors = [t.primary, t.secondary, t.accent, t.primaryMuted, t.secondaryLight];
 
   return (
-    <Section title="Lifecycle Emocional do Post" subtitle="Como o sentimento evolui ao longo do tempo dentro de cada post">
+    <Section title={tc("postLifecycle.title")} subtitle={tc("postLifecycle.subtitle")}>
       <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <Badge variant="primary">Insight Premium</Badge>
+        <Badge variant="primary">{tc("insightPremium")}</Badge>
         <div className="relative">
           <button
             onClick={() => setDropdownOpen(!dropdownOpen)}
@@ -176,13 +179,13 @@ export function PostLifecycle({ posts, platformLabel }: { posts: LifecyclePost[]
           />
           <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: `0 4px 16px ${t.primary}15`, fontSize: "0.78rem", backgroundColor: t.bgCard }} />
           <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
-          <Line type="monotone" dataKey="score" name="Score Sentimento" stroke={t.primary} strokeWidth={2.5} dot={{ r: 3, fill: t.primary, strokeWidth: 0 }} />
-          <Line type="monotone" dataKey="volume" name="Volume com." stroke={t.secondary} strokeWidth={1.5} strokeDasharray="5 5" dot={false} />
+          <Line type="monotone" dataKey="score" name={tc("postLifecycle.scoreSentiment")} stroke={t.primary} strokeWidth={2.5} dot={{ r: 3, fill: t.primary, strokeWidth: 0 }} />
+          <Line type="monotone" dataKey="volume" name={tc("postLifecycle.volumeComments")} stroke={t.secondary} strokeWidth={1.5} strokeDasharray="5 5" dot={false} />
         </LineChart>
       </ResponsiveContainer>
       <div className="flex items-center gap-4 mt-2" style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>
-        <span>⬆ Score subindo = sentimento melhorando</span>
-        <span>⬇ Score caindo = crise se formando</span>
+        <span>⬆ {tc("postLifecycle.scoreRising")}</span>
+        <span>⬇ {tc("postLifecycle.scoreDropping")}</span>
       </div>
     </Section>
   );
@@ -206,43 +209,42 @@ export function AmbassadorsVsDetractors({ ambassadors, detractors, platformLabel
   platformLabel: string;
 }) {
   const { t } = useTheme();
+  const tc = useTranslations("charts");
 
   const UserCard = ({ user, type }: { user: Ambassador; type: "fan" | "hater" }) => {
     const isFan = type === "fan";
+    const scoreColor = isFan ? t.sentimentPositive : t.sentimentNegative;
+    const scoreBgColor = isFan ? `${t.sentimentPositive}15` : `${t.sentimentNegative}15`;
     return (
-      <div className="flex items-center gap-2 p-2.5 rounded-xl transition-colors" style={{ backgroundColor: "var(--bg-subtle)" }}>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-1.5">
-            <p className="truncate" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-primary)" }}>@{user.username}</p>
-            <span
-              className="px-1.5 py-0.5 rounded-md shrink-0"
-              style={{
-                fontSize: "0.62rem", fontWeight: 700,
-                color: isFan ? t.sentimentPositive : t.sentimentNegative,
-                backgroundColor: isFan ? `${t.sentimentPositive}15` : `${t.sentimentNegative}15`,
-              }}
-            >
-              {user.avgScore.toFixed(1)}
-            </span>
-          </div>
-          <p style={{ fontSize: "0.58rem", color: "var(--text-muted)", marginTop: 1 }}>
-            {user.comments} com. · {user.dominantEmotion}
-          </p>
+      <div className="p-3 rounded-xl transition-colors" style={{ backgroundColor: "var(--bg-subtle)" }}>
+        <div className="flex items-center justify-between mb-1.5">
+          <p className="truncate" style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)" }}>@{user.username}</p>
+          <span className="px-1.5 py-0.5 rounded-md shrink-0" style={{ fontSize: "0.65rem", fontWeight: 700, color: scoreColor, backgroundColor: scoreBgColor }}>
+            {user.avgScore.toFixed(1)}
+          </span>
+        </div>
+        <div className="w-full h-1.5 rounded-full mb-1.5" style={{ backgroundColor: `${scoreColor}15` }}>
+          <div className="h-full rounded-full" style={{ width: `${(user.avgScore / 10) * 100}%`, backgroundColor: scoreColor }} />
+        </div>
+        <div className="flex items-center gap-2">
+          <MessageCircle className="w-3 h-3" style={{ color: "var(--text-faint)" }} />
+          <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>{user.comments} com.</span>
+          <span className="px-1.5 py-0.5 rounded capitalize ml-auto" style={{ fontSize: "0.58rem", fontWeight: 500, color: "var(--primary)", backgroundColor: "var(--primary-bg)" }}>{user.dominantEmotion}</span>
         </div>
       </div>
     );
   };
 
   return (
-    <Section title="Fans e Haters" subtitle="CRM de audiência: seus fãs mais leais vs. críticos frequentes">
+    <Section title={tc("ambassadors.title")} subtitle={tc("ambassadors.subtitle")}>
       <div className="flex items-center gap-2 mb-4">
-        <Badge variant="primary">Insight Premium</Badge>
+        <Badge variant="primary">{tc("insightPremium")}</Badge>
       </div>
       <div className="grid grid-cols-2 gap-3">
         <div>
           <div className="flex items-center gap-1.5 mb-2">
             <Shield className="w-3.5 h-3.5" style={{ color: t.sentimentPositive }} />
-            <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)" }}>Fans</span>
+            <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)" }}>{tc("ambassadors.fans")}</span>
           </div>
           <div className="space-y-1.5">
             {ambassadors.map(u => <UserCard key={u.username} user={u} type="fan" />)}
@@ -251,7 +253,7 @@ export function AmbassadorsVsDetractors({ ambassadors, detractors, platformLabel
         <div>
           <div className="flex items-center gap-1.5 mb-2">
             <Flame className="w-3.5 h-3.5" style={{ color: t.sentimentNegative }} />
-            <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)" }}>Haters</span>
+            <span style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)" }}>{tc("ambassadors.haters")}</span>
           </div>
           <div className="space-y-1.5">
             {detractors.map(u => <UserCard key={u.username} user={u} type="hater" />)}
@@ -274,6 +276,7 @@ interface TopicNode {
 
 export function TopicTreemap({ topics, platformLabel }: { topics: TopicNode[]; platformLabel: string }) {
   const { t } = useTheme();
+  const tc = useTranslations("charts");
   const [hovered, setHovered] = useState<number | null>(null);
 
   // Sort descending by count
@@ -310,14 +313,14 @@ export function TopicTreemap({ topics, platformLabel }: { topics: TopicNode[]; p
   const cols = sorted.length <= 5 ? sorted.length : 5;
 
   return (
-    <Section title="Topic Treemap" subtitle="Tamanho = frequência, Cor = sentimento médio do tópico">
+    <Section title={tc("topicTreemap.title")} subtitle={tc("topicTreemap.subtitle")}>
       <div className="flex items-center gap-2 mb-3 flex-wrap">
-        <Badge variant="primary">Insight Premium</Badge>
+        <Badge variant="primary">{tc("insightPremium")}</Badge>
         <div className="flex items-center gap-3 ml-auto" style={{ fontSize: "0.62rem" }}>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: t.sentimentPositive }} /> Positivo (&ge;7)</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: t.secondary }} /> Neutro (5-7)</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: t.primaryMuted }} /> Alerta (3-5)</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: t.sentimentNegative }} /> Negativo (&lt;3)</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: t.sentimentPositive }} /> {tc("topicTreemap.positiveLabel")}</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: t.secondary }} /> {tc("topicTreemap.neutralLabel")}</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: t.primaryMuted }} /> {tc("topicTreemap.alertLabel")}</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: t.sentimentNegative }} /> {tc("topicTreemap.negativeLabel")}</span>
         </div>
       </div>
       <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
@@ -364,6 +367,7 @@ interface SmartAlert {
 
 export function SmartAlerts({ alerts, platformLabel }: { alerts: SmartAlert[]; platformLabel: string }) {
   const { t } = useTheme();
+  const tc = useTranslations("charts");
 
   const getAlertIcon = (type: SmartAlert["type"]) => {
     switch (type) {
@@ -377,17 +381,17 @@ export function SmartAlerts({ alerts, platformLabel }: { alerts: SmartAlert[]; p
 
   const getSeverityStyle = (severity: SmartAlert["severity"]) => {
     switch (severity) {
-      case "high": return { color: t.sentimentNegative, bg: `${t.sentimentNegative}15`, label: "Alta" };
-      case "medium": return { color: t.secondary, bg: `${t.secondary}20`, label: "Média" };
-      case "low": return { color: t.sentimentPositive, bg: `${t.sentimentPositive}15`, label: "Baixa" };
+      case "high": return { color: t.sentimentNegative, bg: `${t.sentimentNegative}15`, label: tc("smartAlertsSection.severityHigh") };
+      case "medium": return { color: t.secondary, bg: `${t.secondary}20`, label: tc("smartAlertsSection.severityMedium") };
+      case "low": return { color: t.sentimentPositive, bg: `${t.sentimentPositive}15`, label: tc("smartAlertsSection.severityLow") };
     }
   };
 
   return (
-    <Section title="Alertas Inteligentes" subtitle="Anomalias detectadas automaticamente nos seus dados">
+    <Section title={tc("smartAlertsSection.title")} subtitle={tc("smartAlertsSection.subtitle")}>
       <div className="flex items-center gap-2 mb-4">
-        <Badge variant="primary">Insight Premium</Badge>
-        <span style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>{alerts.length} alertas ativos</span>
+        <Badge variant="primary">{tc("insightPremium")}</Badge>
+        <span style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>{tc("smartAlertsSection.activeAlerts", { count: alerts.length })}</span>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {alerts.map((alert, i) => {
@@ -450,6 +454,7 @@ const EMOTION_ABBREV: Record<string, string> = {
 
 export function TopicEmotionHeatmap({ matrix, platformLabel }: { matrix: TopicEmotionMatrix; platformLabel: string }) {
   const { t } = useTheme();
+  const tc = useTranslations("charts");
 
   // Always use exactly 7 canonical emotions
   // Map from API emotions to canonical ones
@@ -489,18 +494,18 @@ export function TopicEmotionHeatmap({ matrix, platformLabel }: { matrix: TopicEm
   };
 
   return (
-    <Section title="Matriz Tópico × Emoção" subtitle="Qual emoção é associada a cada tópico mencionado">
+    <Section title={tc("topicEmotionMatrix.title")} subtitle={tc("topicEmotionMatrix.subtitle")}>
       <div className="flex items-center gap-2 mb-4 flex-wrap">
-        <Badge variant="primary">Insight Premium</Badge>
-        <span style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>Intensidade = volume de menções</span>
+        <Badge variant="primary">{tc("insightPremium")}</Badge>
+        <span style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>{tc("topicEmotionMatrix.intensity")}</span>
       </div>
       {/* Heatmap grid */}
       <div className="overflow-x-auto">
-        <table className="border-collapse" style={{ minWidth: "420px" }}>
+        <table className="w-full border-collapse">
           {/* Emotion column headers */}
           <thead>
             <tr>
-              <th style={{ width: "90px" }} />
+              <th style={{ width: "15%" }} />
               {CANONICAL_EMOTIONS.map((emotion) => (
                 <th
                   key={emotion}
@@ -510,12 +515,11 @@ export function TopicEmotionHeatmap({ matrix, platformLabel }: { matrix: TopicEm
                     fontWeight: 600,
                     color: "var(--text-muted)",
                     padding: "0 2px 6px",
-                    width: "32px",
                   }}
-                  title={emotion}
+                  title={tc(`emotions.${emotion.toLowerCase()}`)}
                 >
-                  <span className="hidden sm:inline">{emotion}</span>
-                  <span className="sm:hidden">{EMOTION_ABBREV[emotion]}</span>
+                  <span className="hidden sm:inline">{tc(`emotions.${emotion.toLowerCase()}`)}</span>
+                  <span className="sm:hidden">{tc(`emotionAbbrev.${emotion.toLowerCase()}`)}</span>
                 </th>
               ))}
             </tr>
@@ -542,10 +546,9 @@ export function TopicEmotionHeatmap({ matrix, platformLabel }: { matrix: TopicEm
                   return (
                     <td key={emotion} className="text-center" style={{ padding: "1.5px" }}>
                       <div
-                        className="rounded flex items-center justify-center mx-auto"
+                        className="rounded flex items-center justify-center mx-auto w-full aspect-square"
                         style={{
-                          width: "30px",
-                          height: "30px",
+                          maxHeight: "40px",
                           backgroundColor: getCellBg(value),
                           fontSize: "0.6rem",
                           fontWeight: 700,
@@ -566,13 +569,13 @@ export function TopicEmotionHeatmap({ matrix, platformLabel }: { matrix: TopicEm
       </div>
       {/* Legend */}
       <div className="flex items-center gap-2 mt-3 justify-end" style={{ fontSize: "0.58rem", color: "var(--text-faint)" }}>
-        <span>Menos menções</span>
+        <span>{tc("topicEmotionMatrix.lessMentions")}</span>
         <div className="flex gap-0.5">
           {[0.15, 0.3, 0.5, 0.7, 0.9].map((op, i) => (
             <div key={i} className="w-4 h-3 rounded" style={{ backgroundColor: t.primary, opacity: op }} />
           ))}
         </div>
-        <span>Mais menções</span>
+        <span>{tc("topicEmotionMatrix.moreMentions")}</span>
       </div>
     </Section>
   );

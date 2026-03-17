@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   TrendingUp,
   TrendingDown,
@@ -164,6 +165,8 @@ const heatmapHours = ["00", "02", "04", "06", "08", "10", "12", "14", "16", "18"
 export default function DashboardPage() {
   const router = useRouter();
   const { t } = useTheme();
+  const td = useTranslations("dashboard");
+  const tc = useTranslations("common");
 
   // ── State ──
   const [loading, setLoading] = useState(true);
@@ -188,7 +191,7 @@ export default function DashboardPage() {
 
   // Chart filters
   const [chartGranularity, setChartGranularity] = useState<"day" | "week" | "month">("week");
-  const [chartDays, setChartDays] = useState<number>(30);
+  const [chartDays, setChartDays] = useState<number>(0);
 
   // Prompt editing
   const [editingPrompt, setEditingPrompt] = useState(false);
@@ -243,10 +246,10 @@ export default function DashboardPage() {
 
       // If summary failed, that's critical
       if (results[0].status === "rejected") {
-        setError("Não foi possível carregar o dashboard. Tente novamente.");
+        setError(td("couldNotLoadDashboard"));
       }
     } catch {
-      setError("Erro ao carregar dados do dashboard.");
+      setError(td("dashboardLoadError"));
     } finally {
       setLoading(false);
     }
@@ -304,7 +307,7 @@ export default function DashboardPage() {
 
   // Score trend chart data
   const formatTrendLabel = (period: string, idx: number) => {
-    if (chartGranularity === "week") return `Sem ${idx + 1}`;
+    if (chartGranularity === "week") return `${td("weekLabel")} ${idx + 1}`;
     if (chartGranularity === "month") {
       const d = new Date(period);
       return d.toLocaleDateString("pt-BR", { month: "short" });
@@ -429,7 +432,7 @@ export default function DashboardPage() {
     return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
         <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>{error}</p>
-        <Button onClick={fetchData} icon={<RefreshCw className="w-4 h-4" />}>Tentar novamente</Button>
+        <Button onClick={fetchData} icon={<RefreshCw className="w-4 h-4" />}>{tc("retry")}</Button>
       </div>
     );
   }
@@ -440,15 +443,15 @@ export default function DashboardPage() {
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-1">
         <div>
           <h1 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.7rem", fontWeight: 700, color: "var(--text-primary)" }}>
-            Dashboard
+            {td("title")}
           </h1>
           <p style={{ fontSize: "0.88rem", color: "var(--text-muted)", marginTop: 4 }}>
-            Aqui está o resumo de todos os perfis monitorados.
+            {td("subtitle")}
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="muted" dot>Última sync: {timeSince(latestSync)}</Badge>
-          <Button variant="ghost" size="sm" icon={<RefreshCw className="w-3.5 h-3.5" />} onClick={fetchData}>Atualizar</Button>
+          <Badge variant="muted" dot>{td("lastSync", { time: timeSince(latestSync) })}</Badge>
+          <Button variant="ghost" size="sm" icon={<RefreshCw className="w-3.5 h-3.5" />} onClick={fetchData}>{td("refresh")}</Button>
         </div>
       </div>
 
@@ -470,11 +473,11 @@ export default function DashboardPage() {
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
                 <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 800, color: "var(--primary)" }}>{score.toFixed(1)}</span>
-                <span style={{ fontSize: "0.6rem", color: "var(--text-faint)" }}>de 10</span>
+                <span style={{ fontSize: "0.6rem", color: "var(--text-faint)" }}>{td("outOf10")}</span>
               </div>
             </div>
-            <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.92rem", fontWeight: 600, color: "var(--text-primary)" }}>Reputação Geral</p>
-            <Badge variant={repBadge.variant} dot>{repBadge.label}</Badge>
+            <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.92rem", fontWeight: 600, color: "var(--text-primary)" }}>{td("overallReputation")}</p>
+            <Badge variant={repBadge.variant} dot>{score >= 7 ? td("goodReputation") : score >= 4 ? td("attentionNeeded") : td("criticalReputation")}</Badge>
             {(positive + neutral + negative) > 0 && (
               <div className="w-full mt-4">
                 <SentimentBar positive={positive} neutral={neutral} negative={negative} height={8} showLabels />
@@ -486,25 +489,25 @@ export default function DashboardPage() {
             <div className="rounded-2xl p-5 md:p-6 text-white" style={{ backgroundColor: "var(--primary)", boxShadow: `0 8px 24px -4px ${t.primary}50` }}>
               <GlassChartIcon size={36} className="mb-3" />
               <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 800, lineHeight: 1 }}>{totalComments.toLocaleString("pt-BR")}</p>
-              <p style={{ fontSize: "0.75rem", opacity: 0.6, marginTop: 4 }}>comentários analisados</p>
+              <p style={{ fontSize: "0.75rem", opacity: 0.6, marginTop: 4 }}>{td("analyzedComments")}</p>
             </div>
             <div className="rounded-2xl p-5 md:p-6" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 1px 8px -2px rgba(0,0,0,0.06)" }}>
               <GlassHeartIcon size={36} className="mb-3" />
               <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 800, color: "var(--text-primary)", lineHeight: 1 }}>{totalPosts.toLocaleString("pt-BR")}</p>
-              <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: 4 }}>posts monitorados</p>
+              <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: 4 }}>{td("monitoredPosts")}</p>
             </div>
             <div className="rounded-2xl p-5 md:p-6" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 1px 8px -2px rgba(0,0,0,0.06)" }}>
               <GlassLinkIcon size={36} className="mb-3" />
               <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 800, color: "var(--text-primary)", lineHeight: 1 }}>{connectedProfiles}</p>
-              <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: 4 }}>perfis conectados</p>
+              <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: 4 }}>{td("connectedProfiles")}</p>
             </div>
             <div className="rounded-2xl p-5 md:p-6" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 1px 8px -2px rgba(0,0,0,0.06)" }}>
               <GlassZapIcon size={36} className="mb-3" />
               <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 800, color: "var(--text-primary)", lineHeight: 1 }}>8</p>
-              <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: 4 }}>emoções rastreadas</p>
+              <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: 4 }}>{td("trackedEmotions")}</p>
             </div>
             <div className="col-span-2 rounded-2xl p-5 md:p-6" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 1px 8px -2px rgba(0,0,0,0.06)" }}>
-              <p style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.08em", marginBottom: 12 }}>PLATAFORMAS CONECTADAS</p>
+              <p style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.08em", marginBottom: 12 }}>{td("connectedPlatforms")}</p>
               {connections.length > 0 ? (
                 <div className="grid grid-cols-4 gap-3">
                   {connections.map(c => (
@@ -518,25 +521,25 @@ export default function DashboardPage() {
                   ))}
                 </div>
               ) : (
-                <p style={{ fontSize: "0.78rem", color: "var(--text-faint)", textAlign: "center", padding: "12px 0" }}>Nenhuma plataforma conectada</p>
+                <p style={{ fontSize: "0.78rem", color: "var(--text-faint)", textAlign: "center", padding: "12px 0" }}>{td("noPlatformConnected")}</p>
               )}
             </div>
           </div>
         </div>
       )}
 
-      {/* ═══ DIAGNOSIS + PLATFORM SUMMARY ═══ */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Section title="Diagnóstico de IA" subtitle={healthReport?.generated_at ? `Gerado em ${new Date(healthReport.generated_at).toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })}` : "Diagnóstico automático"} action={
+      {/* ═══ DIAGNOSIS ═══ */}
+      <div className="grid grid-cols-1 gap-4">
+        <Section title={td("aiDiagnosis")} subtitle={healthReport?.generated_at ? td("generatedAt", { date: new Date(healthReport.generated_at).toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" }) }) : td("automaticDiagnosis")} action={
           <div className="flex items-center gap-2">
-            <Button variant="ghost" size="sm" icon={<Pencil className="w-3.5 h-3.5" strokeWidth={1.5} />} onClick={() => setEditingPrompt(!editingPrompt)}>Editar</Button>
-            <Button variant="ghost" size="sm" icon={<RefreshCw className={`w-3.5 h-3.5 ${loadingPrompt ? "animate-spin" : ""}`} strokeWidth={1.5} />} onClick={handleRefreshReport}>Atualizar</Button>
+            <Button variant="ghost" size="sm" icon={<Pencil className="w-3.5 h-3.5" strokeWidth={1.5} />} onClick={() => setEditingPrompt(!editingPrompt)}>{td("editPrompt")}</Button>
+            <Button variant="ghost" size="sm" icon={<RefreshCw className={`w-3.5 h-3.5 ${loadingPrompt ? "animate-spin" : ""}`} strokeWidth={1.5} />} onClick={handleRefreshReport}>{td("refreshReport")}</Button>
           </div>
         }>
           {editingPrompt && (
             <div className="mb-4 rounded-xl p-4" style={{ backgroundColor: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
               <div className="flex items-center justify-between mb-2">
-                <p style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>PROMPT DO AGENTE</p>
+                <p style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>{td("agentPrompt")}</p>
                 <button onClick={() => setEditingPrompt(false)}>
                   <X className="w-4 h-4" style={{ color: "var(--text-faint)" }} />
                 </button>
@@ -549,7 +552,7 @@ export default function DashboardPage() {
                 style={{ fontSize: "0.82rem", lineHeight: 1.7, color: "var(--text-primary)", backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}
               />
               <div className="flex justify-end mt-2">
-                <Button size="sm" onClick={handleSavePrompt}>{loadingPrompt ? "Salvando..." : "Salvar prompt"}</Button>
+                <Button size="sm" onClick={handleSavePrompt}>{loadingPrompt ? td("savingPrompt") : td("savePrompt")}</Button>
               </div>
             </div>
           )}
@@ -571,41 +574,12 @@ export default function DashboardPage() {
               />
             ) : (
               <p style={{ fontSize: "0.85rem", lineHeight: 1.85, color: "var(--text-faint)" }}>
-                Nenhum diagnóstico disponível. Clique em &quot;Atualizar&quot; para gerar.
+                {td("noDiagnosisAvailable")}
               </p>
             )}
           </div>
         </Section>
 
-        <Section title="Resumo por Plataforma" subtitle="Performance comparativa">
-          {loading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}
-            </div>
-          ) : connections.length > 0 ? (
-            <div className="space-y-3">
-              {connections.map(c => {
-                const conn = summary?.connections?.find(sc => sc.id === c.id);
-                const connScore = conn ? (summary?.avg_score ?? 0) : 0;
-                const ss = getScoreStyle(connScore);
-                return (
-                  <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl transition-colors cursor-pointer" style={{ backgroundColor: "var(--bg-subtle)" }} onClick={() => router.push(platformPath(c.platform))}>
-                    <GlassSocialIcon platform={c.platform.toLowerCase()} size={32} />
-                    <div className="flex-1 min-w-0">
-                      <p style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)" }}>{platformLabel(c.platform)}</p>
-                      <p style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>@{c.username}</p>
-                    </div>
-                    <div className="text-right shrink-0">
-                      <span className="px-2 py-0.5 rounded-lg" style={{ fontSize: "0.75rem", fontWeight: 700, color: ss.color, backgroundColor: ss.bg }}>{connScore.toFixed(1)}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : (
-            <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "24px 0" }}>Nenhuma plataforma conectada ainda.</p>
-          )}
-        </Section>
       </div>
 
       {/* ═══ CHART FILTERS ═══ */}
@@ -615,12 +589,12 @@ export default function DashboardPage() {
             <button key={g} onClick={() => setChartGranularity(g)}
               className="px-3 py-1.5 transition-colors"
               style={{ fontSize: "0.68rem", fontWeight: 600, backgroundColor: chartGranularity === g ? "var(--primary)" : "transparent", color: chartGranularity === g ? "white" : "var(--text-muted)" }}>
-              {g === "day" ? "Dia" : g === "week" ? "Semana" : "Mês"}
+              {g === "day" ? td("day") : g === "week" ? td("week") : td("month")}
             </button>
           ))}
         </div>
         <div className="flex items-center rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)", backgroundColor: "var(--bg-card)" }}>
-          {[{ label: "7d", v: 7 }, { label: "30d", v: 30 }, { label: "90d", v: 90 }, { label: "Total", v: 0 }].map(p => (
+          {[{ label: "7d", v: 7 }, { label: "30d", v: 30 }, { label: "90d", v: 90 }, { label: td("total"), v: 0 }].map(p => (
             <button key={p.v} onClick={() => setChartDays(p.v)}
               className="px-3 py-1.5 transition-colors"
               style={{ fontSize: "0.68rem", fontWeight: 600, backgroundColor: chartDays === p.v ? "var(--primary)" : "transparent", color: chartDays === p.v ? "white" : "var(--text-muted)" }}>
@@ -632,7 +606,7 @@ export default function DashboardPage() {
 
       {/* ═══ CHARTS ROW 1: Score Trend + Score by Platform ═══ */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <Section title="Tendência do Score" subtitle={`Média geral — ${chartGranularity === "day" ? "Diário" : chartGranularity === "week" ? "Semanal" : "Mensal"}`}>
+        <Section title={td("scoreTrend")} subtitle={`${td("avgGeneral")} — ${chartGranularity === "day" ? td("daily") : chartGranularity === "week" ? td("weekly") : td("monthly")}`}>
           {loading ? <ChartSkeleton /> : scoreTrendData.length > 0 ? (
             <ResponsiveContainer width="100%" height={240}>
               <AreaChart id="dash-score-area" data={scoreTrendData} margin={{ left: -10, right: 8 }}>
@@ -650,10 +624,10 @@ export default function DashboardPage() {
               </AreaChart>
             </ResponsiveContainer>
           ) : (
-            <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "60px 0" }}>Sem dados de tendência disponíveis.</p>
+            <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "60px 0" }}>{td("noTrendData")}</p>
           )}
         </Section>
-        <Section title="Score por Rede Social" subtitle="Comparativo entre plataformas">
+        <Section title={td("scoreByNetwork")} subtitle={td("platformComparison")}>
           {loading ? <ChartSkeleton /> : scoreTrendByNetwork.length > 0 ? (
             <ResponsiveContainer width="100%" height={240}>
               <LineChart id="dash-network-line" data={scoreTrendByNetwork} margin={{ left: -10, right: 8 }}>
@@ -668,14 +642,14 @@ export default function DashboardPage() {
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "60px 0" }}>Sem dados comparativos disponíveis.</p>
+            <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "60px 0" }}>{td("noComparativeData")}</p>
           )}
         </Section>
       </div>
 
       {/* ═══ RADAR + WORD CLOUD ═══ */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Section title="Radar de Emoções">
+        <Section title={td("emotionRadar")}>
           {loading ? <ChartSkeleton /> : radarData.length > 0 ? (
             <ResponsiveContainer width="100%" height={240}>
               <RadarChart id="dash-radar" data={radarData}>
@@ -685,10 +659,10 @@ export default function DashboardPage() {
               </RadarChart>
             </ResponsiveContainer>
           ) : (
-            <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "60px 0" }}>Sem dados de emoções.</p>
+            <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "60px 0" }}>{td("noEmotionData")}</p>
           )}
         </Section>
-        <Section title="Nuvem de Palavras" subtitle="Termos mais citados nos comentários">
+        <Section title={td("wordCloud")} subtitle={td("wordCloudSubtitle")}>
           {loading ? <ChartSkeleton height={180} /> : (
             <WordCloudChart topics={summary?.word_frequency || null} maxWords={25} height={240} />
           )}
@@ -696,7 +670,7 @@ export default function DashboardPage() {
       </div>
 
       {/* ═══ HEATMAP ═══ */}
-      <Section title="Heatmap de Atividade" subtitle="Volume de comentários por horário e dia da semana">
+      <Section title={td("heatmapTitle")} subtitle={td("heatmapSubtitle")}>
         {loading ? <ChartSkeleton height={220} /> : heatmapData && heatmapData.length > 0 ? (
           <div className="overflow-x-auto">
             <div className="min-w-[500px]">
@@ -716,17 +690,17 @@ export default function DashboardPage() {
             </div>
           </div>
         ) : (
-          <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "40px 0" }}>Sem dados de heatmap.</p>
+          <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "40px 0" }}>{td("noHeatmapData")}</p>
         )}
       </Section>
 
       {/* ═══ TEMPORAL CHART ═══ */}
-      <Section title="Distribuição Temporal" subtitle="Volume de sentimento ao longo do tempo">
+      <Section title={td("temporalDistribution")} subtitle={td("temporalSubtitle")}>
         <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
           <div className="flex items-center gap-1 rounded-xl p-1" style={{ backgroundColor: "color-mix(in srgb, var(--bg-card) 60%, transparent)", border: "0.5px solid var(--border)", backdropFilter: "blur(12px)", boxShadow: "0 2px 10px -2px rgba(0,0,0,0.05)" }}>
-            {["Volume", "Score", "Sentimento"].map(range => (
-              <button key={range} onClick={() => setTimeRange(range)} className="px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap" style={{ fontSize: "0.75rem", fontWeight: 500, backgroundColor: timeRange === range ? "var(--primary)" : "transparent", color: timeRange === range ? "white" : "var(--text-muted)", boxShadow: timeRange === range ? "0 4px 16px -4px var(--primary)" : "none" }}>
-                {range}
+            {[{ key: "Volume", label: td("volume") }, { key: "Score", label: tc("score") }, { key: "Sentimento", label: td("sentiment") }].map(range => (
+              <button key={range.key} onClick={() => setTimeRange(range.key)} className="px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap" style={{ fontSize: "0.75rem", fontWeight: 500, backgroundColor: timeRange === range.key ? "var(--primary)" : "transparent", color: timeRange === range.key ? "white" : "var(--text-muted)", boxShadow: timeRange === range.key ? "0 4px 16px -4px var(--primary)" : "none" }}>
+                {range.label}
               </button>
             ))}
           </div>
@@ -744,7 +718,7 @@ export default function DashboardPage() {
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
-              <Area type="monotone" dataKey="volume" name="Volume" stroke={t.primary} strokeWidth={2} fill="url(#dash-volGradient)" dot={{ r: 2.5, fill: t.primary, strokeWidth: 0 }} />
+              <Area type="monotone" dataKey="volume" name={td("volume")} stroke={t.primary} strokeWidth={2} fill="url(#dash-volGradient)" dot={{ r: 2.5, fill: t.primary, strokeWidth: 0 }} />
             </AreaChart>
           </ResponsiveContainer>
         ) : timeRange === "Score" && scoreTemporalData.length > 0 ? (
@@ -760,7 +734,7 @@ export default function DashboardPage() {
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
               <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
-              <Area type="monotone" dataKey="score" name="Score" stroke={t.secondary} strokeWidth={2.5} fill="url(#dash-scoreTemporalGrad)" dot={{ r: 3, fill: t.secondary, strokeWidth: 0 }} />
+              <Area type="monotone" dataKey="score" name={tc("score")} stroke={t.secondary} strokeWidth={2.5} fill="url(#dash-scoreTemporalGrad)" dot={{ r: 3, fill: t.secondary, strokeWidth: 0 }} />
             </AreaChart>
           </ResponsiveContainer>
         ) : timeRange === "Sentimento" && temporalData.length > 0 ? (
@@ -777,12 +751,12 @@ export default function DashboardPage() {
             </BarChart>
           </ResponsiveContainer>
         ) : (
-          <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "60px 0" }}>Sem dados temporais.</p>
+          <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "60px 0" }}>{td("noTemporalData")}</p>
         )}
       </Section>
 
       {/* ═══ ENGAGEMENT CURVE ═══ */}
-      <Section title="Pico de Engajamento" subtitle="Horários com maior volume de interação">
+      <Section title={td("engagementPeak")} subtitle={td("engagementSubtitle")}>
         {loading ? <ChartSkeleton height={180} /> : engagementData.length > 0 ? (
           <ResponsiveContainer width="100%" height={180}>
             <AreaChart id="dash-engagement-area" data={engagementData} margin={{ left: -10, right: 8 }}>
@@ -799,12 +773,12 @@ export default function DashboardPage() {
             </AreaChart>
           </ResponsiveContainer>
         ) : (
-          <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "40px 0" }}>Sem dados de engajamento.</p>
+          <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "40px 0" }}>{td("noEngagementData")}</p>
         )}
       </Section>
 
       {/* ═══ TOP COMMENTS ═══ */}
-      <Section title="Comentários em Destaque" subtitle="Mais relevantes por score">
+      <Section title={td("featuredComments")} subtitle={td("featuredCommentsSub")}>
         {loading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24 w-full" />)}
@@ -814,7 +788,7 @@ export default function DashboardPage() {
             {allTopComments.map((c, i) => {
               const commentScore = (c.score_0_10 as number) ?? (c.score as number) ?? 0;
               const ss = getScoreStyle(commentScore);
-              const username = (c.author_username as string) || (c.user as string) || "anônimo";
+              const username = (c.author_username as string) || (c.user as string) || tc("anonymous");
               const text = (c.text_original as string) || (c.text as string) || "";
               const emotion = ((c.emotions as string[]) ?? [])[0] || (c.emotion as string) || "";
               return (
@@ -832,7 +806,7 @@ export default function DashboardPage() {
             })}
           </div>
         ) : (
-          <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "24px 0" }}>Nenhum comentário em destaque.</p>
+          <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "24px 0" }}>{td("noFeaturedComments")}</p>
         )}
       </Section>
 
@@ -858,7 +832,7 @@ export default function DashboardPage() {
       )}
 
       {/* ═══ PROFILES ═══ */}
-      <Section title="Seus perfis" action={<Button variant="ghost" size="sm" onClick={() => router.push("/dashboard/connect")}>+ Adicionar</Button>}>
+      <Section title={td("yourProfiles")} action={<Button variant="ghost" size="sm" onClick={() => router.push("/dashboard/connect")}>{td("addProfile")}</Button>}>
         {loading ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {[1, 2, 3, 4].map(i => <CardSkeleton key={i} />)}
@@ -876,8 +850,8 @@ export default function DashboardPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2 mb-4">
                   {[
-                    { l: "Seguidores", v: formatNumber(profile.followers_count) },
-                    { l: "Status", v: profile.status === "active" ? "Ativo" : profile.status },
+                    { l: tc("followers"), v: formatNumber(profile.followers_count) },
+                    { l: tc("status"), v: profile.status === "active" ? tc("active") : profile.status },
                   ].map(s => (
                     <div key={s.l} className="text-center">
                       <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.88rem", fontWeight: 700, color: "var(--text-primary)" }}>{s.v}</p>
@@ -889,7 +863,7 @@ export default function DashboardPage() {
                   <div className="flex items-center gap-1.5">
                     <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: profile.status === "active" ? "var(--primary)" : "var(--text-faint)" }} />
                     <span style={{ fontSize: "0.72rem", color: profile.status === "active" ? "var(--primary)" : "var(--text-faint)", fontWeight: 500 }}>
-                      {profile.status === "active" ? "Sincronizado" : "Inativo"}
+                      {profile.status === "active" ? td("synchronized") : tc("inactive")}
                     </span>
                   </div>
                   <ArrowRight className="w-4 h-4 transition-colors" style={{ color: "var(--text-faint)" }} />
@@ -899,14 +873,14 @@ export default function DashboardPage() {
           </div>
         ) : (
           <div className="flex flex-col items-center gap-3 py-8">
-            <p style={{ fontSize: "0.85rem", color: "var(--text-faint)" }}>Nenhum perfil conectado ainda.</p>
-            <Button size="sm" onClick={() => router.push("/dashboard/connect")}>Conectar primeiro perfil</Button>
+            <p style={{ fontSize: "0.85rem", color: "var(--text-faint)" }}>{td("noProfileYet")}</p>
+            <Button size="sm" onClick={() => router.push("/dashboard/connect")}>{td("connectFirstProfile")}</Button>
           </div>
         )}
       </Section>
 
       {/* ═══ RECENT POSTS ═══ */}
-      <Section title="Posts recentes" subtitle="Clique para ver a análise completa">
+      <Section title={td("recentPosts")} subtitle={td("recentPostsSub")}>
         {loading ? (
           <div className="space-y-2">
             {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-14 w-full" />)}
@@ -927,7 +901,7 @@ export default function DashboardPage() {
                   )}
                   <div className="flex-1 min-w-0">
                     <p className="truncate" style={{ fontSize: "0.88rem", fontWeight: 500, color: "var(--text-primary)" }}>{postTitle}</p>
-                    <p style={{ fontSize: "0.72rem", color: "var(--text-faint)" }}>{post.comment_count} comentários · {formatDate(post.published_at)}</p>
+                    <p style={{ fontSize: "0.72rem", color: "var(--text-faint)" }}>{post.comment_count} {tc("comments")} · {formatDate(post.published_at)}</p>
                   </div>
                   <ChevronRight className="w-4 h-4 hidden sm:block" style={{ color: "var(--text-faint)" }} />
                 </div>
@@ -935,7 +909,7 @@ export default function DashboardPage() {
             })}
           </div>
         ) : (
-          <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "24px 0" }}>Nenhum post encontrado.</p>
+          <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "24px 0" }}>{td("noPostFound")}</p>
         )}
       </Section>
     </div>
