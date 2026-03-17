@@ -97,8 +97,11 @@ export default function ProfileDetailPage() {
   // ── state ──
   const [activeTab, setActiveTab] = useState("Volume");
   const [timeRange, setTimeRange] = useState("90d");
+  const [granularity, setGranularity] = useState("week");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [postSort, setPostSort] = useState<"recent" | "score">("recent");
+  const [postLimit, setPostLimit] = useState<number>(10);
 
   // ── data ──
   const [dashboard, setDashboard] = useState<ConnectionDashboard | null>(null);
@@ -149,8 +152,8 @@ export default function ProfileDetailPage() {
         connectionsRes,
       ] = await Promise.allSettled([
         dashboardApi.connectionDashboard(token, id),
-        dashboardApi.trends(token, { connection_id: id, ...(days ? { days } : {}) }),
-        dashboardApi.trendsDetailed(token, { connection_id: id, ...(days ? { days } : {}) }),
+        dashboardApi.trends(token, { connection_id: id, granularity, ...(days ? { days } : {}) }),
+        dashboardApi.trendsDetailed(token, { connection_id: id, granularity, ...(days ? { days } : {}) }),
         commentsApi.list(token, { connection_id: id, limit: 200 }),
         dashboardApi.gapAnalysis(token, id),
         dashboardApi.ambassadorsDetractors(token, id),
@@ -203,18 +206,18 @@ export default function ProfileDetailPage() {
     const days = timeRangeDays[timeRange];
     try {
       const [tr, trd] = await Promise.all([
-        dashboardApi.trends(token, { connection_id: id, ...(days ? { days } : {}) }),
-        dashboardApi.trendsDetailed(token, { connection_id: id, ...(days ? { days } : {}) }),
+        dashboardApi.trends(token, { connection_id: id, granularity, ...(days ? { days } : {}) }),
+        dashboardApi.trendsDetailed(token, { connection_id: id, granularity, ...(days ? { days } : {}) }),
       ]);
       setTrends(tr);
       setTrendsDetailed(trd);
     } catch { /* silently fail, keep old data */ }
-  }, [id, timeRange, loading]);
+  }, [id, timeRange, granularity, loading]);
 
   useEffect(() => {
     if (!loading) fetchTrends();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [timeRange]);
+  }, [timeRange, granularity]);
 
   // ── derived data ──
   const platform = connectionInfo?.platform || dashboard?.connection?.platform || "instagram";
@@ -331,7 +334,7 @@ export default function ProfileDetailPage() {
 
   // ── posts for list ──
   const posts = useMemo(() => {
-    return (dashboard?.posts ?? []).map((p: any) => {
+    const allPosts = (dashboard?.posts ?? []).map((p: any) => {
       const mediaUrls = p.media_urls || [];
       const imageUrl = mediaUrls[0] || p.thumbnail_url || p.image_url || null;
       return {
@@ -339,12 +342,22 @@ export default function ProfileDetailPage() {
         title: p.content_text?.slice(0, 80) || "Post sem texto",
         comments: p.comment_count,
         date: formatDate(p.published_at),
+        dateRaw: p.published_at || "",
         score: p.summary?.avg_score ?? 0,
         platform: p.platform,
         imageUrl,
       };
     });
-  }, [dashboard?.posts]);
+    // Sort
+    if (postSort === "score") {
+      allPosts.sort((a, b) => b.score - a.score);
+    } else {
+      allPosts.sort((a, b) => (b.dateRaw > a.dateRaw ? 1 : -1));
+    }
+    // Limit (0 = all)
+    if (postLimit > 0) return allPosts.slice(0, postLimit);
+    return allPosts;
+  }, [dashboard?.posts, postSort, postLimit]);
 
   // ── gap analysis posts ──
   const gapPosts = useMemo(() => {
@@ -382,12 +395,14 @@ export default function ProfileDetailPage() {
 
   // ── topic treemap from topics_frequency ──
   const topicNodes = useMemo(() => {
+    const MAX_TOPICS = 10;
     // Prefer topics_with_scores from enriched endpoint
     const topicsWithScores = (dashboard as any)?.topics_with_scores;
     if (topicsWithScores && Array.isArray(topicsWithScores) && topicsWithScores.length > 0) {
-      return topicsWithScores
-        .sort((a: any, b: any) => b.count - a.count)
-        .slice(0, 15)
+      const sorted = [...topicsWithScores].sort((a: any, b: any) => b.count - a.count);
+      const limit = sorted.length < MAX_TOPICS ? Math.min(sorted.length, 5) : MAX_TOPICS;
+      return sorted
+        .slice(0, limit)
         .map((t: any) => ({
           topic: t.topic,
           count: t.count,
@@ -396,9 +411,10 @@ export default function ProfileDetailPage() {
     }
     // Fallback to topics_frequency
     if (!dashboard?.topics_frequency) return [];
-    return Object.entries(dashboard.topics_frequency)
-      .sort((a, b) => b[1] - a[1])
-      .slice(0, 15)
+    const entries = Object.entries(dashboard.topics_frequency).sort((a, b) => b[1] - a[1]);
+    const limit = entries.length < MAX_TOPICS ? Math.min(entries.length, 5) : MAX_TOPICS;
+    return entries
+      .slice(0, limit)
       .map(([topic, count]) => ({
         topic,
         count,
@@ -674,6 +690,11 @@ export default function ProfileDetailPage() {
         </Section>
       </div>
 
+      {/* Featured Comments — near top after stats */}
+      {featuredComments.length > 0 && (
+        <FeaturedComments comments={featuredComments} />
+      )}
+
       {/* Gap Analysis */}
       {gapPosts.length > 0 && (
         <GapAnalysis posts={gapPosts} platformLabel={platformLabel} />
@@ -714,6 +735,11 @@ export default function ProfileDetailPage() {
         )}
       </div>
 
+      {/* Heatmap — above temporal and posts */}
+      {heatmapData && heatmapData.length > 0 && (
+        <Heatmap data={heatmapData} />
+      )}
+
       {/* Temporal */}
       <Section title="Analise Temporal" subtitle="Distribuicao por periodo">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -724,20 +750,40 @@ export default function ProfileDetailPage() {
               </button>
             ))}
           </div>
-          <select value={timeRange} onChange={(e) => setTimeRange(e.target.value)} className="px-3 py-1.5 rounded-xl focus:outline-none transition-all duration-200 cursor-pointer hover:opacity-80" style={{ fontSize: "0.75rem", fontWeight: 500, border: "0.5px solid var(--border)", backgroundColor: "color-mix(in srgb, var(--bg-card) 60%, transparent)", backdropFilter: "blur(12px)", color: "var(--text-primary)", boxShadow: "0 2px 8px -2px rgba(0,0,0,0.05)" }}>
-            <option value="7d">Ultimos 7 dias</option>
-            <option value="30d">Ultimos 30 dias</option>
-            <option value="90d">Ultimos 90 dias</option>
-            <option value="1a">Ultimo ano</option>
-            <option value="Tudo">Todo o periodo</option>
-          </select>
+          <div className="flex items-center gap-2">
+            <select value={granularity} onChange={(e) => setGranularity(e.target.value)} className="px-3 py-1.5 rounded-xl focus:outline-none transition-all duration-200 cursor-pointer hover:opacity-80" style={{ fontSize: "0.75rem", fontWeight: 500, border: "0.5px solid var(--border)", backgroundColor: "color-mix(in srgb, var(--bg-card) 60%, transparent)", backdropFilter: "blur(12px)", color: "var(--text-primary)", boxShadow: "0 2px 8px -2px rgba(0,0,0,0.05)" }}>
+              <option value="day">Dia</option>
+              <option value="week">Semana</option>
+              <option value="month">Mês</option>
+            </select>
+            <select value={timeRange} onChange={(e) => setTimeRange(e.target.value)} className="px-3 py-1.5 rounded-xl focus:outline-none transition-all duration-200 cursor-pointer hover:opacity-80" style={{ fontSize: "0.75rem", fontWeight: 500, border: "0.5px solid var(--border)", backgroundColor: "color-mix(in srgb, var(--bg-card) 60%, transparent)", backdropFilter: "blur(12px)", color: "var(--text-primary)", boxShadow: "0 2px 8px -2px rgba(0,0,0,0.05)" }}>
+              <option value="7d">Ultimos 7 dias</option>
+              <option value="30d">Ultimos 30 dias</option>
+              <option value="90d">Ultimos 90 dias</option>
+              <option value="1a">Ultimo ano</option>
+              <option value="Tudo">Todo o periodo</option>
+            </select>
+          </div>
         </div>
         {renderTemporalChart()}
       </Section>
 
       {/* Posts */}
       {posts.length > 0 && (
-        <Section title="Posts">
+        <Section title="Posts" action={
+          <div className="flex items-center gap-2">
+            <select value={postSort} onChange={(e) => setPostSort(e.target.value as "recent" | "score")} className="px-3 py-1.5 rounded-xl focus:outline-none transition-all duration-200 cursor-pointer hover:opacity-80" style={{ fontSize: "0.75rem", fontWeight: 500, border: "0.5px solid var(--border)", backgroundColor: "color-mix(in srgb, var(--bg-card) 60%, transparent)", backdropFilter: "blur(12px)", color: "var(--text-primary)", boxShadow: "0 2px 8px -2px rgba(0,0,0,0.05)" }}>
+              <option value="recent">Recentes</option>
+              <option value="score">Score</option>
+            </select>
+            <select value={postLimit} onChange={(e) => setPostLimit(Number(e.target.value))} className="px-3 py-1.5 rounded-xl focus:outline-none transition-all duration-200 cursor-pointer hover:opacity-80" style={{ fontSize: "0.75rem", fontWeight: 500, border: "0.5px solid var(--border)", backgroundColor: "color-mix(in srgb, var(--bg-card) 60%, transparent)", backdropFilter: "blur(12px)", color: "var(--text-primary)", boxShadow: "0 2px 8px -2px rgba(0,0,0,0.05)" }}>
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+              <option value={0}>Todos</option>
+            </select>
+          </div>
+        }>
           <div className="space-y-0.5">
             {posts.map((post, i) => {
               const ss = getScoreStyle(post.score);
@@ -763,16 +809,6 @@ export default function ProfileDetailPage() {
             })}
           </div>
         </Section>
-      )}
-
-      {/* Heatmap */}
-      {heatmapData && heatmapData.length > 0 && (
-        <Heatmap data={heatmapData} />
-      )}
-
-      {/* Featured Comments */}
-      {featuredComments.length > 0 && (
-        <FeaturedComments comments={featuredComments} />
       )}
 
       {/* Comments Table */}

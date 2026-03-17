@@ -74,6 +74,22 @@ export interface CommentRow {
   sentiment: "Positivo" | "Neutro" | "Negativo";
 }
 
+// Emotion color coding helper
+const POSITIVE_EMOTIONS = ["alegria", "amor", "surpresa"];
+const NEGATIVE_EMOTIONS = ["tristeza", "raiva", "nojo", "medo"];
+
+function getEmotionColor(emotion: string): { color: string; bg: string } {
+  const lower = emotion.toLowerCase();
+  if (POSITIVE_EMOTIONS.includes(lower)) {
+    return { color: "var(--sentiment-positive)", bg: "var(--sentiment-positive-bg, rgba(34,197,94,0.12))" };
+  }
+  if (NEGATIVE_EMOTIONS.includes(lower)) {
+    return { color: "var(--sentiment-negative)", bg: "var(--sentiment-negative-bg, rgba(239,68,68,0.12))" };
+  }
+  // Neutro or unknown
+  return { color: "var(--text-muted)", bg: "var(--bg-subtle)" };
+}
+
 export function CommentsTable({ comments, platformName }: { comments: CommentRow[]; platformName: string }) {
   const [filter, setFilter] = useState("Todos");
   const [search, setSearch] = useState("");
@@ -107,13 +123,13 @@ export function CommentsTable({ comments, platformName }: { comments: CommentRow
               <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>USUÁRIO</th>
               <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>COMENTÁRIO</th>
               <th className="text-left py-2.5 px-3 hidden md:table-cell" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>EMOÇÃO</th>
-              <th className="text-left py-2.5 px-3 hidden lg:table-cell" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>POST</th>
               <th className="text-left py-2.5 px-3 hidden md:table-cell" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>DATA</th>
             </tr>
           </thead>
           <tbody>
             {visibleRows.map((c, i) => {
               const ss = getScoreStyle(c.score);
+              const emotionStyle = getEmotionColor(c.emotion);
               return (
                 <tr key={i} className="transition-colors" style={{ borderBottom: "1px solid var(--border)" }}>
                   <td className="py-2.5 px-3">
@@ -126,10 +142,7 @@ export function CommentsTable({ comments, platformName }: { comments: CommentRow
                     <p className="truncate" style={{ color: "var(--text-muted)" }}>{c.text}</p>
                   </td>
                   <td className="py-2.5 px-3 hidden md:table-cell">
-                    <span className="px-2 py-0.5 rounded-md" style={{ fontSize: "0.62rem", fontWeight: 600, color: "var(--primary)", backgroundColor: "var(--primary-bg)" }}>{c.emotion}</span>
-                  </td>
-                  <td className="py-2.5 px-3 hidden lg:table-cell">
-                    <span className="truncate block max-w-[150px]" style={{ color: "var(--text-faint)", fontSize: "0.72rem" }}>{c.post}</span>
+                    <span className="px-2 py-0.5 rounded-md" style={{ fontSize: "0.62rem", fontWeight: 600, color: emotionStyle.color, backgroundColor: emotionStyle.bg }}>{c.emotion}</span>
                   </td>
                   <td className="py-2.5 px-3 hidden md:table-cell">
                     <span style={{ color: "var(--text-faint)", fontSize: "0.72rem" }}>{c.date}</span>

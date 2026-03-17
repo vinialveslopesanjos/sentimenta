@@ -30,7 +30,13 @@ celery_app.conf.beat_schedule = {
     },
     "weekly-sync": {
         "task": "app.tasks.pipeline_tasks.task_daily_sync",
-        "schedule": crontab(hour=3, minute=15, day_of_week=1),  # 3:15AM UTC Monday only
+        "schedule": crontab(hour=3, minute=15, day_of_week=1),  # Monday 3:15AM - Free/Starter
+        "kwargs": {"frequency_filter": "weekly"},
+    },
+    "daily-sync": {
+        "task": "app.tasks.pipeline_tasks.task_daily_sync",
+        "schedule": crontab(hour=3, minute=15),  # Daily 3:15AM - Pro/Business/Enterprise
+        "kwargs": {"frequency_filter": "daily"},
     },
 }
 

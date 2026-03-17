@@ -284,8 +284,8 @@ export function TopicTreemap({ topics, platformLabel }: { topics: TopicNode[]; p
   const { t } = useTheme();
   const [hovered, setHovered] = useState<number | null>(null);
 
-  const maxCount = Math.max(...topics.map(t => t.count));
-  const totalCount = topics.reduce((s, t) => s + t.count, 0);
+  // Sort descending by count
+  const sorted = [...topics].sort((a, b) => b.count - a.count);
 
   const getColorForScore = (score: number) => {
     if (score >= 7) return t.sentimentPositive;
@@ -301,38 +301,49 @@ export function TopicTreemap({ topics, platformLabel }: { topics: TopicNode[]; p
     return `${t.sentimentNegative}20`;
   };
 
-  // Simple treemap layout: arrange in a flex-wrap grid proportional to count
+  // Normalize sizes using sqrt scale for visually meaningful differences
+  const counts = sorted.map(tp => tp.count);
+  const minCount = Math.min(...counts);
+  const maxCount = Math.max(...counts);
+  const range = maxCount - minCount || 1;
+
+  const getNormalizedSize = (count: number) => {
+    // sqrt scale to compress huge ranges, expand small ones
+    const normalized = Math.sqrt((count - minCount) / range);
+    // Map to height range 56-100px
+    return 56 + normalized * 44;
+  };
+
+  // Grid layout: 5 columns for clean staircase look
+  const cols = sorted.length <= 5 ? sorted.length : 5;
+
   return (
     <Section title="Topic Treemap" subtitle="Tamanho = frequência, Cor = sentimento médio do tópico">
       <div className="flex items-center gap-2 mb-3 flex-wrap">
         <Badge variant="primary">Insight Premium</Badge>
         <div className="flex items-center gap-3 ml-auto" style={{ fontSize: "0.62rem" }}>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: t.sentimentPositive }} /> Positivo (≥7)</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: t.sentimentPositive }} /> Positivo (&ge;7)</span>
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: t.secondary }} /> Neutro (5-7)</span>
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: t.primaryMuted }} /> Alerta (3-5)</span>
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: t.sentimentNegative }} /> Negativo (&lt;3)</span>
         </div>
       </div>
-      <div className="flex flex-wrap gap-1.5">
-        {topics.map((topic, i) => {
-          const pct = (topic.count / totalCount) * 100;
-          const minW = Math.max(pct * 2.5, 80);
-          const h = Math.max(40, Math.min(100, (topic.count / maxCount) * 100));
+      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+        {sorted.map((topic, i) => {
+          const h = getNormalizedSize(topic.count);
           return (
             <div
               key={topic.topic}
               className="rounded-xl flex flex-col items-center justify-center transition-all cursor-default"
               style={{
-                width: `${minW}px`,
                 height: `${h}px`,
-                flexGrow: pct / 10,
                 backgroundColor: getBgForScore(topic.avgScore),
                 border: hovered === i ? `2px solid ${getColorForScore(topic.avgScore)}` : "2px solid transparent",
               }}
               onMouseEnter={() => setHovered(i)}
               onMouseLeave={() => setHovered(null)}
             >
-              <span style={{ fontSize: pct > 10 ? "0.82rem" : "0.68rem", fontWeight: 700, color: getColorForScore(topic.avgScore) }}>
+              <span style={{ fontSize: h > 70 ? "0.82rem" : "0.68rem", fontWeight: 700, color: getColorForScore(topic.avgScore) }}>
                 {topic.topic}
               </span>
               <span style={{ fontSize: "0.58rem", color: "var(--text-muted)" }}>
@@ -431,19 +442,32 @@ interface TopicEmotionMatrix {
   data: number[][]; // [topicIdx][emotionIdx]
 }
 
+// Fixed set of 7 canonical emotions (matching the radar chart)
+const CANONICAL_EMOTIONS = ["Alegria", "Tristeza", "Raiva", "Surpresa", "Nojo", "Medo", "Amor"];
+
 export function TopicEmotionHeatmap({ matrix, platformLabel }: { matrix: TopicEmotionMatrix; platformLabel: string }) {
   const { t } = useTheme();
   const [hoveredCell, setHoveredCell] = useState<{ t: number; e: number } | null>(null);
 
-  // Limit to top 10 topics by total count
-  const topN = 10;
+  // Always use exactly 7 canonical emotions
+  // Map from API emotions to canonical ones
+  const emotionIndices = CANONICAL_EMOTIONS.map(ce => {
+    const idx = matrix.emotions.findIndex(e => e.toLowerCase() === ce.toLowerCase());
+    return idx;
+  });
+
+  // Limit to top 10 topics (or 5 for small accounts) by total count
   const topicTotals = matrix.topics.map((topic, ti) => ({ topic, ti, total: matrix.data[ti].reduce((s, v) => s + v, 0) }));
   topicTotals.sort((a, b) => b.total - a.total);
+  const topN = topicTotals.length < 10 ? Math.min(topicTotals.length, 5) : 10;
   const selectedTopics = topicTotals.slice(0, topN);
-  const filteredTopics = selectedTopics.map(t => t.topic);
-  const filteredData = selectedTopics.map(t => matrix.data[t.ti]);
+  const filteredTopics = selectedTopics.map(tp => tp.topic);
+  // Build data rows mapped to canonical emotions
+  const filteredData = selectedTopics.map(tp =>
+    emotionIndices.map(ei => (ei >= 0 ? matrix.data[tp.ti][ei] : 0))
+  );
 
-  const maxVal = Math.max(...filteredData.flat());
+  const maxVal = Math.max(...filteredData.flat(), 1);
 
   const getIntensityColor = (value: number) => {
     const ratio = value / maxVal;
@@ -467,9 +491,9 @@ export function TopicEmotionHeatmap({ matrix, platformLabel }: { matrix: TopicEm
       </div>
       <div className="overflow-x-auto">
         <div className="min-w-[500px]">
-          {/* Header row */}
+          {/* Header row — always 7 canonical emotions */}
           <div className="flex gap-1 mb-1 pl-24">
-            {matrix.emotions.map(e => (
+            {CANONICAL_EMOTIONS.map(e => (
               <div key={e} className="flex-1 text-center" style={{ fontSize: "0.6rem", fontWeight: 600, color: "var(--text-muted)", writingMode: "horizontal-tb" }}>
                 {e}
               </div>
@@ -496,7 +520,7 @@ export function TopicEmotionHeatmap({ matrix, platformLabel }: { matrix: TopicEm
                     }}
                     onMouseEnter={() => setHoveredCell({ t: ti, e: ei })}
                     onMouseLeave={() => setHoveredCell(null)}
-                    title={`${topic} × ${matrix.emotions[ei]}: ${val}`}
+                    title={`${topic} × ${CANONICAL_EMOTIONS[ei]}: ${val}`}
                   >
                     <span style={{ fontSize: "0.6rem", fontWeight: 600, color: "var(--text-primary)", mixBlendMode: "multiply" }}>
                       {val > 0 ? val : ""}
