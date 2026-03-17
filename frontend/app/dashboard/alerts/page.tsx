@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { Bell, AlertTriangle, TrendingDown, MessageCircle, CheckCircle, Shield, Zap, Clock, Settings2, X as XIcon } from "lucide-react";
 import { dashboardApi } from "@/lib/api";
@@ -58,11 +59,13 @@ function Slider({ value, onChange, min = 0, max = 100, unit = "%", label }: { va
 }
 
 export default function AlertsPage() {
+  const t = useTranslations("alerts");
+  const tc = useTranslations("common");
   const [data, setData] = useState<AlertsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [days, setDays] = useState(7);
-  const [filter, setFilter] = useState("Todos");
+  const [filter, setFilter] = useState("all");
   const [tab, setTab] = useState<"history" | "config">("history");
   const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
   const [readIds, setReadIds] = useState<Set<string>>(new Set());
@@ -84,7 +87,7 @@ export default function AlertsPage() {
       const res = await dashboardApi.alerts(token, { days: d });
       setData(res);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro ao carregar alertas.");
+      setError(err instanceof Error ? err.message : t("errorLoading"));
     } finally {
       setLoading(false);
     }
@@ -95,11 +98,11 @@ export default function AlertsPage() {
   const allAlerts = (data?.alerts || []).filter(a => !dismissedIds.has(a.connection_id));
   const unreadAlerts = allAlerts.filter(a => !readIds.has(a.connection_id));
 
-  const filtered = filter === "Todos"
+  const filtered = filter === "all"
     ? allAlerts
-    : filter === "Nao lidos"
+    : filter === "unread"
       ? unreadAlerts
-      : filter === "Crise"
+      : filter === "crisis"
         ? allAlerts.filter(a => a.severity === "critical")
         : allAlerts.filter(a => a.severity === "high");
 
@@ -109,18 +112,18 @@ export default function AlertsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3">
         <div>
-          <h1 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.7rem", fontWeight: 700, color: "var(--text-primary)" }}>Alertas</h1>
-          <p className="mt-1" style={{ fontSize: "0.88rem", color: "var(--text-muted)" }}>Notificacoes e configuracoes de sensibilidade.</p>
+          <h1 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.7rem", fontWeight: 700, color: "var(--text-primary)" }}>{t("title")}</h1>
+          <p className="mt-1" style={{ fontSize: "0.88rem", color: "var(--text-muted)" }}>{t("subtitle")}</p>
         </div>
-        <Badge variant="negative" dot>{unreadAlerts.length} nao lidos</Badge>
+        <Badge variant="negative" dot>{t("unread", { count: unreadAlerts.length })}</Badge>
       </div>
 
       {/* Tabs */}
       <div className="flex items-center gap-1 rounded-xl p-1" style={{ backgroundColor: "var(--bg-subtle)" }}>
-        {[{ k: "history" as const, l: "Historico de Alertas", icon: Bell }, { k: "config" as const, l: "Configuracao", icon: Settings2 }].map(t => (
-          <button key={t.k} onClick={() => setTab(t.k)} className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all" style={{ fontSize: "0.82rem", fontWeight: 500, backgroundColor: tab === t.k ? "var(--bg-card)" : "transparent", color: tab === t.k ? "var(--text-primary)" : "var(--text-muted)", boxShadow: tab === t.k ? "0 1px 3px rgba(0,0,0,0.06)" : "none" }}>
-            <t.icon className="w-4 h-4" />
-            {t.l}
+        {[{ k: "history" as const, l: t("tabs.history"), icon: Bell }, { k: "config" as const, l: t("tabs.config"), icon: Settings2 }].map(tb => (
+          <button key={tb.k} onClick={() => setTab(tb.k)} className="flex items-center gap-2 px-4 py-2 rounded-lg transition-all" style={{ fontSize: "0.82rem", fontWeight: 500, backgroundColor: tab === tb.k ? "var(--bg-card)" : "transparent", color: tab === tb.k ? "var(--text-primary)" : "var(--text-muted)", boxShadow: tab === tb.k ? "0 1px 3px rgba(0,0,0,0.06)" : "none" }}>
+            <tb.icon className="w-4 h-4" />
+            {tb.l}
           </button>
         ))}
       </div>
@@ -129,14 +132,14 @@ export default function AlertsPage() {
         <>
           <div className="flex items-center gap-2 flex-wrap">
             <div className="flex items-center gap-0.5 rounded-xl p-1" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
-              {["Todos", "Nao lidos", "Crise", "Aviso"].map(f => (
-                <button key={f} onClick={() => setFilter(f)} className="px-3.5 py-2 rounded-lg transition-all" style={{ fontSize: "0.82rem", fontWeight: 500, backgroundColor: filter === f ? "var(--primary-bg)" : "transparent", color: filter === f ? "var(--primary)" : "var(--text-muted)" }}>
-                  {f}
+              {[{ key: "all", label: t("filters.all") }, { key: "unread", label: t("filters.unread") }, { key: "crisis", label: t("filters.crisis") }, { key: "warning", label: t("filters.warning") }].map(f => (
+                <button key={f.key} onClick={() => setFilter(f.key)} className="px-3.5 py-2 rounded-lg transition-all" style={{ fontSize: "0.82rem", fontWeight: 500, backgroundColor: filter === f.key ? "var(--primary-bg)" : "transparent", color: filter === f.key ? "var(--primary)" : "var(--text-muted)" }}>
+                  {f.label}
                 </button>
               ))}
             </div>
             <Button variant="ghost" size="sm" icon={<Clock className="w-3.5 h-3.5" />} onClick={() => setReadIds(new Set(allAlerts.map(a => a.connection_id)))}>
-              Marcar tudo como lido
+              {t("markAllRead")}
             </Button>
           </div>
 
@@ -159,7 +162,7 @@ export default function AlertsPage() {
           {!loading && error && (
             <div className="rounded-2xl p-8 text-center" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
               <p style={{ fontSize: "0.82rem", color: "var(--sentiment-negative)" }}>{error}</p>
-              <Button variant="primary" size="sm" className="mt-4" onClick={() => loadAlerts(days)}>Tentar novamente</Button>
+              <Button variant="primary" size="sm" className="mt-4" onClick={() => loadAlerts(days)}>{tc("retry")}</Button>
             </div>
           )}
 
@@ -169,10 +172,10 @@ export default function AlertsPage() {
                 <CheckCircle className="w-8 h-8" style={{ color: "var(--sentiment-positive)" }} />
               </div>
               <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.1rem", fontWeight: 600, color: "var(--text-primary)", marginBottom: 8 }}>
-                {filter === "Nao lidos" ? "Nenhum alerta nao lido!" : "Tudo certo!"}
+                {filter === "unread" ? t("allClear.unreadTitle") : t("allClear.allTitle")}
               </h3>
               <p style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
-                {filter === "Nao lidos" ? "Voce esta em dia com todos os alertas." : `Nenhum alerta encontrado nos ultimos ${days} dias.`}
+                {filter === "unread" ? t("allClear.unreadSub") : t("allClear.allSub", { days })}
               </p>
             </div>
           )}
@@ -217,10 +220,10 @@ export default function AlertsPage() {
                       )}
                       <div className="mt-3 flex items-center gap-2">
                         <Link href={`/dashboard/profile/${alert.connection_id}`} onClick={e => e.stopPropagation()}>
-                          <Button variant="primary" size="sm">Ver detalhes</Button>
+                          <Button variant="primary" size="sm">{t("viewDetails")}</Button>
                         </Link>
                         <Button variant="ghost" size="sm" onClick={(e) => { e.stopPropagation(); setDismissedIds(prev => new Set(Array.from(prev).concat(alert.connection_id))); }}>
-                          Ignorar
+                          {t("dismiss")}
                         </Button>
                       </div>
                     </div>
@@ -234,17 +237,17 @@ export default function AlertsPage() {
 
       {tab === "config" && (
         <div className="space-y-5">
-          <Section title="Limiar de Score" subtitle="Receba um alerta quando o score cair abaixo deste valor">
-            <Slider value={scoreThreshold} onChange={setScoreThreshold} min={0} max={100} unit="/10" label={`Alerta quando score < ${(scoreThreshold / 10).toFixed(1)}`} />
-            <p className="mt-3" style={{ fontSize: "0.72rem", color: "var(--text-faint)" }}>Atualmente configurado em {(scoreThreshold / 10).toFixed(1)}/10.</p>
+          <Section title={t("config.scoreThreshold")} subtitle={t("config.scoreThresholdSub")}>
+            <Slider value={scoreThreshold} onChange={setScoreThreshold} min={0} max={100} unit="/10" label={t("config.scoreThresholdLabel", { value: (scoreThreshold / 10).toFixed(1) })} />
+            <p className="mt-3" style={{ fontSize: "0.72rem", color: "var(--text-faint)" }}>{t("config.currentlySet", { value: (scoreThreshold / 10).toFixed(1) })}</p>
           </Section>
 
-          <Section title="Comentarios Negativos" subtitle="Alerte quando a porcentagem de comentarios negativos ultrapassar o limite">
-            <Slider value={negativeThreshold} onChange={setNegativeThreshold} min={0} max={100} unit="%" label={`Alerta quando negativos > ${negativeThreshold}%`} />
+          <Section title={t("config.negativeComments")} subtitle={t("config.negativeCommentsSub")}>
+            <Slider value={negativeThreshold} onChange={setNegativeThreshold} min={0} max={100} unit="%" label={t("config.negativeLabel", { value: negativeThreshold })} />
           </Section>
 
-          <Section title="Emocoes de Risco" subtitle="Raiva, odio e tristeza combinados ultrapassando o limite">
-            <Slider value={emotionThreshold} onChange={setEmotionThreshold} min={0} max={100} unit="%" label={`Alerta quando raiva + odio + tristeza > ${emotionThreshold}%`} />
+          <Section title={t("config.riskEmotions")} subtitle={t("config.riskEmotionsSub")}>
+            <Slider value={emotionThreshold} onChange={setEmotionThreshold} min={0} max={100} unit="%" label={t("config.riskLabel", { value: emotionThreshold })} />
             <div className="flex items-center gap-2 mt-3 flex-wrap">
               {["Raiva", "Nojo", "Tristeza"].map(e => (
                 <span key={e} className="px-2.5 py-1 rounded-lg" style={{ fontSize: "0.72rem", fontWeight: 500, color: "var(--sentiment-negative)", backgroundColor: "var(--sentiment-negative-bg)" }}>{e}</span>
@@ -252,10 +255,10 @@ export default function AlertsPage() {
             </div>
           </Section>
 
-          <Section title="Palavras-Chave Monitoradas" subtitle="Alerte quando palavras especificas ultrapassarem uma porcentagem dos comentarios">
-            <Slider value={wordThreshold} onChange={setWordThreshold} min={0} max={50} unit="%" label={`Alerta quando palavras-chave > ${wordThreshold}% dos comentarios`} />
+          <Section title={t("config.monitoredKeywords")} subtitle={t("config.monitoredKeywordsSub")}>
+            <Slider value={wordThreshold} onChange={setWordThreshold} min={0} max={50} unit="%" label={t("config.keywordLabel", { value: wordThreshold })} />
             <div className="mt-4">
-              <p className="mb-2" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>PALAVRAS MONITORADAS</p>
+              <p className="mb-2" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>{t("config.monitoredWords")}</p>
               <div className="flex flex-wrap gap-2 mb-3">
                 {keywords.map(kw => (
                   <span key={kw} className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg" style={{ fontSize: "0.78rem", fontWeight: 500, color: "var(--primary)", backgroundColor: "var(--primary-bg)" }}>
@@ -267,20 +270,20 @@ export default function AlertsPage() {
               <div className="flex gap-2">
                 <input
                   type="text"
-                  placeholder="Adicionar palavra..."
+                  placeholder={t("config.addKeywordPlaceholder")}
                   value={newKeyword}
                   onChange={e => setNewKeyword(e.target.value)}
                   onKeyDown={e => { if (e.key === "Enter" && newKeyword.trim()) { setKeywords([...keywords, newKeyword.trim()]); setNewKeyword(""); } }}
                   className="flex-1 px-3 py-2 rounded-xl transition-all"
                   style={{ fontSize: "0.82rem", border: "1px solid var(--border)", backgroundColor: "var(--bg-subtle)", color: "var(--text-primary)" }}
                 />
-                <Button variant="primary" size="sm" onClick={() => { if (newKeyword.trim()) { setKeywords([...keywords, newKeyword.trim()]); setNewKeyword(""); } }}>Adicionar</Button>
+                <Button variant="primary" size="sm" onClick={() => { if (newKeyword.trim()) { setKeywords([...keywords, newKeyword.trim()]); setNewKeyword(""); } }}>{t("config.addButton")}</Button>
               </div>
             </div>
           </Section>
 
           <div className="flex justify-end">
-            <Button variant="primary">Salvar Configuracoes</Button>
+            <Button variant="primary">{t("config.saveSettings")}</Button>
           </div>
         </div>
       )}

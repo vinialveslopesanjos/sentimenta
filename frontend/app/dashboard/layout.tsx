@@ -8,12 +8,16 @@ import { identifyUser } from "@/lib/tracking";
 import SidebarNew from "@/components/SidebarNew";
 import { ThemeProvider, useTheme } from "@/components/ThemeContext";
 import { Bell, Plus, Moon, Sun } from "lucide-react";
+import { useTranslations } from "next-intl";
+import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [ok, setOk] = useState(false);
   const { theme, toggleTheme } = useTheme();
+  const tl = useTranslations("layout");
+  const tc = useTranslations("common");
 
   useEffect(() => {
     const token = getToken();
@@ -73,11 +77,12 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-3">
           </div>
           <div className="flex items-center gap-2 md:gap-3">
+            <LanguageSwitcher />
             <button
               onClick={toggleTheme}
               className="p-2 rounded-xl transition-colors"
               style={{ color: "var(--text-muted)" }}
-              title={theme === "light" ? "Modo escuro" : "Modo claro"}
+              title={theme === "light" ? tl("darkMode") : tl("lightMode")}
             >
               {theme === "light" ? <Moon className="w-[18px] h-[18px]" strokeWidth={1.5} /> : <Sun className="w-[18px] h-[18px]" strokeWidth={1.5} />}
             </button>
@@ -98,7 +103,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
               }}
             >
               <Plus className="w-3.5 h-3.5" />
-              Conectar perfil
+              {tc("connectProfile")}
             </button>
           </div>
         </header>

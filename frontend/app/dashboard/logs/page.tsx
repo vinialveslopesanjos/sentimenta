@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback, useRef } from "react";
+import { useTranslations } from "next-intl";
 import { RefreshCw, CheckCircle, XCircle, AlertTriangle, Clock, FileText, MessageCircle, DollarSign, Trash2, ChevronDown, ChevronUp, Ban } from "lucide-react";
 import { pipelineApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
@@ -38,24 +39,26 @@ function calcDuration(started: string, ended: string | null) {
 
 type LogStatus = "completed" | "partial" | "cancelled" | "failed" | "running";
 
-const statusConfig: Record<string, { variant: "positive" | "warning" | "negative" | "muted" | "primary"; icon: React.ElementType; label: string }> = {
-  completed: { variant: "positive", icon: CheckCircle, label: "CONCLUIDO" },
-  partial: { variant: "warning", icon: AlertTriangle, label: "PARCIAL" },
-  cancelled: { variant: "muted", icon: Ban, label: "CANCELADO" },
-  failed: { variant: "negative", icon: XCircle, label: "FALHOU" },
-  running: { variant: "primary", icon: RefreshCw, label: "RODANDO" },
+const statusConfig: Record<string, { variant: "positive" | "warning" | "negative" | "muted" | "primary"; icon: React.ElementType; labelKey: string }> = {
+  completed: { variant: "positive", icon: CheckCircle, labelKey: "status.completed" },
+  partial: { variant: "warning", icon: AlertTriangle, labelKey: "status.partial" },
+  cancelled: { variant: "muted", icon: Ban, labelKey: "status.cancelled" },
+  failed: { variant: "negative", icon: XCircle, labelKey: "status.failed" },
+  running: { variant: "primary", icon: RefreshCw, labelKey: "status.running" },
 };
 
 const RUN_TYPE_FILTERS = [
-  { key: "all", label: "Todos" },
-  { key: "full", label: "Full" },
-  { key: "ingest", label: "Ingest" },
-  { key: "daily_sync", label: "Daily" },
+  { key: "all", labelKey: "filterAll" },
+  { key: "full", labelKey: "filterFull" },
+  { key: "ingest", labelKey: "filterIngest" },
+  { key: "daily_sync", labelKey: "filterDaily" },
 ] as const;
 
 type RunTypeFilter = (typeof RUN_TYPE_FILTERS)[number]["key"];
 
 export default function LogsPage() {
+  const t = useTranslations("logs");
+  const tc = useTranslations("common");
   const [runs, setRuns] = useState<PipelineRun[]>([]);
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState<RunTypeFilter>("all");
@@ -114,26 +117,26 @@ export default function LogsPage() {
     <div className="space-y-6">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.5rem", fontWeight: 700, color: "var(--text-primary)" }}>Logs de Pipeline</h1>
-          <p className="mt-1" style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>Historico de execucoes de analise</p>
+          <h1 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.5rem", fontWeight: 700, color: "var(--text-primary)" }}>{t("title")}</h1>
+          <p className="mt-1" style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>{t("subtitle")}</p>
         </div>
-        <Button variant="ghost" size="sm" icon={<RefreshCw className="w-4 h-4" />} onClick={loadRuns}>Atualizar</Button>
+        <Button variant="ghost" size="sm" icon={<RefreshCw className="w-4 h-4" />} onClick={loadRuns}>{t("refresh")}</Button>
       </div>
 
       {!loading && runs.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant="primary">Execucoes {totalRuns}</Badge>
-          <Badge variant="positive" dot>Concluidas {completed}</Badge>
-          <Badge variant="warning">Custo total {fmtCostBRL(totalCostUsd)}</Badge>
+          <Badge variant="primary">{t("totalRuns")} {totalRuns}</Badge>
+          <Badge variant="positive" dot>{t("completed")} {completed}</Badge>
+          <Badge variant="warning">{t("totalCost")} {fmtCostBRL(totalCostUsd)}</Badge>
         </div>
       )}
 
       {!loading && runs.length > 0 && (
         <div className="flex items-center gap-1 flex-wrap">
-          <span className="mr-2" style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>Tipo:</span>
+          <span className="mr-2" style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{t("typeLabel")}</span>
           {RUN_TYPE_FILTERS.map(ft => (
             <button key={ft.key} onClick={() => setTypeFilter(ft.key)} className="px-3 py-1.5 rounded-lg transition-all" style={{ fontSize: "0.75rem", fontWeight: typeFilter === ft.key ? 500 : 400, backgroundColor: typeFilter === ft.key ? "var(--primary)" : "transparent", color: typeFilter === ft.key ? "white" : "var(--text-muted)" }}>
-              {ft.label}
+              {t(ft.labelKey)}
             </button>
           ))}
         </div>
@@ -157,8 +160,8 @@ export default function LogsPage() {
 
       {!loading && runs.length === 0 && (
         <div className="rounded-2xl p-16 flex flex-col items-center text-center" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
-          <p style={{ fontSize: "1rem", fontWeight: 500, color: "var(--text-muted)", marginBottom: 8 }}>Nenhuma execucao ainda</p>
-          <p style={{ fontSize: "0.82rem", color: "var(--text-faint)" }}>Conecte um perfil e inicie uma analise para ver logs aqui.</p>
+          <p style={{ fontSize: "1rem", fontWeight: 500, color: "var(--text-muted)", marginBottom: 8 }}>{t("emptyTitle")}</p>
+          <p style={{ fontSize: "0.82rem", color: "var(--text-faint)" }}>{t("emptySubtitle")}</p>
         </div>
       )}
 
@@ -181,17 +184,17 @@ export default function LogsPage() {
                       {run.platform && <GlassSocialIcon platform={run.platform} size={32} />}
                       <div>
                         <p style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)" }}>
-                          {run.connection_username ? (run.connection_username.startsWith("@") ? run.connection_username : `@${run.connection_username}`) : "Pipeline"}
+                          {run.connection_username ? (run.connection_username.startsWith("@") ? run.connection_username : `@${run.connection_username}`) : t("pipeline")}
                         </p>
-                        <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>{run.platform ?? "Sistema"} &middot; {run.run_type}</p>
+                        <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>{run.platform ?? t("system")} &middot; {run.run_type}</p>
                       </div>
                     </div>
-                    <Badge variant={sc.variant}><StatusIcon className="w-3 h-3" /> {sc.label}</Badge>
+                    <Badge variant={sc.variant}><StatusIcon className="w-3 h-3" /> {t(sc.labelKey)}</Badge>
                   </div>
 
                   {steps.length > 0 && (
                     <button onClick={() => toggleLog(run.id)} className="flex items-center gap-1 transition-colors mb-4" style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
-                      {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />} Ver log de execucao
+                      {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />} {t("viewLog")}
                     </button>
                   )}
 
@@ -208,11 +211,11 @@ export default function LogsPage() {
 
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                     {[
-                      { icon: FileText, label: "POSTS", value: `${fmt(run.posts_fetched)}/${run.target_posts != null ? fmt(run.target_posts) : "\u2014"}` },
-                      { icon: MessageCircle, label: "COMENTARIOS", value: `${fmt(run.comments_fetched)}/${run.target_comments != null ? fmt(run.target_comments) : "\u2014"}` },
-                      { icon: CheckCircle, label: "ANALISADOS", value: run.comments_fetched > 0 ? `${fmt(run.comments_analyzed)}/${fmt(run.comments_fetched)} (${Math.round(run.comments_analyzed / run.comments_fetched * 100)}%)` : fmt(run.comments_analyzed) },
-                      { icon: Clock, label: "DURACAO", value: duration ?? "\u2014" },
-                      { icon: DollarSign, label: "CUSTO", value: fmtCostBRL(runCostUsd) },
+                      { icon: FileText, label: t("stats.posts"), value: `${fmt(run.posts_fetched)}/${run.target_posts != null ? fmt(run.target_posts) : "\u2014"}` },
+                      { icon: MessageCircle, label: t("stats.comments"), value: `${fmt(run.comments_fetched)}/${run.target_comments != null ? fmt(run.target_comments) : "\u2014"}` },
+                      { icon: CheckCircle, label: t("stats.analyzed"), value: run.comments_fetched > 0 ? `${fmt(run.comments_analyzed)}/${fmt(run.comments_fetched)} (${Math.round(run.comments_analyzed / run.comments_fetched * 100)}%)` : fmt(run.comments_analyzed) },
+                      { icon: Clock, label: t("stats.duration"), value: duration ?? "\u2014" },
+                      { icon: DollarSign, label: t("stats.cost"), value: fmtCostBRL(runCostUsd) },
                     ].map(stat => (
                       <div key={stat.label} className="rounded-xl p-3" style={{ backgroundColor: "var(--bg-subtle)" }}>
                         <div className="flex items-center gap-1 mb-1">
@@ -227,19 +230,19 @@ export default function LogsPage() {
                   {run.errors_count > 0 && (
                     <div className="mt-3 px-4 py-2.5 rounded-xl flex items-center gap-2" style={{ backgroundColor: "var(--sentiment-negative-bg)" }}>
                       <AlertTriangle className="w-4 h-4" style={{ color: "var(--sentiment-negative)" }} />
-                      <span style={{ fontSize: "0.78rem", fontWeight: 500, color: "var(--sentiment-negative)" }}>{run.errors_count} erro{run.errors_count > 1 ? "s" : ""}</span>
+                      <span style={{ fontSize: "0.78rem", fontWeight: 500, color: "var(--sentiment-negative)" }}>{run.errors_count} {run.errors_count > 1 ? t("errors") : t("error")}</span>
                     </div>
                   )}
                 </div>
                 <div className="px-4 md:px-5 py-3 flex items-center justify-between flex-wrap gap-2" style={{ borderTop: "1px solid var(--border)" }}>
                   <div className="flex gap-4" style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>
-                    <span>Inicio: {fmtDatetime(run.started_at)}</span>
-                    {run.ended_at && <span>Fim: {fmtDatetime(run.ended_at)}</span>}
+                    <span>{t("start")}: {fmtDatetime(run.started_at)}</span>
+                    {run.ended_at && <span>{t("end")}: {fmtDatetime(run.ended_at)}</span>}
                   </div>
                   <div className="flex items-center gap-2">
                     <span style={{ fontSize: "0.6rem", color: "var(--text-faint)" }}>#{run.id.slice(0, 8)}</span>
                     {run.status === "running" && (
-                      <Button variant="danger" size="sm" onClick={() => handleCancel(run.id)}>Cancelar</Button>
+                      <Button variant="danger" size="sm" onClick={() => handleCancel(run.id)}>{t("cancel")}</Button>
                     )}
                     <button onClick={() => handleDelete(run.id)} className="p-1 rounded-lg transition-colors">
                       <Trash2 className="w-3 h-3" style={{ color: "var(--text-muted)" }} />

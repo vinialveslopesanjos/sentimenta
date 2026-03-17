@@ -2,17 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useTranslations } from "next-intl";
 
 const navItems = [
-  { href: "/dashboard", icon: "dashboard", label: "Dashboard" },
-  { href: "/connect", icon: "link", label: "Conectar" },
-  { href: "/alerts", icon: "notifications", label: "Alertas" },
-  { href: "/logs", icon: "terminal", label: "Logs" },
-  { href: "/settings", icon: "settings", label: "Config" },
-];
+  { href: "/dashboard", icon: "dashboard", labelKey: "dashboard" },
+  { href: "/connect", icon: "link", labelKey: "connect" },
+  { href: "/alerts", icon: "notifications", labelKey: "alerts" },
+  { href: "/logs", icon: "terminal", labelKey: "logs" },
+  { href: "/settings", icon: "settings", labelKey: "config" },
+] as const;
 
 export default function BottomNav() {
   const pathname = usePathname();
+  const t = useTranslations("nav");
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-50 md:hidden bg-white/90 backdrop-blur-xl border-t border-slate-100 shadow-[0_-4px_16px_-4px_rgba(0,0,0,0.06)]">
@@ -32,7 +34,7 @@ export default function BottomNav() {
               <span className={`material-symbols-outlined text-[22px]${isActive ? " font-variation-settings-fill" : ""}`} style={isActive ? { fontVariationSettings: "'FILL' 1" } : undefined}>
                 {item.icon}
               </span>
-              <span className="text-[10px] font-medium leading-tight">{item.label}</span>
+              <span className="text-[10px] font-medium leading-tight">{t(item.labelKey)}</span>
               {isActive && (
                 <div className="absolute bottom-1 w-5 h-0.5 rounded-full bg-slate-900" />
               )}

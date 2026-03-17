@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { RefreshCw, BarChart3, Trash2, ChevronDown, Settings2 } from "lucide-react";
@@ -35,6 +36,8 @@ type Connection = {
 type PlatformId = "instagram" | "youtube" | "twitter" | "tiktok";
 
 export default function ConnectPage() {
+  const t = useTranslations("connect");
+  const tc = useTranslations("common");
   const router = useRouter();
   const [connections, setConnections] = useState<Connection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -74,7 +77,7 @@ export default function ConnectPage() {
   const handleCheck = async (platformId: PlatformId) => {
     const handle = inputs[platformId]?.trim();
     if (!handle) {
-      setErrors(e => ({ ...e, [platformId]: "Informe o usuario ou URL." }));
+      setErrors(e => ({ ...e, [platformId]: t("enterUserOrUrl") }));
       return;
     }
     if (platformId !== "instagram") {
@@ -87,7 +90,7 @@ export default function ConnectPage() {
       const data = await connectionsApi.checkProfile(token, platformId, handle.replace("@", ""));
       setPotentials(p => ({ ...p, [platformId]: data }));
     } catch (err) {
-      setErrors(e => ({ ...e, [platformId]: err instanceof Error ? err.message : "Falha ao verificar perfil." }));
+      setErrors(e => ({ ...e, [platformId]: err instanceof Error ? err.message : t("checkProfileError") }));
     } finally {
       setChecking(c => ({ ...c, [platformId]: false }));
     }
@@ -110,11 +113,11 @@ export default function ConnectPage() {
       setInputs(i => ({ ...i, [platformId]: "" }));
       setPotentials(p => ({ ...p, [platformId]: null }));
       track("profile_connected", { platform: platformId });
-      setSuccess(s => ({ ...s, [platformId]: "Perfil conectado!" }));
+      setSuccess(s => ({ ...s, [platformId]: t("profileConnected") }));
       setTimeout(() => setSuccess(s => ({ ...s, [platformId]: "" })), 3000);
       await loadConnections();
     } catch (err) {
-      setErrors(e => ({ ...e, [platformId]: err instanceof Error ? err.message : "Falha ao conectar." }));
+      setErrors(e => ({ ...e, [platformId]: err instanceof Error ? err.message : t("connectError") }));
     } finally {
       setConnecting(c => ({ ...c, [platformId]: false }));
     }
@@ -180,31 +183,31 @@ export default function ConnectPage() {
         : await connectionsApi.getTiktokAuthUrl(token);
       window.location.href = res.auth_url;
     } catch (err) {
-      setErrors(e => ({ ...e, [platformId]: err instanceof Error ? err.message : "Falha ao iniciar OAuth." }));
+      setErrors(e => ({ ...e, [platformId]: err instanceof Error ? err.message : t("oauthError") }));
       setConnecting(c => ({ ...c, [platformId]: false }));
     }
   };
 
   const platforms = [
-    { id: "instagram" as PlatformId, name: "Instagram", desc: "Perfil publico funciona sem login", placeholder: "@usuario", hasInput: true, buttonText: "Verificar Perfil", secondaryButton: "Conectar via OAuth (Business)" },
-    { id: "youtube" as PlatformId, name: "YouTube", desc: "Analise de comentarios em videos", placeholder: "@canal ou URL", hasInput: true, buttonText: "Conectar" },
-    { id: "twitter" as PlatformId, name: "Twitter / X", desc: "Tweets e replies", placeholder: "@usuario", hasInput: true, buttonText: "Conectar" },
-    { id: "tiktok" as PlatformId, name: "TikTok", desc: "Conectar via OAuth (Login Kit)", placeholder: "", hasInput: false, buttonText: "Conectar via OAuth", oauthOnly: true },
+    { id: "instagram" as PlatformId, name: t("platforms.instagram.name"), desc: t("platforms.instagram.desc"), placeholder: t("platforms.instagram.placeholder"), hasInput: true, buttonText: t("platforms.instagram.button"), secondaryButton: t("platforms.instagram.oauthButton") },
+    { id: "youtube" as PlatformId, name: t("platforms.youtube.name"), desc: t("platforms.youtube.desc"), placeholder: t("platforms.youtube.placeholder"), hasInput: true, buttonText: t("platforms.youtube.button") },
+    { id: "twitter" as PlatformId, name: t("platforms.twitter.name"), desc: t("platforms.twitter.desc"), placeholder: t("platforms.twitter.placeholder"), hasInput: true, buttonText: t("platforms.twitter.button") },
+    { id: "tiktok" as PlatformId, name: t("platforms.tiktok.name"), desc: t("platforms.tiktok.desc"), placeholder: "", hasInput: false, buttonText: t("platforms.tiktok.button"), oauthOnly: true },
   ];
 
   return (
     <div className="space-y-8">
       <div>
-        <h1 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.5rem", fontWeight: 700, color: "var(--text-primary)" }}>Conectar Perfis</h1>
-        <p className="mt-1" style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>Gerencie suas fontes de dados para analise de sentimento.</p>
+        <h1 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.5rem", fontWeight: 700, color: "var(--text-primary)" }}>{t("title")}</h1>
+        <p className="mt-1" style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>{t("subtitle")}</p>
         <div className="flex items-center gap-2 mt-3">
-          <Badge variant="primary" dot>Sincronizacao automatica ativa</Badge>
+          <Badge variant="primary" dot>{t("autoSyncActive")}</Badge>
         </div>
       </div>
 
       {/* Platforms */}
       <div>
-        <p className="tracking-widest mb-4" style={{ fontSize: "0.65rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.12em" }}>ADICIONAR PERFIL</p>
+        <p className="tracking-widest mb-4" style={{ fontSize: "0.65rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.12em" }}>{t("addProfile")}</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {platforms.map(p => (
             <div key={p.id} className="rounded-2xl p-5 transition-all" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
@@ -225,7 +228,7 @@ export default function ConnectPage() {
                   onClick={() => handleOAuthConnect(p.id as "tiktok")}
                   disabled={connecting[p.id]}
                 >
-                  {connecting[p.id] ? "Conectando..." : p.buttonText}
+                  {connecting[p.id] ? t("connecting") : p.buttonText}
                 </Button>
               ) : (
                 <>
@@ -261,11 +264,11 @@ export default function ConnectPage() {
                       </div>
                       <div className="grid grid-cols-2 gap-2">
                         <div>
-                          <p style={{ fontSize: "0.62rem", color: "var(--text-muted)" }}>Seguidores</p>
+                          <p style={{ fontSize: "0.62rem", color: "var(--text-muted)" }}>{tc("followers")}</p>
                           <p style={{ fontSize: "0.78rem", fontWeight: 600, color: "var(--text-primary)" }}>{potentials[p.id].followers_count?.toLocaleString()}</p>
                         </div>
                         <div>
-                          <p style={{ fontSize: "0.62rem", color: "var(--text-muted)" }}>Posts</p>
+                          <p style={{ fontSize: "0.62rem", color: "var(--text-muted)" }}>{tc("posts")}</p>
                           <p style={{ fontSize: "0.78rem", fontWeight: 600, color: "var(--text-primary)" }}>{potentials[p.id].media_count?.toLocaleString()}</p>
                         </div>
                       </div>
@@ -280,7 +283,7 @@ export default function ConnectPage() {
                       onClick={() => handleCheck(p.id)}
                       disabled={checking[p.id]}
                     >
-                      {checking[p.id] ? "Verificando..." : p.buttonText}
+                      {checking[p.id] ? t("verifying") : p.buttonText}
                     </Button>
                   ) : (
                     <Button
@@ -290,7 +293,7 @@ export default function ConnectPage() {
                       onClick={() => handleConnect(p.id)}
                       disabled={connecting[p.id]}
                     >
-                      {connecting[p.id] ? "Conectando..." : "Confirmar Conexao"}
+                      {connecting[p.id] ? t("connecting") : t("confirmConnection")}
                     </Button>
                   )}
 
@@ -301,7 +304,7 @@ export default function ConnectPage() {
                       className="w-full mt-2 py-2 bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#FCAF45] text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-60"
                       style={{ fontSize: "0.78rem", fontWeight: 500 }}
                     >
-                      {connecting["instagram"] ? "Conectando..." : p.secondaryButton}
+                      {connecting["instagram"] ? t("connecting") : p.secondaryButton}
                     </button>
                   )}
                 </>
@@ -317,8 +320,8 @@ export default function ConnectPage() {
           <button onClick={() => setConfigOpen(!configOpen)} className="w-full flex items-center justify-between p-4 md:p-5 transition-colors">
             <div className="flex items-center gap-3">
               <Settings2 className="w-4 h-4" style={{ color: "var(--primary)" }} />
-              <span style={{ fontSize: "0.82rem", fontWeight: 500, color: "var(--text-primary)" }}>Configuracoes de Analise</span>
-              <span className="hidden sm:inline" style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>-- posts, comentarios e periodo</span>
+              <span style={{ fontSize: "0.82rem", fontWeight: 500, color: "var(--text-primary)" }}>{t("analysisSettings")}</span>
+              <span className="hidden sm:inline" style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{t("analysisSettingsSub")}</span>
             </div>
             <ChevronDown className={`w-4 h-4 transition-transform ${configOpen ? "rotate-180" : ""}`} style={{ color: "var(--text-muted)" }} />
           </button>
@@ -326,9 +329,9 @@ export default function ConnectPage() {
             <div className="px-4 md:px-5 pb-5 space-y-5" style={{ borderTop: "1px solid var(--border)" }}>
               <div className="pt-4 grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
-                  <p className="mb-2" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>POSTS A ANALISAR</p>
+                  <p className="mb-2" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>{t("postsToAnalyze")}</p>
                   <div className="flex gap-2 flex-wrap">
-                    {[{ label: "Ultimos 10", value: 10 }, { label: "Ultimos 50", value: 50 }, { label: "Todos (200)", value: 200 }].map(opt => (
+                    {[{ label: t("lastOptions.last10"), value: 10 }, { label: t("lastOptions.last50"), value: 50 }, { label: t("lastOptions.all200"), value: 200 }].map(opt => (
                       <button key={opt.value} onClick={() => updateSyncParams({ ...syncParams, max_posts: opt.value })} className="px-3 py-2 rounded-xl transition-all" style={{ fontSize: "0.78rem", fontWeight: 500, backgroundColor: syncParams.max_posts === opt.value ? "var(--primary-bg)" : "var(--bg-subtle)", color: syncParams.max_posts === opt.value ? "var(--primary)" : "var(--text-muted)", border: syncParams.max_posts === opt.value ? "1px solid var(--primary)" : "1px solid var(--border)" }}>
                         {opt.label}
                       </button>
@@ -336,38 +339,38 @@ export default function ConnectPage() {
                   </div>
                 </div>
                 <div>
-                  <p className="mb-2" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>COMENTARIOS POR POST</p>
+                  <p className="mb-2" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>{t("commentsPerPost")}</p>
                   <div className="flex gap-2 flex-wrap">
-                    {[{ label: "50", value: 50 }, { label: "200", value: 200 }, { label: "Todos", value: 10000 }].map(opt => (
+                    {[{ label: t("commentsOptions.50"), value: 50 }, { label: t("commentsOptions.200"), value: 200 }, { label: tc("all"), value: 10000 }].map(opt => (
                       <button key={opt.value} onClick={() => updateSyncParams({ ...syncParams, max_comments_per_post: opt.value })} className="px-3 py-2 rounded-xl transition-all" style={{ fontSize: "0.78rem", fontWeight: 500, backgroundColor: syncParams.max_comments_per_post === opt.value ? "var(--primary-bg)" : "var(--bg-subtle)", color: syncParams.max_comments_per_post === opt.value ? "var(--primary)" : "var(--text-muted)", border: syncParams.max_comments_per_post === opt.value ? "1px solid var(--primary)" : "1px solid var(--border)" }}>
                         {opt.label}
                       </button>
                     ))}
                   </div>
                   {syncParams.comment_sample_mode === "sample" && syncParams.max_comments_per_post < 10000 && (
-                    <p className="mt-2" style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>Com amostra inteligente, recomendamos &quot;Todos&quot; -- o algoritmo calcula o tamanho ideal automaticamente.</p>
+                    <p className="mt-2" style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>{t("sampleRecommendation")}</p>
                   )}
                 </div>
                 <div>
-                  <p className="mb-2" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>A PARTIR DE</p>
+                  <p className="mb-2" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>{t("since")}</p>
                   <input type="date" value={syncParams.since_date} onChange={e => updateSyncParams({ ...syncParams, since_date: e.target.value })} className="w-full px-3 py-2 rounded-xl transition-all" style={{ fontSize: "0.78rem", border: "1px solid var(--border)", backgroundColor: "var(--bg-subtle)", color: "var(--text-primary)" }} />
                 </div>
                 <div>
-                  <p className="mb-2" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>MODO DE COLETA</p>
+                  <p className="mb-2" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>{t("collectionMode")}</p>
                   <div className="flex gap-2 flex-wrap">
-                    {[{ label: "Completa", value: "all" as const }, { label: "Amostra inteligente", value: "sample" as const }].map(opt => (
+                    {[{ label: t("collectionFull"), value: "all" as const }, { label: t("collectionSample"), value: "sample" as const }].map(opt => (
                       <button key={opt.value} onClick={() => updateSyncParams({ ...syncParams, comment_sample_mode: opt.value })} className="px-3 py-2 rounded-xl transition-all" style={{ fontSize: "0.78rem", fontWeight: 500, backgroundColor: syncParams.comment_sample_mode === opt.value ? "var(--primary-bg)" : "var(--bg-subtle)", color: syncParams.comment_sample_mode === opt.value ? "var(--primary)" : "var(--text-muted)", border: syncParams.comment_sample_mode === opt.value ? "1px solid var(--primary)" : "1px solid var(--border)" }}>
                         {opt.label}
                       </button>
                     ))}
                   </div>
                   {syncParams.comment_sample_mode === "sample" && (
-                    <p className="mt-2" style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>Coleta amostra representativa (80% confianca, 5% margem) priorizando comentarios com mais engajamento.</p>
+                    <p className="mt-2" style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>{t("sampleDesc")}</p>
                   )}
                 </div>
               </div>
               <div className="flex justify-end pt-2">
-                <Button variant="primary" size="sm" onClick={handleSyncAll}>Adicionar novos dados</Button>
+                <Button variant="primary" size="sm" onClick={handleSyncAll}>{t("addNewData")}</Button>
               </div>
             </div>
           )}
@@ -377,8 +380,8 @@ export default function ConnectPage() {
       {/* Connected table */}
       <div>
         <div className="flex items-center justify-between mb-4">
-          <p className="tracking-widest" style={{ fontSize: "0.65rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.12em" }}>PERFIS CONECTADOS</p>
-          <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{connections.length} perfil{connections.length !== 1 ? "s" : ""}</span>
+          <p className="tracking-widest" style={{ fontSize: "0.65rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.12em" }}>{t("connectedProfiles")}</p>
+          <span style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{t("profileCount", { count: connections.length })}</span>
         </div>
 
         {loading ? (
@@ -387,14 +390,14 @@ export default function ConnectPage() {
           </div>
         ) : connections.length === 0 ? (
           <div className="rounded-2xl p-16 flex flex-col items-center text-center" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
-            <p style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>Nenhum perfil conectado ainda.</p>
+            <p style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>{t("noProfilesYet")}</p>
           </div>
         ) : (
           <div className="rounded-2xl overflow-x-auto" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
             <table className="w-full min-w-[700px]">
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  {["PERFIL", "SEGUIDORES", "ULTIMO SYNC", "STATUS", "AUTO SYNC", "ACOES"].map(h => (
+                  {[t("table.profile"), t("table.followers"), t("table.lastSync"), t("table.status"), t("table.autoSync"), t("table.actions")].map(h => (
                     <th key={h} className="px-5 py-3 text-left" style={{ fontSize: "0.6rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.08em" }}>{h}</th>
                   ))}
                 </tr>
@@ -417,11 +420,11 @@ export default function ConnectPage() {
                     <td className="px-5 py-4" style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>{relativeTime(conn.last_sync_at)}</td>
                     <td className="px-5 py-4">
                       {syncing[conn.id] ? (
-                        <Badge variant="primary" dot>Sync</Badge>
+                        <Badge variant="primary" dot>{t("statusLabels.sync")}</Badge>
                       ) : conn.status === "active" ? (
-                        <Badge variant="positive" dot>Ativo</Badge>
+                        <Badge variant="positive" dot>{t("statusLabels.active")}</Badge>
                       ) : (
-                        <Badge variant="negative" dot>Erro</Badge>
+                        <Badge variant="negative" dot>{t("statusLabels.error")}</Badge>
                       )}
                     </td>
                     <td className="px-5 py-4">
@@ -459,11 +462,11 @@ export default function ConnectPage() {
       {confirmDelete && (
         <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: "rgba(0,0,0,0.3)", backdropFilter: "blur(4px)" }}>
           <div className="rounded-2xl p-8 max-w-sm w-full" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
-            <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1rem", fontWeight: 600, color: "var(--text-primary)", marginBottom: 8 }}>Remover perfil?</h3>
-            <p className="mb-6" style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>Todos os dados de analise serao excluidos permanentemente.</p>
+            <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1rem", fontWeight: 600, color: "var(--text-primary)", marginBottom: 8 }}>{t("removeProfile")}</h3>
+            <p className="mb-6" style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>{t("removeWarning")}</p>
             <div className="flex gap-3">
-              <Button variant="secondary" fullWidth onClick={() => setConfirmDelete(null)}>Cancelar</Button>
-              <Button variant="danger" fullWidth onClick={() => handleDelete(confirmDelete)}>Remover</Button>
+              <Button variant="secondary" fullWidth onClick={() => setConfirmDelete(null)}>{tc("cancel")}</Button>
+              <Button variant="danger" fullWidth onClick={() => handleDelete(confirmDelete)}>{t("remove")}</Button>
             </div>
           </div>
         </div>
