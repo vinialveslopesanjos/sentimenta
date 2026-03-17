@@ -401,6 +401,7 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
             total_analyzed += analyzed_count
             total_llm_calls += stats.get("llm_calls", 0)
             total_errors += stats.get("errors", 0)
+            total_cost += stats.get("cost_usd", 0.0)
 
             generate_post_summary(db, post.id)
 
@@ -423,6 +424,15 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
             db.query(Post).filter(Post.id == post_id).update({"comment_count": count})
         db.commit()
         _append_step(db, run, f"Contagem de comentários atualizada para {len(post_counts)} posts")
+
+        # Stage 3: Demographics (disabled by default)
+        try:
+            from app.services.demographics_service import run_demographics_pipeline
+            demo_result = run_demographics_pipeline(db, conn_uuid, enabled=False)
+            if not demo_result.get("skipped"):
+                _append_step(db, run, f"Demographics: {demo_result.get('profiles_enriched', 0)} perfis enriquecidos")
+        except Exception as e:
+            logger.warning("Demographics pipeline error for %s: %s", connection_id, e)
 
         # Update run
         run.comments_analyzed = total_analyzed
@@ -463,8 +473,9 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
 
 
 @celery_app.task(bind=True)
-def task_daily_sync(self) -> dict:
-    """Weekly ETL: ingest new posts + comments, enrich via Apify, analyze, for all active connections."""
+def task_daily_sync(self, frequency_filter: str = None) -> dict:
+    """Scheduled ETL: ingest new posts + comments, enrich via Apify, analyze, for all active connections.
+    frequency_filter: 'weekly' or 'daily' — filters connections by plan sync_frequency."""
     db = SessionLocal()
     try:
         from datetime import timedelta
@@ -497,7 +508,27 @@ def task_daily_sync(self) -> dict:
                         results[conn.username] = {"skipped": "monthly_limit_reached"}
                         continue
 
+                # Filter by plan sync_frequency if frequency_filter is set
+                if frequency_filter and user:
+                    plan_frequency = limits.get("sync_frequency", "weekly")
+                    if plan_frequency != frequency_filter:
+                        logger.info("Skipping @%s — plan frequency '%s' != filter '%s'",
+                                    conn.username, plan_frequency, frequency_filter)
+                        results[conn.username] = {"skipped": "frequency_mismatch"}
+                        continue
+
                 logger.info("Weekly sync starting for @%s (%s)", conn.username, conn.platform)
+
+                # Check for concurrent running pipeline
+                active_run = db.query(PipelineRun).filter(
+                    PipelineRun.connection_id == conn.id,
+                    PipelineRun.status == "running",
+                    PipelineRun.started_at >= datetime.now(timezone.utc) - timedelta(hours=6),
+                ).first()
+                if active_run:
+                    logger.info("Skipping %s — pipeline already running (run %s)", conn.id, active_run.id)
+                    results[conn.username] = {"skipped": "already_running"}
+                    continue
 
                 # Create a PipelineRun for auditability
                 run = PipelineRun(
@@ -566,6 +597,17 @@ def task_daily_sync(self) -> dict:
                     if analyzed > 0:
                         generate_post_summary(db, post.id)
                         _append_step(db, run, f"Analisado post {idx}/{len(posts)}: {analyzed} novos comentários")
+
+                # Stage 3: Demographics (disabled by default)
+                try:
+                    from app.services.demographics_service import run_demographics_pipeline
+                    demo_result = run_demographics_pipeline(db, conn.id, enabled=False)
+                    if demo_result.get("skipped"):
+                        _append_step(db, run, "Demographics: desativado")
+                    else:
+                        _append_step(db, run, f"Demographics: {demo_result.get('profiles_enriched', 0)} perfis enriquecidos")
+                except Exception as e:
+                    logger.warning("Demographics pipeline error: %s", e)
 
                 # Sync comment counts
                 from app.models.comment import Comment
