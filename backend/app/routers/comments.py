@@ -158,3 +158,74 @@ def list_comments(
         items.append(item)
 
     return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+
+@router.get("/top")
+def top_comments(
+    connection_id: uuid.UUID | None = Query(None),
+    limit: int = Query(5, ge=1, le=50),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Return top N most positive and most negative comments by score."""
+    conn_query = db.query(SocialConnection.id).filter(
+        SocialConnection.user_id == current_user.id
+    )
+    if connection_id:
+        conn_query = conn_query.filter(SocialConnection.id == connection_id)
+    conn_ids = [c.id for c in conn_query.all()]
+
+    if not conn_ids:
+        return {"most_positive": [], "most_negative": []}
+
+    latest_analysis = _latest_analysis_subquery()
+
+    def _query_top(order_fn):
+        rows = (
+            db.query(
+                Comment,
+                latest_analysis.c.score_0_10.label("score"),
+                latest_analysis.c.polarity.label("polarity"),
+                latest_analysis.c.emotions.label("emotions"),
+                latest_analysis.c.topics.label("topics"),
+                latest_analysis.c.summary_pt.label("summary_pt"),
+            )
+            .join(latest_analysis, latest_analysis.c.comment_id == Comment.id)
+            .join(SocialConnection, Comment.connection_id == SocialConnection.id)
+            .filter(
+                Comment.connection_id.in_(conn_ids),
+                latest_analysis.c.score_0_10.isnot(None),
+            )
+            .filter(
+                or_(
+                    SocialConnection.ignore_author_comments == False,
+                    func.lower(Comment.author_username) != func.lower(SocialConnection.username),
+                    Comment.author_username == None
+                )
+            )
+            .order_by(order_fn(latest_analysis.c.score_0_10))
+            .limit(limit)
+            .all()
+        )
+        return [
+            {
+                "id": str(comment.id),
+                "author_name": comment.author_name,
+                "author_username": comment.author_username,
+                "text_original": comment.text_original,
+                "like_count": comment.like_count,
+                "published_at": comment.published_at.isoformat() if comment.published_at else None,
+                "platform": comment.platform,
+                "score": score,
+                "polarity": polarity,
+                "emotions": emotions,
+                "topics": topics,
+                "summary_pt": summary_pt,
+            }
+            for comment, score, polarity, emotions, topics, summary_pt in rows
+        ]
+
+    most_positive = _query_top(desc)
+    most_negative = _query_top(asc)
+
+    return {"most_positive": most_positive, "most_negative": most_negative}

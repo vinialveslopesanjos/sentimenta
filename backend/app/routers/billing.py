@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_user
 from app.db.session import get_db
 from app.models.user import User
-from app.services.plan_service import PLAN_LIMITS, estimate_sync_cost_brl, get_user_usage
+from app.services.plan_service import PLAN_LIMITS, calculate_overage, estimate_sync_cost_brl, get_user_usage
 from app.services.stripe_service import (
     construct_event,
     create_checkout_session,
@@ -30,38 +30,43 @@ PLAN_PRICING = [
         "slug": "free",
         "name": "Gratis",
         "price_brl": 0,
-        "description": "Teste com uma conexao e uma analise por mes.",
+        "price_annual_brl": 0,
+        "description": "Teste o Sentimenta com 500 comentarios/mes.",
     },
     {
-        "slug": "creator",
-        "name": "Creator",
-        "price_brl": 67,
-        "description": "Para criadores que querem entender seu publico.",
+        "slug": "starter",
+        "name": "Starter",
+        "price_brl": 97,
+        "price_annual_brl": 77,
+        "description": "Para criadores e marcas pequenas.",
     },
     {
         "slug": "pro",
         "name": "Pro",
-        "price_brl": 167,
-        "description": "Para marcas e profissionais.",
+        "price_brl": 247,
+        "price_annual_brl": 197,
+        "description": "Para marcas e profissionais em crescimento.",
         "highlight": True,
     },
     {
-        "slug": "agency",
-        "name": "Agency",
-        "price_brl": 397,
-        "description": "Para agencias com multiplos perfis.",
+        "slug": "business",
+        "name": "Business",
+        "price_brl": 597,
+        "price_annual_brl": 477,
+        "description": "Para agencias e operacoes com alto volume.",
     },
     {
         "slug": "enterprise",
         "name": "Enterprise",
         "price_brl": 0,
-        "description": "Volume alto, governanca e onboarding dedicado.",
+        "price_annual_brl": 0,
+        "description": "Volume ilimitado, SLA dedicado e onboarding.",
     },
 ]
 
 
 class CheckoutSessionRequest(BaseModel):
-    plan_slug: str = Field(pattern=r"^(creator|pro|agency|enterprise)$")
+    plan_slug: str = Field(pattern=r"^(starter|pro|business|enterprise)$")
 
 
 @router.get("/plans")

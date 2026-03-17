@@ -22,9 +22,9 @@ def _require_stripe() -> None:
 
 def get_price_config() -> dict[str, str]:
     prices = {
-        "creator": settings.STRIPE_PRICE_CREATOR,
+        "starter": settings.STRIPE_PRICE_STARTER,
         "pro": settings.STRIPE_PRICE_PRO,
-        "agency": settings.STRIPE_PRICE_AGENCY,
+        "business": settings.STRIPE_PRICE_BUSINESS,
         "enterprise": settings.STRIPE_PRICE_ENTERPRISE,
     }
     return {plan: price_id for plan, price_id in prices.items() if price_id}
@@ -85,7 +85,7 @@ def create_customer_portal_session(db: Session, user: User) -> str:
     customer_id = get_or_create_customer(db, user)
     session = stripe.billing_portal.Session.create(
         customer=customer_id,
-        return_url=f"{settings.APP_URL.rstrip('/')}/settings?tab=billing",
+        return_url=f"{settings.APP_URL.rstrip('/')}/dashboard/settings?tab=Plano+%26+Cobranca",
     )
     return session["url"]
 
@@ -175,4 +175,4 @@ def construct_event(payload: bytes, signature: str | None) -> dict[str, Any]:
             sig_header=signature,
             secret=settings.STRIPE_WEBHOOK_SECRET,
         )
-    return stripe.Event.construct_from(json.loads(payload.decode("utf-8")), stripe.api_key)
+    raise ValueError("STRIPE_WEBHOOK_SECRET is required — configure it in .env")

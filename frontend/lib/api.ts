@@ -383,6 +383,66 @@ export const dashboardApi = {
       generated_at: string;
     }>(`/dashboard/compare-connections?connection_ids=${connectionIds.join(",")}&days=${days}`, { token }),
 
+  engagementHeatmap: (token: string) =>
+    apiFetch<{ data: number[][] }>("/dashboard/engagement-heatmap", { token }),
+
+  engagementPeaks: (token: string) =>
+    apiFetch<{ hours: Array<{ hour: number; volume: number }> }>("/dashboard/engagement-peaks", { token }),
+
+  trendsByPlatform: (token: string, params: { days?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (params.days !== undefined) query.set("days", String(params.days));
+    const qs = query.toString();
+    return apiFetch<{
+      platforms: Record<string, Array<{ date: string; score: number }>>;
+    }>(`/dashboard/trends-by-platform${qs ? `?${qs}` : ""}`, { token });
+  },
+
+  gapAnalysis: (token: string, connectionId: string) =>
+    apiFetch<{
+      posts: Array<{ id: string; title: string; engagement: number; sentiment: number; comments: number }>;
+    }>(`/dashboard/connection/${connectionId}/gap-analysis`, { token }),
+
+  ambassadorsDetractors: (token: string, connectionId: string) =>
+    apiFetch<{
+      ambassadors: Array<{ username: string; count: number; avg_score: number; dominant_emotion: string }>;
+      detractors: Array<{ username: string; count: number; avg_score: number; dominant_emotion: string }>;
+    }>(`/dashboard/connection/${connectionId}/ambassadors-detractors`, { token }),
+
+  topicEmotionMatrix: (token: string, connectionId: string) =>
+    apiFetch<{
+      topics: string[];
+      emotions: string[];
+      matrix: number[][];
+    }>(`/dashboard/connection/${connectionId}/topic-emotion-matrix`, { token }),
+
+  postLifecycle: (token: string, connectionId: string, postId: string) =>
+    apiFetch<{
+      post_id: string;
+      datapoints: Array<{ hours_after: number; avg_score: number; volume: number }>;
+    }>(`/dashboard/connection/${connectionId}/post-lifecycle?post_id=${postId}`, { token }),
+
+  interactionTypes: (token: string, connectionId: string) =>
+    apiFetch<{
+      weeks: Array<{ date: string; comments: number; shares: number; likes: number }>;
+    }>(`/dashboard/connection/${connectionId}/interaction-types`, { token }),
+
+  compareRadar: (token: string, connectionIds: string[], days = 90) =>
+    apiFetch<{
+      connections: Array<{
+        connection_id: string;
+        username: string;
+        axes: { score: number; engagement: number; positivity: number; volume: number; consistency: number; growth: number };
+      }>;
+    }>(`/dashboard/compare-radar?connection_ids=${connectionIds.join(",")}&days=${days}`, { token }),
+
+  insights: (token: string, connectionIds: string[]) =>
+    apiFetch<{
+      advantage: { title: string; description: string };
+      opportunity: { title: string; description: string };
+      risk: { title: string; description: string };
+    }>(`/dashboard/insights?connection_ids=${connectionIds.join(",")}`, { token }),
+
   alerts: (
     token: string,
     params: { days?: number; min_analyzed?: number; negative_threshold?: number } = {}
@@ -436,6 +496,12 @@ export const billingApi = {
         syncs_limit: number;
         connections_used: number;
         connections_limit: number;
+        comments_used_this_month: number;
+        comments_included: number;
+        overage_comments: number;
+        overage_cost_brl: number;
+        overage_price_per_comment: number;
+        overage_allowed: boolean;
         apify_credits_used_brl: number;
         apify_credits_limit_brl: number;
         billing_period_start: string;
@@ -474,6 +540,17 @@ export const pipelineApi = {
 
 // Comments
 export const commentsApi = {
+  top: (token: string, params: { connection_id?: string; limit?: number } = {}) => {
+    const query = new URLSearchParams();
+    if (params.connection_id) query.set("connection_id", params.connection_id);
+    if (params.limit) query.set("limit", String(params.limit));
+    const qs = query.toString();
+    return apiFetch<{
+      most_positive: Array<Record<string, unknown>>;
+      most_negative: Array<Record<string, unknown>>;
+    }>(`/comments/top${qs ? `?${qs}` : ""}`, { token });
+  },
+
   list: (
     token: string,
     params: {

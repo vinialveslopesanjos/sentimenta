@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sentimenta — Estudo de Precificação e Cenários Financeiros</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            line-height: 1.6;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+        h1 {
+            font-size: 2.2rem;
+            background: linear-gradient(135deg, #0d9488, #8b5cf6);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 0.5rem;
+        }
+        h2 {
+            font-size: 1.5rem;
+            color: #0d9488;
+            margin: 2.5rem 0 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 2px solid #1e293b;
+        }
+        h3 { font-size: 1.1rem; color: #a78bfa; margin: 1.5rem 0 0.75rem; }
+        .subtitle { color: #94a3b8; font-size: 1rem; margin-bottom: 2rem; }
+        .date { color: #64748b; font-size: 0.85rem; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; margin: 1.5rem 0; }
+        .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; margin: 1.5rem 0; }
+        @media (max-width: 768px) { .grid, .grid-3 { grid-template-columns: 1fr; } }
+        .card {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid #334155;
+        }
+        .card-highlight {
+            background: linear-gradient(135deg, #1e293b, #0f2027);
+            border: 1px solid #0d9488;
+        }
+        .card-danger {
+            background: linear-gradient(135deg, #1e293b, #27101a);
+            border: 1px solid #ef4444;
+        }
+        .card-success {
+            background: linear-gradient(135deg, #1e293b, #0a2015);
+            border: 1px solid #10b981;
+        }
+        .card h4 { color: #f8fafc; margin-bottom: 0.5rem; font-size: 1rem; }
+        .big-number { font-size: 2rem; font-weight: 700; }
+        .big-number.teal { color: #0d9488; }
+        .big-number.purple { color: #8b5cf6; }
+        .big-number.red { color: #ef4444; }
+        .big-number.green { color: #10b981; }
+        .big-number.gold { color: #f59e0b; }
+        .label { color: #94a3b8; font-size: 0.85rem; }
+        .chart-container {
+            background: #1e293b;
+            border-radius: 12px;
+            padding: 1.5rem;
+            border: 1px solid #334155;
+            margin: 1.5rem 0;
+        }
+        .chart-container canvas { max-height: 400px; }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 1rem 0;
+            font-size: 0.9rem;
+        }
+        th {
+            background: #334155;
+            color: #e2e8f0;
+            padding: 0.75rem;
+            text-align: left;
+            font-weight: 600;
+        }
+        td { padding: 0.75rem; border-bottom: 1px solid #1e293b; }
+        tr:hover td { background: #1e293b; }
+        .tag {
+            display: inline-block;
+            padding: 0.2rem 0.6rem;
+            border-radius: 4px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        .tag-easy { background: #064e3b; color: #6ee7b7; }
+        .tag-medium { background: #78350f; color: #fcd34d; }
+        .tag-hard { background: #7f1d1d; color: #fca5a5; }
+        .tag-positive { background: #064e3b; color: #6ee7b7; }
+        .tag-negative { background: #7f1d1d; color: #fca5a5; }
+        .insight {
+            background: #1a1a2e;
+            border-left: 4px solid #8b5cf6;
+            padding: 1rem 1.5rem;
+            margin: 1rem 0;
+            border-radius: 0 8px 8px 0;
+        }
+        .divider { border: none; border-top: 1px solid #1e293b; margin: 3rem 0; }
+        .flow-step {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            margin: 0.75rem 0;
+        }
+        .flow-num {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: #0d9488;
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            flex-shrink: 0;
+        }
+        .flow-arrow { color: #475569; margin: 0 0.5rem; }
+        .comparison-row {
+            display: flex;
+            gap: 1rem;
+            margin: 0.5rem 0;
+            align-items: center;
+        }
+        .bar-visual {
+            height: 24px;
+            border-radius: 4px;
+            display: flex;
+            align-items: center;
+            padding: 0 0.5rem;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: white;
+            min-width: 40px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <p class="date">Atualizado: 16 de Março de 2026</p>
+    <h1>Sentimenta — Estudo de Precificação</h1>
+    <p class="subtitle">Análise completa de cenários financeiros, curvas de lucro e riscos para cada estratégia de pricing.</p>
+
+    <!-- KPIs -->
+    <div class="grid-3">
+        <div class="card card-highlight">
+            <h4>Custo por Comentário</h4>
+            <div class="big-number teal">R$ 0,016</div>
+            <div class="label">Apify + LLM + Demographics + Infra</div>
+        </div>
+        <div class="card card-highlight">
+            <h4>Gap de Mercado BR</h4>
+            <div class="big-number purple">R$70 → R$1.500</div>
+            <div class="label">Nenhum concorrente nessa faixa com sentiment</div>
+        </div>
+        <div class="card card-highlight">
+            <h4>Breakeven</h4>
+            <div class="big-number green">3 clientes</div>
+            <div class="label">2 Starter + 1 Pro cobrem custos fixos</div>
+        </div>
+    </div>
+
+    <!-- Posicionamento -->
+    <h2>1. Posicionamento no Mercado Brasileiro</h2>
+    <div class="chart-container">
+        <canvas id="chartMarket"></canvas>
+    </div>
+    <div class="insight">
+        <strong>Insight:</strong> O Sentimenta é o único produto brasileiro com análise de sentimento + demographics por menos de R$1.500/mês. Concorrentes baratos (mLabs, Etus) NÃO fazem sentiment. Os que fazem (Buzzmonitor, Stilingue) custam 10-20x mais.
+    </div>
+
+    <hr class="divider">
+
+    <!-- Estrutura de custos -->
+    <h2>2. Estrutura de Custos</h2>
+    <div class="grid">
+        <div class="chart-container">
+            <canvas id="chartCostBreakdown"></canvas>
+        </div>
+        <div>
+            <h3>Custo por Tipo de Cliente (First Run)</h3>
+            <table>
+                <tr><th>Perfil</th><th>Comments</th><th>Custo</th></tr>
+                <tr><td>Marca pequena (90d)</td><td>1.950</td><td>R$ 31</td></tr>
+                <tr><td>Marca média (6m)</td><td>27.000</td><td>R$ 432</td></tr>
+                <tr><td>Político médio (6m)</td><td>36.000</td><td>R$ 576</td></tr>
+                <tr><td>Político grande (12m)</td><td>360.000</td><td>R$ 5.760</td></tr>
+            </table>
+            <div class="insight">
+                <strong>Problema central:</strong> A first run de um político grande custa R$5.760. Sem créditos pré-pagos, isso seria prejuízo certo.
+            </div>
+        </div>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Modelo de Pricing -->
+    <h2>3. Modelo de Pricing: Trial 14d + Tiers + Créditos Pré-pagos</h2>
+
+    <h3>Fluxo do Usuário</h3>
+    <div class="card" style="margin: 1rem 0;">
+        <div class="flow-step"><div class="flow-num">1</div><div>Signup → Cadastra cartão no Stripe → Trial 14 dias ativado</div></div>
+        <div class="flow-step"><div class="flow-num">2</div><div>Trial: 1 conexão, ~1.000 comments, todas as features (sentiment + demographics)</div></div>
+        <div class="flow-step"><div class="flow-num">3</div><div>Fim do trial → Escolhe plano pago (Starter / Pro / Business / Enterprise)</div></div>
+        <div class="flow-step"><div class="flow-num">4</div><div>Plano ativo: syncs automáticos dentro da quota mensal incluída</div></div>
+        <div class="flow-step"><div class="flow-num">5</div><div>Quer analisar mais histórico? → Tela de estimativa → Calcula comments + custo</div></div>
+        <div class="flow-step"><div class="flow-num">6</div><div>Paga créditos extras via Stripe → Processamento inicia → Dashboard atualiza</div></div>
+    </div>
+
+    <h3>Tabela de Planos</h3>
+    <table>
+        <tr>
+            <th>Plano</th><th>Preço/mês</th><th>Anual/mês</th><th>Conexões</th>
+            <th>Comments/mês</th><th>Excedente</th><th>Sync</th><th>Histórico</th>
+        </tr>
+        <tr>
+            <td><span class="tag tag-easy">Trial 14d</span></td><td>R$ 0</td><td>—</td><td>1</td>
+            <td>1.000</td><td>Bloq.</td><td>Manual</td><td>7 dias</td>
+        </tr>
+        <tr style="background:#0d948815;">
+            <td><strong>Starter</strong></td><td><strong>R$ 97</strong></td><td>R$ 77</td><td>3</td>
+            <td>5.000</td><td>R$ 0,04</td><td>Semanal</td><td>90 dias</td>
+        </tr>
+        <tr style="background:#8b5cf615;">
+            <td><strong>Pro ★</strong></td><td><strong>R$ 247</strong></td><td>R$ 197</td><td>7</td>
+            <td>20.000</td><td>R$ 0,035</td><td>Diário</td><td>6 meses</td>
+        </tr>
+        <tr style="background:#f59e0b15;">
+            <td><strong>Business</strong></td><td><strong>R$ 597</strong></td><td>R$ 477</td><td>20</td>
+            <td>80.000</td><td>R$ 0,03</td><td>Diário</td><td>12 meses</td>
+        </tr>
+        <tr>
+            <td><strong>Enterprise</strong></td><td>Custom</td><td>Custom</td><td>Ilimitado</td>
+            <td>Ilimitado</td><td>Negociado</td><td>Diário</td><td>Ilimitado</td>
+        </tr>
+    </table>
+
+    <h3>Créditos para Histórico Extra (pré-pago via Stripe)</h3>
+    <table>
+        <tr><th>Pacote</th><th>Comments</th><th>Preço</th><th>Por comment</th><th>Margem</th></tr>
+        <tr><td>Starter Pack</td><td>5.000</td><td>R$ 175</td><td>R$ 0,035</td><td>54%</td></tr>
+        <tr><td>Growth Pack</td><td>25.000</td><td>R$ 750</td><td>R$ 0,030</td><td>47%</td></tr>
+        <tr><td>Power Pack</td><td>100.000</td><td>R$ 2.500</td><td>R$ 0,025</td><td>36%</td></tr>
+    </table>
+
+    <hr class="divider">
+
+    <!-- Lucro por cliente -->
+    <h2>4. Lucro por Cliente (Unit Economics)</h2>
+    <div class="chart-container">
+        <canvas id="chartProfitCurve"></canvas>
+    </div>
+
+    <div class="grid">
+        <div class="card card-success">
+            <h4>Melhor cenário: Starter (12 meses)</h4>
+            <div class="big-number green">R$ 852</div>
+            <div class="label">Margem recorrente: 75% | Breakeven: Mês 1</div>
+        </div>
+        <div class="card card-danger">
+            <h4>Pior cenário: Enterprise cancela mês 1</h4>
+            <div class="big-number red">-R$ 903</div>
+            <div class="label">Breakeven: Mês 3 | Mitigação: contrato mínimo</div>
+        </div>
+    </div>
+
+    <h3>Lucro Acumulado por Tier (12 meses)</h3>
+    <table>
+        <tr><th>Tier</th><th>Mês 1</th><th>Mês 3</th><th>Mês 6</th><th>Mês 12</th><th>Margem M1</th><th>Margem Recorrente</th><th>Breakeven</th></tr>
+        <tr><td>Starter</td><td class="tag-positive">R$ 49</td><td>R$ 195</td><td>R$ 414</td><td><strong>R$ 852</strong></td><td>50,5%</td><td>75,3%</td><td>Mês 1</td></tr>
+        <tr><td>Pro</td><td class="tag-positive">R$ 7</td><td>R$ 245</td><td>R$ 602</td><td><strong>R$ 1.316</strong></td><td>2,8%</td><td>48,2%</td><td>Mês 1</td></tr>
+        <tr><td>Business</td><td style="color:#ef4444;">-R$ 203</td><td>R$ 191</td><td>R$ 782</td><td><strong>R$ 1.964</strong></td><td>-34%</td><td>33%</td><td>Mês 3</td></tr>
+        <tr><td>Enterprise</td><td style="color:#ef4444;">-R$ 903</td><td>R$ 171</td><td>R$ 1.782</td><td><strong>R$ 5.004</strong></td><td>-60%</td><td>36%</td><td>Mês 3</td></tr>
+        <tr style="background:#0d948815;"><td><strong>Pro (político)</strong></td><td class="tag-positive"><strong>R$ 231</strong></td><td>R$ 533</td><td>R$ 986</td><td><strong>R$ 1.892</strong></td><td>28,6%</td><td>61,1%</td><td>Mês 1</td></tr>
+    </table>
+
+    <hr class="divider">
+
+    <!-- 5 Cenários -->
+    <h2>5. Cenários de Mix de Clientes</h2>
+    <div class="chart-container">
+        <canvas id="chartScenarios"></canvas>
+    </div>
+    <div class="chart-container">
+        <canvas id="chartMarginScenarios"></canvas>
+    </div>
+
+    <table>
+        <tr><th>Cenário</th><th>Pagantes</th><th>Receita/mês</th><th>Custos/mês</th><th>Lucro/mês</th><th>Lucro/ano</th><th>Margem</th></tr>
+        <tr><td>Early Stage (mês 3)</td><td>7</td><td>R$ 1.077</td><td>R$ 640</td><td>R$ 437</td><td>R$ 5.244</td><td>40,6%</td></tr>
+        <tr><td>Growing (mês 6)</td><td>25</td><td>R$ 5.088</td><td>R$ 2.544</td><td>R$ 2.544</td><td>R$ 30.528</td><td>50,0%</td></tr>
+        <tr style="background:#0d948815;"><td><strong>Established (mês 12)</strong></td><td><strong>66</strong></td><td><strong>R$ 14.632</strong></td><td>R$ 7.000</td><td><strong>R$ 7.632</strong></td><td><strong>R$ 91.584</strong></td><td><strong>52,2%</strong></td></tr>
+        <tr><td>Eleições (campanha)</td><td>35</td><td>R$ 14.312</td><td>R$ 7.576</td><td>R$ 6.736</td><td>R$ 80.832</td><td>47,1%</td></tr>
+        <tr style="background:#8b5cf615;"><td><strong>Scale (mês 24)</strong></td><td><strong>148</strong></td><td><strong>R$ 36.912</strong></td><td>R$ 18.340</td><td><strong>R$ 18.572</strong></td><td><strong>R$ 222.864</strong></td><td><strong>50,3%</strong></td></tr>
+    </table>
+
+    <hr class="divider">
+
+    <!-- Curva de crescimento -->
+    <h2>6. Curva de Lucro por Número de Clientes Pagantes</h2>
+    <div class="chart-container">
+        <canvas id="chartGrowthCurve"></canvas>
+    </div>
+
+    <hr class="divider">
+
+    <!-- Riscos -->
+    <h2>7. Análise de Risco: Onde Perco Dinheiro?</h2>
+
+    <h3>Cenários de Prejuízo</h3>
+    <div class="chart-container">
+        <canvas id="chartRisks"></canvas>
+    </div>
+
+    <div class="grid">
+        <div class="card card-danger">
+            <h4>PIOR: 1000 bots no trial</h4>
+            <div class="big-number red">-R$ 3.400/mês</div>
+            <div class="label">Mitigação: cartão obrigatório + captcha + cap contas</div>
+        </div>
+        <div class="card card-danger">
+            <h4>3 Enterprise cancelam mês 1</h4>
+            <div class="big-number red">-R$ 5.109</div>
+            <div class="label">Mitigação: contrato mínimo 6 meses</div>
+        </div>
+        <div class="card card-success">
+            <h4>Político Pro com excedente pré-pago</h4>
+            <div class="big-number green">+R$ 231</div>
+            <div class="label">Lucro desde o mês 1! Excedente resolve.</div>
+        </div>
+        <div class="card card-success">
+            <h4>Eleição 30 clientes (3-4 meses)</h4>
+            <div class="big-number green">+R$ 15.430</div>
+            <div class="label">Mesmo com churn total, lucra bem.</div>
+        </div>
+    </div>
+
+    <h3>8 Estratégias de Mitigação</h3>
+    <table>
+        <tr><th>#</th><th>Risco</th><th>Estratégia</th><th>Impacto</th><th>Dificuldade</th></tr>
+        <tr><td>1</td><td>Trial caro</td><td>Limitar trial a 200 comments</td><td>Custo cai 60%</td><td><span class="tag tag-easy">Fácil</span></td></tr>
+        <tr><td>2</td><td>Bots/spam</td><td>Email verification + captcha</td><td>95% menos bots</td><td><span class="tag tag-easy">Fácil</span></td></tr>
+        <tr><td>3</td><td>Zero conversão</td><td>Cartão obrigatório (Vercel-style)</td><td>Conversão 3-5x</td><td><span class="tag tag-medium">Média</span></td></tr>
+        <tr><td>4</td><td>Churn M1 grande</td><td>Contrato min 3m Business, 6m Enterprise</td><td>Elimina prejuízo</td><td><span class="tag tag-medium">Média</span></td></tr>
+        <tr><td>5</td><td>First run gigante</td><td>Créditos pré-pagos (não processa sem $)</td><td>Zero calote</td><td><span class="tag tag-hard">Alta</span></td></tr>
+        <tr><td>6</td><td>Churn eleição</td><td>Desconto anual 40% pra políticos</td><td>12 meses garantidos</td><td><span class="tag tag-easy">Fácil</span></td></tr>
+        <tr><td>7</td><td>Trial explode</td><td>Cap 500 contas trial + waitlist</td><td>Custo controlado</td><td><span class="tag tag-easy">Fácil</span></td></tr>
+        <tr><td>8</td><td>Enterprise calote</td><td>Fatura antecipada + contrato PJ</td><td>Zero risco</td><td><span class="tag tag-medium">Média</span></td></tr>
+    </table>
+
+    <hr class="divider">
+
+    <h2>8. Resumo Executivo</h2>
+    <div class="grid-3">
+        <div class="card">
+            <h4>Mercado</h4>
+            <p>Único no Brasil com sentiment + demographics entre R$97-597. Gap de R$70 a R$1.500 sem concorrência.</p>
+        </div>
+        <div class="card">
+            <h4>Modelo</h4>
+            <p>Trial 14d (cartão obrigatório) → Tiers mensais com quota → Créditos pré-pagos para histórico extra.</p>
+        </div>
+        <div class="card">
+            <h4>Meta</h4>
+            <p>66 pagantes = R$91.584/ano (52% margem). 148 pagantes = R$222.864/ano.</p>
+        </div>
+    </div>
+
+    <p style="text-align: center; color: #475569; margin-top: 3rem; font-size: 0.85rem;">
+        Sentimenta © 2026 — Documento interno de estratégia
+    </p>
+</div>
+
+<script>
+    const colors = {
+        teal: '#0d9488',
+        tealLight: '#14b8a6',
+        purple: '#8b5cf6',
+        purpleLight: '#a78bfa',
+        rose: '#f43f5e',
+        roseLight: '#fb7185',
+        gold: '#f59e0b',
+        goldLight: '#fbbf24',
+        green: '#10b981',
+        greenLight: '#34d399',
+        gray: '#64748b',
+        grayLight: '#94a3b8',
+    };
+
+    Chart.defaults.color = '#94a3b8';
+    Chart.defaults.borderColor = '#1e293b';
+    Chart.defaults.font.family = "'Segoe UI', system-ui, sans-serif";
+
+    // 1. Market positioning
+    new Chart(document.getElementById('chartMarket'), {
+        type: 'bar',
+        data: {
+            labels: ['Etus', 'mLabs', 'Sentimenta\nStarter', 'Reportei', 'Sentimenta\nPro', 'Sentimenta\nBusiness', 'Buzzmonitor', 'Zeeng', 'Stilingue'],
+            datasets: [{
+                label: 'Preço mensal (R$)',
+                data: [19, 70, 97, 150, 247, 597, 1590, 1500, 3000],
+                backgroundColor: [
+                    '#475569', '#475569', colors.teal, '#475569', colors.purple,
+                    colors.gold, '#475569', '#475569', '#475569'
+                ],
+                borderRadius: 6,
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: { display: true, text: 'Posicionamento de Preço no Mercado BR', font: { size: 16 }, color: '#e2e8f0' },
+                legend: { display: false },
+                tooltip: {
+                    callbacks: {
+                        afterLabel: (ctx) => {
+                            const sentiment = [false, false, true, false, true, true, true, true, true];
+                            return sentiment[ctx.dataIndex] ? '✓ Sentiment Analysis' : '✗ Sem Sentiment';
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    title: { display: true, text: 'R$/mês' },
+                    grid: { color: '#1e293b' }
+                },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+
+    // 2. Cost breakdown
+    new Chart(document.getElementById('chartCostBreakdown'), {
+        type: 'doughnut',
+        data: {
+            labels: ['Apify Scraping', 'LLM Sentimento', 'Demographics', 'Overhead Infra'],
+            datasets: [{
+                data: [0.0115, 0.001, 0.001, 0.003],
+                backgroundColor: [colors.purple, colors.rose, colors.teal, colors.gray],
+                borderWidth: 0,
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: { display: true, text: 'Custo por Comentário: R$ 0,016', font: { size: 14 }, color: '#e2e8f0' },
+                legend: { position: 'bottom' },
+                tooltip: {
+                    callbacks: {
+                        label: (ctx) => `${ctx.label}: R$ ${ctx.raw.toFixed(4)} (${Math.round(ctx.raw/0.016*100)}%)`
+                    }
+                }
+            }
+        }
+    });
+
+    // 3. Profit curve per tier
+    new Chart(document.getElementById('chartProfitCurve'), {
+        type: 'line',
+        data: {
+            labels: ['Mês 1', 'Mês 2', 'Mês 3', 'Mês 4', 'Mês 5', 'Mês 6', 'Mês 7', 'Mês 8', 'Mês 9', 'Mês 10', 'Mês 11', 'Mês 12'],
+            datasets: [
+                {
+                    label: 'Starter (R$97)',
+                    data: [49, 122, 195, 268, 341, 414, 487, 560, 633, 706, 779, 852],
+                    borderColor: colors.green, backgroundColor: colors.green + '20', fill: true, tension: 0.3,
+                },
+                {
+                    label: 'Pro (R$247)',
+                    data: [7, 126, 245, 364, 483, 602, 721, 840, 959, 1078, 1197, 1316],
+                    borderColor: colors.teal, backgroundColor: colors.teal + '20', fill: true, tension: 0.3,
+                },
+                {
+                    label: 'Pro (Político)',
+                    data: [231, 382, 533, 684, 835, 986, 1137, 1288, 1439, 1590, 1741, 1892],
+                    borderColor: colors.gold, backgroundColor: colors.gold + '10', fill: false, tension: 0.3, borderDash: [5,5],
+                },
+                {
+                    label: 'Business (R$597)',
+                    data: [-203, -6, 191, 388, 585, 782, 979, 1176, 1373, 1570, 1767, 1964],
+                    borderColor: colors.purple, backgroundColor: colors.purple + '20', fill: true, tension: 0.3,
+                },
+                {
+                    label: 'Enterprise (R$1.497)',
+                    data: [-903, -366, 171, 708, 1245, 1782, 2319, 2856, 3393, 3930, 4467, 5004],
+                    borderColor: colors.rose, backgroundColor: colors.rose + '10', fill: false, tension: 0.3,
+                },
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: { display: true, text: 'Lucro Acumulado por Tier ao Longo de 12 Meses', font: { size: 16 }, color: '#e2e8f0' },
+            },
+            scales: {
+                y: {
+                    title: { display: true, text: 'Lucro acumulado (R$)' },
+                    grid: { color: '#1e293b' },
+                },
+                x: { grid: { color: '#1e293b' } }
+            },
+            interaction: { mode: 'index', intersect: false },
+        }
+    });
+
+    // 4. Scenarios comparison
+    new Chart(document.getElementById('chartScenarios'), {
+        type: 'bar',
+        data: {
+            labels: ['Early Stage\n(7 pagantes)', 'Growing\n(25 pagantes)', 'Established\n(66 pagantes)', 'Eleições\n(35 pagantes)', 'Scale\n(148 pagantes)'],
+            datasets: [
+                {
+                    label: 'Receita/mês',
+                    data: [1077, 5088, 14632, 14312, 36912],
+                    backgroundColor: colors.teal,
+                    borderRadius: 6,
+                },
+                {
+                    label: 'Custos/mês',
+                    data: [640, 2544, 7000, 7576, 18340],
+                    backgroundColor: colors.rose,
+                    borderRadius: 6,
+                },
+                {
+                    label: 'Lucro/mês',
+                    data: [437, 2544, 7632, 6736, 18572],
+                    backgroundColor: colors.green,
+                    borderRadius: 6,
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: { display: true, text: '5 Cenários: Receita vs Custos vs Lucro (mensal)', font: { size: 16 }, color: '#e2e8f0' },
+            },
+            scales: {
+                y: {
+                    title: { display: true, text: 'R$/mês' },
+                    grid: { color: '#1e293b' },
+                },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+
+    // 5. Margin by scenario
+    new Chart(document.getElementById('chartMarginScenarios'), {
+        type: 'bar',
+        data: {
+            labels: ['Early Stage', 'Growing', 'Established', 'Eleições', 'Scale'],
+            datasets: [
+                {
+                    label: 'Lucro Anual (R$)',
+                    data: [5244, 30528, 91584, 80832, 222864],
+                    backgroundColor: [colors.gray, colors.tealLight, colors.green, colors.gold, colors.purple],
+                    borderRadius: 6,
+                    yAxisID: 'y',
+                },
+                {
+                    label: 'Margem (%)',
+                    data: [40.6, 50, 52.2, 47.1, 50.3],
+                    type: 'line',
+                    borderColor: colors.rose,
+                    backgroundColor: colors.rose,
+                    pointRadius: 6,
+                    yAxisID: 'y1',
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: { display: true, text: 'Lucro Anual e Margem por Cenário', font: { size: 16 }, color: '#e2e8f0' },
+            },
+            scales: {
+                y: {
+                    title: { display: true, text: 'Lucro anual (R$)' },
+                    grid: { color: '#1e293b' },
+                    position: 'left',
+                },
+                y1: {
+                    title: { display: true, text: 'Margem (%)' },
+                    grid: { display: false },
+                    position: 'right',
+                    min: 0, max: 70,
+                },
+                x: { grid: { display: false } }
+            }
+        }
+    });
+
+    // 6. Growth curve
+    new Chart(document.getElementById('chartGrowthCurve'), {
+        type: 'line',
+        data: {
+            labels: ['1', '3', '5', '10', '25', '50', '66', '100', '148'],
+            datasets: [
+                {
+                    label: 'Lucro mensal (R$)',
+                    data: [-81, 145, 343, 887, 2544, 5088, 7632, 11570, 18572],
+                    borderColor: colors.teal,
+                    backgroundColor: colors.teal + '30',
+                    fill: true,
+                    tension: 0.4,
+                    pointRadius: 6,
+                    pointBackgroundColor: colors.teal,
+                },
+                {
+                    label: 'Receita mensal (R$)',
+                    data: [247, 441, 735, 1567, 5088, 9860, 14632, 22170, 36912],
+                    borderColor: colors.purple,
+                    backgroundColor: 'transparent',
+                    tension: 0.4,
+                    pointRadius: 4,
+                    borderDash: [5, 5],
+                },
+                {
+                    label: 'Custos mensais (R$)',
+                    data: [328, 296, 392, 680, 2544, 4772, 7000, 10600, 18340],
+                    borderColor: colors.rose,
+                    backgroundColor: 'transparent',
+                    tension: 0.4,
+                    pointRadius: 4,
+                    borderDash: [5, 5],
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                title: { display: true, text: 'Curva de Lucro por Número de Clientes Pagantes', font: { size: 16 }, color: '#e2e8f0' },
+                annotation: {},
+            },
+            scales: {
+                y: {
+                    title: { display: true, text: 'R$/mês' },
+                    grid: { color: '#1e293b' },
+                },
+                x: {
+                    title: { display: true, text: 'Clientes pagantes' },
+                    grid: { color: '#1e293b' },
+                }
+            }
+        }
+    });
+
+    // 7. Risk scenarios
+    new Chart(document.getElementById('chartRisks'), {
+        type: 'bar',
+        data: {
+            labels: [
+                '100 trial\n+ 1 Starter',
+                '200 trial\n+ 0 pagos',
+                '1 Enterprise\ncancela M1',
+                '3 Enterprise\ncancel M1',
+                '1000 bots\nno trial',
+                'Pro político\n36K comm',
+                'Eleição\n30 clientes'
+            ],
+            datasets: [{
+                label: 'Resultado (R$)',
+                data: [-1365, -2520, -1703, -5109, -3400, 231, 15430],
+                backgroundColor: [
+                    colors.rose, colors.rose, colors.rose, colors.rose, colors.rose,
+                    colors.green, colors.green,
+                ],
+                borderRadius: 6,
+            }]
+        },
+        options: {
+            indexAxis: 'y',
+            responsive: true,
+            plugins: {
+                title: { display: true, text: 'Cenários de Risco: Prejuízo vs Lucro', font: { size: 16 }, color: '#e2e8f0' },
+                legend: { display: false },
+            },
+            scales: {
+                x: {
+                    title: { display: true, text: 'R$' },
+                    grid: { color: '#1e293b' },
+                },
+                y: { grid: { display: false } }
+            }
+        }
+    });
+</script>
+
+</body>
+</html>

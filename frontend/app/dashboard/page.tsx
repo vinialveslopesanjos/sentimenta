@@ -1,0 +1,885 @@
+"use client";
+
+import { useState, useEffect, useCallback } from "react";
+import { useRouter } from "next/navigation";
+import {
+  TrendingUp,
+  TrendingDown,
+  RefreshCw,
+  ArrowRight,
+  ChevronRight,
+  Pencil,
+  X,
+} from "lucide-react";
+import {
+  BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
+  RadarChart, PolarGrid, PolarAngleAxis, Radar,
+  AreaChart, Area,
+  LineChart, Line,
+} from "recharts";
+import { Button } from "@/components/ds/Button";
+import { Badge } from "@/components/ds/Badge";
+import { Section } from "@/components/ds/Section";
+import { SentimentBar } from "@/components/ds/SentimentBar";
+import { getScoreStyle } from "@/components/ds/tokens";
+import { useTheme } from "@/components/ThemeContext";
+import {
+  GlassChartIcon,
+  GlassHeartIcon,
+  GlassLinkIcon,
+  GlassZapIcon,
+} from "@/components/GlassIcons";
+import { GlassSocialIcon } from "@/components/GlassSocialIcons";
+import { AmbassadorsVsDetractors } from "@/components/AdvancedCharts";
+import WordCloudChart from "@/components/charts/WordCloudChart";
+import { dashboardApi, connectionsApi, commentsApi, postsApi } from "@/lib/api";
+import { getToken } from "@/lib/auth";
+import type {
+  DashboardSummary,
+  HealthReport,
+  TrendResponse,
+  TrendsDetailedResponse,
+} from "@/lib/types";
+
+/* ───────── Types for API responses ───────── */
+interface ConnectionItem {
+  id: string;
+  platform: string;
+  username: string;
+  display_name: string | null;
+  profile_image_url: string | null;
+  followers_count: number;
+  status: string;
+  connected_at: string;
+  last_sync_at: string | null;
+  persona: string | null;
+  auto_sync: boolean;
+  has_oauth_token: boolean;
+}
+
+interface TopComments {
+  most_positive: Array<any>;
+  most_negative: Array<any>;
+}
+
+interface PostItem {
+  id: string;
+  platform: string;
+  platform_post_id: string;
+  post_type: string | null;
+  content_text: string | null;
+  like_count: number;
+  comment_count: number;
+  published_at: string | null;
+  post_url: string | null;
+}
+
+interface EngagementPeaksResponse {
+  hours: Array<{ hour: number; volume: number }>;
+}
+
+interface EngagementHeatmapResponse {
+  data: number[][];
+}
+
+interface TrendsByPlatformResponse {
+  platforms: Record<string, Array<{ date: string; score: number }>>;
+}
+
+/* ───────── Skeleton ───────── */
+function Skeleton({ className = "", style }: { className?: string; style?: React.CSSProperties }) {
+  return (
+    <div
+      className={`animate-pulse rounded-lg ${className}`}
+      style={{ backgroundColor: "var(--bg-subtle)", ...style }}
+    />
+  );
+}
+
+function CardSkeleton() {
+  return (
+    <div className="rounded-2xl p-5 md:p-6" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
+      <Skeleton className="h-4 w-24 mb-3" />
+      <Skeleton className="h-8 w-16 mb-2" />
+      <Skeleton className="h-3 w-32" />
+    </div>
+  );
+}
+
+function ChartSkeleton({ height = 240 }: { height?: number }) {
+  return <Skeleton className="w-full" style={{ height }} />;
+}
+
+/* ───────── Helper: platform path ───────── */
+function platformPath(platform: string): string {
+  const p = platform.toLowerCase();
+  if (p === "x" || p === "twitter") return "/dashboard/twitter";
+  return `/dashboard/${p}`;
+}
+
+function platformLabel(platform: string): string {
+  const p = platform.toLowerCase();
+  if (p === "twitter" || p === "x") return "X / Twitter";
+  if (p === "instagram") return "Instagram";
+  if (p === "youtube") return "YouTube";
+  if (p === "tiktok") return "TikTok";
+  return platform;
+}
+
+function formatNumber(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}K`;
+  return n.toLocaleString("pt-BR");
+}
+
+function formatDate(dateStr: string | null): string {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", "");
+}
+
+function timeSince(dateStr: string | null): string {
+  if (!dateStr) return "nunca";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "agora";
+  if (mins < 60) return `${mins} min atrás`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h atrás`;
+  return `${Math.floor(hrs / 24)}d atrás`;
+}
+
+function getReputationBadge(score: number): { variant: "positive" | "warning" | "negative" | "primary"; label: string } {
+  if (score >= 7) return { variant: "positive", label: "Boa reputação" };
+  if (score >= 4) return { variant: "warning", label: "Atenção necessária" };
+  return { variant: "negative", label: "Reputação crítica" };
+}
+
+/* ───────── Main Page ───────── */
+
+const heatmapDays = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
+const heatmapHours = ["00", "02", "04", "06", "08", "10", "12", "14", "16", "18", "20", "22"];
+
+export default function DashboardPage() {
+  const router = useRouter();
+  const { t } = useTheme();
+
+  // ── State ──
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [timeRange, setTimeRange] = useState("Volume");
+
+  // Data
+  const [summary, setSummary] = useState<DashboardSummary | null>(null);
+  const [connections, setConnections] = useState<ConnectionItem[]>([]);
+  const [healthReport, setHealthReport] = useState<HealthReport | null>(null);
+  const [scoreTrend, setScoreTrend] = useState<TrendResponse | null>(null);
+  const [trendsByPlatform, setTrendsByPlatform] = useState<TrendsByPlatformResponse | null>(null);
+  const [trendsDetailed, setTrendsDetailed] = useState<TrendsDetailedResponse | null>(null);
+  const [engagementPeaks, setEngagementPeaks] = useState<EngagementPeaksResponse | null>(null);
+  const [heatmapData, setHeatmapData] = useState<number[][] | null>(null);
+  const [topComments, setTopComments] = useState<TopComments | null>(null);
+  const [recentPosts, setRecentPosts] = useState<PostItem[]>([]);
+  const [ambassadorsData, setAmbassadorsData] = useState<{
+    ambassadors: Array<{ username: string; count: number; avg_score: number; dominant_emotion: string }>;
+    detractors: Array<{ username: string; count: number; avg_score: number; dominant_emotion: string }>;
+  } | null>(null);
+
+  // Prompt editing
+  const [editingPrompt, setEditingPrompt] = useState(false);
+  const [promptText, setPromptText] = useState("");
+  const [loadingPrompt, setLoadingPrompt] = useState(false);
+
+  // ── Fetch all data ──
+  const fetchData = useCallback(async () => {
+    const token = getToken();
+    if (!token) {
+      router.push("/login");
+      return;
+    }
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const results = await Promise.allSettled([
+        dashboardApi.summary(token),                                    // 0
+        connectionsApi.list(token),                                     // 1
+        dashboardApi.healthReport(token),                               // 2
+        dashboardApi.trends(token, { granularity: "week" }),            // 3
+        dashboardApi.trendsByPlatform(token),                           // 4
+        dashboardApi.trendsDetailed(token),                             // 5
+        dashboardApi.engagementPeaks(token),                            // 6
+        dashboardApi.engagementHeatmap(token),                          // 7
+        commentsApi.top(token),                                         // 8
+        postsApi.list(token, { limit: 5 }),                             // 9
+        dashboardApi.getHealthPrompt(token),                            // 10
+      ]);
+
+      if (results[0].status === "fulfilled") setSummary(results[0].value);
+      if (results[1].status === "fulfilled") setConnections(results[1].value);
+      if (results[2].status === "fulfilled") setHealthReport(results[2].value);
+      if (results[3].status === "fulfilled") setScoreTrend(results[3].value);
+      if (results[4].status === "fulfilled") setTrendsByPlatform(results[4].value);
+      if (results[5].status === "fulfilled") setTrendsDetailed(results[5].value);
+      if (results[6].status === "fulfilled") setEngagementPeaks(results[6].value);
+      if (results[7].status === "fulfilled") setHeatmapData(results[7].value.data);
+      if (results[8].status === "fulfilled") setTopComments(results[8].value);
+      if (results[9].status === "fulfilled") setRecentPosts(results[9].value);
+      if (results[10].status === "fulfilled") setPromptText((results[10].value as { prompt: string }).prompt);
+
+      // Fetch ambassadors/detractors for first connection
+      if (results[1].status === "fulfilled") {
+        const conns = results[1].value as ConnectionItem[];
+        if (conns.length > 0) {
+          dashboardApi.ambassadorsDetractors(token, conns[0].id).then(setAmbassadorsData).catch(() => {});
+        }
+      }
+
+      // If summary failed, that's critical
+      if (results[0].status === "rejected") {
+        setError("Não foi possível carregar o dashboard. Tente novamente.");
+      }
+    } catch {
+      setError("Erro ao carregar dados do dashboard.");
+    } finally {
+      setLoading(false);
+    }
+  }, [router]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // ── Derived data ──
+  const score = summary?.avg_score ?? 0;
+  const scorePercent = (score / 10) * 100;
+  const totalComments = summary?.total_analyzed ?? 0;
+  const totalPosts = summary?.total_posts ?? 0;
+  const connectedProfiles = connections.length;
+  const sentDist = summary?.sentiment_distribution;
+  const positive = sentDist?.positive ?? 0;
+  const neutral = sentDist?.neutral ?? 0;
+  const negative = sentDist?.negative ?? 0;
+  const repBadge = getReputationBadge(score);
+
+  // Last sync time from connections
+  const lastSyncTimes = connections.map(c => c.last_sync_at).filter(Boolean) as string[];
+  const latestSync = lastSyncTimes.length > 0
+    ? lastSyncTimes.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]
+    : null;
+
+  // Emotion pie data from summary
+  const emotionPie = summary?.emotions_distribution
+    ? Object.entries(summary.emotions_distribution)
+        .map(([name, value], i) => ({ name, value, color: t.chart[i % t.chart.length] }))
+        .sort((a, b) => b.value - a.value)
+    : [];
+
+  // Radar data from emotions
+  const radarData = emotionPie.map(e => ({ emotion: e.name, value: e.value }));
+
+  // Word cloud — handled by WordCloudChart component
+
+  // Score trend chart data
+  const scoreTrendData = scoreTrend?.data_points?.map((dp, i) => ({
+    date: `Sem ${i + 1}`,
+    score: dp.avg_score ?? 0,
+  })) ?? [];
+
+  // Score by platform chart data
+  const platformKeys = trendsByPlatform?.platforms ? Object.keys(trendsByPlatform.platforms) : [];
+  const scoreTrendByNetwork = (() => {
+    if (!trendsByPlatform?.platforms) return [];
+    const platforms = trendsByPlatform.platforms;
+    const maxLen = Math.max(...Object.values(platforms).map(arr => arr.length), 0);
+    const result: Record<string, unknown>[] = [];
+    for (let i = 0; i < maxLen; i++) {
+      const row: Record<string, unknown> = { date: `Sem ${i + 1}` };
+      for (const [platform, points] of Object.entries(platforms)) {
+        row[platform.toLowerCase()] = points[i]?.score ?? null;
+      }
+      result.push(row);
+    }
+    return result;
+  })();
+
+  // Temporal distribution data
+  const temporalData = trendsDetailed?.data_points?.map(dp => ({
+    date: new Date(dp.period).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+    positivo: dp.positive,
+    neutro: dp.neutral,
+    negativo: dp.negative,
+  })) ?? [];
+
+  // Volume temporal data
+  const volumeTemporalData = trendsDetailed?.data_points?.map(dp => ({
+    date: new Date(dp.period).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+    volume: (dp.positive ?? 0) + (dp.neutral ?? 0) + (dp.negative ?? 0),
+  })) ?? [];
+
+  // Score temporal data (from scoreTrend which has avg_score)
+  const scoreTemporalData = scoreTrend?.data_points
+    ?.filter(dp => dp.avg_score != null)
+    .map((dp, i) => ({
+      date: new Date(dp.period).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+      score: dp.avg_score ?? 0,
+    })) ?? [];
+
+  // Engagement peaks data
+  const engagementData = engagementPeaks?.hours?.map(h => ({
+    hour: `${String(h.hour).padStart(2, "0")}h`,
+    volume: h.volume,
+  })) ?? [];
+
+  // Platform stats from summary connections + compare
+  const platformStats = connections.map(c => {
+    const conn = summary?.connections?.find(sc => sc.id === c.id);
+    return {
+      id: c.id,
+      name: platformLabel(c.platform),
+      platform: c.platform.toLowerCase(),
+      icon: <GlassSocialIcon platform={c.platform.toLowerCase()} size={32} />,
+      score: conn?.total_analyzed ? (summary?.avg_score ?? 0) : 0,
+      comments: conn?.total_analyzed ?? 0,
+      trend: 0,
+      dominant: "",
+      isNeg: false,
+    };
+  });
+
+  // Top comments — merge positive and negative
+  const allTopComments = [
+    ...(topComments?.most_positive ?? []).map(c => ({ ...c, _type: "positive" })),
+    ...(topComments?.most_negative ?? []).map(c => ({ ...c, _type: "negative" })),
+  ].slice(0, 4);
+
+  // Heatmap color helper
+  function getHeatColor(value: number) {
+    if (value >= 40) return t.primary;
+    if (value >= 30) return t.primaryMuted;
+    if (value >= 20) return t.primaryFaint;
+    if (value >= 10) return t.textXfaint;
+    return t.primaryBg;
+  }
+
+  // Health report prompt update
+  async function handleSavePrompt() {
+    const token = getToken();
+    if (!token) return;
+    setLoadingPrompt(true);
+    try {
+      const result = await dashboardApi.healthReportWithPrompt(token, promptText);
+      setHealthReport(result);
+      setEditingPrompt(false);
+    } catch {
+      // silently fail
+    } finally {
+      setLoadingPrompt(false);
+    }
+  }
+
+  async function handleRefreshReport() {
+    const token = getToken();
+    if (!token) return;
+    setLoadingPrompt(true);
+    try {
+      const result = await dashboardApi.healthReportWithPrompt(token);
+      setHealthReport(result);
+    } catch {
+      // silently fail
+    } finally {
+      setLoadingPrompt(false);
+    }
+  }
+
+  // ── Error state ──
+  if (error && !summary) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] gap-4">
+        <p style={{ color: "var(--text-muted)", fontSize: "0.9rem" }}>{error}</p>
+        <Button onClick={fetchData} icon={<RefreshCw className="w-4 h-4" />}>Tentar novamente</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* ═══ GREETING ═══ */}
+      <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-3 mb-1">
+        <div>
+          <h1 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.7rem", fontWeight: 700, color: "var(--text-primary)" }}>
+            Dashboard
+          </h1>
+          <p style={{ fontSize: "0.88rem", color: "var(--text-muted)", marginTop: 4 }}>
+            Aqui está o resumo de todos os perfis monitorados.
+          </p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Badge variant="muted" dot>Última sync: {timeSince(latestSync)}</Badge>
+          <Button variant="ghost" size="sm" icon={<RefreshCw className="w-3.5 h-3.5" />} onClick={fetchData}>Atualizar</Button>
+        </div>
+      </div>
+
+      {/* ═══ REPUTATION HERO + QUICK STATS ═══ */}
+      {loading ? (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <div className="lg:col-span-3"><CardSkeleton /></div>
+          <div className="lg:col-span-9 grid grid-cols-2 md:grid-cols-3 gap-4">
+            {Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}
+          </div>
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+          <div className="lg:col-span-3 rounded-2xl p-6 flex flex-col items-center justify-center" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 1px 8px -2px rgba(0,0,0,0.06)" }}>
+            <div className="relative w-28 h-28 mb-3">
+              <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                <circle cx="50" cy="50" r="42" fill="none" stroke={t.primaryBg} strokeWidth="6" />
+                <circle cx="50" cy="50" r="42" fill="none" stroke={t.primary} strokeWidth="6" strokeLinecap="round" strokeDasharray={`${scorePercent * 2.64} ${264 - scorePercent * 2.64}`} />
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 800, color: "var(--primary)" }}>{score.toFixed(1)}</span>
+                <span style={{ fontSize: "0.6rem", color: "var(--text-faint)" }}>de 10</span>
+              </div>
+            </div>
+            <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.92rem", fontWeight: 600, color: "var(--text-primary)" }}>Reputação Geral</p>
+            <Badge variant={repBadge.variant} dot>{repBadge.label}</Badge>
+            {(positive + neutral + negative) > 0 && (
+              <div className="w-full mt-4">
+                <SentimentBar positive={positive} neutral={neutral} negative={negative} height={8} showLabels />
+              </div>
+            )}
+          </div>
+
+          <div className="lg:col-span-9 grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="rounded-2xl p-5 md:p-6 text-white" style={{ backgroundColor: "var(--primary)", boxShadow: `0 8px 24px -4px ${t.primary}50` }}>
+              <GlassChartIcon size={36} className="mb-3" />
+              <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 800, lineHeight: 1 }}>{totalComments.toLocaleString("pt-BR")}</p>
+              <p style={{ fontSize: "0.75rem", opacity: 0.6, marginTop: 4 }}>comentários analisados</p>
+            </div>
+            <div className="rounded-2xl p-5 md:p-6" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 1px 8px -2px rgba(0,0,0,0.06)" }}>
+              <GlassHeartIcon size={36} className="mb-3" />
+              <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 800, color: "var(--text-primary)", lineHeight: 1 }}>{totalPosts.toLocaleString("pt-BR")}</p>
+              <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: 4 }}>posts monitorados</p>
+            </div>
+            <div className="rounded-2xl p-5 md:p-6" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 1px 8px -2px rgba(0,0,0,0.06)" }}>
+              <GlassLinkIcon size={36} className="mb-3" />
+              <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 800, color: "var(--text-primary)", lineHeight: 1 }}>{connectedProfiles}</p>
+              <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: 4 }}>perfis conectados</p>
+            </div>
+            <div className="rounded-2xl p-5 md:p-6" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 1px 8px -2px rgba(0,0,0,0.06)" }}>
+              <GlassZapIcon size={36} className="mb-3" />
+              <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 800, color: "var(--text-primary)", lineHeight: 1 }}>8</p>
+              <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: 4 }}>emoções rastreadas</p>
+            </div>
+            <div className="col-span-2 rounded-2xl p-5 md:p-6" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 1px 8px -2px rgba(0,0,0,0.06)" }}>
+              <p style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.08em", marginBottom: 12 }}>PLATAFORMAS CONECTADAS</p>
+              {connections.length > 0 ? (
+                <div className="grid grid-cols-4 gap-3">
+                  {connections.map(c => (
+                    <button key={c.id} onClick={() => router.push(platformPath(c.platform))} className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors group" style={{ backgroundColor: "transparent" }}>
+                      <GlassSocialIcon platform={c.platform.toLowerCase()} size={32} />
+                      <div className="text-center">
+                        <p style={{ fontSize: "0.72rem", fontWeight: 500, color: "var(--text-primary)" }}>{platformLabel(c.platform)}</p>
+                        <p style={{ fontSize: "0.6rem", color: "var(--text-faint)" }}>@{c.username}</p>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ fontSize: "0.78rem", color: "var(--text-faint)", textAlign: "center", padding: "12px 0" }}>Nenhuma plataforma conectada</p>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ DIAGNOSIS + PLATFORM SUMMARY ═══ */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Section title="Diagnóstico de IA" subtitle={healthReport?.generated_at ? `Gerado em ${new Date(healthReport.generated_at).toLocaleDateString("pt-BR", { day: "numeric", month: "long", year: "numeric" })}` : "Diagnóstico automático"} action={
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" icon={<Pencil className="w-3.5 h-3.5" strokeWidth={1.5} />} onClick={() => setEditingPrompt(!editingPrompt)}>Editar</Button>
+            <Button variant="ghost" size="sm" icon={<RefreshCw className={`w-3.5 h-3.5 ${loadingPrompt ? "animate-spin" : ""}`} strokeWidth={1.5} />} onClick={handleRefreshReport}>Atualizar</Button>
+          </div>
+        }>
+          {editingPrompt && (
+            <div className="mb-4 rounded-xl p-4" style={{ backgroundColor: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
+              <div className="flex items-center justify-between mb-2">
+                <p style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>PROMPT DO AGENTE</p>
+                <button onClick={() => setEditingPrompt(false)}>
+                  <X className="w-4 h-4" style={{ color: "var(--text-faint)" }} />
+                </button>
+              </div>
+              <textarea
+                value={promptText}
+                onChange={e => setPromptText(e.target.value)}
+                className="w-full rounded-lg p-3 resize-none focus:outline-none"
+                rows={4}
+                style={{ fontSize: "0.82rem", lineHeight: 1.7, color: "var(--text-primary)", backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}
+              />
+              <div className="flex justify-end mt-2">
+                <Button size="sm" onClick={handleSavePrompt}>{loadingPrompt ? "Salvando..." : "Salvar prompt"}</Button>
+              </div>
+            </div>
+          )}
+          <div className="space-y-4">
+            {loading ? (
+              <>
+                <Skeleton className="h-4 w-full" />
+                <Skeleton className="h-4 w-5/6" />
+                <Skeleton className="h-4 w-4/6" />
+              </>
+            ) : healthReport?.report_text ? (
+              <div
+                style={{ fontSize: "0.85rem", lineHeight: 1.85, color: "var(--text-muted)" }}
+                dangerouslySetInnerHTML={{
+                  __html: healthReport.report_text
+                    .replace(/\n/g, "<br/>")
+                    .replace(/\*\*(.*?)\*\*/g, '<span style="color: var(--text-primary); font-weight: 600;">$1</span>'),
+                }}
+              />
+            ) : (
+              <p style={{ fontSize: "0.85rem", lineHeight: 1.85, color: "var(--text-faint)" }}>
+                Nenhum diagnóstico disponível. Clique em &quot;Atualizar&quot; para gerar.
+              </p>
+            )}
+          </div>
+        </Section>
+
+        <Section title="Resumo por Plataforma" subtitle="Performance comparativa">
+          {loading ? (
+            <div className="space-y-3">
+              {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}
+            </div>
+          ) : connections.length > 0 ? (
+            <div className="space-y-3">
+              {connections.map(c => {
+                const conn = summary?.connections?.find(sc => sc.id === c.id);
+                const connScore = conn ? (summary?.avg_score ?? 0) : 0;
+                const ss = getScoreStyle(connScore);
+                return (
+                  <div key={c.id} className="flex items-center gap-3 p-3 rounded-xl transition-colors cursor-pointer" style={{ backgroundColor: "var(--bg-subtle)" }} onClick={() => router.push(platformPath(c.platform))}>
+                    <GlassSocialIcon platform={c.platform.toLowerCase()} size={32} />
+                    <div className="flex-1 min-w-0">
+                      <p style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)" }}>{platformLabel(c.platform)}</p>
+                      <p style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>@{c.username}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <span className="px-2 py-0.5 rounded-lg" style={{ fontSize: "0.75rem", fontWeight: 700, color: ss.color, backgroundColor: ss.bg }}>{connScore.toFixed(1)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "24px 0" }}>Nenhuma plataforma conectada ainda.</p>
+          )}
+        </Section>
+      </div>
+
+      {/* ═══ CHARTS ROW 1: Score Trend + Score by Platform ═══ */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        <Section title="Tendência do Score" subtitle="Média geral — Evolução semanal">
+          {loading ? <ChartSkeleton /> : scoreTrendData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={240}>
+              <AreaChart id="dash-score-area" data={scoreTrendData}>
+                <defs>
+                  <linearGradient id="dash-scoreGradient" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor={t.primary} stopOpacity={0.15} />
+                    <stop offset="95%" stopColor={t.primary} stopOpacity={0} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke={t.primaryBg} vertical={false} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
+                <Area type="monotone" dataKey="score" stroke={t.primary} strokeWidth={2.5} fill="url(#dash-scoreGradient)" dot={{ r: 3, fill: t.primary, strokeWidth: 0 }} />
+              </AreaChart>
+            </ResponsiveContainer>
+          ) : (
+            <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "60px 0" }}>Sem dados de tendência disponíveis.</p>
+          )}
+        </Section>
+        <Section title="Score por Rede Social" subtitle="Comparativo semanal entre plataformas">
+          {loading ? <ChartSkeleton /> : scoreTrendByNetwork.length > 0 ? (
+            <ResponsiveContainer width="100%" height={240}>
+              <LineChart id="dash-network-line" data={scoreTrendByNetwork}>
+                <CartesianGrid strokeDasharray="3 3" stroke={t.primaryBg} vertical={false} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
+                <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
+                {platformKeys.map((pk, i) => (
+                  <Line key={pk} type="monotone" dataKey={pk.toLowerCase()} name={platformLabel(pk)} stroke={t.chart[i % t.chart.length]} strokeWidth={2} dot={{ r: 2.5, strokeWidth: 0, fill: t.chart[i % t.chart.length] }} />
+                ))}
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "60px 0" }}>Sem dados comparativos disponíveis.</p>
+          )}
+        </Section>
+      </div>
+
+      {/* ═══ RADAR + WORD CLOUD ═══ */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <Section title="Radar de Emoções">
+          {loading ? <ChartSkeleton /> : radarData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={240}>
+              <RadarChart id="dash-radar" data={radarData}>
+                <PolarGrid stroke={t.textXfaint} />
+                <PolarAngleAxis dataKey="emotion" tick={{ fontSize: 10, fill: t.textMuted }} />
+                <Radar dataKey="value" stroke={t.primary} fill={t.primary} fillOpacity={0.08} strokeWidth={2} />
+              </RadarChart>
+            </ResponsiveContainer>
+          ) : (
+            <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "60px 0" }}>Sem dados de emoções.</p>
+          )}
+        </Section>
+        <Section title="Nuvem de Palavras" subtitle="Termos mais citados nos comentários">
+          {loading ? <ChartSkeleton height={180} /> : (
+            <WordCloudChart topics={summary?.word_frequency || null} maxWords={25} height={240} />
+          )}
+        </Section>
+      </div>
+
+      {/* ═══ HEATMAP ═══ */}
+      <Section title="Heatmap de Atividade" subtitle="Volume de comentários por horário e dia da semana">
+        {loading ? <ChartSkeleton height={220} /> : heatmapData && heatmapData.length > 0 ? (
+          <div className="overflow-x-auto">
+            <div className="min-w-[500px]">
+              <div className="flex gap-1 mb-1 pl-10">
+                {heatmapHours.map(h => (
+                  <div key={h} className="flex-1 text-center" style={{ fontSize: "0.62rem", color: "var(--text-faint)", fontWeight: 500 }}>{h}h</div>
+                ))}
+              </div>
+              {heatmapDays.map((day, di) => (
+                <div key={day} className="flex gap-1 mb-1 items-center">
+                  <span className="w-8 shrink-0 text-right pr-2" style={{ fontSize: "0.68rem", color: "var(--text-muted)", fontWeight: 500 }}>{day}</span>
+                  {(heatmapData[di] ?? []).map((val, hi) => (
+                    <div key={hi} className="flex-1 rounded-md transition-all hover:scale-110 cursor-default" style={{ height: 28, backgroundColor: getHeatColor(val) }} title={`${day} ${heatmapHours[hi]}h — ${val} com.`} />
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "40px 0" }}>Sem dados de heatmap.</p>
+        )}
+      </Section>
+
+      {/* ═══ TEMPORAL CHART ═══ */}
+      <Section title="Distribuição Temporal" subtitle="Volume de sentimento ao longo do tempo">
+        <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
+          <div className="flex items-center gap-1 rounded-xl p-1" style={{ backgroundColor: "color-mix(in srgb, var(--bg-card) 60%, transparent)", border: "0.5px solid var(--border)", backdropFilter: "blur(12px)", boxShadow: "0 2px 10px -2px rgba(0,0,0,0.05)" }}>
+            {["Volume", "Score", "Sentimento"].map(range => (
+              <button key={range} onClick={() => setTimeRange(range)} className="px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap" style={{ fontSize: "0.75rem", fontWeight: 500, backgroundColor: timeRange === range ? "var(--primary)" : "transparent", color: timeRange === range ? "white" : "var(--text-muted)", boxShadow: timeRange === range ? "0 4px 16px -4px var(--primary)" : "none" }}>
+                {range}
+              </button>
+            ))}
+          </div>
+        </div>
+        {loading ? <ChartSkeleton height={260} /> : timeRange === "Volume" && volumeTemporalData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={260}>
+            <AreaChart id="dash-temporal-volume" data={volumeTemporalData}>
+              <defs>
+                <linearGradient id="dash-volGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={t.primary} stopOpacity={0.15} />
+                  <stop offset="95%" stopColor={t.primary} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={t.primaryBg} vertical={false} />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
+              <Area type="monotone" dataKey="volume" name="Volume" stroke={t.primary} strokeWidth={2} fill="url(#dash-volGradient)" dot={{ r: 2.5, fill: t.primary, strokeWidth: 0 }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : timeRange === "Score" && scoreTemporalData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={260}>
+            <AreaChart id="dash-temporal-score" data={scoreTemporalData}>
+              <defs>
+                <linearGradient id="dash-scoreTemporalGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={t.secondary} stopOpacity={0.15} />
+                  <stop offset="95%" stopColor={t.secondary} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke={t.primaryBg} vertical={false} />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+              <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
+              <Area type="monotone" dataKey="score" name="Score" stroke={t.secondary} strokeWidth={2.5} fill="url(#dash-scoreTemporalGrad)" dot={{ r: 3, fill: t.secondary, strokeWidth: 0 }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : timeRange === "Sentimento" && temporalData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={260}>
+            <BarChart id="dash-temporal-bar" data={temporalData} barGap={2}>
+              <CartesianGrid strokeDasharray="3 3" stroke={t.primaryBg} vertical={false} />
+              <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
+              <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
+              <Bar dataKey="positivo" fill={t.sentimentPositive} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="neutro" fill={t.sentimentNeutral} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="negativo" fill={t.sentimentNegative} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        ) : (
+          <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "60px 0" }}>Sem dados temporais.</p>
+        )}
+      </Section>
+
+      {/* ═══ ENGAGEMENT CURVE ═══ */}
+      <Section title="Pico de Engajamento" subtitle="Horários com maior volume de interação">
+        {loading ? <ChartSkeleton height={180} /> : engagementData.length > 0 ? (
+          <ResponsiveContainer width="100%" height={180}>
+            <AreaChart id="dash-engagement-area" data={engagementData}>
+              <defs>
+                <linearGradient id="dash-engGradient" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor={t.secondary} stopOpacity={0.15} />
+                  <stop offset="95%" stopColor={t.secondary} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <XAxis dataKey="hour" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
+              <Area type="monotone" dataKey="volume" stroke={t.secondary} strokeWidth={2} fill="url(#dash-engGradient)" dot={{ r: 2.5, fill: t.secondary, strokeWidth: 0 }} />
+            </AreaChart>
+          </ResponsiveContainer>
+        ) : (
+          <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "40px 0" }}>Sem dados de engajamento.</p>
+        )}
+      </Section>
+
+      {/* ═══ TOP COMMENTS ═══ */}
+      <Section title="Comentários em Destaque" subtitle="Mais relevantes por score">
+        {loading ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {[1, 2, 3, 4].map(i => <Skeleton key={i} className="h-24 w-full" />)}
+          </div>
+        ) : allTopComments.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {allTopComments.map((c, i) => {
+              const commentScore = (c.score_0_10 as number) ?? (c.score as number) ?? 0;
+              const ss = getScoreStyle(commentScore);
+              const username = (c.author_username as string) || (c.user as string) || "anônimo";
+              const text = (c.text_original as string) || (c.text as string) || "";
+              const emotion = ((c.emotions as string[]) ?? [])[0] || (c.emotion as string) || "";
+              return (
+                <div key={i} className="rounded-xl p-4 transition-colors cursor-pointer" style={{ backgroundColor: "var(--bg-subtle)" }}>
+                  <div className="flex items-center gap-2 mb-2 flex-wrap">
+                    <span className="px-2 py-0.5 rounded-md" style={{ fontSize: "0.68rem", fontWeight: 600, color: ss.color, backgroundColor: ss.bg }}>{commentScore.toFixed(1)}</span>
+                    <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)" }}>@{username}</span>
+                    {emotion && (
+                      <span className="ml-auto px-2 py-0.5 rounded-md" style={{ fontSize: "0.62rem", fontWeight: 600, color: "var(--primary)", backgroundColor: "var(--primary-bg)" }}>{emotion}</span>
+                    )}
+                  </div>
+                  <p style={{ fontSize: "0.78rem", lineHeight: 1.6, color: "var(--text-muted)" }}>&quot;{text.length > 120 ? text.slice(0, 120) + "..." : text}&quot;</p>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "24px 0" }}>Nenhum comentário em destaque.</p>
+        )}
+      </Section>
+
+      {/* ═══ FANS E HATERS ═══ */}
+      {ambassadorsData && (ambassadorsData.ambassadors?.length > 0 || ambassadorsData.detractors?.length > 0) && (
+        <AmbassadorsVsDetractors
+          ambassadors={ambassadorsData.ambassadors.map(a => ({
+            username: a.username,
+            comments: a.count,
+            avgScore: a.avg_score,
+            dominantEmotion: a.dominant_emotion,
+            lastSeen: "",
+          }))}
+          detractors={ambassadorsData.detractors.map(d => ({
+            username: d.username,
+            comments: d.count,
+            avgScore: d.avg_score,
+            dominantEmotion: d.dominant_emotion,
+            lastSeen: "",
+          }))}
+          platformLabel="Geral"
+        />
+      )}
+
+      {/* ═══ PROFILES ═══ */}
+      <Section title="Seus perfis" action={<Button variant="ghost" size="sm" onClick={() => router.push("/dashboard/connect")}>+ Adicionar</Button>}>
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {[1, 2, 3, 4].map(i => <CardSkeleton key={i} />)}
+          </div>
+        ) : connections.length > 0 ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {connections.map(profile => (
+              <div key={profile.id} className="rounded-xl p-5 transition-colors cursor-pointer group" style={{ backgroundColor: "var(--bg-subtle)" }} onClick={() => router.push(platformPath(profile.platform))}>
+                <div className="flex items-center gap-3 mb-5">
+                  <GlassSocialIcon platform={profile.platform.toLowerCase()} size={40} />
+                  <div className="flex-1 min-w-0">
+                    <p className="truncate" style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--text-primary)" }}>@{profile.username}</p>
+                    <p style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>{platformLabel(profile.platform)}</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2 mb-4">
+                  {[
+                    { l: "Seguidores", v: formatNumber(profile.followers_count) },
+                    { l: "Status", v: profile.status === "active" ? "Ativo" : profile.status },
+                  ].map(s => (
+                    <div key={s.l} className="text-center">
+                      <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.88rem", fontWeight: 700, color: "var(--text-primary)" }}>{s.v}</p>
+                      <p style={{ fontSize: "0.6rem", color: "var(--text-muted)" }}>{s.l}</p>
+                    </div>
+                  ))}
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: profile.status === "active" ? "var(--primary)" : "var(--text-faint)" }} />
+                    <span style={{ fontSize: "0.72rem", color: profile.status === "active" ? "var(--primary)" : "var(--text-faint)", fontWeight: 500 }}>
+                      {profile.status === "active" ? "Sincronizado" : "Inativo"}
+                    </span>
+                  </div>
+                  <ArrowRight className="w-4 h-4 transition-colors" style={{ color: "var(--text-faint)" }} />
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-3 py-8">
+            <p style={{ fontSize: "0.85rem", color: "var(--text-faint)" }}>Nenhum perfil conectado ainda.</p>
+            <Button size="sm" onClick={() => router.push("/dashboard/connect")}>Conectar primeiro perfil</Button>
+          </div>
+        )}
+      </Section>
+
+      {/* ═══ RECENT POSTS ═══ */}
+      <Section title="Posts recentes" subtitle="Clique para ver a análise completa">
+        {loading ? (
+          <div className="space-y-2">
+            {[1, 2, 3, 4, 5].map(i => <Skeleton key={i} className="h-14 w-full" />)}
+          </div>
+        ) : recentPosts.length > 0 ? (
+          <div className="space-y-1">
+            {recentPosts.map((post, i) => {
+              const postTitle = post.content_text
+                ? post.content_text.length > 60 ? post.content_text.slice(0, 60) + "..." : post.content_text
+                : `Post ${post.platform_post_id}`;
+              return (
+                <div key={post.id || i} onClick={() => router.push(`/dashboard/post/${post.id}`)} className="flex items-center gap-3 md:gap-4 p-3 md:p-3.5 rounded-xl cursor-pointer transition-colors group" style={{ backgroundColor: "transparent" }}>
+                  <GlassSocialIcon platform={post.platform?.toLowerCase() ?? "instagram"} size={28} />
+                  <div className="flex-1 min-w-0">
+                    <p className="truncate" style={{ fontSize: "0.88rem", fontWeight: 500, color: "var(--text-primary)" }}>{postTitle}</p>
+                    <p style={{ fontSize: "0.72rem", color: "var(--text-faint)" }}>{post.comment_count} comentários · {formatDate(post.published_at)}</p>
+                  </div>
+                  <ChevronRight className="w-4 h-4 hidden sm:block" style={{ color: "var(--text-faint)" }} />
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "24px 0" }}>Nenhum post encontrado.</p>
+        )}
+      </Section>
+    </div>
+  );
+}
