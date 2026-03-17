@@ -508,9 +508,16 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                         results[conn.username] = {"skipped": "monthly_limit_reached"}
                         continue
 
+                # Skip plans with no recurring sync (e.g. free)
+                plan_frequency = limits.get("sync_frequency", "weekly")
+                if plan_frequency == "none":
+                    logger.info("Skipping @%s — plan '%s' has no recurring sync",
+                                conn.username, user.plan if user else "unknown")
+                    results[conn.username] = {"skipped": "no_recurring_sync"}
+                    continue
+
                 # Filter by plan sync_frequency if frequency_filter is set
                 if frequency_filter and user:
-                    plan_frequency = limits.get("sync_frequency", "weekly")
                     if plan_frequency != frequency_filter:
                         logger.info("Skipping @%s — plan frequency '%s' != filter '%s'",
                                     conn.username, plan_frequency, frequency_filter)
