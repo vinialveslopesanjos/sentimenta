@@ -127,43 +127,64 @@ export function CommentsTable({ comments, platformName }: { comments: CommentRow
         </select>
       </div>
     }>
-      <div className="overflow-x-auto">
-        <table className="w-full" style={{ fontSize: "0.78rem" }}>
-          <thead>
-            <tr style={{ borderBottom: "1px solid var(--border)" }}>
-              <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{tc("commentsTable.headerScore")}</th>
-              <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{tc("commentsTable.headerUser")}</th>
-              <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{tc("commentsTable.headerComment")}</th>
-              <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{tc("commentsTable.headerEmotion")}</th>
-              <th className="text-left py-2.5 px-3 hidden md:table-cell" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{tc("commentsTable.headerDate")}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {visibleRows.map((c, i) => {
-              const ss = getScoreStyle(c.score);
-              const emotionStyle = getEmotionColor(c.emotion);
-              return (
-                <tr key={i} className="transition-colors" style={{ borderBottom: "1px solid var(--border)" }}>
-                  <td className="py-2.5 px-3">
-                    <span className="px-2 py-0.5 rounded-md" style={{ fontSize: "0.68rem", fontWeight: 600, color: ss.color, backgroundColor: ss.bg }}>{c.score.toFixed(1)}</span>
-                  </td>
-                  <td className="py-2.5 px-3">
-                    <span style={{ fontWeight: 500, color: "var(--text-primary)" }}>@{c.user}</span>
-                  </td>
-                  <td className="py-2.5 px-3">
-                    <p className="line-clamp-2" style={{ color: "var(--text-muted)", wordBreak: "break-word" }}>{c.text}</p>
-                  </td>
-                  <td className="py-2.5 px-3">
-                    <span className="px-2 py-0.5 rounded-md whitespace-nowrap" style={{ fontSize: "0.62rem", fontWeight: 600, color: emotionStyle.color, backgroundColor: emotionStyle.bg }}>{c.emotion}</span>
-                  </td>
-                  <td className="py-2.5 px-3 hidden md:table-cell">
-                    <span style={{ color: "var(--text-faint)", fontSize: "0.72rem" }}>{c.date}</span>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div>
+        {/* Desktop: table */}
+        <div className="hidden md:block overflow-x-auto">
+          <table className="w-full" style={{ fontSize: "0.78rem" }}>
+            <thead>
+              <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{tc("commentsTable.headerScore")}</th>
+                <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{tc("commentsTable.headerUser")}</th>
+                <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{tc("commentsTable.headerComment")}</th>
+                <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{tc("commentsTable.headerEmotion")}</th>
+                <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{tc("commentsTable.headerDate")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visibleRows.map((c, i) => {
+                const ss = getScoreStyle(c.score);
+                const emotionStyle = getEmotionColor(c.emotion);
+                return (
+                  <tr key={i} className="transition-colors" style={{ borderBottom: "1px solid var(--border)" }}>
+                    <td className="py-2.5 px-3">
+                      <span className="px-2 py-0.5 rounded-md" style={{ fontSize: "0.68rem", fontWeight: 600, color: ss.color, backgroundColor: ss.bg }}>{c.score.toFixed(1)}</span>
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <span style={{ fontWeight: 500, color: "var(--text-primary)" }}>@{c.user}</span>
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <p className="line-clamp-2" style={{ color: "var(--text-muted)", wordBreak: "break-word" }}>{c.text}</p>
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <span className="px-2 py-0.5 rounded-md whitespace-nowrap" style={{ fontSize: "0.62rem", fontWeight: 600, color: emotionStyle.color, backgroundColor: emotionStyle.bg }}>{c.emotion}</span>
+                    </td>
+                    <td className="py-2.5 px-3">
+                      <span style={{ color: "var(--text-faint)", fontSize: "0.72rem" }}>{c.date}</span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Mobile: card list */}
+        <div className="md:hidden space-y-2">
+          {visibleRows.map((c, i) => {
+            const ss = getScoreStyle(c.score);
+            const emotionStyle = getEmotionColor(c.emotion);
+            return (
+              <div key={i} className="p-3 rounded-xl" style={{ backgroundColor: "var(--bg-subtle)" }}>
+                <div className="flex items-center gap-2 mb-1.5">
+                  <span className="px-2 py-0.5 rounded-md" style={{ fontSize: "0.65rem", fontWeight: 600, color: ss.color, backgroundColor: ss.bg }}>{c.score.toFixed(1)}</span>
+                  <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "var(--text-primary)" }}>@{c.user}</span>
+                  <span className="ml-auto px-2 py-0.5 rounded-md" style={{ fontSize: "0.6rem", fontWeight: 600, color: emotionStyle.color, backgroundColor: emotionStyle.bg }}>{c.emotion}</span>
+                </div>
+                <p style={{ fontSize: "0.78rem", lineHeight: 1.6, color: "var(--text-muted)", wordBreak: "break-word" }}>{c.text}</p>
+              </div>
+            );
+          })}
+        </div>
         <div className="flex items-center justify-between mt-3 px-3">
           <span style={{ fontSize: "0.72rem", color: "var(--text-faint)" }}>
             {tc("commentsTable.showing", { visible: visibleRows.length, total: filtered.length })}
