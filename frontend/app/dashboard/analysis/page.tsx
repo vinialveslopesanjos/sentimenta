@@ -5,6 +5,7 @@ import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tool
 import { dashboardApi, connectionsApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import { useTheme } from "@/components/ThemeContext";
+import { useTranslations } from "next-intl";
 import { Badge } from "@/components/ds/Badge";
 import { Section } from "@/components/ds/Section";
 import { SentimentBar } from "@/components/ds/SentimentBar";
@@ -37,11 +38,12 @@ type CompareConnection = {
 
 export default function AnalysisPage() {
   const { t } = useTheme();
+  const ta = useTranslations("analysis");
   const [connections, setConnections] = useState<ConnectionOption[]>([]);
   const [selectedA, setSelectedA] = useState("");
   const [selectedB, setSelectedB] = useState("");
-  const [days, setDays] = useState(3650);
-  const [activeTime, setActiveTime] = useState("1a");
+  const [days, setDays] = useState(0);
+  const [activeTime, setActiveTime] = useState("Tudo");
   const [data, setData] = useState<CompareConnection[]>([]);
   const [radarData, setRadarData] = useState<any[]>([]);
   const [insights, setInsights] = useState<{ advantage: any; opportunity: any; risk: any } | null>(null);
@@ -73,7 +75,7 @@ export default function AnalysisPage() {
       setData(compareRes.connections);
       if (radarRes) {
         const metrics = ["score", "engagement", "positivity", "volume", "consistency", "growth"];
-        const metricLabels: Record<string, string> = { score: "Score", engagement: "Engajamento", positivity: "Positividade", volume: "Volume", consistency: "Consistencia", growth: "Crescimento" };
+        const metricLabels: Record<string, string> = { score: ta("radarMetrics.score"), engagement: ta("radarMetrics.engagement"), positivity: ta("radarMetrics.positivity"), volume: ta("radarMetrics.volume"), consistency: ta("radarMetrics.consistency"), growth: ta("radarMetrics.growth") };
         const radarFormatted = metrics.map(m => {
           const item: Record<string, any> = { metric: metricLabels[m] || m };
           radarRes.connections.forEach((c, idx) => {
@@ -123,6 +125,7 @@ export default function AnalysisPage() {
     setActiveTime(tt);
     if (tt === "30d") setDays(30);
     else if (tt === "90d") setDays(90);
+    else if (tt === "Tudo") setDays(0);
     else setDays(365);
   };
 
@@ -148,7 +151,7 @@ export default function AnalysisPage() {
           <div>
             <label className="block mb-1.5" style={{ fontSize: "0.72rem", fontWeight: 500, color: "var(--text-muted)" }}>Perfil B</label>
             <select value={selectedB} onChange={e => setSelectedB(e.target.value)} className="w-full px-3 py-2.5 rounded-xl transition-all" style={{ fontSize: "0.82rem", border: "1px solid var(--border)", backgroundColor: "var(--bg-card)", color: "var(--text-primary)" }}>
-              <option value="">Nenhum (mostrar so A)</option>
+              <option value="">{ta("showOnlyA")}</option>
               {connections.map(c => (
                 <option key={c.id} value={c.id} disabled={c.id === selectedA}>@{c.username} ({c.platform})</option>
               ))}
@@ -157,7 +160,7 @@ export default function AnalysisPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-0.5 rounded-xl p-1" style={{ backgroundColor: "var(--bg-subtle)" }}>
-            {["30d", "90d", "1a"].map(tt => (
+            {["30d", "90d", "1a", "Tudo"].map(tt => (
               <button key={tt} onClick={() => handleTimeChange(tt)} className="px-3 py-1.5 rounded-lg transition-all" style={{ fontSize: "0.72rem", fontWeight: 500, backgroundColor: activeTime === tt ? "var(--bg-card)" : "transparent", color: activeTime === tt ? "var(--text-primary)" : "var(--text-muted)" }}>{tt}</button>
             ))}
           </div>
@@ -172,8 +175,8 @@ export default function AnalysisPage() {
 
       {!loading && activeConns.length === 0 && (
         <div className="rounded-2xl p-12 text-center" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
-          <h3 style={{ fontSize: "1rem", fontWeight: 500, color: "var(--text-muted)" }}>Selecione pelo menos um perfil</h3>
-          <p className="mt-1" style={{ fontSize: "0.82rem", color: "var(--text-faint)" }}>Escolha perfis acima para visualizar a comparacao de sentimentos</p>
+          <h3 style={{ fontSize: "1rem", fontWeight: 500, color: "var(--text-muted)" }}>{ta("selectAtLeastOne")}</h3>
+          <p className="mt-1" style={{ fontSize: "0.82rem", color: "var(--text-faint)" }}>{ta("selectAbove")}</p>
         </div>
       )}
 
@@ -197,7 +200,7 @@ export default function AnalysisPage() {
                     <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 700, color: "var(--primary)" }}>{p.avg_score != null ? p.avg_score.toFixed(1) : "\u2014"}<span style={{ fontSize: "0.9rem", fontWeight: 400, color: "var(--text-muted)" }}>/10</span></p>
                   </div>
                   <div>
-                    <p style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>Positividade</p>
+                    <p style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>{ta("positivity")}</p>
                     <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 700, color: (p.avg_polarity ?? 0) >= 0 ? t.sentimentPositive : t.sentimentNegative }}>{p.avg_polarity != null ? ((p.avg_polarity >= 0 ? "+" : "") + p.avg_polarity.toFixed(2)) : "\u2014"}</p>
                   </div>
                 </div>
@@ -208,7 +211,7 @@ export default function AnalysisPage() {
 
           {/* Score trend */}
           {(trendsA.data_points.length > 0 || trendsB.data_points.length > 0) && (
-            <Section title="Tendencia de Score -- A vs B" subtitle="Evolucao comparativa dos perfis ao longo do tempo">
+            <Section title={ta("scoreTrend")} subtitle={ta("scoreTrendSub")}>
               <ResponsiveContainer width="100%" height={260}>
                 <LineChart>
                   <CartesianGrid strokeDasharray="3 3" stroke={t.primaryBg} vertical={false} />
@@ -229,7 +232,7 @@ export default function AnalysisPage() {
           {/* Radar + Emotions */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {radarData.length > 0 && (
-              <Section title="Radar Comparativo" subtitle="Performance em 6 dimensoes-chave">
+              <Section title={ta("comparativeRadar")} subtitle={ta("comparativeRadarSub")}>
                 <ResponsiveContainer width="100%" height={280}>
                   <RadarChart data={radarData}>
                     <PolarGrid stroke={t.textXfaint} />
@@ -243,7 +246,7 @@ export default function AnalysisPage() {
             )}
 
             {emotionsData.length > 0 && (
-              <Section title="Emocoes -- Comparativo" subtitle="Distribuicao emocional lado a lado">
+              <Section title={ta("emotionsComparative")} subtitle={ta("emotionsComparativeSub")}>
                 <ResponsiveContainer width="100%" height={280}>
                   <BarChart data={emotionsData} barGap={4}>
                     <CartesianGrid strokeDasharray="3 3" stroke={t.primaryBg} vertical={false} />

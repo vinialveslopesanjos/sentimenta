@@ -7,7 +7,7 @@ import { ArrowLeft, Heart, MessageCircle, Eye, ThumbsUp, ExternalLink, Search } 
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, Radar } from "recharts";
 import { postsApi, commentsApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
-import { useTheme } from "@/components/ThemeContext";
+import { useTranslations } from "next-intl";
 import type { CommentWithAnalysis, CommentListResponse } from "@/lib/types";
 import { fmt, fmtDatetime, scoreBg } from "@/lib/helpers";
 import { Button } from "@/components/ds/Button";
@@ -40,14 +40,15 @@ interface PostSummaryData {
   sentiment_distribution: { positive: number; neutral: number; negative: number } | null;
   total_analyzed: number;
   emotions_distribution?: Record<string, number> | null;
-  topics_distribution?: Record<string, number> | null;
+  topics_frequency?: Record<string, number> | null;
   word_frequency?: Record<string, number> | null;
 }
 
 export default function PostDetailPage() {
   const params = useParams();
   const router = useRouter();
-  const { t } = useTheme();
+  const t = useTranslations("post");
+  const tc = useTranslations("common");
   const postId = params.id as string;
 
   const [post, setPost] = useState<PostDetail | null>(null);
@@ -59,6 +60,7 @@ export default function PostDetailPage() {
   const [commentsLoading, setCommentsLoading] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [commentFilter, setCommentFilter] = useState("");
+  const [emotionFilter, setEmotionFilter] = useState("");
   const [offset, setOffset] = useState(0);
   const LIMIT = 20;
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -73,7 +75,7 @@ export default function PostDetailPage() {
     } finally { setLoading(false); }
   }, [postId]);
 
-  const loadComments = useCallback(async (q: { search: string; sentiment: string; offset: number }) => {
+  const loadComments = useCallback(async (q: { search: string; sentiment: string; emotion: string; offset: number }) => {
     const token = getToken();
     if (!token) return;
     setCommentsLoading(true);
@@ -81,6 +83,7 @@ export default function PostDetailPage() {
       const c = await commentsApi.list(token, {
         post_id: postId,
         sentiment: q.sentiment || undefined,
+        emotion: q.emotion || undefined,
         search: q.search || undefined,
         limit: LIMIT,
         offset: q.offset,
@@ -93,7 +96,7 @@ export default function PostDetailPage() {
 
   useEffect(() => {
     loadPost();
-    loadComments({ search: searchQuery, sentiment: commentFilter, offset });
+    loadComments({ search: searchQuery, sentiment: commentFilter, emotion: emotionFilter, offset });
   }, [loadPost]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSearch = (v: string) => {
@@ -101,20 +104,26 @@ export default function PostDetailPage() {
     if (searchTimeout.current) clearTimeout(searchTimeout.current);
     searchTimeout.current = setTimeout(() => {
       setOffset(0);
-      loadComments({ search: v, sentiment: commentFilter, offset: 0 });
+      loadComments({ search: v, sentiment: commentFilter, emotion: emotionFilter, offset: 0 });
     }, 400);
   };
 
   const handleSentiment = (v: string) => {
     setCommentFilter(v);
     setOffset(0);
-    loadComments({ search: searchQuery, sentiment: v, offset: 0 });
+    loadComments({ search: searchQuery, sentiment: v, emotion: emotionFilter, offset: 0 });
+  };
+
+  const handleEmotion = (v: string) => {
+    setEmotionFilter(v);
+    setOffset(0);
+    loadComments({ search: searchQuery, sentiment: commentFilter, emotion: v, offset: 0 });
   };
 
   const handlePage = (dir: "prev" | "next") => {
     const newOffset = dir === "next" ? offset + LIMIT : Math.max(0, offset - LIMIT);
     setOffset(newOffset);
-    loadComments({ search: searchQuery, sentiment: commentFilter, offset: newOffset });
+    loadComments({ search: searchQuery, sentiment: commentFilter, emotion: emotionFilter, offset: newOffset });
   };
 
   const dist = summary?.sentiment_distribution;
@@ -127,7 +136,7 @@ export default function PostDetailPage() {
   const weightedScore = summary?.weighted_avg_score ?? null;
   const avgPolarity = summary?.avg_polarity ?? null;
   const emotionsDist = summary?.emotions_distribution ?? null;
-  const topicsDist = summary?.topics_distribution ?? null;
+  const topicsDist = summary?.topics_frequency ?? null;
   const wordFreq = summary?.word_frequency ?? null;
 
   const emotionsList = emotionsDist ? Object.entries(emotionsDist).sort((a, b) => b[1] - a[1]).map(([k]) => k) : [];
@@ -148,10 +157,10 @@ export default function PostDetailPage() {
           <ArrowLeft className="w-5 h-5" style={{ color: "var(--primary)" }} />
         </button>
         {post?.connection_id && (
-          <Link href={`/profile/${post.connection_id}`} style={{ fontSize: "0.82rem", fontWeight: 500, color: "var(--primary)" }}>Voltar ao perfil</Link>
+          <Link href={`/profile/${post.connection_id}`} style={{ fontSize: "0.82rem", fontWeight: 500, color: "var(--primary)" }}>{t("backToProfile")}</Link>
         )}
         <span style={{ color: "var(--text-xfaint)" }}>/</span>
-        <span style={{ fontSize: "0.82rem", fontWeight: 500, color: "var(--text-primary)" }}>Post</span>
+        <span style={{ fontSize: "0.82rem", fontWeight: 500, color: "var(--text-primary)" }}>{t("post")}</span>
       </div>
 
       {/* Post info */}
@@ -174,12 +183,12 @@ export default function PostDetailPage() {
                 <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.15rem", fontWeight: 600, color: "var(--text-primary)", lineHeight: 1.5 }}>{displayText}</h2>
                 {isLong && (
                   <button onClick={() => setExpanded(!expanded)} style={{ fontSize: "0.72rem", color: "var(--primary)", fontWeight: 500 }}>
-                    {expanded ? "Ver menos" : "Ver mais"}
+                    {expanded ? t("viewLess") : t("viewMore")}
                   </button>
                 )}
               </div>
             ) : (
-              <p className="mb-4" style={{ fontSize: "0.82rem", color: "var(--text-faint)", fontStyle: "italic" }}>Post sem texto</p>
+              <p className="mb-4" style={{ fontSize: "0.82rem", color: "var(--text-faint)", fontStyle: "italic" }}>{t("noText")}</p>
             )}
             <div className="flex items-center gap-5">
               {[
@@ -194,33 +203,33 @@ export default function PostDetailPage() {
               ))}
               {post.post_url && (
                 <a href={post.post_url} target="_blank" rel="noopener noreferrer" className="ml-auto flex items-center gap-1 hover:underline" style={{ fontSize: "0.78rem", color: "var(--primary)" }}>
-                  Ver no {platformLabel} <ExternalLink className="w-3 h-3" />
+                  {t("viewOnPlatform", { platform: platformLabel })} <ExternalLink className="w-3 h-3" />
                 </a>
               )}
             </div>
           </>
         ) : (
-          <p style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>Post nao encontrado</p>
+          <p style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>{t("notFound")}</p>
         )}
       </div>
 
       {/* Stats */}
       {!loading && summary && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <StatCard variant="tinted" tintColor="var(--primary)" tintBg="var(--primary-bg)" icon={<Heart className="w-5 h-5" style={{ color: "var(--primary)" }} />} label="Score" value={weightedScore != null ? `${weightedScore.toFixed(1)}/10` : avgScore != null ? `${avgScore.toFixed(1)}/10` : "\u2014"} />
+          <StatCard variant="tinted" tintColor="var(--primary)" tintBg="var(--primary-bg)" icon={<Heart className="w-5 h-5" style={{ color: "var(--primary)" }} />} label={t("stats.score")} value={weightedScore != null ? `${weightedScore.toFixed(1)}/10` : avgScore != null ? `${avgScore.toFixed(1)}/10` : "\u2014"} />
           {avgPolarity != null && (
-            <StatCard variant="tinted" tintColor="var(--primary)" tintBg="var(--primary-bg)" icon={<ThumbsUp className="w-5 h-5" style={{ color: "var(--primary)" }} />} label="Positividade" value={avgPolarity.toFixed(2)} />
+            <StatCard variant="tinted" tintColor="var(--primary)" tintBg="var(--primary-bg)" icon={<ThumbsUp className="w-5 h-5" style={{ color: "var(--primary)" }} />} label={t("stats.positivity")} value={avgPolarity.toFixed(2)} />
           )}
-          <StatCard icon={<MessageCircle className="w-5 h-5" style={{ color: "var(--secondary)" }} />} label="Analisados" value={fmt(summary.total_analyzed)} />
+          <StatCard icon={<MessageCircle className="w-5 h-5" style={{ color: "var(--secondary)" }} />} label={t("stats.analyzed")} value={fmt(summary.total_analyzed)} />
           {posRate > 0 && (
-            <StatCard variant="highlighted" icon={<ThumbsUp className="w-5 h-5 text-white/60" />} label="Positivos" value={`${posRate}%`} />
+            <StatCard variant="highlighted" icon={<ThumbsUp className="w-5 h-5 text-white/60" />} label={t("stats.positive")} value={`${posRate}%`} />
           )}
         </div>
       )}
 
       {/* Sentiment */}
       {!loading && dist && (
-        <Section title="Distribuição de Sentimento">
+        <Section title={t("sentimentDistribution")}>
           <SentimentBar positive={dist.positive} neutral={dist.neutral} negative={dist.negative} height={24} showLabels />
         </Section>
       )}
@@ -228,14 +237,14 @@ export default function PostDetailPage() {
       {/* Emotions + Topics */}
       {!loading && (emotionsList.length > 0 || topicsList.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Section title="Emoções">
+          <Section title={t("emotions")}>
             <div className="flex flex-wrap gap-2">
               {emotionsList.map(e => (
                 <span key={e} className="px-3 py-1.5 rounded-lg capitalize" style={{ fontSize: "0.72rem", fontWeight: 500, backgroundColor: "var(--primary-bg)", color: "var(--primary)" }}>{e}</span>
               ))}
             </div>
           </Section>
-          <Section title="Tópicos">
+          <Section title={t("topics")}>
             <div className="flex flex-wrap gap-2">
               {topicsList.map(tp => (
                 <span key={tp} className="px-3 py-1.5 rounded-lg capitalize" style={{ fontSize: "0.72rem", fontWeight: 500, backgroundColor: "var(--secondary-bg)", color: "var(--secondary)" }}>{tp}</span>
@@ -248,27 +257,33 @@ export default function PostDetailPage() {
       {/* Radar + Words */}
       {!loading && (summary?.total_analyzed ?? 0) > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Section title="Radar de Emocoes" subtitle="Emoções nos comentários deste post">
+          <Section title={t("emotionRadar")} subtitle={t("emotionRadarSub")}>
             <SentimentRadar distribution={emotionsDist} height={200} />
           </Section>
-          <Section title="Nuvem de Palavras" subtitle="Palavras mais faladas">
+          <Section title={t("wordCloud")} subtitle={t("wordCloudSub")}>
             <WordCloudChart topics={wordFreq} maxWords={15} height={200} />
           </Section>
         </div>
       )}
 
       {/* Comments */}
-      <Section title="Comentarios" action={
+      <Section title={t("comments")} action={
         <div className="flex items-center gap-2">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl" style={{ backgroundColor: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
             <Search className="w-3.5 h-3.5" style={{ color: "var(--text-faint)" }} />
-            <input type="text" placeholder="Buscar..." value={searchQuery} onChange={e => handleSearch(e.target.value)} className="bg-transparent focus:outline-none w-28" style={{ fontSize: "0.78rem", color: "var(--text-primary)" }} />
+            <input type="text" placeholder={tc("search")} value={searchQuery} onChange={e => handleSearch(e.target.value)} className="bg-transparent focus:outline-none w-28" style={{ fontSize: "0.78rem", color: "var(--text-primary)" }} />
           </div>
           <select value={commentFilter} onChange={e => handleSentiment(e.target.value)} className="px-3 py-1.5 rounded-xl focus:outline-none transition-all" style={{ fontSize: "0.78rem", border: "1px solid var(--border)", backgroundColor: "var(--bg-card)", color: "var(--text-primary)" }}>
-            <option value="">Todos</option>
-            <option value="positive">Positivo</option>
-            <option value="neutral">Neutro</option>
-            <option value="negative">Negativo</option>
+            <option value="">{t("commentFilter.all")}</option>
+            <option value="positive">{t("commentFilter.positive")}</option>
+            <option value="neutral">{t("commentFilter.neutral")}</option>
+            <option value="negative">{t("commentFilter.negative")}</option>
+          </select>
+          <select value={emotionFilter} onChange={e => handleEmotion(e.target.value)} className="px-3 py-1.5 rounded-xl focus:outline-none transition-all" style={{ fontSize: "0.78rem", border: "1px solid var(--border)", backgroundColor: "var(--bg-card)", color: "var(--text-primary)" }}>
+            <option value="">{t("commentFilter.allEmotions")}</option>
+            {["Alegria", "Tristeza", "Raiva", "Surpresa", "Nojo", "Medo", "Amor"].map(em => (
+              <option key={em} value={em}>{em}</option>
+            ))}
           </select>
         </div>
       }>
@@ -286,47 +301,69 @@ export default function PostDetailPage() {
           </div>
         ) : (comments?.items ?? []).length === 0 ? (
           <div className="py-12 text-center" style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
-            Nenhum comentario encontrado
+            {t("noComments")}
           </div>
         ) : (
           <>
-            <div className="space-y-1">
-              {(comments?.items ?? []).map((c) => {
-                const score = c.analysis?.score_0_10 ?? null;
-                const emotions = c.analysis?.emotions ?? [];
-                const sentiment = score !== null ? (score >= 6 ? "positive" : score >= 4 ? "neutral" : "negative") : null;
-                const ss = score !== null ? getScoreStyle(score) : null;
-                return (
-                  <div key={c.id} className="p-3 rounded-xl transition-colors">
-                    <div className="flex items-center gap-3 mb-2">
-                      {score !== null && ss && (
-                        <span className="px-2 py-0.5 rounded-lg" style={{ fontSize: "0.65rem", fontWeight: 600, color: ss.color, backgroundColor: ss.bg }}>{score.toFixed(1)}</span>
-                      )}
-                      <span style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)" }}>{c.author_name || c.author_username || "Anonimo"}</span>
-                      {sentiment && <Badge variant={sentiment === "positive" ? "positive" : sentiment === "negative" ? "negative" : "muted"}>{sentiment === "positive" ? "Positivo" : sentiment === "negative" ? "Negativo" : "Neutro"}</Badge>}
-                    </div>
-                    <p className="pl-8 mb-2" style={{ fontSize: "0.78rem", lineHeight: 1.6, color: "var(--text-muted)" }}>{c.text_original}</p>
-                    {emotions.length > 0 && (
-                      <div className="flex flex-wrap gap-1 pl-8">
-                        {emotions.map((e: string) => (
-                          <span key={e} className="px-2 py-0.5 rounded capitalize" style={{ fontSize: "0.62rem", fontWeight: 500, backgroundColor: "var(--primary-bg)", color: "var(--primary)" }}>{e}</span>
-                        ))}
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+            <div className="overflow-x-auto">
+              <table className="w-full" style={{ fontSize: "0.78rem" }}>
+                <thead>
+                  <tr style={{ borderBottom: "1px solid var(--border)" }}>
+                    <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{t("tableHeaders.score")}</th>
+                    <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{t("tableHeaders.user")}</th>
+                    <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{t("tableHeaders.comment")}</th>
+                    <th className="text-left py-2.5 px-3 hidden md:table-cell" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{t("tableHeaders.emotion")}</th>
+                    <th className="text-left py-2.5 px-3 hidden md:table-cell" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{t("tableHeaders.date")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(comments?.items ?? []).map((c) => {
+                    const score = c.analysis?.score_0_10 ?? null;
+                    const emotions = c.analysis?.emotions ?? [];
+                    const ss = score !== null ? getScoreStyle(score) : null;
+                    return (
+                      <tr key={c.id} className="transition-colors" style={{ borderBottom: "1px solid var(--border)" }}>
+                        <td className="py-2.5 px-3">
+                          {score !== null && ss && (
+                            <span className="px-2 py-0.5 rounded-md" style={{ fontSize: "0.68rem", fontWeight: 600, color: ss.color, backgroundColor: ss.bg }}>{score.toFixed(1)}</span>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3">
+                          <span style={{ fontWeight: 500, color: "var(--text-primary)" }}>{c.author_name || c.author_username || tc("anonymous")}</span>
+                        </td>
+                        <td className="py-2.5 px-3 max-w-[300px]">
+                          <p className="truncate" style={{ color: "var(--text-muted)" }}>{c.text_original}</p>
+                        </td>
+                        <td className="py-2.5 px-3 hidden md:table-cell">
+                          {emotions.length > 0 && (
+                            <div className="flex flex-wrap gap-1">
+                              {emotions.map((e: string) => (
+                                <span key={e} className="px-2 py-0.5 rounded-md capitalize" style={{ fontSize: "0.62rem", fontWeight: 500, backgroundColor: "var(--primary-bg)", color: "var(--primary)" }}>{e}</span>
+                              ))}
+                            </div>
+                          )}
+                        </td>
+                        <td className="py-2.5 px-3 hidden md:table-cell">
+                          {c.published_at && (
+                            <span style={{ color: "var(--text-faint)", fontSize: "0.72rem" }}>{fmtDatetime(c.published_at)}</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
 
             {/* Pagination */}
             {(comments?.total ?? 0) > LIMIT && (
               <div className="flex items-center justify-between pt-4" style={{ borderTop: "1px solid var(--border)" }}>
                 <p style={{ fontSize: "0.72rem", color: "var(--text-faint)" }}>
-                  {offset + 1}\u2013{Math.min(offset + LIMIT, comments?.total ?? 0)} de {comments?.total ?? 0}
+                  {offset + 1}\u2013{Math.min(offset + LIMIT, comments?.total ?? 0)} {tc("of")} {comments?.total ?? 0}
                 </p>
                 <div className="flex gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => handlePage("prev")} disabled={offset === 0}>Anterior</Button>
-                  <Button variant="ghost" size="sm" onClick={() => handlePage("next")} disabled={offset + LIMIT >= (comments?.total ?? 0)}>Proximo</Button>
+                  <Button variant="ghost" size="sm" onClick={() => handlePage("prev")} disabled={offset === 0}>{t("pagination.previous")}</Button>
+                  <Button variant="ghost" size="sm" onClick={() => handlePage("next")} disabled={offset + LIMIT >= (comments?.total ?? 0)}>{t("pagination.next")}</Button>
                 </div>
               </div>
             )}

@@ -2,15 +2,17 @@ import { Section } from "./ds/Section";
 import { getScoreStyle } from "./ds/tokens";
 import { useTheme } from "./ThemeContext";
 import { useState } from "react";
+import { useTranslations } from "next-intl";
 import { Search } from "lucide-react";
-
-const heatmapDays = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 const heatmapHours = ["00", "02", "04", "06", "08", "10", "12", "14", "16", "18", "20", "22"];
 
 interface HeatmapProps { data: number[][]; title?: string; }
 
-export function Heatmap({ data, title = "Heatmap de Atividade" }: HeatmapProps) {
+export function Heatmap({ data, title }: HeatmapProps) {
   const { t } = useTheme();
+  const tc = useTranslations("charts");
+  const heatmapDays = tc.raw("heatmap.days") as string[];
+  const displayTitle = title ?? tc("heatmap.title");
   function getHeatColor(value: number) {
     if (value >= 40) return t.primary;
     if (value >= 30) return t.primaryMuted;
@@ -19,7 +21,7 @@ export function Heatmap({ data, title = "Heatmap de Atividade" }: HeatmapProps) 
     return t.primaryBg;
   }
   return (
-    <Section title={title} subtitle="Volume de comentários por horário e dia da semana">
+    <Section title={displayTitle} subtitle={tc("heatmap.subtitle")}>
       <div className="overflow-x-auto">
         <div className="min-w-[500px]">
           <div className="flex gap-1 mb-1 pl-10">
@@ -42,8 +44,9 @@ export function Heatmap({ data, title = "Heatmap de Atividade" }: HeatmapProps) 
 interface FeaturedComment { user: string; text: string; emotion: string; score: number; }
 
 export function FeaturedComments({ comments }: { comments: FeaturedComment[] }) {
+  const tc = useTranslations("charts");
   return (
-    <Section title="Comentários em Destaque" subtitle="Mais relevantes por score">
+    <Section title={tc("featuredComments.title")} subtitle={tc("featuredComments.subtitle")}>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
         {comments.map((c, i) => {
           const ss = getScoreStyle(c.score);
@@ -91,12 +94,15 @@ function getEmotionColor(emotion: string): { color: string; bg: string } {
 }
 
 export function CommentsTable({ comments, platformName }: { comments: CommentRow[]; platformName: string }) {
+  const tc = useTranslations("charts");
   const [filter, setFilter] = useState("Todos");
+  const [emotionFilter, setEmotionFilter] = useState("");
   const [search, setSearch] = useState("");
   const [visibleCount, setVisibleCount] = useState(20);
 
   const filtered = comments.filter(c => {
     if (filter !== "Todos" && c.sentiment !== filter) return false;
+    if (emotionFilter && c.emotion.toLowerCase() !== emotionFilter.toLowerCase()) return false;
     if (search && !c.text.toLowerCase().includes(search.toLowerCase()) && !c.user.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
@@ -104,7 +110,7 @@ export function CommentsTable({ comments, platformName }: { comments: CommentRow
   const visibleRows = filtered.slice(0, visibleCount);
 
   return (
-    <Section title={`Comentários — ${platformName}`} subtitle="Tabela completa de comentários analisados" action={
+    <Section title={tc("commentsTable.title", { platform: platformName })} subtitle={tc("commentsTable.subtitle")} action={
       <div className="flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl" style={{ backgroundColor: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
           <Search className="w-3.5 h-3.5" style={{ color: "var(--text-faint)" }} />
@@ -113,17 +119,23 @@ export function CommentsTable({ comments, platformName }: { comments: CommentRow
         <select value={filter} onChange={e => setFilter(e.target.value)} className="px-3 py-1.5 rounded-xl focus:outline-none transition-all duration-200 cursor-pointer hover:opacity-80" style={{ fontSize: "0.78rem", border: "0.5px solid var(--border)", backgroundColor: "color-mix(in srgb, var(--bg-card) 60%, transparent)", backdropFilter: "blur(12px)", color: "var(--text-primary)", boxShadow: "0 2px 8px -2px rgba(0,0,0,0.05)" }}>
           <option>Todos</option><option>Positivo</option><option>Neutro</option><option>Negativo</option>
         </select>
+        <select value={emotionFilter} onChange={e => setEmotionFilter(e.target.value)} className="px-3 py-1.5 rounded-xl focus:outline-none transition-all duration-200 cursor-pointer hover:opacity-80" style={{ fontSize: "0.78rem", border: "0.5px solid var(--border)", backgroundColor: "color-mix(in srgb, var(--bg-card) 60%, transparent)", backdropFilter: "blur(12px)", color: "var(--text-primary)", boxShadow: "0 2px 8px -2px rgba(0,0,0,0.05)" }}>
+          <option value="">Todas emoções</option>
+          {["Alegria", "Tristeza", "Raiva", "Surpresa", "Nojo", "Medo", "Amor"].map(em => (
+            <option key={em} value={em}>{em}</option>
+          ))}
+        </select>
       </div>
     }>
       <div className="overflow-x-auto">
         <table className="w-full" style={{ fontSize: "0.78rem" }}>
           <thead>
             <tr style={{ borderBottom: "1px solid var(--border)" }}>
-              <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>SCORE</th>
-              <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>USUÁRIO</th>
-              <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>COMENTÁRIO</th>
-              <th className="text-left py-2.5 px-3 hidden md:table-cell" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>EMOÇÃO</th>
-              <th className="text-left py-2.5 px-3 hidden md:table-cell" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>DATA</th>
+              <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{tc("commentsTable.headerScore")}</th>
+              <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{tc("commentsTable.headerUser")}</th>
+              <th className="text-left py-2.5 px-3" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{tc("commentsTable.headerComment")}</th>
+              <th className="text-left py-2.5 px-3 hidden md:table-cell" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{tc("commentsTable.headerEmotion")}</th>
+              <th className="text-left py-2.5 px-3 hidden md:table-cell" style={{ fontWeight: 600, color: "var(--text-muted)", fontSize: "0.68rem", letterSpacing: "0.05em" }}>{tc("commentsTable.headerDate")}</th>
             </tr>
           </thead>
           <tbody>
@@ -154,7 +166,7 @@ export function CommentsTable({ comments, platformName }: { comments: CommentRow
         </table>
         <div className="flex items-center justify-between mt-3 px-3">
           <span style={{ fontSize: "0.72rem", color: "var(--text-faint)" }}>
-            Mostrando {visibleRows.length} de {filtered.length} comentários
+            {tc("commentsTable.showing", { visible: visibleRows.length, total: filtered.length })}
           </span>
           {visibleCount < filtered.length && (
             <button
@@ -168,12 +180,12 @@ export function CommentsTable({ comments, platformName }: { comments: CommentRow
                 border: "1px solid var(--primary)",
               }}
             >
-              Mostrar mais
+              {tc("commentsTable.showMore")}
             </button>
           )}
         </div>
         {filtered.length === 0 && (
-          <div className="text-center py-8" style={{ color: "var(--text-faint)", fontSize: "0.82rem" }}>Nenhum comentário encontrado.</div>
+          <div className="text-center py-8" style={{ color: "var(--text-faint)", fontSize: "0.82rem" }}>{tc("commentsTable.noCommentFound")}</div>
         )}
       </div>
     </Section>

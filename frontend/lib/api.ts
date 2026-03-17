@@ -558,6 +558,7 @@ export const commentsApi = {
       connection_id?: string;
       post_id?: string;
       sentiment?: string;
+      emotion?: string;
       search?: string;
       sort?: string;
       order?: string;

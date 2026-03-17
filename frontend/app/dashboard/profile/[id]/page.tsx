@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useRouter, useParams } from "next/navigation";
+import { useTranslations } from "next-intl";
 import {
   ArrowLeft, Heart, MessageCircle, Eye, RefreshCw, ChevronRight,
 } from "lucide-react";
@@ -93,10 +94,13 @@ export default function ProfileDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const { t } = useTheme();
+  const ti = useTranslations("profile");
+  const tc = useTranslations("common");
+  const td = useTranslations("dashboard");
 
   // ── state ──
   const [activeTab, setActiveTab] = useState("Volume");
-  const [timeRange, setTimeRange] = useState("90d");
+  const [timeRange, setTimeRange] = useState("Tudo");
   const [granularity, setGranularity] = useState("week");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -184,10 +188,10 @@ export default function ProfileDetailPage() {
       }
 
       if (dashRes.status === "rejected") {
-        setError("Falha ao carregar dados do perfil.");
+        setError(ti("errorLoading"));
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro desconhecido");
+      setError(err instanceof Error ? err.message : ti("errorUnknown"));
     } finally {
       setLoading(false);
     }
@@ -244,7 +248,7 @@ export default function ProfileDetailPage() {
   const totalCommentsEng = engagementTotals?.total_comments ?? totalComments;
   const engagementRate = followersCount > 0 ? ((totalCommentsEng / followersCount) * 100).toFixed(2) : "0.00";
 
-  const polarizationLabel = negPct >= 40 ? "Alta" : negPct >= 25 ? "Moderada" : "Baixa";
+  const polarizationLabel = negPct >= 40 ? ti("polarizationLevels.high") : negPct >= 25 ? ti("polarizationLevels.moderate") : ti("polarizationLevels.low");
   const polarizationSub = `${negPct}% neg. vs ${posPct}% pos.`;
 
   // ── emotions for radar ──
@@ -514,9 +518,9 @@ export default function ProfileDetailPage() {
               <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
               <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
-              <Bar dataKey="positivo" name="Positivo" fill={t.sentimentPositive} stackId="sentiment" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="neutro" name="Neutro" fill={t.sentimentNeutral} stackId="sentiment" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="negativo" name="Negativo" fill={t.sentimentNegative} stackId="sentiment" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="positivo" name={tc("positive")} fill={t.sentimentPositive} stackId="sentiment" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="neutro" name={tc("neutral")} fill={t.sentimentNeutral} stackId="sentiment" radius={[0, 0, 0, 0]} />
+              <Bar dataKey="negativo" name={tc("negative")} fill={t.sentimentNegative} stackId="sentiment" radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         );
@@ -561,7 +565,7 @@ export default function ProfileDetailPage() {
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center space-y-3">
           <div className="w-8 h-8 border-2 rounded-full animate-spin mx-auto" style={{ borderColor: "var(--primary)", borderTopColor: "transparent" }} />
-          <p style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>Carregando perfil...</p>
+          <p style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>{ti("loading")}</p>
         </div>
       </div>
     );
@@ -572,9 +576,9 @@ export default function ProfileDetailPage() {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <div className="text-center space-y-3">
-          <p style={{ fontSize: "0.95rem", fontWeight: 600, color: "var(--sentiment-negative)" }}>Erro ao carregar</p>
+          <p style={{ fontSize: "0.95rem", fontWeight: 600, color: "var(--sentiment-negative)" }}>{tc("error")}</p>
           <p style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>{error}</p>
-          <Button variant="primary" onClick={fetchData}>Tentar novamente</Button>
+          <Button variant="primary" onClick={fetchData}>{ti("retry")}</Button>
         </div>
       </div>
     );
@@ -593,11 +597,11 @@ export default function ProfileDetailPage() {
             @{username}
           </h1>
           <Badge variant={connectionStatus === "active" ? "positive" : "muted"} dot>
-            {connectionStatus === "active" ? "ATIVO" : connectionStatus.toUpperCase()}
+            {connectionStatus === "active" ? tc("active") : connectionStatus.toUpperCase()}
           </Badge>
         </div>
         <Button variant="primary" size="sm" icon={<RefreshCw className="w-3.5 h-3.5" />} onClick={handleAnalyze} className="shrink-0">
-          Analisar
+          {ti("analyze")}
         </Button>
       </div>
 
@@ -608,7 +612,7 @@ export default function ProfileDetailPage() {
           tintColor="var(--primary)"
           tintBg="var(--primary-bg)"
           icon={<GlassHeartIcon size={32} />}
-          label="Score"
+          label={ti("stats.score")}
           value={score.toFixed(1)}
           sub="/10"
         />
@@ -617,37 +621,37 @@ export default function ProfileDetailPage() {
           tintColor="var(--primary)"
           tintBg="var(--primary-bg)"
           icon={<GlassZapIcon size={32} />}
-          label="Taxa de Engajamento"
+          label={ti("stats.engagementRate")}
           value={`${engagementRate}%`}
-          sub="comentarios/seguidor"
+          sub={ti("stats.commentsPerFollower")}
         />
         <StatCard
           variant="tinted"
           tintColor="var(--sentiment-negative)"
           tintBg="var(--sentiment-negative-bg)"
           icon={<GlassPeopleIcon size={32} />}
-          label="Polarizacao"
+          label={ti("stats.polarization")}
           value={polarizationLabel}
           sub={polarizationSub}
         />
         <StatCard
           variant="highlighted"
           icon={<GlassShieldIcon size={32} />}
-          label="Total"
+          label={ti("stats.total")}
           value={fmtNum(totalComments)}
-          sub="comentarios"
+          sub={tc("comments")}
         />
       </div>
 
       {/* Sentiment + Engagement */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Section title="Distribuicao de Sentimento">
+        <Section title={ti("sentimentDistribution")}>
           <SentimentBar positive={positive} neutral={neutral} negative={negative} height={12} showLabels />
           <div className="mt-4 space-y-2">
             {[
-              { label: "Positivo", count: fmtNum(positive), pct: `${posPct}%`, color: chartColors.positive },
-              { label: "Neutro", count: fmtNum(neutral), pct: `${neuPct}%`, color: chartColors.neutral },
-              { label: "Negativo", count: fmtNum(negative), pct: `${negPct}%`, color: chartColors.negative },
+              { label: tc("positive"), count: fmtNum(positive), pct: `${posPct}%`, color: chartColors.positive },
+              { label: tc("neutral"), count: fmtNum(neutral), pct: `${neuPct}%`, color: chartColors.neutral },
+              { label: tc("negative"), count: fmtNum(negative), pct: `${negPct}%`, color: chartColors.negative },
             ].map((s) => (
               <div key={s.label} className="flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
@@ -658,12 +662,12 @@ export default function ProfileDetailPage() {
             ))}
           </div>
         </Section>
-        <Section title="Engajamento">
+        <Section title={ti("engagement")}>
           <div className="space-y-3">
             {[
-              { label: "Likes", value: fmtNum(totalLikes), icon: Heart },
-              { label: "Views", value: fmtNum(totalViews), icon: Eye },
-              { label: "Comentários", value: fmtNum(totalCommentsEng), icon: MessageCircle },
+              { label: tc("likes"), value: fmtNum(totalLikes), icon: Heart },
+              { label: tc("views"), value: fmtNum(totalViews), icon: Eye },
+              { label: tc("comments"), value: fmtNum(totalCommentsEng), icon: MessageCircle },
             ].map((s) => (
               <div key={s.label} className="flex items-center gap-3">
                 <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "var(--primary-bg)" }}>
@@ -707,7 +711,7 @@ export default function ProfileDetailPage() {
       {/* Radar + Words */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {radarData.length > 0 && (
-          <Section title="Radar de Emocoes">
+          <Section title={ti("emotionRadar")}>
             <ResponsiveContainer width="100%" height={220}>
               <RadarChart data={radarData}>
                 <PolarGrid stroke="var(--border)" />
@@ -718,7 +722,7 @@ export default function ProfileDetailPage() {
           </Section>
         )}
         {dashboard?.word_frequency && Object.keys(dashboard.word_frequency).length > 0 && (
-          <Section title="Nuvem de Palavras" subtitle="Termos mais citados nos comentários">
+          <Section title={ti("wordCloud")} subtitle={ti("wordCloudSub")}>
             <WordCloudChart topics={dashboard.word_frequency} maxWords={30} height={220} />
           </Section>
         )}
@@ -730,27 +734,29 @@ export default function ProfileDetailPage() {
       )}
 
       {/* Temporal */}
-      <Section title="Analise Temporal" subtitle="Distribuicao por periodo">
+      <Section title={ti("temporalAnalysis")} subtitle={ti("temporalSub")}>
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
           <div className="flex items-center gap-1 rounded-xl p-1" style={{ backgroundColor: "color-mix(in srgb, var(--bg-card) 60%, transparent)", border: "0.5px solid var(--border)", backdropFilter: "blur(12px)", boxShadow: "0 2px 10px -2px rgba(0,0,0,0.05)" }}>
-            {["Volume", "Score", "Sentimento", "Emocoes", "Topicos"].map((tab) => (
+            {(["Volume", "Score", "Sentimento", "Emocoes", "Topicos"] as const).map((tab) => {
+              const tabLabels: Record<string, string> = { Volume: td("tabs.volume"), Score: td("tabs.score"), Sentimento: td("tabs.sentiment"), Emocoes: td("tabs.emotions"), Topicos: td("tabs.topics") };
+              return (
               <button key={tab} onClick={() => setActiveTab(tab)} className="px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap" style={{ fontSize: "0.72rem", fontWeight: 500, backgroundColor: activeTab === tab ? "var(--primary)" : "transparent", color: activeTab === tab ? "white" : "var(--text-muted)", boxShadow: activeTab === tab ? "0 4px 16px -4px var(--primary)" : "none" }}>
-                {tab === "Emocoes" ? "Emocoes" : tab === "Topicos" ? "Topicos" : tab}
-              </button>
-            ))}
+                {tabLabels[tab]}
+              </button>);
+            })}
           </div>
           <div className="flex items-center gap-2">
             <select value={granularity} onChange={(e) => setGranularity(e.target.value)} className="px-3 py-1.5 rounded-xl focus:outline-none transition-all duration-200 cursor-pointer hover:opacity-80" style={{ fontSize: "0.75rem", fontWeight: 500, border: "0.5px solid var(--border)", backgroundColor: "color-mix(in srgb, var(--bg-card) 60%, transparent)", backdropFilter: "blur(12px)", color: "var(--text-primary)", boxShadow: "0 2px 8px -2px rgba(0,0,0,0.05)" }}>
-              <option value="day">Dia</option>
-              <option value="week">Semana</option>
-              <option value="month">Mês</option>
+              <option value="day">{td("granularity.day")}</option>
+              <option value="week">{td("granularity.week")}</option>
+              <option value="month">{td("granularity.month")}</option>
             </select>
             <select value={timeRange} onChange={(e) => setTimeRange(e.target.value)} className="px-3 py-1.5 rounded-xl focus:outline-none transition-all duration-200 cursor-pointer hover:opacity-80" style={{ fontSize: "0.75rem", fontWeight: 500, border: "0.5px solid var(--border)", backgroundColor: "color-mix(in srgb, var(--bg-card) 60%, transparent)", backdropFilter: "blur(12px)", color: "var(--text-primary)", boxShadow: "0 2px 8px -2px rgba(0,0,0,0.05)" }}>
-              <option value="7d">Ultimos 7 dias</option>
-              <option value="30d">Ultimos 30 dias</option>
-              <option value="90d">Ultimos 90 dias</option>
-              <option value="1a">Ultimo ano</option>
-              <option value="Tudo">Todo o periodo</option>
+              <option value="7d">{td("timeRange.7d")}</option>
+              <option value="30d">{td("timeRange.30d")}</option>
+              <option value="90d">{td("timeRange.90d")}</option>
+              <option value="1a">{td("timeRange.1y")}</option>
+              <option value="Tudo">{td("timeRange.all")}</option>
             </select>
           </div>
         </div>
@@ -759,17 +765,17 @@ export default function ProfileDetailPage() {
 
       {/* Posts */}
       {posts.length > 0 && (
-        <Section title="Posts" action={
+        <Section title={tc("posts")} action={
           <div className="flex items-center gap-2">
             <select value={postSort} onChange={(e) => setPostSort(e.target.value as "recent" | "score")} className="px-3 py-1.5 rounded-xl focus:outline-none transition-all duration-200 cursor-pointer hover:opacity-80" style={{ fontSize: "0.75rem", fontWeight: 500, border: "0.5px solid var(--border)", backgroundColor: "color-mix(in srgb, var(--bg-card) 60%, transparent)", backdropFilter: "blur(12px)", color: "var(--text-primary)", boxShadow: "0 2px 8px -2px rgba(0,0,0,0.05)" }}>
-              <option value="recent">Recentes</option>
-              <option value="score">Score</option>
+              <option value="recent">{td("sortRecent")}</option>
+              <option value="score">{td("sortScore")}</option>
             </select>
             <select value={postLimit} onChange={(e) => setPostLimit(Number(e.target.value))} className="px-3 py-1.5 rounded-xl focus:outline-none transition-all duration-200 cursor-pointer hover:opacity-80" style={{ fontSize: "0.75rem", fontWeight: 500, border: "0.5px solid var(--border)", backgroundColor: "color-mix(in srgb, var(--bg-card) 60%, transparent)", backdropFilter: "blur(12px)", color: "var(--text-primary)", boxShadow: "0 2px 8px -2px rgba(0,0,0,0.05)" }}>
               <option value={10}>10</option>
               <option value={25}>25</option>
               <option value={50}>50</option>
-              <option value={0}>Todos</option>
+              <option value={0}>{td("viewAll")}</option>
             </select>
           </div>
         }>

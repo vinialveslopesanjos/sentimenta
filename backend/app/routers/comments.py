@@ -21,6 +21,7 @@ def list_comments(
     connection_id: uuid.UUID | None = Query(None),
     post_id: uuid.UUID | None = Query(None),
     sentiment: str | None = Query(None, pattern="^(positive|neutral|negative)$"),
+    emotion: str | None = Query(None),
     search: str | None = Query(None),
     sort: str = Query("date", pattern="^(score|likes|date)$"),
     order: str = Query("desc", pattern="^(asc|desc)$"),
@@ -82,6 +83,14 @@ def list_comments(
         query = query.filter(latest_analysis.c.score_0_10.between(4, 6))
     elif sentiment == "negative":
         query = query.filter(latest_analysis.c.score_0_10 < 4)
+
+    # Emotion filter
+    if emotion:
+        from sqlalchemy.sql.expression import cast
+        from sqlalchemy import text
+        query = query.filter(
+            cast(latest_analysis.c.emotions, types.String).ilike(f"%{emotion}%")
+        )
 
     # Text search
     if search:
