@@ -199,6 +199,113 @@ def send_verification_email(email: str, name: Optional[str], verification_url: s
         return False
 
 
+def send_password_reset_email(email: str, name: Optional[str], reset_url: str) -> bool:
+    """Send password reset link. Token expires in 1 hour."""
+    resend = _get_resend()
+    if not resend:
+        return False
+
+    display_name = name or "criador"
+
+    try:
+        resend.Emails.send({
+            "from": FROM_ADDRESS,
+            "to": email,
+            "subject": "Redefinir senha — Sentimenta",
+            "html": f"""
+<!DOCTYPE html>
+<html>
+<body style="font-family: 'Inter', sans-serif; background: #0f0e17; color: #fffffe; padding: 32px;">
+  <div style="max-width: 560px; margin: 0 auto;">
+    <div style="background: linear-gradient(135deg, #C4B5FD, #67E8F9); border-radius: 16px; padding: 32px; margin-bottom: 24px;">
+      <h1 style="color: #0f0e17; margin: 0; font-size: 24px;">Redefinir senha</h1>
+    </div>
+    <div style="background: #1a1a2e; border-radius: 16px; padding: 32px; border: 1px solid rgba(196,181,253,0.1);">
+      <p style="color: #a8a4c8; line-height: 1.6;">
+        Oi {display_name}, recebemos um pedido para redefinir a senha da sua conta Sentimenta.
+      </p>
+      <p style="color: #a8a4c8; line-height: 1.6;">
+        Clique no botao abaixo para criar uma nova senha. O link expira em <strong>1 hora</strong>.
+      </p>
+      <a href="{reset_url}"
+         style="display: inline-block; background: linear-gradient(135deg, #C4B5FD, #67E8F9);
+                color: #0f0e17; padding: 14px 28px; border-radius: 8px;
+                text-decoration: none; font-weight: 600; margin-top: 16px; font-size: 16px;">
+        Redefinir minha senha
+      </a>
+      <hr style="border: 1px solid rgba(196,181,253,0.1); margin: 24px 0;">
+      <p style="color: #504e6e; font-size: 13px;">
+        Se voce nao solicitou a redefinicao, ignore este email. Sua senha continuara a mesma.
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+            """,
+        })
+        logger.info(f"Password reset email sent to {email}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send password reset email to {email}: {e}")
+        return False
+
+
+def send_support_contact_email(name: str, email: str, subject: str, message: str) -> bool:
+    """Send support contact form to SUPPORT_EMAIL with reply-to set to the user."""
+    resend = _get_resend()
+    if not resend:
+        return False
+
+    support_email = os.getenv("SUPPORT_EMAIL", "vinicius.anjos@mazylabs.com")
+
+    try:
+        resend.Emails.send({
+            "from": FROM_ADDRESS,
+            "to": support_email,
+            "reply_to": email,
+            "subject": f"[Suporte Sentimenta] {subject}",
+            "html": f"""
+<!DOCTYPE html>
+<html>
+<body style="font-family: 'Inter', sans-serif; background: #0f0e17; color: #fffffe; padding: 32px;">
+  <div style="max-width: 560px; margin: 0 auto;">
+    <div style="background: linear-gradient(135deg, #C4B5FD, #67E8F9); border-radius: 16px; padding: 32px; margin-bottom: 24px;">
+      <h1 style="color: #0f0e17; margin: 0; font-size: 24px;">Nova mensagem de suporte</h1>
+    </div>
+    <div style="background: #1a1a2e; border-radius: 16px; padding: 32px; border: 1px solid rgba(196,181,253,0.1);">
+      <table style="width: 100%; border-collapse: collapse;">
+        <tr>
+          <td style="color: #504e6e; font-size: 13px; padding: 8px 0; vertical-align: top; width: 80px;">Nome:</td>
+          <td style="color: #a8a4c8; font-size: 14px; padding: 8px 0;">{name}</td>
+        </tr>
+        <tr>
+          <td style="color: #504e6e; font-size: 13px; padding: 8px 0; vertical-align: top;">Email:</td>
+          <td style="color: #a8a4c8; font-size: 14px; padding: 8px 0;">{email}</td>
+        </tr>
+        <tr>
+          <td style="color: #504e6e; font-size: 13px; padding: 8px 0; vertical-align: top;">Assunto:</td>
+          <td style="color: #a8a4c8; font-size: 14px; padding: 8px 0;">{subject}</td>
+        </tr>
+      </table>
+      <hr style="border: 1px solid rgba(196,181,253,0.1); margin: 16px 0;">
+      <p style="color: #a8a4c8; line-height: 1.7; font-size: 14px; white-space: pre-wrap;">{message}</p>
+      <hr style="border: 1px solid rgba(196,181,253,0.1); margin: 16px 0;">
+      <p style="color: #504e6e; font-size: 12px;">
+        Responda diretamente este email para falar com {name} ({email}).
+      </p>
+    </div>
+  </div>
+</body>
+</html>
+            """,
+        })
+        logger.info(f"Support contact email sent from {email} — subject: {subject}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to send support contact email from {email}: {e}")
+        return False
+
+
 def send_plan_upgrade_email(email: str, name: Optional[str], plan: str) -> bool:
     """
     Send confirmation email after plan upgrade via Stripe.

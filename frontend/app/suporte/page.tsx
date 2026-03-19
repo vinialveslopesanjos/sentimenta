@@ -25,16 +25,16 @@ export default function SuportePage() {
     e.preventDefault();
     setSending(true);
     try {
-      await fetch("/api/v1/support/contact", {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "https://api.sentimenta.com.br"}/api/v1/support/contact`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
       });
+      if (!res.ok) throw new Error("Falha ao enviar");
       setSent(true);
       setFormData({ name: "", email: "", subject: "", message: "" });
     } catch {
-      // Silently handle - backend will be implemented later
-      setSent(true);
+      alert("Erro ao enviar mensagem. Tente novamente ou envie para suporte@sentimenta.com.br");
     } finally {
       setSending(false);
     }

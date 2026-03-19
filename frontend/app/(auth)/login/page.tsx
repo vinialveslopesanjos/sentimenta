@@ -286,7 +286,7 @@ function LoginPageInner() {
 
             {mode === "login" && (
               <div className="text-right">
-                <a href="#" style={{ fontSize: "0.78rem", color: "var(--primary)" }}>{t("forgotPassword")}</a>
+                <a href="/forgot-password" style={{ fontSize: "0.78rem", color: "var(--primary)" }}>{t("forgotPassword")}</a>
               </div>
             )}
 

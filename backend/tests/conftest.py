@@ -11,7 +11,8 @@ from datetime import datetime, timezone
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, event, JSON
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -37,6 +38,14 @@ from app.models import (
 )
 from app.core.security import hash_password, create_access_token
 
+
+# Map PostgreSQL-only types to SQLite-compatible equivalents
+# This lets models using JSONB work with SQLite in tests
+from sqlalchemy.ext.compiler import compiles
+
+@compiles(JSONB, "sqlite")
+def compile_jsonb_sqlite(type_, compiler, **kw):
+    return "JSON"
 
 # SQLite test engine
 engine = create_engine(

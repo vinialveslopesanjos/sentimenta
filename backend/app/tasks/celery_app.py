@@ -27,10 +27,11 @@ celery_app.conf.beat_schedule = {
     "daily-follower-snapshots": {
         "task": "app.tasks.pipeline_tasks.task_daily_follower_snapshots",
         "schedule": crontab(hour=3, minute=0),  # 3AM UTC daily
+        "options": {"soft_time_limit": 300, "time_limit": 360},
     },
     "weekly-sync": {
         "task": "app.tasks.pipeline_tasks.task_daily_sync",
-        "schedule": crontab(hour=3, minute=15, day_of_week=1),  # Monday 3:15AM - Free/Starter
+        "schedule": crontab(hour=3, minute=25, day_of_week=1),  # Monday 3:25AM - Free/Starter (offset from daily)
         "kwargs": {"frequency_filter": "weekly"},
     },
     "daily-sync": {
