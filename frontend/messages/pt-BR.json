@@ -840,6 +840,12 @@
     "removeWarning": "Todos os dados de análise serão excluídos permanentemente.",
     "remove": "Remover",
     "syncStarted": "Análise iniciada! Seus dados serão processados em aproximadamente 2 minutos.",
+    "syncEstimate": {
+      "title": "Análise iniciada!",
+      "description": "Estamos processando os dados de @{username}. Você pode navegar normalmente enquanto isso.",
+      "steps": "Coletando posts e comentários, analisando sentimento com IA e enriquecendo perfis demográficos.",
+      "ok": "Entendi"
+    },
     "freePlanNote": "Plano gratuito: até 5 posts e 500 comentários.",
     "comingSoon": "Em breve"
   },
@@ -1023,6 +1029,46 @@
       "nojo": "Noj",
       "medo": "Med",
       "amor": "Amo"
+    }
+  },
+  "demographics": {
+    "insightLabel": "Demographics",
+    "overview": {
+      "title": "Perfil Demogr\u00e1fico da Audi\u00eancia",
+      "subtitle": "Quem est\u00e1 interagindo com seu conte\u00fado",
+      "gender": "G\u00eanero",
+      "age": "Faixa Et\u00e1ria",
+      "locations": "Localiza\u00e7\u00e3o",
+      "coverage": "Cobertura",
+      "commentersEnriched": "comentaristas enriquecidos"
+    },
+    "genders": {
+      "male": "Masculino",
+      "female": "Feminino",
+      "business": "Empresa"
+    },
+    "positive": "Positivo",
+    "neutral": "Neutro",
+    "negative": "Negativo",
+    "sentimentByAge": {
+      "title": "Sentimento por Faixa Et\u00e1ria",
+      "subtitle": "Como cada gera\u00e7\u00e3o percebe seu conte\u00fado"
+    },
+    "sentimentByGender": {
+      "title": "Sentimento por G\u00eanero",
+      "subtitle": "Diferen\u00e7as de percep\u00e7\u00e3o entre g\u00eaneros"
+    },
+    "emotionsByGender": {
+      "title": "Emo\u00e7\u00f5es por G\u00eanero",
+      "subtitle": "Padr\u00f5es emocionais distintos entre g\u00eaneros"
+    },
+    "summary": {
+      "title": "Audi\u00eancia",
+      "subtitle": "Perfil demogr\u00e1fico agregado",
+      "dominantGender": "G\u00eanero dominante",
+      "dominantAge": "Faixa principal",
+      "ageRange": "faixa et\u00e1ria",
+      "topCountry": "Principal pa\u00eds"
     }
   },
   "logs": {

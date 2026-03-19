@@ -32,8 +32,9 @@ import {
 } from "@/components/GlassIcons";
 import { GlassSocialIcon } from "@/components/GlassSocialIcons";
 import { AmbassadorsVsDetractors } from "@/components/AdvancedCharts";
+import { DemographicsSummary } from "@/components/DemographicsCharts";
 import WordCloudChart from "@/components/charts/WordCloudChart";
-import { dashboardApi, connectionsApi, commentsApi, postsApi } from "@/lib/api";
+import { dashboardApi, connectionsApi, commentsApi, postsApi, demographicsApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import type {
   DashboardSummary,
@@ -188,6 +189,12 @@ export default function DashboardPage() {
     ambassadors: Array<{ username: string; count: number; avg_score: number; dominant_emotion: string }>;
     detractors: Array<{ username: string; count: number; avg_score: number; dominant_emotion: string }>;
   } | null>(null);
+  const [globalDemoOverview, setGlobalDemoOverview] = useState<{
+    gender_distribution: Record<string, number>;
+    age_distribution: Record<string, number>;
+    top_locations: Array<{ country: string; country_code: string; count: number }>;
+    enrichment_coverage: { total_commenters: number; enriched: number; coverage_pct: number };
+  } | null>(null);
 
   // Chart filters
   const [chartGranularity, setChartGranularity] = useState<"day" | "week" | "month">("week");
@@ -243,6 +250,9 @@ export default function DashboardPage() {
           dashboardApi.ambassadorsDetractors(token, conns[0].id).then(setAmbassadorsData).catch(() => {});
         }
       }
+
+      // Fetch global demographics overview
+      demographicsApi.globalOverview(token).then(setGlobalDemoOverview).catch(() => {});
 
       // If summary failed, that's critical
       if (results[0].status === "rejected") {
@@ -588,6 +598,16 @@ export default function DashboardPage() {
         </Section>
 
       </div>
+
+      {/* ═══ DEMOGRAPHICS SUMMARY ═══ */}
+      {globalDemoOverview && globalDemoOverview.enrichment_coverage.enriched > 0 && (
+        <DemographicsSummary
+          genderDist={globalDemoOverview.gender_distribution}
+          ageDist={globalDemoOverview.age_distribution}
+          topLocations={globalDemoOverview.top_locations}
+          coverage={globalDemoOverview.enrichment_coverage}
+        />
+      )}
 
       {/* ═══ CHART FILTERS ═══ */}
       <div className="flex flex-wrap items-center gap-2">

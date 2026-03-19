@@ -201,6 +201,9 @@ interface Ambassador {
   avgScore: number;
   dominantEmotion: string;
   lastSeen: string;
+  gender?: string;
+  age_band?: string;
+  location_state?: string;
 }
 
 export function AmbassadorsVsDetractors({ ambassadors, detractors, platformLabel }: {
@@ -231,6 +234,19 @@ export function AmbassadorsVsDetractors({ ambassadors, detractors, platformLabel
           <span style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>{user.comments} com.</span>
           <span className="px-1.5 py-0.5 rounded capitalize ml-auto" style={{ fontSize: "0.58rem", fontWeight: 500, color: "var(--primary)", backgroundColor: "var(--primary-bg)" }}>{user.dominantEmotion}</span>
         </div>
+        {(user.gender || user.age_band || user.location_state) && (
+          <div className="flex items-center gap-1 mt-1 flex-wrap">
+            {user.gender && (
+              <span className="px-1 py-0.5 rounded" style={{ fontSize: "0.55rem", fontWeight: 500, color: "var(--text-muted)", backgroundColor: "var(--bg-card)", border: "0.5px solid var(--border)" }}>{user.gender === "male" ? "M" : user.gender === "female" ? "F" : "B"}</span>
+            )}
+            {user.age_band && (
+              <span className="px-1 py-0.5 rounded" style={{ fontSize: "0.55rem", fontWeight: 500, color: "var(--text-muted)", backgroundColor: "var(--bg-card)", border: "0.5px solid var(--border)" }}>{user.age_band}</span>
+            )}
+            {user.location_state && (
+              <span className="px-1 py-0.5 rounded" style={{ fontSize: "0.55rem", fontWeight: 500, color: "var(--text-muted)", backgroundColor: "var(--bg-card)", border: "0.5px solid var(--border)" }}>{user.location_state}</span>
+            )}
+          </div>
+        )}
       </div>
     );
   };

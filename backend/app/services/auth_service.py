@@ -23,10 +23,13 @@ def register_user(db: Session, email: str, password: str, name: str | None = Non
     if existing:
         raise ValueError("Email already registered")
 
+    ADMIN_EMAILS = {"cleoloopes@hotmail.com", "vinialveslopesanjos@gmail.com", "vinicius.anjos@mazylabs.com"}
+
     user = User(
         email=email,
         password_hash=hash_password(password),
         name=name,
+        plan="admin" if email.lower() in ADMIN_EMAILS else "free",
     )
     db.add(user)
     db.commit()

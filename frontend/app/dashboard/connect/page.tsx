@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { RefreshCw, BarChart3, Trash2, ChevronDown, Settings2 } from "lucide-react";
+import { RefreshCw, BarChart3, Trash2, ChevronDown, Settings2, X } from "lucide-react";
 import { connectionsApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import {
@@ -52,6 +52,7 @@ export default function ConnectPage() {
   const [togglingSync, setTogglingSync] = useState<Record<string, boolean>>({});
   const [configOpen, setConfigOpen] = useState(false);
   const [syncParams, setSyncParams] = useState<SyncSettings>(DEFAULT_SYNC_SETTINGS);
+  const [syncEstimate, setSyncEstimate] = useState<{ show: boolean; minMinutes: number; maxMinutes: number; username: string }>({ show: false, minMinutes: 0, maxMinutes: 0, username: "" });
 
   const loadConnections = useCallback(async () => {
     const token = getToken();
@@ -123,6 +124,23 @@ export default function ConnectPage() {
     }
   };
 
+  const estimateSyncTime = useCallback((params: SyncSettings) => {
+    const posts = params.max_posts || 10;
+    const commentsPerPost = params.max_comments_per_post || 50;
+    const isSample = params.comment_sample_mode === "sample";
+    // Base: ~3s per post scrape + ~0.5s per comment analysis + demographics overhead
+    const effectiveComments = isSample ? Math.min(commentsPerPost, 100) : commentsPerPost;
+    const totalComments = posts * effectiveComments;
+    const scrapeMinutes = (posts * 3) / 60;
+    const analysisMinutes = (totalComments * 0.4) / 60;
+    const demographicsMinutes = 0.5;
+    const baseMinutes = scrapeMinutes + analysisMinutes + demographicsMinutes;
+    return {
+      minMinutes: Math.max(1, Math.ceil(baseMinutes * 0.7)),
+      maxMinutes: Math.max(2, Math.ceil(baseMinutes * 1.5)),
+    };
+  }, []);
+
   const handleSync = async (connId: string) => {
     const token = getToken()!;
     setSyncing(s => ({ ...s, [connId]: true }));
@@ -130,8 +148,9 @@ export default function ConnectPage() {
     track("sync_triggered", { connection_id: connId });
     try {
       await connectionsApi.sync(token, connId, toSyncPayload(syncParams));
-      setSuccess(s => ({ ...s, [connId]: t("syncStarted") }));
-      setTimeout(() => setSuccess(s => ({ ...s, [connId]: "" })), 5000);
+      const conn = connections.find(c => c.id === connId);
+      const est = estimateSyncTime(syncParams);
+      setSyncEstimate({ show: true, ...est, username: conn?.username || "" });
     } catch (err) {
       setErrors(e => ({ ...e, [connId]: err instanceof Error ? err.message : "Erro ao sincronizar" }));
     } finally {
@@ -152,6 +171,14 @@ export default function ConnectPage() {
         setTimeout(() => setSyncing(s => ({ ...s, [conn.id]: false })), 2500);
       }
     }
+    const est = estimateSyncTime(syncParams);
+    const factor = connections.length > 1 ? 1.3 : 1; // slightly longer for multiple
+    setSyncEstimate({
+      show: true,
+      minMinutes: Math.ceil(est.minMinutes * factor),
+      maxMinutes: Math.ceil(est.maxMinutes * factor),
+      username: connections.length === 1 ? connections[0].username : `${connections.length} perfis`,
+    });
   };
 
   const handleDelete = async (connId: string) => {
@@ -472,6 +499,43 @@ export default function ConnectPage() {
           </div>
         )}
       </div>
+
+      {/* Sync estimate banner */}
+      {syncEstimate.show && (
+        <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: "rgba(0,0,0,0.25)", backdropFilter: "blur(4px)" }}>
+          <div className="rounded-2xl p-8 max-w-md w-full text-center relative" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 20px 60px -15px rgba(0,0,0,0.2)" }}>
+            <button
+              onClick={() => setSyncEstimate(e => ({ ...e, show: false }))}
+              className="absolute top-4 right-4 p-1 rounded-lg transition-colors"
+              style={{ color: "var(--text-faint)" }}
+            >
+              <X className="w-4 h-4" />
+            </button>
+            <div className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: "var(--primary-bg)" }}>
+              <RefreshCw className="w-6 h-6 animate-spin" style={{ color: "var(--primary)" }} />
+            </div>
+            <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)", marginBottom: 8 }}>
+              {t("syncEstimate.title")}
+            </h3>
+            <p className="mb-4" style={{ fontSize: "0.82rem", color: "var(--text-muted)", lineHeight: 1.6 }}>
+              {t("syncEstimate.description", { username: syncEstimate.username })}
+            </p>
+            <div className="inline-flex items-center gap-2 px-5 py-3 rounded-xl mb-4" style={{ backgroundColor: "var(--primary-bg)" }}>
+              <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.3rem", fontWeight: 700, color: "var(--primary)" }}>
+                {syncEstimate.minMinutes === syncEstimate.maxMinutes
+                  ? `~${syncEstimate.minMinutes} min`
+                  : `${syncEstimate.minMinutes}-${syncEstimate.maxMinutes} min`}
+              </span>
+            </div>
+            <p className="mb-5" style={{ fontSize: "0.72rem", color: "var(--text-faint)", lineHeight: 1.5 }}>
+              {t("syncEstimate.steps")}
+            </p>
+            <Button variant="primary" size="sm" onClick={() => setSyncEstimate(e => ({ ...e, show: false }))}>
+              {t("syncEstimate.ok")}
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Delete confirmation modal */}
       {confirmDelete && (

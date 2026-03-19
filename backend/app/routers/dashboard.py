@@ -16,6 +16,7 @@ from app.models.post import Post
 from app.models.social_connection import SocialConnection
 from app.models.follower_snapshot import FollowerSnapshot
 from app.models.user import User
+from app.models.demographics import UserEnrichment
 from app.services.report_service import generate_health_report, DEFAULT_HEALTH_PROMPT
 from app.utils.queries import latest_analysis_subquery as _latest_analysis_subquery
 from app.services.plan_service import enforce_feature_access, PlanLimitError
@@ -1482,6 +1483,21 @@ def get_ambassadors_detractors(
 
     detractors = [_build_entry(u, s) for u, s in sorted_users[:5]]
     ambassadors = [_build_entry(u, s) for u, s in sorted_users[-5:][::-1]]
+
+    # Enrich with demographics data
+    all_usernames = [e["username"] for e in ambassadors + detractors]
+    if all_usernames:
+        enrichments = (
+            db.query(UserEnrichment)
+            .filter(UserEnrichment.username.in_(all_usernames))
+            .all()
+        )
+        enrich_map = {e.username: e for e in enrichments}
+        for entry in ambassadors + detractors:
+            ue = enrich_map.get(entry["username"])
+            entry["gender"] = ue.gender_label if ue else None
+            entry["age_band"] = ue.age_band if ue else None
+            entry["location_state"] = ue.location_state if ue else None
 
     return {"ambassadors": ambassadors, "detractors": detractors}
 

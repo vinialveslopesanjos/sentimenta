@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.db.session import Base, engine
 import app.models  # noqa: F401 - ensure all models registered before create_all
-from app.routers import auth, connections, posts, dashboard, pipeline, comments, billing, support
+from app.routers import auth, connections, posts, dashboard, pipeline, comments, billing, support, demographics
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +64,7 @@ app.include_router(pipeline.router, prefix=settings.API_PREFIX)
 app.include_router(comments.router, prefix=settings.API_PREFIX)
 app.include_router(billing.router, prefix=settings.API_PREFIX)
 app.include_router(support.router, prefix=settings.API_PREFIX)
+app.include_router(demographics.router, prefix=settings.API_PREFIX)
 
 
 @app.get("/health")
