@@ -840,7 +840,8 @@
     "removeWarning": "Todos os dados de análise serão excluídos permanentemente.",
     "remove": "Remover",
     "syncStarted": "Análise iniciada! Seus dados serão processados em aproximadamente 2 minutos.",
-    "freePlanNote": "Plano gratuito: até 5 posts e 500 comentários por sincronização."
+    "freePlanNote": "Plano gratuito: até 5 posts e 500 comentários.",
+    "comingSoon": "Em breve"
   },
   "alerts": {
     "title": "Alertas",
@@ -1060,6 +1061,28 @@
     "cancel": "Cancelar",
     "pipeline": "Pipeline",
     "system": "Sistema"
+  },
+  "analysis": {
+    "title": "Análise Comparativa",
+    "subtitle": "Compare sentimentos e emoções entre perfis",
+    "showOnlyA": "Somente Perfil A",
+    "selectAtLeastOne": "Selecione ao menos um perfil",
+    "selectAbove": "Escolha um perfil acima para começar a análise.",
+    "positivity": "Polaridade",
+    "scoreTrend": "Tendência do Score",
+    "scoreTrendSub": "Evolução semanal do score médio",
+    "comparativeRadar": "Radar Comparativo",
+    "comparativeRadarSub": "Performance em 6 dimensões",
+    "emotionsComparative": "Emoções Comparadas",
+    "emotionsComparativeSub": "Distribuição de emoções por perfil",
+    "radarMetrics": {
+      "score": "Score",
+      "engagement": "Engajamento",
+      "positivity": "Positividade",
+      "volume": "Volume",
+      "consistency": "Consistência",
+      "growth": "Crescimento"
+    }
   },
   "onboarding": {
     "profileTitle": "Qual seu perfil?",

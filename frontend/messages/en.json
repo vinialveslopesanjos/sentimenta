@@ -839,7 +839,8 @@
     "removeWarning": "All analysis data will be permanently deleted.",
     "remove": "Remove",
     "syncStarted": "Analysis started! Your data will be processed in approximately 2 minutes.",
-    "freePlanNote": "Free plan: up to 5 posts and 500 comments per sync."
+    "freePlanNote": "Free plan: up to 5 posts and 500 comments.",
+    "comingSoon": "Coming soon"
   },
   "alerts": {
     "title": "Alerts",
@@ -1059,6 +1060,28 @@
     "cancel": "Cancel",
     "pipeline": "Pipeline",
     "system": "System"
+  },
+  "analysis": {
+    "title": "Comparative Analysis",
+    "subtitle": "Compare sentiment and emotions across profiles",
+    "showOnlyA": "Profile A only",
+    "selectAtLeastOne": "Select at least one profile",
+    "selectAbove": "Choose a profile above to start the analysis.",
+    "positivity": "Polarity",
+    "scoreTrend": "Score Trend",
+    "scoreTrendSub": "Weekly average score evolution",
+    "comparativeRadar": "Comparative Radar",
+    "comparativeRadarSub": "Performance across 6 dimensions",
+    "emotionsComparative": "Emotions Compared",
+    "emotionsComparativeSub": "Emotion distribution per profile",
+    "radarMetrics": {
+      "score": "Score",
+      "engagement": "Engagement",
+      "positivity": "Positivity",
+      "volume": "Volume",
+      "consistency": "Consistency",
+      "growth": "Growth"
+    }
   },
   "onboarding": {
     "profileTitle": "What's your profile?",

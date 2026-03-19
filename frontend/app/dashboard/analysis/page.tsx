@@ -132,8 +132,8 @@ export default function AnalysisPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.7rem", fontWeight: 700, color: "var(--text-primary)" }}>Analise Comparativa</h1>
-        <p className="mt-1" style={{ fontSize: "0.88rem", color: "var(--text-muted)" }}>Compare sentimentos e emocoes entre perfis</p>
+        <h1 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.7rem", fontWeight: 700, color: "var(--text-primary)" }}>{ta("title")}</h1>
+        <p className="mt-1" style={{ fontSize: "0.88rem", color: "var(--text-muted)" }}>{ta("subtitle")}</p>
       </div>
 
       {/* Filters */}

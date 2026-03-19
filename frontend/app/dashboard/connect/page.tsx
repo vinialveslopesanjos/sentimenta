@@ -216,8 +216,13 @@ export default function ConnectPage() {
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {platforms.map(p => (
             <div key={p.id} className="rounded-2xl p-5 transition-all" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
-              <div className="mb-4">
+              <div className="mb-4 flex items-center gap-2">
                 <GlassSocialIcon platform={p.id} size={44} />
+                {p.id !== "instagram" && (
+                  <span className="px-1.5 py-0.5 rounded text-[0.55rem] font-semibold" style={{ backgroundColor: "var(--bg-subtle)", color: "var(--text-faint)", border: "1px solid var(--border)" }}>
+                    {t("comingSoon")}
+                  </span>
+                )}
               </div>
               <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.95rem", fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>{p.name}</h3>
               <p className="mb-4" style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>{p.desc}</p>

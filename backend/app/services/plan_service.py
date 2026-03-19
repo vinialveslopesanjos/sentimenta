@@ -30,7 +30,7 @@ PLAN_LIMITS = {
         "comments_included_per_month": 500,
         "overage_price_per_comment": 0.0,  # Blocked — must upgrade
         "overage_allowed": False,
-        "sync_frequency": "none",           # no recurring sync
+        "sync_frequency": "weekly",          # auto sync semanal
         "historic_days": 30,               # First run: max days back
         "max_posts_per_sync": 5,
         "max_comments_per_post": 500,
@@ -38,7 +38,7 @@ PLAN_LIMITS = {
         "apify_budget_brl": 15.0,
         "health_report": True,
         "pdf_export": False,
-        "comparison": False,
+        "comparison": True,
         "api_access": False,
         "demographics": True,
     },

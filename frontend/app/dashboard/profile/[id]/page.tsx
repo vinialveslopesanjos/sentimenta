@@ -527,14 +527,14 @@ export default function ProfileDetailPage() {
       case "Emocoes":
         return (
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={emotionTemporalData} barGap={2}>
+            <BarChart data={emotionTemporalData}>
               <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
               <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
               {emotionKeys.map((key, i) => (
-                <Bar key={key} dataKey={key} name={key.charAt(0).toUpperCase() + key.slice(1)} fill={t.chart[i % t.chart.length]} radius={[4, 4, 0, 0]} />
+                <Bar key={key} dataKey={key} name={key.charAt(0).toUpperCase() + key.slice(1)} fill={t.chart[i % t.chart.length]} stackId="emotions" radius={i === emotionKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
               ))}
             </BarChart>
           </ResponsiveContainer>
@@ -542,14 +542,14 @@ export default function ProfileDetailPage() {
       case "Topicos":
         return (
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={topicTemporalData} barGap={2}>
+            <BarChart data={topicTemporalData}>
               <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
               <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
               {topicKeys.map((key, i) => (
-                <Bar key={key} dataKey={key} name={key.charAt(0).toUpperCase() + key.slice(1)} fill={t.chart[i % t.chart.length]} radius={[4, 4, 0, 0]} />
+                <Bar key={key} dataKey={key} name={key.charAt(0).toUpperCase() + key.slice(1)} fill={t.chart[i % t.chart.length]} stackId="topics" radius={i === topicKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
               ))}
             </BarChart>
           </ResponsiveContainer>
