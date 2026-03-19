@@ -98,6 +98,11 @@ class ResetPasswordRequest(BaseModel):
         return _validate_password_strength(value)
 
 
+class OnboardingRequest(BaseModel):
+    profile_type: str  # criador, marca, agencia
+    main_goal: str     # monitorar_sentimento, benchmark, gestao_crise
+
+
 class UserResponse(BaseModel):
     id: uuid.UUID
     email: str
@@ -105,6 +110,7 @@ class UserResponse(BaseModel):
     avatar_url: str | None
     plan: str
     email_verified: bool = False
+    onboarding_data: dict | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

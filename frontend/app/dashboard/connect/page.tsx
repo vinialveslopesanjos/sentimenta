@@ -126,9 +126,14 @@ export default function ConnectPage() {
   const handleSync = async (connId: string) => {
     const token = getToken()!;
     setSyncing(s => ({ ...s, [connId]: true }));
+    setErrors(e => ({ ...e, [connId]: "" }));
     track("sync_triggered", { connection_id: connId });
     try {
       await connectionsApi.sync(token, connId, toSyncPayload(syncParams));
+      setSuccess(s => ({ ...s, [connId]: t("syncStarted") }));
+      setTimeout(() => setSuccess(s => ({ ...s, [connId]: "" })), 5000);
+    } catch (err) {
+      setErrors(e => ({ ...e, [connId]: err instanceof Error ? err.message : "Erro ao sincronizar" }));
     } finally {
       setTimeout(() => setSyncing(s => ({ ...s, [connId]: false })), 2500);
     }
@@ -317,6 +322,11 @@ export default function ConnectPage() {
       {/* Config accordion */}
       {!loading && connections.length > 0 && (
         <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
+          <div className="px-4 md:px-5 pt-4">
+            <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: "var(--primary-bg)", color: "var(--primary)", fontWeight: 500 }}>
+              {t("freePlanNote")}
+            </p>
+          </div>
           <button onClick={() => setConfigOpen(!configOpen)} className="w-full flex items-center justify-between p-4 md:p-5 transition-colors">
             <div className="flex items-center gap-3">
               <Settings2 className="w-4 h-4" style={{ color: "var(--primary)" }} />

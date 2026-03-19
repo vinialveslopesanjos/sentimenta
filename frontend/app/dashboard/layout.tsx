@@ -10,11 +10,13 @@ import { ThemeProvider, useTheme } from "@/components/ThemeContext";
 import { Bell, Plus, Moon, Sun } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import OnboardingModal from "@/components/OnboardingModal";
 
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [ok, setOk] = useState(false);
+  const [showOnboarding, setShowOnboarding] = useState(false);
   const { theme, toggleTheme } = useTheme();
   const tl = useTranslations("layout");
   const tc = useTranslations("common");
@@ -34,6 +36,9 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           return;
         }
         identifyUser(user.id, { email: user.email, name: user.name, plan: user.plan });
+        if (!user.onboarding_data) {
+          setShowOnboarding(true);
+        }
         setOk(true);
       })
       .catch((err) => {
@@ -63,6 +68,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "var(--bg-page)" }}>
+      {showOnboarding && <OnboardingModal onComplete={() => setShowOnboarding(false)} />}
       <SidebarNew />
       <div className="ml-0 md:ml-[240px] transition-all duration-300">
         {/* Top bar */}

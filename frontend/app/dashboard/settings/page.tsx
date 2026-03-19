@@ -188,7 +188,7 @@ function SettingsPageInner() {
     setBillingBusy("checkout"); setBillingMsg(null);
     try {
       const response = await billingApi.createCheckoutSession(token, nextPlan.slug);
-      window.location.href = response.url;
+      window.open(response.url, '_blank');
     } catch (error) {
       setBillingMsg(error instanceof Error ? error.message : t("billing.checkoutError"));
       setBillingBusy(null);
@@ -201,7 +201,7 @@ function SettingsPageInner() {
     setBillingBusy("portal"); setBillingMsg(null);
     try {
       const response = await billingApi.createPortalSession(token);
-      window.location.href = response.url;
+      window.open(response.url, '_blank');
     } catch (error) {
       setBillingMsg(error instanceof Error ? error.message : t("billing.portalError"));
       setBillingBusy(null);

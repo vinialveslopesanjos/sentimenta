@@ -215,7 +215,7 @@ export default function DashboardPage() {
         connectionsApi.list(token),                                     // 1
         dashboardApi.healthReport(token),                               // 2
         dashboardApi.trends(token, { granularity: "week" }),            // 3
-        dashboardApi.trendsByPlatform(token),                           // 4
+        dashboardApi.trendsByPlatform(token, { days: 0 }),               // 4
         dashboardApi.trendsDetailed(token),                             // 5
         dashboardApi.engagementPeaks(token),                            // 6
         dashboardApi.engagementHeatmap(token),                          // 7
@@ -313,7 +313,7 @@ export default function DashboardPage() {
       return d.toLocaleDateString("pt-BR", { month: "short" });
     }
     const d = new Date(period);
-    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+    return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" });
   };
 
   const scoreTrendData = scoreTrend?.data_points?.map((dp, i) => ({
@@ -340,7 +340,7 @@ export default function DashboardPage() {
 
   // Temporal distribution data
   const temporalData = trendsDetailed?.data_points?.map(dp => ({
-    date: new Date(dp.period).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+    date: new Date(dp.period).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }),
     positivo: dp.positive,
     neutro: dp.neutral,
     negativo: dp.negative,
@@ -348,7 +348,7 @@ export default function DashboardPage() {
 
   // Volume temporal data
   const volumeTemporalData = trendsDetailed?.data_points?.map(dp => ({
-    date: new Date(dp.period).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+    date: new Date(dp.period).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }),
     volume: (dp.positive ?? 0) + (dp.neutral ?? 0) + (dp.negative ?? 0),
   })) ?? [];
 
@@ -356,7 +356,7 @@ export default function DashboardPage() {
   const scoreTemporalData = scoreTrend?.data_points
     ?.filter(dp => dp.avg_score != null)
     .map((dp, i) => ({
-      date: new Date(dp.period).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" }),
+      date: new Date(dp.period).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }),
       score: dp.avg_score ?? 0,
     })) ?? [];
 
@@ -557,12 +557,19 @@ export default function DashboardPage() {
             </div>
           )}
           <div className="space-y-4">
-            {loading ? (
-              <>
+            {loading || loadingPrompt ? (
+              <div className="space-y-4 animate-pulse">
+                <div className="flex items-center gap-2 mb-2">
+                  <RefreshCw className="w-4 h-4 animate-spin" style={{ color: "var(--primary)" }} />
+                  <p style={{ fontSize: "0.82rem", fontWeight: 500, color: "var(--primary)" }}>
+                    {loadingPrompt ? td("generatingDiagnosis") : td("loading")}
+                  </p>
+                </div>
                 <Skeleton className="h-4 w-full" />
                 <Skeleton className="h-4 w-5/6" />
                 <Skeleton className="h-4 w-4/6" />
-              </>
+                <Skeleton className="h-4 w-3/4" />
+              </div>
             ) : healthReport?.report_text ? (
               <div
                 style={{ fontSize: "0.85rem", lineHeight: 1.85, color: "var(--text-muted)" }}

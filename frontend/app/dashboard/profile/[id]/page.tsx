@@ -59,7 +59,7 @@ function formatDate(iso: string | null): string {
 
 function shortDate(iso: string): string {
   const d = new Date(iso);
-  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}`;
+  return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getFullYear()).slice(-2)}`;
 }
 
 function getSentimentLabel(score: number): "Positivo" | "Neutro" | "Negativo" {
@@ -432,7 +432,7 @@ export default function ProfileDetailPage() {
   useEffect(() => {
     const token = getToken();
     if (!token) return;
-    dashboardApi.engagementHeatmap(token).then((res) => {
+    dashboardApi.engagementHeatmap(token, id).then((res) => {
       if (res?.data) setHeatmapData(res.data);
     }).catch(() => {});
   }, []);
@@ -527,31 +527,31 @@ export default function ProfileDetailPage() {
       case "Emocoes":
         return (
           <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={emotionTemporalData}>
+            <BarChart data={emotionTemporalData} barGap={2}>
               <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
               <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
               {emotionKeys.map((key, i) => (
-                <Area key={key} type="monotone" dataKey={key} name={key.charAt(0).toUpperCase() + key.slice(1)} stroke={t.chart[i % t.chart.length]} fill={t.chart[i % t.chart.length]} fillOpacity={0.06} strokeWidth={2} />
+                <Bar key={key} dataKey={key} name={key.charAt(0).toUpperCase() + key.slice(1)} fill={t.chart[i % t.chart.length]} radius={[4, 4, 0, 0]} />
               ))}
-            </AreaChart>
+            </BarChart>
           </ResponsiveContainer>
         );
       case "Topicos":
         return (
           <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={topicTemporalData}>
+            <BarChart data={topicTemporalData} barGap={2}>
               <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
               <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
               {topicKeys.map((key, i) => (
-                <Area key={key} type="monotone" dataKey={key} name={key.charAt(0).toUpperCase() + key.slice(1)} stroke={t.chart[i % t.chart.length]} fill={t.chart[i % t.chart.length]} fillOpacity={0.06} strokeWidth={2} />
+                <Bar key={key} dataKey={key} name={key.charAt(0).toUpperCase() + key.slice(1)} fill={t.chart[i % t.chart.length]} radius={[4, 4, 0, 0]} />
               ))}
-            </AreaChart>
+            </BarChart>
           </ResponsiveContainer>
         );
       default:

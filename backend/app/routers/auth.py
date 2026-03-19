@@ -25,6 +25,7 @@ from app.schemas.auth import (
     TokenResponse,
     UserLogin,
     UserRegister,
+    OnboardingRequest,
     UserResponse,
     UserUpdate,
 )
@@ -123,6 +124,23 @@ def update_me(
     if data.avatar_url is not None:
         current_user.avatar_url = data.avatar_url
 
+    db.add(current_user)
+    db.commit()
+    db.refresh(current_user)
+    return current_user
+
+
+@router.post("/onboarding", response_model=UserResponse)
+def save_onboarding(
+    data: OnboardingRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    current_user.onboarding_data = {
+        "profile_type": data.profile_type,
+        "main_goal": data.main_goal,
+        "completed_at": datetime.now(timezone.utc).isoformat(),
+    }
     db.add(current_user)
     db.commit()
     db.refresh(current_user)

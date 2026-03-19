@@ -36,7 +36,7 @@ PLAN_LIMITS = {
         "max_comments_per_post": 500,
         "syncs_per_month": 4,              # 4 syncs/month (cap enforced by 500 comments)
         "apify_budget_brl": 15.0,
-        "health_report": False,
+        "health_report": True,
         "pdf_export": False,
         "comparison": False,
         "api_access": False,

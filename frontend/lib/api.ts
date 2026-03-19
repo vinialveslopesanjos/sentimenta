@@ -146,10 +146,21 @@ export const authApi = {
       avatar_url: string | null;
       plan: string;
       email_verified: boolean;
+      onboarding_data: Record<string, string> | null;
     }>("/auth/me", { token }),
 
   sendVerification: (token: string) =>
     apiFetch<{ message: string }>("/auth/send-verification", { method: "POST", token }),
+
+  saveOnboarding: (
+    token: string,
+    payload: { profile_type: string; main_goal: string }
+  ) =>
+    apiFetch<{ id: string; onboarding_data: Record<string, string> | null }>("/auth/onboarding", {
+      method: "POST",
+      token,
+      body: JSON.stringify(payload),
+    }),
 
   updateMe: (
     token: string,
@@ -396,8 +407,10 @@ export const dashboardApi = {
       generated_at: string;
     }>(`/dashboard/compare-connections?connection_ids=${connectionIds.join(",")}&days=${days}`, { token }),
 
-  engagementHeatmap: (token: string) =>
-    apiFetch<{ data: number[][] }>("/dashboard/engagement-heatmap", { token }),
+  engagementHeatmap: (token: string, connectionId?: string) => {
+    const qs = connectionId ? `?connection_id=${connectionId}` : "";
+    return apiFetch<{ data: number[][] }>(`/dashboard/engagement-heatmap${qs}`, { token });
+  },
 
   engagementPeaks: (token: string) =>
     apiFetch<{ hours: Array<{ hour: number; volume: number }> }>("/dashboard/engagement-peaks", { token }),

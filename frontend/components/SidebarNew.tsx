@@ -102,8 +102,13 @@ export default function SidebarNew() {
     <>
       {/* Logo */}
       <div className="flex items-center px-4 h-16 shrink-0">
-        <Link href="/dashboard">
+        <Link href="/dashboard" className="flex items-center gap-2">
           <Logo size={collapsed ? "sm" : "md"} showText={!collapsed} />
+          {!collapsed && (
+            <span className="px-1.5 py-0.5 rounded text-[0.55rem] font-bold tracking-wider uppercase" style={{ backgroundColor: "var(--primary-bg)", color: "var(--primary)", border: "1px solid var(--primary)", lineHeight: 1.2 }}>
+              beta
+            </span>
+          )}
         </Link>
       </div>
 

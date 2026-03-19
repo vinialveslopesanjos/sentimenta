@@ -45,7 +45,8 @@
     "unlimited": "Ilimitado",
     "free": "Grátis",
     "month": "mês",
-    "perMonth": "/mês"
+    "perMonth": "/mês",
+    "connectProfile": "Conectar perfil"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -545,7 +546,8 @@
     "noPostFound": "Nenhum post encontrado.",
     "couldNotLoadDashboard": "Não foi possível carregar o dashboard. Tente novamente.",
     "dashboardLoadError": "Erro ao carregar dados do dashboard.",
-    "generatedAt": "Gerado em {date}"
+    "generatedAt": "Gerado em {date}",
+    "generatingDiagnosis": "Gerando diagnóstico..."
   },
   "profile": {
     "loading": "Carregando perfil...",
@@ -836,7 +838,9 @@
     "noProfilesYet": "Nenhum perfil conectado ainda.",
     "removeProfile": "Remover perfil?",
     "removeWarning": "Todos os dados de análise serão excluídos permanentemente.",
-    "remove": "Remover"
+    "remove": "Remover",
+    "syncStarted": "Análise iniciada! Seus dados serão processados em aproximadamente 2 minutos.",
+    "freePlanNote": "Plano gratuito: até 5 posts e 500 comentários por sincronização."
   },
   "alerts": {
     "title": "Alertas",
@@ -1056,6 +1060,38 @@
     "cancel": "Cancelar",
     "pipeline": "Pipeline",
     "system": "Sistema"
+  },
+  "onboarding": {
+    "profileTitle": "Qual seu perfil?",
+    "profileSubtitle": "Isso nos ajuda a personalizar sua experiência.",
+    "profiles": {
+      "criador": "Criador de conteúdo",
+      "marca": "Marca / Empresa",
+      "agencia": "Agência",
+      "pessoal": "Uso pessoal"
+    },
+    "profilesDesc": {
+      "criador": "Influenciador, youtuber, streamer",
+      "marca": "Empresa, e-commerce, startup",
+      "agencia": "Social media, marketing digital",
+      "pessoal": "Curioso, pesquisador, fã de dados"
+    },
+    "goalTitle": "Objetivo principal?",
+    "goalSubtitle": "Vamos focar no que importa para você.",
+    "goals": {
+      "monitorar_sentimento": "Monitorar sentimento",
+      "benchmark": "Benchmark competitivo",
+      "gestao_crise": "Gestão de crise"
+    },
+    "goalsDesc": {
+      "monitorar_sentimento": "Acompanhar como minha audiência se sente",
+      "benchmark": "Comparar métricas com concorrentes",
+      "gestao_crise": "Detectar e responder a crises rapidamente"
+    },
+    "next": "Próximo",
+    "back": "Voltar",
+    "finish": "Começar",
+    "saving": "Salvando..."
   },
   "cookies": {
     "message": "Usamos cookies para melhorar sua experiência. Ao continuar navegando, você concorda com o uso de cookies.",
