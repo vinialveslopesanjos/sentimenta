@@ -84,7 +84,7 @@ def _do_ingest(db, connection, max_posts: int = 10, max_comments_per_post: int =
             return ingest_instagram_via_graph_api(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since, is_incremental=is_incremental, progress_callback=progress_callback, step_callback=step_callback)
         else:
             from app.services.instagram_ingest_service import ingest_instagram_profile
-            logger.info("Using XPoz/Apify for @%s (no OAuth token)", connection.username)
+            logger.info("Using Apify for @%s (no OAuth token)", connection.username)
             return ingest_instagram_profile(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since, is_incremental=is_incremental, progress_callback=progress_callback, step_callback=step_callback, use_apify_comments=use_apify_comments, comment_sample_mode=comment_sample_mode)
     elif connection.platform == "twitter":
         from app.services.twitter_service import ingest_twitter_profile
@@ -453,6 +453,27 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         except Exception:
             pass
 
+        # Auto-generate health report after pipeline completes
+        try:
+            from app.routers.dashboard import _build_health_report
+            _append_step(db, run, "Gerando diagnóstico de IA...")
+            report = _build_health_report(db, user_uuid)
+            if report and report.get("report_text"):
+                # Cache the report in Redis so dashboard loads it immediately
+                try:
+                    from app.core.cache import redis_client
+                    import json as _json
+                    cache_key = f"health_report:{user_uuid}"
+                    count_key = f"health_report_count:{user_uuid}"
+                    from app.routers.dashboard import _count_analyzed, HEALTH_REPORT_TTL
+                    redis_client.setex(cache_key, HEALTH_REPORT_TTL, _json.dumps(report))
+                    redis_client.setex(count_key, HEALTH_REPORT_TTL, str(_count_analyzed(db, user_uuid)))
+                except Exception as cache_err:
+                    logger.warning("Failed to cache health report: %s", cache_err)
+                _append_step(db, run, "Diagnóstico de IA gerado ✓")
+        except Exception as report_err:
+            logger.warning("Auto health report generation failed: %s", report_err)
+
         return {
             "posts_fetched": run.posts_fetched,
             "comments_fetched": run.comments_fetched,
@@ -775,7 +796,7 @@ def task_daily_follower_snapshots(self) -> dict:
             try:
                 # Refresh profile info first for Instagram (with 30s timeout)
                 if conn.platform == "instagram":
-                    from app.services.instagram_scrape_service import discover_profile_info
+                    from app.services.instagram_connection_service import discover_profile_info
 
                     def _fetch_profile(username):
                         return discover_profile_info(username)

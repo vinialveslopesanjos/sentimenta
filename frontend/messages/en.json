@@ -45,7 +45,8 @@
     "unlimited": "Unlimited",
     "free": "Free",
     "month": "month",
-    "perMonth": "/month"
+    "perMonth": "/month",
+    "connectProfile": "Connect profile"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -545,7 +546,8 @@
     "noPostFound": "No posts found.",
     "couldNotLoadDashboard": "Could not load dashboard. Try again.",
     "dashboardLoadError": "Error loading dashboard data.",
-    "generatedAt": "Generated on {date}"
+    "generatedAt": "Generated on {date}",
+    "generatingDiagnosis": "Generating diagnosis..."
   },
   "profile": {
     "loading": "Loading profile...",
@@ -835,7 +837,9 @@
     "noProfilesYet": "No profiles connected yet.",
     "removeProfile": "Remove profile?",
     "removeWarning": "All analysis data will be permanently deleted.",
-    "remove": "Remove"
+    "remove": "Remove",
+    "syncStarted": "Analysis started! Your data will be processed in approximately 2 minutes.",
+    "freePlanNote": "Free plan: up to 5 posts and 500 comments per sync."
   },
   "alerts": {
     "title": "Alerts",
@@ -1055,6 +1059,38 @@
     "cancel": "Cancel",
     "pipeline": "Pipeline",
     "system": "System"
+  },
+  "onboarding": {
+    "profileTitle": "What's your profile?",
+    "profileSubtitle": "This helps us personalize your experience.",
+    "profiles": {
+      "criador": "Content creator",
+      "marca": "Brand / Company",
+      "agencia": "Agency",
+      "pessoal": "Personal use"
+    },
+    "profilesDesc": {
+      "criador": "Influencer, youtuber, streamer",
+      "marca": "Company, e-commerce, startup",
+      "agencia": "Social media, digital marketing",
+      "pessoal": "Curious, researcher, data enthusiast"
+    },
+    "goalTitle": "Main goal?",
+    "goalSubtitle": "We'll focus on what matters to you.",
+    "goals": {
+      "monitorar_sentimento": "Monitor sentiment",
+      "benchmark": "Competitive benchmark",
+      "gestao_crise": "Crisis management"
+    },
+    "goalsDesc": {
+      "monitorar_sentimento": "Track how my audience feels",
+      "benchmark": "Compare metrics with competitors",
+      "gestao_crise": "Detect and respond to crises quickly"
+    },
+    "next": "Next",
+    "back": "Back",
+    "finish": "Get started",
+    "saving": "Saving..."
   },
   "cookies": {
     "message": "We use cookies to improve your experience. By continuing to browse, you agree to our use of cookies.",
