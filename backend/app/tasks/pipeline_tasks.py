@@ -5,8 +5,10 @@ Celery tasks for the ingestion and analysis pipeline.
 import asyncio
 import json
 import logging
+import time
 import uuid
 from datetime import datetime, timedelta, timezone
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
 from app.tasks.celery_app import celery_app
 from app.db.session import SessionLocal
@@ -769,23 +771,38 @@ def task_daily_follower_snapshots(self) -> dict:
         )
         created = 0
         errors = 0
-        for conn in connections:
+        for idx, conn in enumerate(connections):
             try:
-                # Refresh profile info first for Instagram
+                # Refresh profile info first for Instagram (with 30s timeout)
                 if conn.platform == "instagram":
                     from app.services.instagram_scrape_service import discover_profile_info
-                    prof = discover_profile_info(conn.username)
-                    if prof:
-                        conn.followers_count = prof.get("followers", 0)
-                        conn.following_count = prof.get("following", 0)
-                        conn.media_count = prof.get("post_count", 0)
-                        db.commit()
+
+                    def _fetch_profile(username):
+                        return discover_profile_info(username)
+
+                    try:
+                        with ThreadPoolExecutor(max_workers=1) as executor:
+                            future = executor.submit(_fetch_profile, conn.username)
+                            prof = future.result(timeout=30)
+                        if prof:
+                            conn.followers_count = prof.get("followers", 0)
+                            conn.following_count = prof.get("following", 0)
+                            conn.media_count = prof.get("post_count", 0)
+                            db.commit()
+                    except FuturesTimeoutError:
+                        logger.warning("Timeout (30s) fetching profile for @%s — skipping refresh", conn.username)
+                    except Exception as prof_exc:
+                        logger.warning("Profile refresh failed for @%s: %s — using cached values", conn.username, prof_exc)
 
                 _create_follower_snapshot(db, conn)
                 created += 1
             except Exception as exc:
                 logger.error("Snapshot failed for connection %s: %s", conn.id, exc)
                 errors += 1
+
+            # Rate limit: wait between connections (skip after last)
+            if idx < len(connections) - 1:
+                time.sleep(3)
 
         logger.info("Daily snapshots done: %d created, %d errors", created, errors)
         return {"created": created, "errors": errors}

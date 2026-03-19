@@ -186,6 +186,18 @@ export const authApi = {
         password: password || null,
       }),
     }),
+
+  forgotPassword: (email: string) =>
+    apiFetch<{ message: string }>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+
+  resetPassword: (token: string, newPassword: string) =>
+    apiFetch<{ message: string }>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ token, new_password: newPassword }),
+    }),
 };
 
 // Connections

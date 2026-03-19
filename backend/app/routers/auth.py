@@ -17,8 +17,10 @@ from app.models.user import User
 from app.schemas.auth import (
     ChangePasswordRequest,
     DeleteAccountRequest,
+    ForgotPasswordRequest,
     GoogleLogin,
     LogoutRequest,
+    ResetPasswordRequest,
     TokenRefresh,
     TokenResponse,
     UserLogin,
@@ -36,7 +38,7 @@ from app.services.auth_service import (
     register_user,
     revoke_all_tokens,
 )
-from app.services.email_service import send_verification_email
+from app.services.email_service import send_password_reset_email, send_verification_email
 
 logger = logging.getLogger(__name__)
 
@@ -191,6 +193,52 @@ def change_password_endpoint(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     return create_tokens(updated_user)
+
+
+# ---------------------------------------------------------------------------
+# Password reset
+# ---------------------------------------------------------------------------
+@router.post("/forgot-password")
+def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get_db)):
+    """Request password reset email. Always returns 200 to not reveal if email exists."""
+    user = db.query(User).filter(User.email == data.email).first()
+    if user and user.password_hash:
+        token = str(_uuid.uuid4())
+        user.password_reset_token = token
+        user.password_reset_sent_at = datetime.now(timezone.utc)
+        db.add(user)
+        db.commit()
+
+        reset_url = f"{settings.APP_URL}/reset-password?token={token}"
+        try:
+            send_password_reset_email(user.email, user.name, reset_url)
+        except Exception as exc:
+            logger.error("Failed to send password reset email: %s", exc)
+
+    return {"message": "Se o email existir, enviaremos um link de redefinicao."}
+
+
+@router.post("/reset-password")
+def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
+    """Reset password using token from email."""
+    user = db.query(User).filter(User.password_reset_token == data.token).first()
+    if not user:
+        raise HTTPException(status_code=400, detail="Token invalido ou ja utilizado")
+
+    if user.password_reset_sent_at:
+        elapsed = (datetime.now(timezone.utc) - user.password_reset_sent_at).total_seconds()
+        if elapsed > 3600:  # 1 hour
+            raise HTTPException(status_code=400, detail="Token expirado. Solicite um novo link.")
+
+    from app.core.security import hash_password
+    user.password_hash = hash_password(data.new_password)
+    user.password_reset_token = None
+    user.password_reset_sent_at = None
+    user.token_version += 1  # Revoke all existing sessions
+    db.add(user)
+    db.commit()
+
+    return {"message": "Senha redefinida com sucesso."}
 
 
 # ---------------------------------------------------------------------------
