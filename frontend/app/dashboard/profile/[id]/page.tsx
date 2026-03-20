@@ -25,13 +25,14 @@ import {
   GapAnalysis, PostLifecycle, AmbassadorsVsDetractors, TopicTreemap,
   SmartAlerts, TopicEmotionHeatmap,
 } from "@/components/AdvancedCharts";
+import { DemographicsOverview, SentimentByAge, SentimentByGender, EmotionsByGender } from "@/components/DemographicsCharts";
 import { GlassHeartIcon, GlassZapIcon, GlassPeopleIcon, GlassShieldIcon } from "@/components/GlassIcons";
 import { GlassSocialIcon } from "@/components/GlassSocialIcons";
 import WordCloudChart from "@/components/charts/WordCloudChart";
 
 import { getToken } from "@/lib/auth";
 import {
-  dashboardApi, connectionsApi, postsApi, commentsApi,
+  dashboardApi, connectionsApi, postsApi, commentsApi, demographicsApi,
 } from "@/lib/api";
 import type {
   ConnectionDashboard, TrendResponse, TrendsDetailedResponse,
@@ -131,6 +132,17 @@ export default function ProfileDetailPage() {
     status: string;
   } | null>(null);
 
+  // Demographics
+  const [demoOverview, setDemoOverview] = useState<{
+    gender_distribution: Record<string, number>;
+    age_distribution: Record<string, number>;
+    top_locations: Array<{ country: string; country_code: string; count: number }>;
+    enrichment_coverage: { total_commenters: number; enriched: number; coverage_pct: number };
+  } | null>(null);
+  const [sentimentByAge, setSentimentByAge] = useState<Array<{ band: string; positive: number; neutral: number; negative: number; avg_score: number; count: number }> | null>(null);
+  const [sentimentByGender, setSentimentByGender] = useState<Array<{ gender: string; positive: number; neutral: number; negative: number; avg_score: number; count: number }> | null>(null);
+  const [emotionsByGender, setEmotionsByGender] = useState<Array<{ gender: string; emotions: Record<string, number> }> | null>(null);
+
   // ── fetch all data ──
   const fetchData = useCallback(async () => {
     const token = getToken();
@@ -152,6 +164,10 @@ export default function ProfileDetailPage() {
         ambRes,
         matrixRes,
         connectionsRes,
+        demoOverviewRes,
+        sentByAgeRes,
+        sentByGenderRes,
+        emotByGenderRes,
       ] = await Promise.allSettled([
         dashboardApi.connectionDashboard(token, id),
         dashboardApi.trends(token, { connection_id: id, granularity: "week", days: 0 }),
@@ -161,6 +177,10 @@ export default function ProfileDetailPage() {
         dashboardApi.ambassadorsDetractors(token, id),
         dashboardApi.topicEmotionMatrix(token, id),
         connectionsApi.list(token),
+        demographicsApi.overview(token, id),
+        demographicsApi.sentimentByAge(token, id),
+        demographicsApi.sentimentByGender(token, id),
+        demographicsApi.emotionsByGender(token, id),
       ]);
 
       if (dashRes.status === "fulfilled") setDashboard(dashRes.value);
@@ -172,6 +192,11 @@ export default function ProfileDetailPage() {
       if (gapRes.status === "fulfilled") setGapData(gapRes.value);
       if (ambRes.status === "fulfilled") setAmbassadorsData(ambRes.value);
       if (matrixRes.status === "fulfilled") setTopicEmotionData(matrixRes.value);
+
+      if (demoOverviewRes.status === "fulfilled") setDemoOverview(demoOverviewRes.value);
+      if (sentByAgeRes.status === "fulfilled") setSentimentByAge(sentByAgeRes.value);
+      if (sentByGenderRes.status === "fulfilled") setSentimentByGender(sentByGenderRes.value);
+      if (emotByGenderRes.status === "fulfilled") setEmotionsByGender(emotByGenderRes.value);
 
       if (connectionsRes.status === "fulfilled") {
         const conn = connectionsRes.value.find((c) => c.id === id);
@@ -378,23 +403,29 @@ export default function ProfileDetailPage() {
   // ── ambassadors / detractors ──
   const ambassadorsList = useMemo(() => {
     if (!ambassadorsData?.ambassadors) return [];
-    return ambassadorsData.ambassadors.map((a) => ({
+    return ambassadorsData.ambassadors.map((a: any) => ({
       username: a.username,
       comments: a.count,
       avgScore: a.avg_score,
       dominantEmotion: a.dominant_emotion,
       lastSeen: "",
+      gender: a.gender,
+      age_band: a.age_band,
+      location_state: a.location_state,
     }));
   }, [ambassadorsData]);
 
   const detractorsList = useMemo(() => {
     if (!ambassadorsData?.detractors) return [];
-    return ambassadorsData.detractors.map((d) => ({
+    return ambassadorsData.detractors.map((d: any) => ({
       username: d.username,
       comments: d.count,
       avgScore: d.avg_score,
       dominantEmotion: d.dominant_emotion,
       lastSeen: "",
+      gender: d.gender,
+      age_band: d.age_band,
+      location_state: d.location_state,
     }));
   }, [ambassadorsData]);
 
@@ -688,6 +719,28 @@ export default function ProfileDetailPage() {
         <FeaturedComments comments={featuredComments} />
       )}
 
+      {/* Demographics Overview */}
+      {demoOverview && demoOverview.enrichment_coverage.enriched > 0 && (
+        <DemographicsOverview
+          genderDist={demoOverview.gender_distribution}
+          ageDist={demoOverview.age_distribution}
+          topLocations={demoOverview.top_locations}
+          coverage={demoOverview.enrichment_coverage}
+        />
+      )}
+
+      {/* Sentiment by Age + Gender side by side */}
+      {(sentimentByAge || sentimentByGender) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {sentimentByAge && sentimentByAge.length > 0 && (
+            <SentimentByAge data={sentimentByAge} />
+          )}
+          {sentimentByGender && sentimentByGender.length > 0 && (
+            <SentimentByGender data={sentimentByGender} />
+          )}
+        </div>
+      )}
+
       {/* Gap Analysis */}
       {gapPosts.length > 0 && (
         <GapAnalysis posts={gapPosts} platformLabel={platformLabel} />
@@ -706,6 +759,11 @@ export default function ProfileDetailPage() {
       {/* Topic x Emotion Matrix */}
       {topicEmotionData && topicEmotionData.topics.length > 0 && (
         <TopicEmotionHeatmap matrix={{ topics: topicEmotionData.topics, emotions: topicEmotionData.emotions, data: topicEmotionData.matrix }} platformLabel={platformLabel} />
+      )}
+
+      {/* Emotions by Gender */}
+      {emotionsByGender && emotionsByGender.length > 0 && (
+        <EmotionsByGender data={emotionsByGender} />
       )}
 
       {/* Radar + Words */}

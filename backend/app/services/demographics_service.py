@@ -1024,84 +1024,188 @@ def run_demographics_pipeline(
         logger.info("Demographics pipeline disabled, skipping (connection=%s)", connection_id)
         return {"skipped": True, "reason": "disabled"}
 
-    logger.info("Demographics pipeline started for connection %s", connection_id)
+    logger.info("=" * 70)
+    logger.info("DEMOGRAPHICS PIPELINE — START — connection=%s", connection_id)
+    logger.info("=" * 70)
     pipeline_start = datetime.now(timezone.utc)
+    stage_timings: dict[str, float] = {}
 
     # 1. Extract new usernames
+    stage_start = datetime.now(timezone.utc)
     try:
         new_usernames = extract_new_usernames(db, connection_id)
     except Exception as exc:
-        logger.error("Demographics: falha ao extrair usernames: %s", exc)
+        logger.error("[DEMO Stage 1] FALHA ao extrair usernames: %s", exc)
         return {"error": f"extract_usernames: {exc}", "stage": 1}
+    stage_timings["1_extract_usernames"] = (datetime.now(timezone.utc) - stage_start).total_seconds()
+    logger.info(
+        "[DEMO Stage 1] Usernames extraidos: %d novos (%.1fs)",
+        len(new_usernames), stage_timings["1_extract_usernames"],
+    )
 
     if not new_usernames:
-        logger.info("Demographics: nenhum username novo, gerando agregados apenas")
+        logger.info("[DEMO] Nenhum username novo — gerando agregados apenas")
         aggregated = aggregate_demographics(db, connection_id)
+        duration = (datetime.now(timezone.utc) - pipeline_start).total_seconds()
+        logger.info("[DEMO] Pipeline concluido em %.1fs (somente agregacao)", duration)
         return {
             "skipped": False,
             "new_usernames": 0,
             "profiles_scraped": 0,
             "enrichments_saved": 0,
             "aggregated": aggregated,
-            "duration_s": (datetime.now(timezone.utc) - pipeline_start).total_seconds(),
+            "duration_s": round(duration, 1),
+            "stage_timings": stage_timings,
         }
 
     # 2. Scrape profiles (Apify)
+    stage_start = datetime.now(timezone.utc)
     try:
         raw_profiles = scrape_commenter_profiles(new_usernames)
     except Exception as exc:
-        logger.error("Demographics: falha no scrape Apify: %s", exc)
+        logger.error("[DEMO Stage 2] FALHA no scrape Apify: %s", exc)
         return {"error": f"scrape: {exc}", "stage": 2, "new_usernames": len(new_usernames)}
+    stage_timings["2_scrape_apify"] = (datetime.now(timezone.utc) - stage_start).total_seconds()
+    scrape_rate = len(raw_profiles) / len(new_usernames) * 100 if new_usernames else 0
+    logger.info(
+        "[DEMO Stage 2] Scrape Apify concluido: %d/%d perfis obtidos (%.0f%% hit rate, %.1fs, %.2f perfis/s)",
+        len(raw_profiles), len(new_usernames), scrape_rate,
+        stage_timings["2_scrape_apify"],
+        len(raw_profiles) / max(stage_timings["2_scrape_apify"], 0.1),
+    )
 
     # 3. Save profiles to DB
+    stage_start = datetime.now(timezone.utc)
     try:
         saved_profiles = save_profiles(db, raw_profiles)
     except Exception as exc:
-        logger.error("Demographics: falha ao salvar perfis: %s", exc)
+        logger.error("[DEMO Stage 3] FALHA ao salvar perfis: %s", exc)
         return {"error": f"save_profiles: {exc}", "stage": 3}
+    stage_timings["3_save_profiles"] = (datetime.now(timezone.utc) - stage_start).total_seconds()
+    has_bio_count = sum(1 for p in saved_profiles if p.biography)
+    has_location_count = sum(1 for p in saved_profiles if p.location_field)
+    logger.info(
+        "[DEMO Stage 3] Perfis salvos: %d (%.1fs) — com bio: %d (%.0f%%), com location: %d (%.0f%%)",
+        len(saved_profiles), stage_timings["3_save_profiles"],
+        has_bio_count, has_bio_count / max(len(saved_profiles), 1) * 100,
+        has_location_count, has_location_count / max(len(saved_profiles), 1) * 100,
+    )
 
     # 4 & 5. LLM inference (location signals are extracted inside infer_demographics_llm)
+    stage_start = datetime.now(timezone.utc)
     try:
         enrichment_results = infer_demographics_llm(db, saved_profiles)
     except Exception as exc:
-        logger.error("Demographics: falha na inferencia LLM: %s", exc)
+        logger.error("[DEMO Stage 4-5] FALHA na inferencia LLM: %s", exc)
         return {
             "error": f"llm_inference: {exc}",
             "stage": 4,
             "profiles_scraped": len(saved_profiles),
         }
+    stage_timings["4_llm_inference"] = (datetime.now(timezone.utc) - stage_start).total_seconds()
+
+    # Compute precision metrics from LLM results
+    gender_counts: dict[str, int] = {}
+    age_counts: dict[str, int] = {}
+    gender_confs: list[float] = []
+    age_confs: list[float] = []
+    for r in enrichment_results:
+        g = r.get("gender_label", "unknown")
+        gender_counts[g] = gender_counts.get(g, 0) + 1
+        a = r.get("age_band", "unknown")
+        age_counts[a] = age_counts.get(a, 0) + 1
+        if r.get("gender_confidence"):
+            gender_confs.append(float(r["gender_confidence"]))
+        if r.get("age_confidence"):
+            age_confs.append(float(r["age_confidence"]))
+
+    avg_gender_conf = sum(gender_confs) / len(gender_confs) if gender_confs else 0
+    avg_age_conf = sum(age_confs) / len(age_confs) if age_confs else 0
+    high_conf_gender = sum(1 for c in gender_confs if c >= 0.7)
+    high_conf_age = sum(1 for c in age_confs if c >= 0.7)
+
+    logger.info(
+        "[DEMO Stage 4-5] LLM inference concluido: %d resultados (%.1fs, %.2f perfis/s)",
+        len(enrichment_results), stage_timings["4_llm_inference"],
+        len(enrichment_results) / max(stage_timings["4_llm_inference"], 0.1),
+    )
+    logger.info(
+        "[DEMO Stage 4-5] Genero — distribuicao: %s | confianca media: %.2f | alta confianca (>=0.7): %d/%d (%.0f%%)",
+        gender_counts, avg_gender_conf, high_conf_gender, len(gender_confs),
+        high_conf_gender / max(len(gender_confs), 1) * 100,
+    )
+    logger.info(
+        "[DEMO Stage 4-5] Idade — distribuicao: %s | confianca media: %.2f | alta confianca (>=0.7): %d/%d (%.0f%%)",
+        age_counts, avg_age_conf, high_conf_age, len(age_confs),
+        high_conf_age / max(len(age_confs), 1) * 100,
+    )
 
     # 6. Save enrichments
+    stage_start = datetime.now(timezone.utc)
     try:
         enrichments_count = save_enrichments(db, enrichment_results)
     except Exception as exc:
-        logger.error("Demographics: falha ao salvar enrichments: %s", exc)
+        logger.error("[DEMO Stage 6] FALHA ao salvar enrichments: %s", exc)
         return {
             "error": f"save_enrichments: {exc}",
             "stage": 5,
             "profiles_scraped": len(saved_profiles),
             "llm_results": len(enrichment_results),
         }
+    stage_timings["5_save_enrichments"] = (datetime.now(timezone.utc) - stage_start).total_seconds()
+    logger.info(
+        "[DEMO Stage 6] Enrichments salvos: %d (%.1fs)",
+        enrichments_count, stage_timings["5_save_enrichments"],
+    )
 
     # 7. Aggregate stats
+    stage_start = datetime.now(timezone.utc)
     try:
         aggregated = aggregate_demographics(db, connection_id)
     except Exception as exc:
-        logger.error("Demographics: falha ao agregar: %s", exc)
+        logger.error("[DEMO Stage 7] FALHA ao agregar: %s", exc)
         aggregated = {"error": str(exc)}
+    stage_timings["6_aggregate"] = (datetime.now(timezone.utc) - stage_start).total_seconds()
+    logger.info("[DEMO Stage 7] Agregacao concluida (%.1fs)", stage_timings["6_aggregate"])
 
     duration = (datetime.now(timezone.utc) - pipeline_start).total_seconds()
     summary = {
         "skipped": False,
         "new_usernames": len(new_usernames),
         "profiles_scraped": len(saved_profiles),
+        "profiles_with_bio": has_bio_count,
+        "profiles_with_location": has_location_count,
         "enrichments_saved": enrichments_count,
+        "precision": {
+            "avg_gender_confidence": round(avg_gender_conf, 3),
+            "avg_age_confidence": round(avg_age_conf, 3),
+            "high_conf_gender_pct": round(high_conf_gender / max(len(gender_confs), 1) * 100, 1),
+            "high_conf_age_pct": round(high_conf_age / max(len(age_confs), 1) * 100, 1),
+            "gender_distribution": gender_counts,
+            "age_distribution": age_counts,
+        },
         "aggregated": aggregated,
         "duration_s": round(duration, 1),
+        "stage_timings": {k: round(v, 1) for k, v in stage_timings.items()},
     }
 
+    logger.info("=" * 70)
     logger.info(
-        "Demographics pipeline completed: %d usernames -> %d profiles -> %d enrichments (%.1fs)",
+        "DEMOGRAPHICS PIPELINE — DONE — %d usernames -> %d scraped -> %d enriched (%.1fs total)",
         len(new_usernames), len(saved_profiles), enrichments_count, duration,
     )
+    logger.info(
+        "  Timings: extract=%.1fs | scrape=%.1fs | save=%.1fs | llm=%.1fs | enrich=%.1fs | aggregate=%.1fs",
+        stage_timings.get("1_extract_usernames", 0),
+        stage_timings.get("2_scrape_apify", 0),
+        stage_timings.get("3_save_profiles", 0),
+        stage_timings.get("4_llm_inference", 0),
+        stage_timings.get("5_save_enrichments", 0),
+        stage_timings.get("6_aggregate", 0),
+    )
+    logger.info(
+        "  Precision: gender_conf=%.2f age_conf=%.2f | scrape_hit=%.0f%%",
+        avg_gender_conf, avg_age_conf, scrape_rate,
+    )
+    logger.info("=" * 70)
     return summary

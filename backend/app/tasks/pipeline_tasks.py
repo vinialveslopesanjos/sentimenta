@@ -430,7 +430,7 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         # Stage 3: Demographics (disabled by default)
         try:
             from app.services.demographics_service import run_demographics_pipeline
-            demo_result = run_demographics_pipeline(db, conn_uuid, enabled=False)
+            demo_result = run_demographics_pipeline(db, conn_uuid, enabled=True)
             if not demo_result.get("skipped"):
                 _append_step(db, run, f"Demographics: {demo_result.get('profiles_enriched', 0)} perfis enriquecidos")
         except Exception as e:
@@ -631,7 +631,7 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 # Stage 3: Demographics (disabled by default)
                 try:
                     from app.services.demographics_service import run_demographics_pipeline
-                    demo_result = run_demographics_pipeline(db, conn.id, enabled=False)
+                    demo_result = run_demographics_pipeline(db, conn.id, enabled=True)
                     if demo_result.get("skipped"):
                         _append_step(db, run, "Demographics: desativado")
                     else:

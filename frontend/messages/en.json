@@ -839,6 +839,12 @@
     "removeWarning": "All analysis data will be permanently deleted.",
     "remove": "Remove",
     "syncStarted": "Analysis started! Your data will be processed in approximately 2 minutes.",
+    "syncEstimate": {
+      "title": "Analysis started!",
+      "description": "We're processing data for @{username}. You can browse normally while we work.",
+      "steps": "Collecting posts and comments, analyzing sentiment with AI, and enriching demographic profiles.",
+      "ok": "Got it"
+    },
     "freePlanNote": "Free plan: up to 5 posts and 500 comments.",
     "comingSoon": "Coming soon"
   },
@@ -1022,6 +1028,46 @@
       "nojo": "Dis",
       "medo": "Fea",
       "amor": "Lov"
+    }
+  },
+  "demographics": {
+    "insightLabel": "Demographics",
+    "overview": {
+      "title": "Audience Demographics",
+      "subtitle": "Who is interacting with your content",
+      "gender": "Gender",
+      "age": "Age Range",
+      "locations": "Location",
+      "coverage": "Coverage",
+      "commentersEnriched": "commenters enriched"
+    },
+    "genders": {
+      "male": "Male",
+      "female": "Female",
+      "business": "Business"
+    },
+    "positive": "Positive",
+    "neutral": "Neutral",
+    "negative": "Negative",
+    "sentimentByAge": {
+      "title": "Sentiment by Age",
+      "subtitle": "How each generation perceives your content"
+    },
+    "sentimentByGender": {
+      "title": "Sentiment by Gender",
+      "subtitle": "Perception differences between genders"
+    },
+    "emotionsByGender": {
+      "title": "Emotions by Gender",
+      "subtitle": "Distinct emotional patterns between genders"
+    },
+    "summary": {
+      "title": "Audience",
+      "subtitle": "Aggregated demographic profile",
+      "dominantGender": "Dominant gender",
+      "dominantAge": "Main range",
+      "ageRange": "age range",
+      "topCountry": "Top country"
     }
   },
   "logs": {

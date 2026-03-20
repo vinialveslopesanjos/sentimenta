@@ -431,8 +431,8 @@ export const dashboardApi = {
 
   ambassadorsDetractors: (token: string, connectionId: string) =>
     apiFetch<{
-      ambassadors: Array<{ username: string; count: number; avg_score: number; dominant_emotion: string }>;
-      detractors: Array<{ username: string; count: number; avg_score: number; dominant_emotion: string }>;
+      ambassadors: Array<{ username: string; count: number; avg_score: number; dominant_emotion: string; gender?: string; age_band?: string; location_state?: string }>;
+      detractors: Array<{ username: string; count: number; avg_score: number; dominant_emotion: string; gender?: string; age_band?: string; location_state?: string }>;
     }>(`/dashboard/connection/${connectionId}/ambassadors-detractors`, { token }),
 
   topicEmotionMatrix: (token: string, connectionId: string) =>
@@ -497,6 +497,45 @@ export const dashboardApi = {
       generated_at: string;
     }>(`/dashboard/alerts${qs ? `?${qs}` : ""}`, { token });
   },
+};
+
+// Demographics
+export const demographicsApi = {
+  overview: (token: string, connectionId: string) =>
+    apiFetch<{
+      gender_distribution: Record<string, number>;
+      age_distribution: Record<string, number>;
+      top_locations: Array<{ country: string; country_code: string; count: number }>;
+      enrichment_coverage: { total_commenters: number; enriched: number; coverage_pct: number };
+    }>(`/dashboard/demographics/connection/${connectionId}/overview`, { token }),
+
+  sentimentByAge: (token: string, connectionId: string) =>
+    apiFetch<Array<{ band: string; positive: number; neutral: number; negative: number; avg_score: number; count: number }>>(
+      `/dashboard/demographics/connection/${connectionId}/sentiment-by-age`, { token }
+    ),
+
+  sentimentByGender: (token: string, connectionId: string) =>
+    apiFetch<Array<{ gender: string; positive: number; neutral: number; negative: number; avg_score: number; count: number }>>(
+      `/dashboard/demographics/connection/${connectionId}/sentiment-by-gender`, { token }
+    ),
+
+  emotionsByGender: (token: string, connectionId: string) =>
+    apiFetch<Array<{ gender: string; emotions: Record<string, number> }>>(
+      `/dashboard/demographics/connection/${connectionId}/emotions-by-gender`, { token }
+    ),
+
+  sentimentByLocation: (token: string, connectionId: string) =>
+    apiFetch<Array<{ state: string; count: number; avg_score: number; dominant_emotion: string }>>(
+      `/dashboard/demographics/connection/${connectionId}/sentiment-by-location`, { token }
+    ),
+
+  globalOverview: (token: string) =>
+    apiFetch<{
+      gender_distribution: Record<string, number>;
+      age_distribution: Record<string, number>;
+      top_locations: Array<{ country: string; country_code: string; count: number }>;
+      enrichment_coverage: { total_commenters: number; enriched: number; coverage_pct: number };
+    }>(`/dashboard/demographics/overview`, { token }),
 };
 
 // Billing
