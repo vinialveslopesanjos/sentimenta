@@ -125,19 +125,20 @@ export default function ConnectPage() {
   };
 
   const estimateSyncTime = useCallback((params: SyncSettings) => {
-    const posts = params.max_posts || 10;
+    const posts = Math.min(params.max_posts || 10, 200);
     const commentsPerPost = params.max_comments_per_post || 50;
     const isSample = params.comment_sample_mode === "sample";
-    // Base: ~3s per post scrape + ~0.5s per comment analysis + demographics overhead
-    const effectiveComments = isSample ? Math.min(commentsPerPost, 100) : commentsPerPost;
-    const totalComments = posts * effectiveComments;
-    const scrapeMinutes = (posts * 3) / 60;
-    const analysisMinutes = (totalComments * 0.4) / 60;
-    const demographicsMinutes = 0.5;
+    // Realistic: Apify scrapes ~10 posts/min, LLM analyzes ~500 comments/min (batched)
+    // Demographics adds ~1min overhead for scrape + LLM inference
+    const effectiveCommentsPerPost = isSample ? Math.min(commentsPerPost, 80) : Math.min(commentsPerPost, 300);
+    const totalComments = posts * effectiveCommentsPerPost;
+    const scrapeMinutes = posts * 0.1; // ~6s per post via Apify
+    const analysisMinutes = totalComments / 500; // ~500 comments/min batched LLM
+    const demographicsMinutes = Math.min(totalComments / 1000, 3) + 0.5; // cap at 3.5min
     const baseMinutes = scrapeMinutes + analysisMinutes + demographicsMinutes;
     return {
-      minMinutes: Math.max(1, Math.ceil(baseMinutes * 0.7)),
-      maxMinutes: Math.max(2, Math.ceil(baseMinutes * 1.5)),
+      minMinutes: Math.max(1, Math.ceil(baseMinutes * 0.8)),
+      maxMinutes: Math.max(2, Math.ceil(baseMinutes * 2)),
     };
   }, []);
 
