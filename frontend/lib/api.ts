@@ -259,6 +259,13 @@ export const connectionsApi = {
       body: JSON.stringify({ channel_handle: username }),
     }),
 
+  connectTiktok: (token: string, username: string) =>
+    apiFetch("/connections/tiktok", {
+      method: "POST",
+      token,
+      body: JSON.stringify({ channel_handle: username }),
+    }),
+
   getInstagramAuthUrl: (token: string) =>
     apiFetch<{ auth_url: string }>("/connections/instagram/auth-url", { token }),
 
@@ -469,6 +476,26 @@ export const dashboardApi = {
       risk: { title: string; description: string };
     }>(`/dashboard/insights?connection_ids=${connectionIds.join(",")}`, { token }),
 
+  youtubeStats: (token: string, connectionId: string) =>
+    apiFetch<{
+      channel_stats: {
+        subscribers: number;
+        total_views: number;
+        total_videos: number;
+        avg_views_per_video: number;
+        avg_engagement_rate: number;
+      };
+      growth: Array<{ date: string; subscribers: number; views: number }>;
+      top_videos: Array<{
+        title: string;
+        views: number;
+        likes: number;
+        comments: number;
+        engagement_rate: number;
+        published_at: string | null;
+      }>;
+    }>(`/dashboard/connection/${connectionId}/youtube-stats`, { token }),
+
   alerts: (
     token: string,
     params: { days?: number; min_analyzed?: number; negative_threshold?: number } = {}
@@ -506,6 +533,7 @@ export const demographicsApi = {
       gender_distribution: Record<string, number>;
       age_distribution: Record<string, number>;
       top_locations: Array<{ country: string; country_code: string; count: number }>;
+      state_distribution: Array<{ state: string; count: number }>;
       enrichment_coverage: { total_commenters: number; enriched: number; coverage_pct: number };
     }>(`/dashboard/demographics/connection/${connectionId}/overview`, { token }),
 
@@ -534,6 +562,7 @@ export const demographicsApi = {
       gender_distribution: Record<string, number>;
       age_distribution: Record<string, number>;
       top_locations: Array<{ country: string; country_code: string; count: number }>;
+      state_distribution: Array<{ state: string; count: number }>;
       enrichment_coverage: { total_commenters: number; enriched: number; coverage_pct: number };
     }>(`/dashboard/demographics/overview`, { token }),
 };

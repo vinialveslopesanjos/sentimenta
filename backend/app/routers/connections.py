@@ -35,8 +35,6 @@ class SyncRequest(BaseModel):
 
 router = APIRouter(prefix="/connections", tags=["connections"])
 
-from app.services.xpoz_service import get_instagram_profile
-
 @router.get("/check-profile")
 def check_profile(
     platform: str,
@@ -45,39 +43,23 @@ def check_profile(
 ):
     if platform.lower() != "instagram":
         raise HTTPException(status_code=400, detail="Apenas a plataforma Instagram possui verificação rápida atualmente.")
-    
-    prof = get_instagram_profile(username)
-    if not prof:
-        raise HTTPException(status_code=404, detail="Perfil não encontrado.")
-    
-    # Cast counters from string
-    def safe_int(val):
-        try:
-            return int(val)
-        except:
-            return 0
 
-    # Fetch profile pic via Apify (XPoz URLs are blocked by Instagram CORS)
-    profile_pic_url = prof.get("profilePicUrl")
-    try:
-        from app.services.apify_service import fetch_profile_pic_apify
-        apify_pic = fetch_profile_pic_apify(username)
-        if apify_pic:
-            profile_pic_url = apify_pic
-    except Exception:
-        pass  # Fall back to XPoz URL
+    from app.services.apify_service import fetch_profile_apify
+    prof = fetch_profile_apify(username)
+    if not prof:
+        raise HTTPException(status_code=404, detail="Perfil não encontrado ou é privado.")
 
     return {
         "platform_user_id": prof.get("id"),
         "username": prof.get("username", username),
         "fullName": prof.get("fullName"),
         "biography": prof.get("biography"),
-        "followers_count": safe_int(prof.get("followerCount")),
-        "following_count": safe_int(prof.get("followingCount")),
-        "media_count": safe_int(prof.get("mediaCount")),
-        "is_private": prof.get("isPrivate", "false").lower() == "true",
-        "is_verified": prof.get("isVerified", "false").lower() == "true",
-        "profile_pic_url": profile_pic_url,
+        "followers_count": prof.get("followersCount", 0),
+        "following_count": prof.get("followsCount", 0),
+        "media_count": prof.get("postsCount", 0),
+        "is_private": prof.get("private", False),
+        "is_verified": prof.get("verified", False),
+        "profile_pic_url": prof.get("profilePicUrlHD") or prof.get("profilePicUrl"),
     }
 
 
@@ -89,7 +71,7 @@ def connect_instagram_public(
     db: Session = Depends(get_db),
 ):
     """Connect Instagram via public scraping (no OAuth needed)."""
-    from app.services.instagram_scrape_service import create_instagram_connection
+    from app.services.instagram_connection_service import create_instagram_connection
     from app.services.plan_service import enforce_connection_limit, PlanLimitError
 
     username = data.channel_handle.strip()
@@ -158,7 +140,7 @@ def connect_youtube(
     except PlanLimitError as e:
         raise HTTPException(status_code=403, detail=e.message)
 
-    # Discover channel info via yt-dlp
+    # Discover channel info via YouTube Data API v3 (with yt-dlp fallback)
     info = discover_channel_info(channel_handle)
     if not info:
         raise HTTPException(status_code=404, detail="Channel not found")
@@ -168,8 +150,10 @@ def connect_youtube(
         platform="youtube",
         platform_user_id=info.get("channel_id"),
         username=channel_handle,
-        display_name=info.get("channel_title", channel_handle),
+        display_name=info.get("channel_title") or info.get("title", channel_handle),
         profile_url=f"https://youtube.com/{channel_handle}",
+        profile_image_url=info.get("thumbnail_url"),
+        followers_count=info.get("subscriber_count", 0),
         status="active",
     )
     db.add(conn)
@@ -185,7 +169,7 @@ def connect_twitter(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """Connect a Twitter/X profile via XPoz public scraping."""
+    """Connect a Twitter/X profile via public scraping."""
     from app.services.twitter_service import create_twitter_connection
     from app.services.plan_service import enforce_connection_limit, PlanLimitError
 
@@ -217,6 +201,55 @@ def connect_twitter(
             detail="Twitter profile not found. Make sure the username is correct.",
         )
     return connection
+
+# --- TikTok (by username, no OAuth) ---
+@router.post("/tiktok", response_model=ConnectionResponse, status_code=status.HTTP_201_CREATED)
+def connect_tiktok_public(
+    data: YouTubeConnectRequest,  # reuses same {channel_handle} schema
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Connect a TikTok profile by username (public scraping via Apify, no OAuth needed)."""
+    from app.services.plan_service import enforce_connection_limit, PlanLimitError
+
+    username = data.channel_handle.strip().lstrip("@")
+
+    # Check if already connected
+    existing = (
+        db.query(SocialConnection)
+        .filter(
+            SocialConnection.user_id == current_user.id,
+            SocialConnection.platform == "tiktok",
+            SocialConnection.username == username,
+        )
+        .first()
+    )
+    if existing:
+        return existing
+
+    # Enforce plan limit
+    try:
+        enforce_connection_limit(db, current_user, "tiktok")
+    except PlanLimitError as e:
+        raise HTTPException(status_code=403, detail=e.message)
+
+    # Create connection directly (Apify scraping doesn't need profile discovery)
+    conn = SocialConnection(
+        user_id=current_user.id,
+        platform="tiktok",
+        platform_user_id=None,
+        username=username,
+        display_name=username,
+        profile_url=f"https://www.tiktok.com/@{username}",
+        status="active",
+        connected_at=datetime.now(timezone.utc),
+    )
+    db.add(conn)
+    db.commit()
+    db.refresh(conn)
+    logger.info("TikTok connection created for @%s (user %s)", username, current_user.id)
+    return conn
+
 
 @router.get("", response_model=list[ConnectionResponse])
 def list_connections(

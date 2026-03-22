@@ -26,6 +26,7 @@ class Post(Base):
     media_urls: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     like_count: Mapped[int] = mapped_column(Integer, default=0)
     comment_count: Mapped[int] = mapped_column(Integer, default=0)
+    comment_count_api: Mapped[int | None] = mapped_column(Integer, nullable=True, default=None)
     share_count: Mapped[int] = mapped_column(Integer, default=0)
     view_count: Mapped[int] = mapped_column(Integer, default=0)
     engagement_rate: Mapped[float | None] = mapped_column(Float, nullable=True)

@@ -144,11 +144,11 @@ def _record_run_cost(actor_id: str) -> float:
 # Function 1: Extract new usernames
 # =========================================================================
 
-def extract_new_usernames(db: Session, connection_id: uuid.UUID) -> list[str]:
+def extract_new_usernames(db: Session, connection_id: uuid.UUID, platform: str = "instagram") -> list[str]:
     """Extrai usernames de comentaristas que ainda nao tem perfil scraped.
 
     Busca author_username dos comentarios da connection e filtra os que
-    ja existem em commenter_profiles.
+    ja existem em commenter_profiles para a mesma plataforma.
     """
     # Get all unique non-null usernames from comments for this connection
     comment_usernames = (
@@ -167,10 +167,13 @@ def extract_new_usernames(db: Session, connection_id: uuid.UUID) -> list[str]:
         logger.info("Demographics: nenhum username encontrado para connection %s", connection_id)
         return []
 
-    # Get usernames already in commenter_profiles
+    # Get usernames already in commenter_profiles for this platform
     existing = (
         db.query(func.lower(CommenterProfile.username))
-        .filter(func.lower(CommenterProfile.username).in_(all_usernames))
+        .filter(
+            func.lower(CommenterProfile.username).in_(all_usernames),
+            CommenterProfile.platform == platform,
+        )
         .all()
     )
     existing_set = {row[0] for row in existing}
@@ -310,10 +313,10 @@ def _extract_geo_from_posts(apify_item: dict) -> Optional[list[dict]]:
     return geo_data if geo_data else None
 
 
-def save_profiles(db: Session, profiles: list[dict]) -> list[CommenterProfile]:
-    """Upsert perfis no commenter_profiles a partir de dados Apify.
+def save_profiles(db: Session, profiles: list[dict], platform: str = "instagram") -> list[CommenterProfile]:
+    """Upsert perfis no commenter_profiles a partir de dados Apify/API.
 
-    Mapeia campos Apify para colunas do modelo e extrai geotags dos latestPosts.
+    Mapeia campos para colunas do modelo. Suporta multi-plataforma.
     """
     saved: list[CommenterProfile] = []
 
@@ -322,20 +325,26 @@ def save_profiles(db: Session, profiles: list[dict]) -> list[CommenterProfile]:
             item.get("username")
             or item.get("ownerUsername")
             or item.get("profileName")
+            or item.get("uniqueId")  # TikTok
+            or item.get("screen_name")  # Twitter
+            or item.get("authorChannelId")  # YouTube
         )
         if not username:
             continue
         username = username.lower().strip()
 
-        # Upsert: busca existente ou cria novo
+        # Upsert: busca existente ou cria novo (unique por username+platform)
         profile = (
             db.query(CommenterProfile)
-            .filter(func.lower(CommenterProfile.username) == username)
+            .filter(
+                func.lower(CommenterProfile.username) == username,
+                CommenterProfile.platform == platform,
+            )
             .first()
         )
 
         if not profile:
-            profile = CommenterProfile(username=username)
+            profile = CommenterProfile(username=username, platform=platform)
             db.add(profile)
 
         profile.full_name = (
@@ -346,9 +355,8 @@ def save_profiles(db: Session, profiles: list[dict]) -> list[CommenterProfile]:
         profile.biography = item.get("biography") or item.get("bio")
         profile.followers_count = item.get("followersCount") or item.get("followers")
         profile.following_count = item.get("followsCount") or item.get("following")
-        profile.post_count = item.get("postsCount") or item.get("posts")
-        profile.is_private = bool(item.get("isPrivate") or item.get("private"))
-        profile.is_verified = bool(item.get("isVerified") or item.get("verified"))
+        # post_count, is_private, is_verified, latest_posts_geo não existem
+        # no modelo CommenterProfile — guardamos no raw_payload (JSONB)
         profile.profile_pic_url_hd = (
             item.get("profilePicUrlHD")
             or item.get("profilePicUrl")
@@ -356,8 +364,10 @@ def save_profiles(db: Session, profiles: list[dict]) -> list[CommenterProfile]:
         )
         profile.website = item.get("externalUrl") or item.get("website")
         profile.category = item.get("category") or item.get("businessCategory")
-        profile.latest_posts_geo = _extract_geo_from_posts(item)
-        profile.raw_payload = item
+        profile.raw_payload = {
+            **item,
+            "_extracted_geo": _extract_geo_from_posts(item),
+        }
         profile.scraped_at = datetime.now(timezone.utc)
 
         saved.append(profile)
@@ -603,21 +613,30 @@ def _infer_batch(llm: LLMClient, profiles_data: list[dict]) -> list[dict]:
                 gender_obj = item.get("gender") or {}
                 age_obj = item.get("age") or {}
                 location_obj = item.get("location") or {}
+                def _safe_float(val, default=0.0):
+                    """Convert to float safely, handling None/null from LLM."""
+                    if val is None:
+                        return default
+                    try:
+                        return max(0.0, min(1.0, float(val)))
+                    except (ValueError, TypeError):
+                        return default
+
                 results.append({
                     "username": item.get("username", "").lower(),
                     "gender_label": gender_obj.get("label"),
-                    "gender_confidence": max(0.0, min(1.0, float(gender_obj.get("confidence", 0.5)))),
+                    "gender_confidence": _safe_float(gender_obj.get("confidence"), 0.5),
                     "age_band": age_obj.get("band"),
                     "age_estimated": age_obj.get("estimated_age"),
-                    "age_confidence": max(0.0, min(1.0, float(age_obj.get("confidence", 0.3)))),
+                    "age_confidence": _safe_float(age_obj.get("confidence"), 0.3),
                     "had_face": bool(age_obj.get("had_face", False)),
                     "location_country": location_obj.get("country"),
                     "location_country_code": location_obj.get("country_code"),
-                    "location_country_confidence": max(0.0, min(1.0, float(location_obj.get("country_confidence", 0.0)))),
+                    "location_country_confidence": _safe_float(location_obj.get("country_confidence")),
                     "location_state": location_obj.get("state"),
-                    "location_state_confidence": max(0.0, min(1.0, float(location_obj.get("state_confidence", 0.0)))),
+                    "location_state_confidence": _safe_float(location_obj.get("state_confidence")),
                     "location_city": location_obj.get("city"),
-                    "location_city_confidence": max(0.0, min(1.0, float(location_obj.get("city_confidence", 0.0)))),
+                    "location_city_confidence": _safe_float(location_obj.get("city_confidence")),
                     "location_signals": location_obj.get("signals", []),
                     "gender_signals": gender_obj.get("signals", []),
                     "age_signals": age_obj.get("signals", []),
@@ -703,7 +722,7 @@ def infer_demographics_llm(
             "bio": (profile.biography or "")[:500],  # Limita bio para economia de tokens
             "follower_count": profile.followers_count or 0,
             "following_count": profile.following_count or 0,
-            "is_verified": profile.is_verified,
+            "is_verified": bool((profile.raw_payload or {}).get("isVerified") or (profile.raw_payload or {}).get("verified")),
             "category": profile.category or "",
         }
         # Adiciona sinais de localizacao ao contexto
@@ -809,8 +828,9 @@ def _resolve_best_location(
 def save_enrichments(
     db: Session,
     enrichments: list[dict],
+    platform: str = "instagram",
 ) -> int:
-    """Salva enrichments na tabela user_enrichment (global por username).
+    """Salva enrichments na tabela user_enrichment (por username+platform).
 
     Args:
         db: Sessao do SQLAlchemy.
@@ -829,7 +849,10 @@ def save_enrichments(
         # Busca o profile correspondente para flags
         profile = (
             db.query(CommenterProfile)
-            .filter(func.lower(CommenterProfile.username) == username)
+            .filter(
+                func.lower(CommenterProfile.username) == username,
+                CommenterProfile.platform == platform,
+            )
             .first()
         )
 
@@ -859,14 +882,17 @@ def save_enrichments(
         # Upsert: busca existente ou cria novo (unique constraint on username)
         existing = (
             db.query(UserEnrichment)
-            .filter(UserEnrichment.username == username)
+            .filter(
+                UserEnrichment.username == username,
+                UserEnrichment.platform == platform,
+            )
             .first()
         )
 
         if existing:
             record = existing
         else:
-            record = UserEnrichment(username=username)
+            record = UserEnrichment(username=username, platform=platform)
             db.add(record)
 
         record.gender_label = enrichment.get("gender_label")
@@ -1003,6 +1029,7 @@ def run_demographics_pipeline(
     db: Session,
     connection_id: uuid.UUID,
     enabled: bool = False,
+    platform: str = "instagram",
 ) -> dict:
     """Executa o pipeline completo de enriquecimento demografico (Stage 3).
 
@@ -1033,7 +1060,7 @@ def run_demographics_pipeline(
     # 1. Extract new usernames
     stage_start = datetime.now(timezone.utc)
     try:
-        new_usernames = extract_new_usernames(db, connection_id)
+        new_usernames = extract_new_usernames(db, connection_id, platform=platform)
     except Exception as exc:
         logger.error("[DEMO Stage 1] FALHA ao extrair usernames: %s", exc)
         return {"error": f"extract_usernames: {exc}", "stage": 1}
@@ -1077,7 +1104,7 @@ def run_demographics_pipeline(
     # 3. Save profiles to DB
     stage_start = datetime.now(timezone.utc)
     try:
-        saved_profiles = save_profiles(db, raw_profiles)
+        saved_profiles = save_profiles(db, raw_profiles, platform=platform)
     except Exception as exc:
         logger.error("[DEMO Stage 3] FALHA ao salvar perfis: %s", exc)
         return {"error": f"save_profiles: {exc}", "stage": 3}
@@ -1091,10 +1118,25 @@ def run_demographics_pipeline(
         has_location_count, has_location_count / max(len(saved_profiles), 1) * 100,
     )
 
-    # 4 & 5. LLM inference (location signals are extracted inside infer_demographics_llm)
+    # 4 & 5. LLM inference — only enrich profiles that don't already have a user_enrichment record
+    existing_enriched = {
+        row[0]
+        for row in db.query(func.lower(UserEnrichment.username))
+        .filter(
+            func.lower(UserEnrichment.username).in_([p.username.lower() for p in saved_profiles]),
+            UserEnrichment.platform == platform,
+        )
+        .all()
+    }
+    profiles_to_enrich = [p for p in saved_profiles if p.username.lower() not in existing_enriched]
+    logger.info(
+        "Demographics: %d total commenters, %d new (skipping %d existing)",
+        len(saved_profiles), len(profiles_to_enrich), len(saved_profiles) - len(profiles_to_enrich),
+    )
+
     stage_start = datetime.now(timezone.utc)
     try:
-        enrichment_results = infer_demographics_llm(db, saved_profiles)
+        enrichment_results = infer_demographics_llm(db, profiles_to_enrich)
     except Exception as exc:
         logger.error("[DEMO Stage 4-5] FALHA na inferencia LLM: %s", exc)
         return {
@@ -1143,7 +1185,7 @@ def run_demographics_pipeline(
     # 6. Save enrichments
     stage_start = datetime.now(timezone.utc)
     try:
-        enrichments_count = save_enrichments(db, enrichment_results)
+        enrichments_count = save_enrichments(db, enrichment_results, platform=platform)
     except Exception as exc:
         logger.error("[DEMO Stage 6] FALHA ao salvar enrichments: %s", exc)
         return {

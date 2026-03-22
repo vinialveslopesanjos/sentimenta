@@ -29,6 +29,7 @@ import { DemographicsOverview, SentimentByAge, SentimentByGender, EmotionsByGend
 import { GlassHeartIcon, GlassZapIcon, GlassPeopleIcon, GlassShieldIcon } from "@/components/GlassIcons";
 import { GlassSocialIcon } from "@/components/GlassSocialIcons";
 import WordCloudChart from "@/components/charts/WordCloudChart";
+import YouTubeStats from "@/components/YouTubeStats";
 
 import { getToken } from "@/lib/auth";
 import {
@@ -137,11 +138,19 @@ export default function ProfileDetailPage() {
     gender_distribution: Record<string, number>;
     age_distribution: Record<string, number>;
     top_locations: Array<{ country: string; country_code: string; count: number }>;
+    state_distribution: Array<{ state: string; count: number }>;
     enrichment_coverage: { total_commenters: number; enriched: number; coverage_pct: number };
   } | null>(null);
   const [sentimentByAge, setSentimentByAge] = useState<Array<{ band: string; positive: number; neutral: number; negative: number; avg_score: number; count: number }> | null>(null);
   const [sentimentByGender, setSentimentByGender] = useState<Array<{ gender: string; positive: number; neutral: number; negative: number; avg_score: number; count: number }> | null>(null);
   const [emotionsByGender, setEmotionsByGender] = useState<Array<{ gender: string; emotions: Record<string, number> }> | null>(null);
+
+  // YouTube-specific
+  const [youtubeStats, setYoutubeStats] = useState<{
+    channel_stats: { subscribers: number; total_views: number; total_videos: number; avg_views_per_video: number; avg_engagement_rate: number };
+    growth: Array<{ date: string; subscribers: number; views: number }>;
+    top_videos: Array<{ title: string; views: number; likes: number; comments: number; engagement_rate: number; published_at: string | null }>;
+  } | null>(null);
 
   // ── fetch all data ──
   const fetchData = useCallback(async () => {
@@ -209,6 +218,13 @@ export default function ProfileDetailPage() {
             followers_count: conn.followers_count,
             status: conn.status,
           });
+
+          // Fetch YouTube-specific stats if platform is youtube
+          if (conn.platform === "youtube") {
+            dashboardApi.youtubeStats(token, id)
+              .then((ytData) => setYoutubeStats(ytData))
+              .catch(() => { /* silently fail */ });
+          }
         }
       }
 
@@ -625,7 +641,7 @@ export default function ProfileDetailPage() {
         <GlassSocialIcon platform={platform} size={36} />
         <div className="flex-1 min-w-0 flex items-center gap-2">
           <h1 className="truncate" style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>
-            @{username}
+            {username.startsWith("@") ? username : `@${username}`}
           </h1>
           <Badge variant={connectionStatus === "active" ? "positive" : "muted"} dot>
             {connectionStatus === "active" ? tc("active") : connectionStatus.toUpperCase()}
@@ -714,6 +730,11 @@ export default function ProfileDetailPage() {
         </Section>
       </div>
 
+      {/* YouTube-specific stats */}
+      {platform === "youtube" && youtubeStats && (
+        <YouTubeStats data={youtubeStats} />
+      )}
+
       {/* Featured Comments — near top after stats */}
       {featuredComments.length > 0 && (
         <FeaturedComments comments={featuredComments} />
@@ -725,6 +746,7 @@ export default function ProfileDetailPage() {
           genderDist={demoOverview.gender_distribution}
           ageDist={demoOverview.age_distribution}
           topLocations={demoOverview.top_locations}
+          stateDistribution={demoOverview.state_distribution}
           coverage={demoOverview.enrichment_coverage}
         />
       )}

@@ -16,8 +16,17 @@ from sqlalchemy.orm import Session
 from app.models.user import User
 from app.models.social_connection import SocialConnection
 from app.models.pipeline_run import PipelineRun
+from app.models.demographics import UsageLog
 
 logger = logging.getLogger(__name__)
+
+# ─── Platform Cost Estimates (USD per operation) ────────────────────
+PLATFORM_COSTS_USD = {
+    "instagram": {"per_post": 0.005, "per_comment": 0.0023, "per_profile": 0.005},
+    "tiktok": {"per_post": 0.0037, "per_comment": 0.00125, "per_profile": 0.004},
+    "twitter": {"per_post": 0.0004, "per_comment": 0.0004, "per_profile": 0.001},
+    "youtube": {"per_post": 0.0, "per_comment": 0.0, "per_profile": 0.0},
+}
 
 # ─── Plan Configuration — Strategy 1: Tiers + Excedente ─────────────
 # Demographics em todos os planos como diferencial competitivo.
@@ -383,3 +392,163 @@ def estimate_sync_cost_brl(num_posts: int, avg_comments_per_post: int) -> float:
     # Add ~5% for Gemini API cost
     gemini_cost = apify_cost * 0.05
     return round(apify_cost + gemini_cost, 2)
+
+
+# ─── Usage Logging & Budget Tracking (Fase 4 — Multi-Platform) ─────
+
+def log_usage(
+    db: Session,
+    user_id,
+    connection_id,
+    platform: str,
+    operation: str,
+    posts_count: int = 0,
+    comments_count: int = 0,
+    profiles_count: int = 0,
+) -> float:
+    """Registra uso e calcula custo estimado por plataforma.
+
+    Returns the estimated cost in USD for this operation.
+    """
+    costs = PLATFORM_COSTS_USD.get(platform, {})
+    estimated_cost = (
+        posts_count * costs.get("per_post", 0)
+        + comments_count * costs.get("per_comment", 0)
+        + profiles_count * costs.get("per_profile", 0)
+    )
+    entry = UsageLog(
+        user_id=user_id,
+        connection_id=connection_id,
+        platform=platform,
+        operation=operation,
+        posts_count=posts_count,
+        comments_count=comments_count,
+        profiles_count=profiles_count,
+        estimated_cost_usd=round(estimated_cost, 6),
+    )
+    db.add(entry)
+    try:
+        db.commit()
+    except Exception as exc:
+        logger.error("log_usage commit failed: %s", exc)
+        db.rollback()
+    logger.info(
+        "Usage logged: user=%s platform=%s op=%s posts=%d comments=%d profiles=%d cost=$%.4f",
+        user_id, platform, operation, posts_count, comments_count, profiles_count, estimated_cost,
+    )
+    return estimated_cost
+
+
+def get_user_monthly_usage(db: Session, user_id) -> dict:
+    """Retorna uso do mês atual agrupado por plataforma.
+
+    Returns:
+        {
+            "total_posts": int,
+            "total_comments": int,
+            "total_profiles": int,
+            "total_cost_usd": float,
+            "by_platform": {
+                "instagram": {"posts": ..., "comments": ..., "profiles": ..., "cost_usd": ...},
+                ...
+            }
+        }
+    """
+    period_start = get_billing_period_start()
+    rows = (
+        db.query(
+            UsageLog.platform,
+            func.sum(UsageLog.posts_count).label("posts"),
+            func.sum(UsageLog.comments_count).label("comments"),
+            func.sum(UsageLog.profiles_count).label("profiles"),
+            func.sum(UsageLog.estimated_cost_usd).label("cost"),
+        )
+        .filter(
+            UsageLog.user_id == user_id,
+            UsageLog.created_at >= period_start,
+        )
+        .group_by(UsageLog.platform)
+        .all()
+    )
+
+    by_platform = {}
+    total_posts = 0
+    total_comments = 0
+    total_profiles = 0
+    total_cost = 0.0
+
+    for row in rows:
+        posts = int(row.posts or 0)
+        comments = int(row.comments or 0)
+        profiles = int(row.profiles or 0)
+        cost = float(row.cost or 0.0)
+        by_platform[row.platform] = {
+            "posts": posts,
+            "comments": comments,
+            "profiles": profiles,
+            "cost_usd": round(cost, 4),
+        }
+        total_posts += posts
+        total_comments += comments
+        total_profiles += profiles
+        total_cost += cost
+
+    return {
+        "total_posts": total_posts,
+        "total_comments": total_comments,
+        "total_profiles": total_profiles,
+        "total_cost_usd": round(total_cost, 4),
+        "by_platform": by_platform,
+        "billing_period_start": period_start.isoformat(),
+    }
+
+
+def can_user_sync(db: Session, user_id, platform: str) -> tuple:
+    """Verifica se o usuário pode fazer sync baseado no plano.
+
+    Returns:
+        (True, "") if allowed
+        (False, "reason") if not allowed
+
+    NOTE: Fase 4 — apenas warning, não bloqueia. O blocking vem depois.
+    """
+    user = db.get(User, user_id)
+    if not user:
+        return False, "Usuário não encontrado"
+
+    limits = get_plan_limits(user.plan)
+
+    # Check syncs per month
+    syncs_used = count_syncs_this_month(db, user.id)
+    if syncs_used >= limits["syncs_per_month"]:
+        msg = (
+            f"Limite de syncs atingido ({syncs_used}/{limits['syncs_per_month']}). "
+            f"Plano: {user.plan}"
+        )
+        logger.warning("can_user_sync: %s (user=%s, platform=%s)", msg, user_id, platform)
+        return False, msg
+
+    # Check comments quota
+    comments_used = get_comments_this_month(db, user.id)
+    included = limits["comments_included_per_month"]
+    if comments_used >= included and not limits.get("overage_allowed", False):
+        msg = (
+            f"Cota de comentários atingida ({comments_used:,}/{included:,}). "
+            f"Plano: {user.plan}"
+        )
+        logger.warning("can_user_sync: %s (user=%s, platform=%s)", msg, user_id, platform)
+        return False, msg
+
+    # Check monthly platform cost (warning only, not blocking)
+    usage = get_user_monthly_usage(db, user_id)
+    platform_cost = usage["by_platform"].get(platform, {}).get("cost_usd", 0.0)
+    total_cost = usage["total_cost_usd"]
+    apify_budget_usd = limits.get("apify_budget_brl", 0) / USD_TO_BRL
+
+    if total_cost > apify_budget_usd * 0.8:
+        logger.warning(
+            "can_user_sync WARNING: user=%s approaching budget (cost=$%.2f / budget=$%.2f, platform=%s cost=$%.2f)",
+            user_id, total_cost, apify_budget_usd, platform, platform_cost,
+        )
+
+    return True, ""

@@ -19,7 +19,7 @@ from app.models.user import User
 from app.models.demographics import UserEnrichment
 from app.services.report_service import generate_health_report, DEFAULT_HEALTH_PROMPT
 from app.utils.queries import latest_analysis_subquery as _latest_analysis_subquery
-from app.services.plan_service import enforce_feature_access, PlanLimitError
+from app.services.plan_service import enforce_feature_access, PlanLimitError, get_user_monthly_usage, PLATFORM_COSTS_USD
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
@@ -281,7 +281,7 @@ def _build_dashboard_summary(user_id: str, db: Session) -> dict:
                 "post_type": p.post_type,
                 "content_text": _clean_post_text(p.content_text, 100),
                 "like_count": p.like_count,
-                "comment_count": p.comment_count,
+                "comment_count": p.comment_count_api if p.comment_count_api else p.comment_count,
                 "published_at": p.published_at.isoformat() if p.published_at else None,
                 "post_url": p.post_url,
                 "thumbnail_url": (
@@ -410,7 +410,7 @@ def get_connection_dashboard(
     total_likes = sum(p.like_count for p in posts)
     total_views = sum(p.view_count for p in posts)
     total_shares = sum(p.share_count for p in posts)
-    total_post_comments = sum(p.comment_count for p in posts)
+    total_post_comments = sum((p.comment_count_api or p.comment_count) for p in posts)
     engagement = {
         "total_likes": total_likes,
         "total_comments": total_post_comments,
@@ -475,7 +475,7 @@ def get_connection_dashboard(
             "post_type": p.post_type,
             "content_text": _clean_post_text(p.content_text, 100),
             "like_count": p.like_count,
-            "comment_count": p.comment_count,
+            "comment_count": p.comment_count_api if p.comment_count_api else p.comment_count,
             "view_count": p.view_count,
             "published_at": p.published_at.isoformat() if p.published_at else None,
             "post_url": p.post_url,
@@ -1888,4 +1888,100 @@ def get_insights(
     }
 
     return {"advantage": advantage, "opportunity": opportunity, "risk": risk}
+
+
+@router.get("/usage")
+def get_platform_usage(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Retorna uso do mês atual do usuário logado, por plataforma.
+
+    Inclui posts, comentários, perfis scrapeados e custo estimado (USD).
+    """
+    usage = get_user_monthly_usage(db, current_user.id)
+    return {
+        "user_id": str(current_user.id),
+        "plan": current_user.plan,
+        "platform_costs_reference": PLATFORM_COSTS_USD,
+        **usage,
+    }
+
+
+@router.get("/connection/{connection_id}/youtube-stats")
+def get_youtube_stats(
+    connection_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Retorna estatísticas específicas de YouTube para uma conexão."""
+    conn = db.query(SocialConnection).filter(
+        SocialConnection.id == connection_id,
+        SocialConnection.user_id == current_user.id,
+    ).first()
+
+    if not conn:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    # Channel stats from connection + posts
+    posts = (
+        db.query(Post)
+        .filter(Post.connection_id == connection_id)
+        .all()
+    )
+
+    total_views = sum(p.view_count for p in posts)
+    total_videos = len(posts)
+    avg_views = round(total_views / total_videos) if total_videos > 0 else 0
+
+    # Average engagement rate from posts
+    engagement_rates = [p.engagement_rate for p in posts if p.engagement_rate is not None]
+    avg_engagement = round(sum(engagement_rates) / len(engagement_rates), 4) if engagement_rates else 0.0
+
+    channel_stats = {
+        "subscribers": conn.followers_count or 0,
+        "total_views": total_views,
+        "total_videos": total_videos,
+        "avg_views_per_video": avg_views,
+        "avg_engagement_rate": avg_engagement,
+    }
+
+    # Growth from FollowerSnapshot
+    snapshots = (
+        db.query(FollowerSnapshot)
+        .filter(FollowerSnapshot.connection_id == connection_id)
+        .order_by(FollowerSnapshot.snapshot_at.asc())
+        .all()
+    )
+
+    growth = []
+    for snap in snapshots:
+        # Approximate views: cumulative sum based on snapshot order
+        growth.append({
+            "date": snap.snapshot_at.strftime("%Y-%m-%d"),
+            "subscribers": snap.followers_count,
+            "views": total_views,  # snapshot-level views not tracked; use current total
+        })
+
+    # Top 5 videos by view_count
+    top_posts = sorted(posts, key=lambda p: p.view_count, reverse=True)[:5]
+    top_videos = []
+    for p in top_posts:
+        title = _clean_post_text(p.content_text, max_len=80) or p.platform_post_id
+        total_interactions = p.like_count + (p.comment_count_api or p.comment_count)
+        eng_rate = round(total_interactions / p.view_count, 4) if p.view_count > 0 else 0.0
+        top_videos.append({
+            "title": title,
+            "views": p.view_count,
+            "likes": p.like_count,
+            "comments": p.comment_count_api or p.comment_count,
+            "engagement_rate": eng_rate,
+            "published_at": p.published_at.isoformat() if p.published_at else None,
+        })
+
+    return {
+        "channel_stats": channel_stats,
+        "growth": growth,
+        "top_videos": top_videos,
+    }
 

@@ -789,8 +789,9 @@
       },
       "tiktok": {
         "name": "TikTok",
-        "desc": "Conectar via OAuth (Login Kit)",
-        "button": "Conectar via OAuth"
+        "desc": "Análise de sentimento dos seus vídeos no TikTok",
+        "placeholder": "@nomedeusuário",
+        "button": "Verificar perfil"
       }
     },
     "verifying": "Verificando...",
@@ -1039,6 +1040,7 @@
       "gender": "G\u00eanero",
       "age": "Faixa Et\u00e1ria",
       "locations": "Localiza\u00e7\u00e3o",
+      "states": "Estados",
       "coverage": "Cobertura",
       "commentersEnriched": "comentaristas enriquecidos"
     },

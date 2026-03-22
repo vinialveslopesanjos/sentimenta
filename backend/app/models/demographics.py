@@ -1,8 +1,9 @@
-"""Demographics models — matches lab schema exactly.
+"""Demographics models — multi-platform commenter profiles & enrichment.
 
 Tables:
-- commenter_profiles: Scraped Instagram profile data for commenters
-- user_enrichment: LLM-inferred demographics (global, one per username)
+- commenter_profiles: Scraped profile data for commenters (all platforms)
+- user_enrichment: LLM-inferred demographics (one per username+platform)
+- usage_log: Tracking de custo por operação/usuário/plataforma
 """
 
 import uuid
@@ -10,6 +11,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy import (
     Boolean, Float, String, Text, Integer, DateTime, Index, Uuid,
+    UniqueConstraint, ForeignKey,
 )
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -24,7 +26,10 @@ class CommenterProfile(Base):
         Uuid, primary_key=True, default=uuid.uuid4
     )
     username: Mapped[str] = mapped_column(
-        String(255), unique=True, nullable=False
+        String(255), nullable=False
+    )
+    platform: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="instagram"
     )
     full_name: Mapped[str | None] = mapped_column(String(500), nullable=True)
     biography: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -42,13 +47,15 @@ class CommenterProfile(Base):
     )
 
     __table_args__ = (
+        UniqueConstraint("username", "platform", name="uq_cp_username_platform"),
         Index("idx_cp_username", "username"),
+        Index("idx_cp_platform", "platform"),
     )
 
     # Relationships
     enrichment = relationship(
         "UserEnrichment",
-        primaryjoin="CommenterProfile.username == foreign(UserEnrichment.username)",
+        primaryjoin="and_(CommenterProfile.username == foreign(UserEnrichment.username), CommenterProfile.platform == foreign(UserEnrichment.platform))",
         uselist=False,
         viewonly=True,
     )
@@ -61,9 +68,11 @@ class UserEnrichment(Base):
         Uuid, primary_key=True, default=uuid.uuid4
     )
     username: Mapped[str] = mapped_column(
-        String(255), unique=True, nullable=False
+        String(255), nullable=False
     )
-    platform: Mapped[str] = mapped_column(String(50), default="instagram")
+    platform: Mapped[str] = mapped_column(
+        String(50), nullable=False, default="instagram"
+    )
 
     # Gender
     gender_label: Mapped[str | None] = mapped_column(String(20), nullable=True)
@@ -94,8 +103,42 @@ class UserEnrichment(Base):
     )
 
     __table_args__ = (
+        UniqueConstraint("username", "platform", name="uq_ue_username_platform"),
         Index("idx_ue_username", "username"),
+        Index("idx_ue_platform", "platform"),
         Index("idx_ue_gender", "gender_label"),
         Index("idx_ue_age", "age_band"),
         Index("idx_ue_country", "location_country_code"),
+    )
+
+
+class UsageLog(Base):
+    """Tracking de custo por operação/usuário/plataforma."""
+    __tablename__ = "usage_log"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, primary_key=True, default=uuid.uuid4
+    )
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        Uuid, ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    connection_id: Mapped[uuid.UUID | None] = mapped_column(
+        Uuid, ForeignKey("social_connections.id", ondelete="SET NULL"), nullable=True
+    )
+    platform: Mapped[str] = mapped_column(String(50), nullable=False)
+    operation: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # "ingest", "demographics", "follower_snapshot"
+    posts_count: Mapped[int] = mapped_column(Integer, default=0)
+    comments_count: Mapped[int] = mapped_column(Integer, default=0)
+    profiles_count: Mapped[int] = mapped_column(Integer, default=0)
+    estimated_cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+
+    __table_args__ = (
+        Index("idx_ul_user_id", "user_id"),
+        Index("idx_ul_platform", "platform"),
+        Index("idx_ul_created_at", "created_at"),
     )

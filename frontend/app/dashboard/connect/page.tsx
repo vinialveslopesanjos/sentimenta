@@ -81,7 +81,7 @@ export default function ConnectPage() {
       setErrors(e => ({ ...e, [platformId]: t("enterUserOrUrl") }));
       return;
     }
-    if (platformId !== "instagram") {
+    if (platformId !== "instagram" && platformId !== "tiktok") {
       return handleConnect(platformId);
     }
     setErrors(e => ({ ...e, [platformId]: "" }));
@@ -108,6 +108,8 @@ export default function ConnectPage() {
         await connectionsApi.connectInstagram(token, handle.replace("@", ""));
       } else if (platformId === "twitter") {
         await connectionsApi.connectTwitter(token, handle.replace("@", ""));
+      } else if (platformId === "tiktok") {
+        await connectionsApi.connectTiktok(token, handle.replace("@", ""));
       } else {
         await connectionsApi.connectYoutube(token, handle);
       }
@@ -125,19 +127,20 @@ export default function ConnectPage() {
   };
 
   const estimateSyncTime = useCallback((params: SyncSettings) => {
-    const posts = params.max_posts || 10;
+    const posts = Math.min(params.max_posts || 10, 200);
     const commentsPerPost = params.max_comments_per_post || 50;
     const isSample = params.comment_sample_mode === "sample";
-    // Base: ~3s per post scrape + ~0.5s per comment analysis + demographics overhead
-    const effectiveComments = isSample ? Math.min(commentsPerPost, 100) : commentsPerPost;
-    const totalComments = posts * effectiveComments;
-    const scrapeMinutes = (posts * 3) / 60;
-    const analysisMinutes = (totalComments * 0.4) / 60;
-    const demographicsMinutes = 0.5;
+    // Realistic: Apify scrapes ~10 posts/min, LLM analyzes ~500 comments/min (batched)
+    // Demographics adds ~1min overhead for scrape + LLM inference
+    const effectiveCommentsPerPost = isSample ? Math.min(commentsPerPost, 80) : Math.min(commentsPerPost, 300);
+    const totalComments = posts * effectiveCommentsPerPost;
+    const scrapeMinutes = posts * 0.1; // ~6s per post via Apify
+    const analysisMinutes = totalComments / 500; // ~500 comments/min batched LLM
+    const demographicsMinutes = Math.min(totalComments / 1000, 3) + 0.5; // cap at 3.5min
     const baseMinutes = scrapeMinutes + analysisMinutes + demographicsMinutes;
     return {
-      minMinutes: Math.max(1, Math.ceil(baseMinutes * 0.7)),
-      maxMinutes: Math.max(2, Math.ceil(baseMinutes * 1.5)),
+      minMinutes: Math.max(1, Math.ceil(baseMinutes * 0.8)),
+      maxMinutes: Math.max(2, Math.ceil(baseMinutes * 2)),
     };
   }, []);
 
@@ -223,8 +226,8 @@ export default function ConnectPage() {
   const platforms = [
     { id: "instagram" as PlatformId, name: t("platforms.instagram.name"), desc: t("platforms.instagram.desc"), placeholder: t("platforms.instagram.placeholder"), hasInput: true, buttonText: t("platforms.instagram.button"), secondaryButton: t("platforms.instagram.oauthButton") },
     { id: "youtube" as PlatformId, name: t("platforms.youtube.name"), desc: t("platforms.youtube.desc"), placeholder: t("platforms.youtube.placeholder"), hasInput: true, buttonText: t("platforms.youtube.button") },
-    { id: "twitter" as PlatformId, name: t("platforms.twitter.name"), desc: t("platforms.twitter.desc"), placeholder: t("platforms.twitter.placeholder"), hasInput: true, buttonText: t("platforms.twitter.button") },
-    { id: "tiktok" as PlatformId, name: t("platforms.tiktok.name"), desc: t("platforms.tiktok.desc"), placeholder: "", hasInput: false, buttonText: t("platforms.tiktok.button"), oauthOnly: true },
+    { id: "twitter" as PlatformId, name: t("platforms.twitter.name"), desc: t("platforms.twitter.desc"), placeholder: t("platforms.twitter.placeholder"), hasInput: true, buttonText: t("platforms.twitter.button"), disabled: true, disabledText: "Em breve" },
+    { id: "tiktok" as PlatformId, name: t("platforms.tiktok.name"), desc: t("platforms.tiktok.desc"), placeholder: t("platforms.tiktok.placeholder"), hasInput: true, buttonText: t("platforms.tiktok.button") },
   ];
 
   return (
@@ -242,13 +245,11 @@ export default function ConnectPage() {
         <p className="tracking-widest mb-4" style={{ fontSize: "0.65rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.12em" }}>{t("addProfile")}</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {platforms.map(p => (
-            <div key={p.id} className="rounded-2xl p-5 transition-all" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
+            <div key={p.id} className="rounded-2xl p-5 transition-all" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", opacity: p.disabled ? 0.55 : 1 }}>
               <div className="mb-4 flex items-center gap-2">
                 <GlassSocialIcon platform={p.id} size={44} />
-                {p.id !== "instagram" && (
-                  <span className="px-1.5 py-0.5 rounded text-[0.55rem] font-semibold" style={{ backgroundColor: "var(--bg-subtle)", color: "var(--text-faint)", border: "1px solid var(--border)" }}>
-                    {t("comingSoon")}
-                  </span>
+                {p.disabled && p.disabledText && (
+                  <span className="px-2 py-0.5 rounded-full" style={{ fontSize: "0.62rem", fontWeight: 600, backgroundColor: "var(--bg-subtle)", color: "var(--text-muted)", border: "1px solid var(--border)" }}>{p.disabledText}</span>
                 )}
               </div>
               <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.95rem", fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>{p.name}</h3>
@@ -257,18 +258,9 @@ export default function ConnectPage() {
               {errors[p.id] && <p className="text-xs mb-2" style={{ color: "var(--sentiment-negative)" }}>{errors[p.id]}</p>}
               {success[p.id] && <p className="text-xs mb-2" style={{ color: "var(--sentiment-positive)" }}>{success[p.id]}</p>}
 
-              {p.oauthOnly ? (
-                <Button
-                  variant="primary"
-                  size="sm"
-                  fullWidth
-                  onClick={() => handleOAuthConnect(p.id as "tiktok")}
-                  disabled={connecting[p.id]}
-                >
-                  {connecting[p.id] ? t("connecting") : p.buttonText}
-                </Button>
-              ) : (
-                <>
+              {p.disabled ? (
+                <Button variant="secondary" size="sm" fullWidth disabled>{p.disabledText || "Indisponível"}</Button>
+              ) : <>
                   {p.hasInput && (
                     <input
                       type="text"
@@ -334,18 +326,17 @@ export default function ConnectPage() {
                     </Button>
                   )}
 
-                  {p.secondaryButton && p.id === "instagram" && (
+                  {p.secondaryButton && p.id === "instagram" && !potentials[p.id] && (
                     <button
                       onClick={() => handleOAuthConnect("instagram")}
-                      disabled={connecting[p.id]}
+                      disabled={connecting[p.id] || checking[p.id]}
                       className="w-full mt-2 py-2 bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#FCAF45] text-white rounded-xl hover:opacity-90 transition-opacity disabled:opacity-60"
                       style={{ fontSize: "0.78rem", fontWeight: 500 }}
                     >
                       {connecting["instagram"] ? t("connecting") : p.secondaryButton}
                     </button>
                   )}
-                </>
-              )}
+                </>}
             </div>
           ))}
         </div>
@@ -371,14 +362,18 @@ export default function ConnectPage() {
             <div className="px-4 md:px-5 pb-5 space-y-5" style={{ borderTop: "1px solid var(--border)" }}>
               <div className="pt-4 grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
-                  <p className="mb-2" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>{t("postsToAnalyze")}</p>
-                  <div className="flex gap-2 flex-wrap">
-                    {[{ label: t("lastOptions.last10"), value: 10 }, { label: t("lastOptions.last50"), value: 50 }, { label: t("lastOptions.all200"), value: 200 }].map(opt => (
-                      <button key={opt.value} onClick={() => updateSyncParams({ ...syncParams, max_posts: opt.value })} className="px-3 py-2 rounded-xl transition-all" style={{ fontSize: "0.78rem", fontWeight: 500, backgroundColor: syncParams.max_posts === opt.value ? "var(--primary-bg)" : "var(--bg-subtle)", color: syncParams.max_posts === opt.value ? "var(--primary)" : "var(--text-muted)", border: syncParams.max_posts === opt.value ? "1px solid var(--primary)" : "1px solid var(--border)" }}>
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
+                  <label className="mb-2 block" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>Quantos posts carregar?</label>
+                  <select
+                    value={syncParams.max_posts}
+                    onChange={e => updateSyncParams({ ...syncParams, max_posts: Number(e.target.value) })}
+                    className="w-full px-3 py-2 rounded-xl transition-all"
+                    style={{ fontSize: "0.78rem", border: "1px solid var(--border)", backgroundColor: "var(--bg-subtle)", color: "var(--text-primary)" }}
+                  >
+                    <option value={10}>10 posts</option>
+                    <option value={20}>20 posts</option>
+                    <option value={50}>50 posts</option>
+                    <option value={100}>100 posts</option>
+                  </select>
                 </div>
                 <div>
                   <p className="mb-2" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>{t("commentsPerPost")}</p>

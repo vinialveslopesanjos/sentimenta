@@ -19,29 +19,50 @@ interface DemographicsOverviewProps {
   genderDist: Record<string, number>;
   ageDist: Record<string, number>;
   topLocations: Array<{ country: string; country_code: string; count: number }>;
+  stateDistribution?: Array<{ state: string; count: number }>;
   coverage: { total_commenters: number; enriched: number; coverage_pct: number };
 }
 
 const GENDER_COLORS: Record<string, string> = { male: '#4F8CF7', female: '#E95FBD', business: '#8B5CF6' };
+const VALID_GENDERS = new Set(['male', 'female', 'business']);
+const AGE_BAND_COLORS: Record<string, string> = {
+  '13-17': '#FF6B6B',
+  '18-24': '#4ECDC4',
+  '25-34': '#45B7D1',
+  '35-44': '#F7B731',
+  '45-54': '#A55EEA',
+  '55+': '#FC5C65',
+};
+const normalizeCountry = (name: string) => {
+  const upper = (name || '').toUpperCase().trim();
+  if (upper === 'BR' || upper === 'BRAZIL') return 'Brasil';
+  return name;
+};
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // #1 — DemographicsOverview
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-export function DemographicsOverview({ genderDist, ageDist, topLocations, coverage }: DemographicsOverviewProps) {
+export function DemographicsOverview({ genderDist, ageDist, topLocations, stateDistribution, coverage }: DemographicsOverviewProps) {
   const { t } = useTheme();
   const td = useTranslations("demographics");
 
-  const genderData = Object.entries(genderDist).map(([name, value]) => ({ name, value }));
-  const ageData = Object.entries(ageDist).map(([name, value]) => ({ name, value }));
-  const locationData = topLocations.slice(0, 5).map(l => ({ name: l.country, value: l.count }));
+  const genderDataRaw = Object.entries(genderDist).filter(([name]) => VALID_GENDERS.has(name)).map(([name, value]) => ({ name, value }));
+  const genderTotal = genderDataRaw.reduce((s, g) => s + g.value, 0) || 1;
+  const genderData = genderDataRaw.map(g => ({ name: g.name, value: g.value, pct: Math.round((g.value / genderTotal) * 100) }));
+  const ageDataRaw = Object.entries(ageDist).filter(([name]) => name in AGE_BAND_COLORS).map(([name, value]) => ({ name, value }));
+  const ageTotal = ageDataRaw.reduce((s, a) => s + a.value, 0) || 1;
+  const ageData = ageDataRaw.map(a => ({ name: a.name, value: a.value, pct: Math.round((a.value / ageTotal) * 100) }));
+  const locationDataRaw = topLocations.slice(0, 5).map(l => ({ name: normalizeCountry(l.country), value: l.count }));
+  const locationTotal = locationDataRaw.reduce((s, l) => s + l.value, 0) || 1;
+  const locationData = locationDataRaw.map(l => ({ ...l, pct: Math.round((l.value / locationTotal) * 100) }));
 
   return (
     <Section title={td("overview.title")} subtitle={td("overview.subtitle")}>
       <div className="flex items-center gap-2 mb-4">
         <Badge variant="primary">{td("insightLabel")}</Badge>
       </div>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Gender donut */}
         <div className="text-center">
           <p style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", marginBottom: 4 }}>{td("overview.gender")}</p>
@@ -52,7 +73,7 @@ export function DemographicsOverview({ genderDist, ageDist, topLocations, covera
                   <Cell key={entry.name} fill={GENDER_COLORS[entry.name] || t.chart[i % t.chart.length]} />
                 ))}
               </Pie>
-              <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.75rem", backgroundColor: t.bgCard }} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.75rem", backgroundColor: t.bgCard }} formatter={(value: number, name: string, props: any) => [`${props?.payload?.pct ?? 0}%`, name]} />
             </PieChart>
           </ResponsiveContainer>
           <div className="flex items-center justify-center gap-3 flex-wrap mt-1">
@@ -60,7 +81,7 @@ export function DemographicsOverview({ genderDist, ageDist, topLocations, covera
               <span key={g.name} className="flex items-center gap-1" style={{ fontSize: "0.65rem" }}>
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: GENDER_COLORS[g.name] || t.chart[i % t.chart.length] }} />
                 <span style={{ color: "var(--text-muted)" }}>{td(`genders.${g.name}`)}</span>
-                <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{g.value}</span>
+                <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{g.pct}%</span>
               </span>
             ))}
           </div>
@@ -71,18 +92,19 @@ export function DemographicsOverview({ genderDist, ageDist, topLocations, covera
           <ResponsiveContainer width="100%" height={160}>
             <PieChart>
               <Pie data={ageData} cx="50%" cy="50%" innerRadius={35} outerRadius={55} dataKey="value" paddingAngle={2}>
-                {ageData.map((_, i) => (
-                  <Cell key={i} fill={t.chart[i % t.chart.length]} />
+                {ageData.map((entry, i) => (
+                  <Cell key={i} fill={AGE_BAND_COLORS[entry.name] || t.chart[i % t.chart.length]} />
                 ))}
               </Pie>
-              <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.75rem", backgroundColor: t.bgCard }} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.75rem", backgroundColor: t.bgCard }} formatter={(value: number, name: string, props: any) => [`${props?.payload?.pct ?? 0}%`, name]} />
             </PieChart>
           </ResponsiveContainer>
           <div className="flex items-center justify-center gap-2 flex-wrap mt-1">
-            {ageData.map((a, i) => (
+            {ageData.map((a) => (
               <span key={a.name} className="flex items-center gap-1" style={{ fontSize: "0.62rem" }}>
-                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: t.chart[i % t.chart.length] }} />
+                <span className="w-2 h-2 rounded-full" style={{ backgroundColor: AGE_BAND_COLORS[a.name] || '#888' }} />
                 <span style={{ color: "var(--text-muted)" }}>{a.name}</span>
+                <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{a.pct}%</span>
               </span>
             ))}
           </div>
@@ -97,7 +119,7 @@ export function DemographicsOverview({ genderDist, ageDist, topLocations, covera
                   <Cell key={i} fill={t.chart[i % t.chart.length]} />
                 ))}
               </Pie>
-              <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.75rem", backgroundColor: t.bgCard }} />
+              <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.75rem", backgroundColor: t.bgCard }} formatter={(value: number, name: string, props: any) => [`${props?.payload?.pct ?? 0}%`, name]} />
             </PieChart>
           </ResponsiveContainer>
           <div className="flex items-center justify-center gap-2 flex-wrap mt-1">
@@ -105,10 +127,43 @@ export function DemographicsOverview({ genderDist, ageDist, topLocations, covera
               <span key={l.name} className="flex items-center gap-1" style={{ fontSize: "0.62rem" }}>
                 <span className="w-2 h-2 rounded-full" style={{ backgroundColor: t.chart[i % t.chart.length] }} />
                 <span style={{ color: "var(--text-muted)" }}>{l.name}</span>
+                <span style={{ fontWeight: 600, color: "var(--text-primary)" }}>{l.pct}%</span>
               </span>
             ))}
           </div>
         </div>
+        {/* States horizontal bar */}
+        {stateDistribution && stateDistribution.length > 0 && (() => {
+          const stateTotal = stateDistribution.reduce((s, st) => s + st.count, 0) || 1;
+          const stateData = stateDistribution.slice(0, 8).map(st => ({
+            name: st.state,
+            value: st.count,
+            pct: Math.round((st.count / stateTotal) * 100),
+          }));
+          return (
+            <div className="text-center">
+              <p style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", marginBottom: 4 }}>{td("overview.states")}</p>
+              <ResponsiveContainer width="100%" height={160}>
+                <BarChart data={stateData} barSize={14} margin={{ left: 0, right: 0, top: 5, bottom: 0 }}>
+                  <XAxis type="category" dataKey="name" tick={{ fontSize: 10, fill: "var(--text-muted)" }} axisLine={false} tickLine={false} />
+                  <YAxis type="number" hide />
+                  <Tooltip
+                    contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.75rem", backgroundColor: t.bgCard }}
+                    formatter={(value: number, _name: string, props: any) => [`${props?.payload?.pct ?? 0}%`, ""]}
+                  />
+                  <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                    {stateData.map((_, i) => (
+                      <Cell key={i} fill={t.chart[i % t.chart.length]} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+              <p style={{ fontSize: "0.62rem", color: "var(--text-faint)", marginTop: 4, textAlign: "center" }}>
+                Baseado em {coverage.enriched} perfis analisados
+              </p>
+            </div>
+          );
+        })()}
       </div>
       {/* Coverage bar */}
       <div className="mt-4 p-3 rounded-xl" style={{ backgroundColor: "var(--bg-subtle)" }}>
@@ -121,6 +176,9 @@ export function DemographicsOverview({ genderDist, ageDist, topLocations, covera
         </div>
         <p className="mt-1" style={{ fontSize: "0.62rem", color: "var(--text-faint)" }}>
           {coverage.enriched} / {coverage.total_commenters} {td("overview.commentersEnriched")}
+        </p>
+        <p style={{ fontSize: "0.62rem", color: "var(--text-faint)", marginTop: 4, textAlign: "center" }}>
+          Baseado em {coverage.enriched} perfis analisados
         </p>
       </div>
     </Section>
@@ -139,15 +197,27 @@ export function SentimentByAge({ data }: SentimentByAgeProps) {
   const { t } = useTheme();
   const td = useTranslations("demographics");
 
+  const chartData = data.map(d => {
+    const total = d.positive + d.neutral + d.negative || 1;
+    return {
+      band: d.band,
+      positive: Math.round((d.positive / total) * 100),
+      neutral: Math.round((d.neutral / total) * 100),
+      negative: Math.round((d.negative / total) * 100),
+      avg_score: d.avg_score,
+      count: d.count,
+    };
+  });
+
   return (
     <Section title={td("sentimentByAge.title")} subtitle={td("sentimentByAge.subtitle")}>
       <ResponsiveContainer width="100%" height={260}>
-        <ComposedChart data={data} barGap={2}>
+        <ComposedChart data={chartData} barGap={2}>
           <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
           <XAxis dataKey="band" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
-          <YAxis yAxisId="left" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
+          <YAxis yAxisId="left" domain={[0, 100]} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} unit="%" />
           <YAxis yAxisId="right" orientation="right" domain={[0, 10]} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
-          <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
+          <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} formatter={(value: number, name: string) => name === "Score" ? value : `${value}%`} />
           <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
           <Bar yAxisId="left" dataKey="positive" name={td("positive")} fill={t.sentimentPositive} stackId="sent" radius={[0, 0, 0, 0]} />
           <Bar yAxisId="left" dataKey="neutral" name={td("neutral")} fill={t.sentimentNeutral} stackId="sent" radius={[0, 0, 0, 0]} />
@@ -155,6 +225,9 @@ export function SentimentByAge({ data }: SentimentByAgeProps) {
           <Line yAxisId="right" type="monotone" dataKey="avg_score" name="Score" stroke={t.primary} strokeWidth={2.5} dot={{ r: 3, fill: t.primary, strokeWidth: 0 }} />
         </ComposedChart>
       </ResponsiveContainer>
+      <p style={{ fontSize: "0.58rem", color: "var(--text-faint)", textAlign: "center", marginTop: 4 }}>
+        Baseado em {data.reduce((s, d) => s + d.count, 0)} comentários analisados
+      </p>
     </Section>
   );
 }
@@ -205,6 +278,9 @@ export function SentimentByGender({ data }: { data: Array<{ gender: string; posi
           </span>
         ))}
       </div>
+      <p style={{ fontSize: "0.58rem", color: "var(--text-faint)", textAlign: "center", marginTop: 8 }}>
+        Baseado em {data.reduce((s, d) => s + d.count, 0)} comentários analisados
+      </p>
     </Section>
   );
 }
@@ -249,6 +325,9 @@ export function EmotionsByGender({ data }: { data: Array<{ gender: string; emoti
           <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.75rem", backgroundColor: t.bgCard }} />
         </RadarChart>
       </ResponsiveContainer>
+      <p style={{ fontSize: "0.58rem", color: "var(--text-faint)", textAlign: "center", marginTop: 4 }}>
+        Baseado em {data.reduce((s, d) => Object.values(d.emotions).reduce((a, b) => a + b, 0) + s, 0)} comentários analisados
+      </p>
     </Section>
   );
 }
@@ -261,8 +340,8 @@ export function DemographicsSummary({ genderDist, ageDist, topLocations, coverag
   const { t } = useTheme();
   const td = useTranslations("demographics");
 
-  const genderData = Object.entries(genderDist).map(([name, value]) => ({ name, value }));
-  const ageData = Object.entries(ageDist).map(([name, value]) => ({ name, value }));
+  const genderData = Object.entries(genderDist).filter(([name]) => VALID_GENDERS.has(name)).map(([name, value]) => ({ name, value }));
+  const ageData = Object.entries(ageDist).filter(([name]) => name in AGE_BAND_COLORS).map(([name, value]) => ({ name, value }));
   const topGender = genderData.length > 0 ? genderData.reduce((a, b) => a.value > b.value ? a : b) : null;
   const topAge = ageData.length > 0 ? ageData.reduce((a, b) => a.value > b.value ? a : b) : null;
   const topCountry = topLocations.length > 0 ? topLocations[0] : null;
@@ -306,7 +385,7 @@ export function DemographicsSummary({ genderDist, ageDist, topLocations, coverag
             </span>
           </div>
           <p style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--text-primary)" }}>
-            {topCountry ? topCountry.country : "-"}
+            {topCountry ? normalizeCountry(topCountry.country) : "-"}
           </p>
           <p style={{ fontSize: "0.58rem", color: "var(--text-faint)" }}>{td("summary.topCountry")}</p>
         </div>
