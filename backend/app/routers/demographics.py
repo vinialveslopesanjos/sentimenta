@@ -37,8 +37,9 @@ def get_demographics_overview(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    _get_connection_or_404(connection_id, current_user, db)
+    conn = _get_connection_or_404(connection_id, current_user, db)
     la = latest_analysis_subquery()
+    platform = conn.platform or "instagram"
 
     # --- Gender distribution ---
     gender_rows = (
@@ -50,12 +51,14 @@ def get_demographics_overview(
         .join(la, la.c.comment_id == Comment.id)
         .filter(
             Comment.connection_id == connection_id,
+            UserEnrichment.platform == platform,
             UserEnrichment.gender_confidence >= 0.5,
         )
         .group_by(UserEnrichment.gender_label)
         .all()
     )
-    gender_distribution = {row[0]: row[1] for row in gender_rows if row[0]}
+    _valid_genders = {'male', 'female', 'business'}
+    gender_distribution = {row[0]: row[1] for row in gender_rows if row[0] and row[0] in _valid_genders}
 
     # --- Age distribution ---
     age_rows = (
@@ -67,6 +70,7 @@ def get_demographics_overview(
         .join(la, la.c.comment_id == Comment.id)
         .filter(
             Comment.connection_id == connection_id,
+            UserEnrichment.platform == platform,
             UserEnrichment.age_confidence >= 0.5,
         )
         .group_by(UserEnrichment.age_band)
@@ -85,6 +89,7 @@ def get_demographics_overview(
         .join(la, la.c.comment_id == Comment.id)
         .filter(
             Comment.connection_id == connection_id,
+            UserEnrichment.platform == platform,
             UserEnrichment.location_country_confidence >= 0.5,
         )
         .group_by(UserEnrichment.location_country, UserEnrichment.location_country_code)
@@ -92,10 +97,19 @@ def get_demographics_overview(
         .limit(10)
         .all()
     )
-    top_locations = [
-        {"country": row[0], "country_code": row[1], "count": row[2]}
-        for row in loc_rows if row[0]
-    ]
+    # Normalize and merge duplicates (e.g. "Brasil" + "Brazil" + "BR")
+    _loc_merged: dict[str, dict] = {}
+    for row in loc_rows:
+        if not row[0]:
+            continue
+        country = "Brasil" if (row[1] or "").upper() == "BR" or (row[0] or "").upper() in ("BRASIL", "BRAZIL") else row[0]
+        code = row[1] or ""
+        key = country.upper()
+        if key in _loc_merged:
+            _loc_merged[key]["count"] += row[2]
+        else:
+            _loc_merged[key] = {"country": country, "country_code": code, "count": row[2]}
+    top_locations = sorted(_loc_merged.values(), key=lambda x: x["count"], reverse=True)[:10]
 
     # --- Enrichment coverage ---
     total_commenters = (
@@ -109,16 +123,42 @@ def get_demographics_overview(
         db.query(func.count(func.distinct(Comment.author_username)))
         .join(la, la.c.comment_id == Comment.id)
         .join(UserEnrichment, UserEnrichment.username == Comment.author_username)
-        .filter(Comment.connection_id == connection_id)
+        .filter(
+            Comment.connection_id == connection_id,
+            UserEnrichment.platform == platform,
+        )
         .scalar()
     ) or 0
 
     coverage_pct = round((enriched / total_commenters * 100), 1) if total_commenters > 0 else 0.0
 
+    # --- State distribution (top 10 states) ---
+    state_rows = (
+        db.query(
+            UserEnrichment.location_state,
+            func.count(func.distinct(UserEnrichment.username)),
+        )
+        .join(Comment, Comment.author_username == UserEnrichment.username)
+        .join(la, la.c.comment_id == Comment.id)
+        .filter(
+            Comment.connection_id == connection_id,
+            UserEnrichment.platform == platform,
+            UserEnrichment.location_state_confidence >= 0.5,
+            UserEnrichment.location_state.isnot(None),
+            UserEnrichment.location_state != "",
+        )
+        .group_by(UserEnrichment.location_state)
+        .order_by(func.count(func.distinct(UserEnrichment.username)).desc())
+        .limit(10)
+        .all()
+    )
+    state_distribution = [{"state": row[0], "count": row[1]} for row in state_rows if row[0]]
+
     return {
         "gender_distribution": gender_distribution,
         "age_distribution": age_distribution,
         "top_locations": top_locations,
+        "state_distribution": state_distribution,
         "enrichment_coverage": {
             "total_commenters": total_commenters,
             "enriched": enriched,
@@ -435,7 +475,8 @@ def get_demographics_overview_global(
         .group_by(UserEnrichment.gender_label)
         .all()
     )
-    gender_distribution = {row[0]: row[1] for row in gender_rows if row[0]}
+    _valid_genders = {'male', 'female', 'business'}
+    gender_distribution = {row[0]: row[1] for row in gender_rows if row[0] and row[0] in _valid_genders}
 
     # --- Age distribution ---
     age_rows = (
@@ -472,10 +513,19 @@ def get_demographics_overview_global(
         .limit(10)
         .all()
     )
-    top_locations = [
-        {"country": row[0], "country_code": row[1], "count": row[2]}
-        for row in loc_rows if row[0]
-    ]
+    # Normalize and merge duplicates (e.g. "Brasil" + "Brazil" + "BR")
+    _loc_merged: dict[str, dict] = {}
+    for row in loc_rows:
+        if not row[0]:
+            continue
+        country = "Brasil" if (row[1] or "").upper() == "BR" or (row[0] or "").upper() in ("BRASIL", "BRAZIL") else row[0]
+        code = row[1] or ""
+        key = country.upper()
+        if key in _loc_merged:
+            _loc_merged[key]["count"] += row[2]
+        else:
+            _loc_merged[key] = {"country": country, "country_code": code, "count": row[2]}
+    top_locations = sorted(_loc_merged.values(), key=lambda x: x["count"], reverse=True)[:10]
 
     # --- Enrichment coverage ---
     total_commenters = (
@@ -495,10 +545,32 @@ def get_demographics_overview_global(
 
     coverage_pct = round((enriched / total_commenters * 100), 1) if total_commenters > 0 else 0.0
 
+    # --- State distribution (top 10 states) ---
+    state_rows = (
+        db.query(
+            UserEnrichment.location_state,
+            func.count(func.distinct(UserEnrichment.username)),
+        )
+        .join(Comment, Comment.author_username == UserEnrichment.username)
+        .join(la, la.c.comment_id == Comment.id)
+        .filter(
+            Comment.connection_id.in_(conn_ids),
+            UserEnrichment.location_state_confidence >= 0.5,
+            UserEnrichment.location_state.isnot(None),
+            UserEnrichment.location_state != "",
+        )
+        .group_by(UserEnrichment.location_state)
+        .order_by(func.count(func.distinct(UserEnrichment.username)).desc())
+        .limit(10)
+        .all()
+    )
+    state_distribution = [{"state": row[0], "count": row[1]} for row in state_rows if row[0]]
+
     return {
         "gender_distribution": gender_distribution,
         "age_distribution": age_distribution,
         "top_locations": top_locations,
+        "state_distribution": state_distribution,
         "enrichment_coverage": {
             "total_commenters": total_commenters,
             "enriched": enriched,

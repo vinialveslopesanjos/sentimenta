@@ -788,8 +788,9 @@
       },
       "tiktok": {
         "name": "TikTok",
-        "desc": "Connect via OAuth (Login Kit)",
-        "button": "Connect via OAuth"
+        "desc": "Sentiment analysis for your TikTok videos",
+        "placeholder": "@username",
+        "button": "Verify profile"
       }
     },
     "verifying": "Verifying...",
@@ -1038,6 +1039,7 @@
       "gender": "Gender",
       "age": "Age Range",
       "locations": "Location",
+      "states": "States",
       "coverage": "Coverage",
       "commentersEnriched": "commenters enriched"
     },

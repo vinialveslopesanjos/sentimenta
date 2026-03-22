@@ -1,9 +1,9 @@
 """
 Instagram data ingestion service — incremental + parallel.
 
-Smart sync: compares DB state vs XPoz catalog, only fetches what's missing.
-Comments fetched in parallel (ThreadPoolExecutor, 3 workers).
-Apify enrichment only for posts missing likes/views/thumbnails.
+Smart sync: compares DB state vs Apify catalog, only fetches what's missing.
+Comments fetched via Apify comment actor (parallel workers).
+Apify enrichment for posts missing likes/views/thumbnails.
 """
 
 import hashlib
@@ -20,11 +20,6 @@ from app.models.post import Post
 from app.models.social_connection import SocialConnection
 from app.models.user import User
 from app.services.media_cache_service import cache_remote_image, cache_image_stable
-from app.services.instagram_scrape_service import (
-    fetch_post_comments,
-    fetch_recent_posts,
-    fetch_post_thumbnail,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +102,7 @@ def ingest_instagram_profile(
     step_callback=None,
     use_apify_comments: bool = True,
     comment_sample_mode: str = "all",
+    mode: str = "full",
 ) -> dict:
     """
     Apify-first ingestion from Instagram.
@@ -129,6 +125,15 @@ def ingest_instagram_profile(
     }
 
     try:
+        # ── Daily mode: only check last 5 posts ───────────────────────
+        if mode == "daily":
+            return _ingest_instagram_daily(
+                db, connection, max_comments_per_post=max_comments_per_post,
+                progress_callback=progress_callback, step_callback=_step,
+                use_apify_comments=use_apify_comments,
+                comment_sample_mode=comment_sample_mode,
+            )
+
         # ── Phase 1: Fetch post catalog from Apify ─────────────────────
         _step("Buscando catálogo de posts via Apify...")
         user_plan = db.query(User.plan).filter(User.id == connection.user_id).scalar() or "free"
@@ -181,7 +186,7 @@ def ingest_instagram_profile(
                     existing.content_clean = caption
                 existing.post_type = post_data.get("post_type") or existing.post_type
                 existing.like_count = post_data.get("like_count", 0) or existing.like_count
-                existing.comment_count = post_data.get("comment_count", 0) or existing.comment_count
+                existing.comment_count_api = post_data.get("comment_count", 0) or existing.comment_count_api
                 existing.view_count = post_data.get("view_count", 0) or existing.view_count
                 existing.published_at = _parse_timestamp(post_data.get("timestamp")) or existing.published_at
                 existing.post_url = post_data.get("permalink") or existing.post_url
@@ -231,7 +236,8 @@ def ingest_instagram_profile(
                     content_clean=post_data.get("caption") or "",
                     media_urls={"url": media_url, "thumbnail_url": media_url} if media_url else None,
                     like_count=_likes,
-                    comment_count=_comments,
+                    comment_count=0,
+                    comment_count_api=_comments,
                     view_count=post_data.get("view_count", 0) or 0,
                     engagement_rate=_calc_engagement_rate(_likes, _comments, _shares, followers),
                     published_at=_parse_timestamp(post_data.get("timestamp")),
@@ -342,10 +348,13 @@ def _fetch_comments_parallel(
     _step = step_callback or (lambda msg: None)
 
     def _fetch_one(post_data):
-        """Thread worker: only XPoz call, no DB access."""
+        """Thread worker: no DB access."""
         pid = post_data["platform_post_id"]
         try:
-            comments = fetch_post_comments(pid, max_comments=max_comments)
+            from app.services.apify_service import fetch_comments_apify
+            url = post_data.get("permalink") or f"https://www.instagram.com/p/{pid}/"
+            result = fetch_comments_apify([url], max_per_post=max_comments)
+            comments = result.get(url, [])
             return (pid, comments, None)
         except Exception as e:
             return (pid, [], str(e))
@@ -596,7 +605,7 @@ def _enrich_via_apify(db, connection_id, platform_post_ids, followers, step_call
                 post.like_count = data["like_count"]
                 changed = True
             if data.get("comment_count"):
-                post.comment_count = data["comment_count"]
+                post.comment_count_api = data["comment_count"]
                 changed = True
             if data.get("view_count"):
                 post.view_count = data["view_count"]
@@ -641,12 +650,13 @@ def ingest_instagram_via_graph_api(
     is_incremental: bool = False,
     progress_callback=None,
     step_callback=None,
+    mode: str = "full",
 ) -> dict:
     """
     Ingest Instagram data using the official Graph API (OAuth token required).
 
     This is the preferred path when the connection has a valid OAuth token.
-    No XPoz or Apify needed — all data comes from Instagram's official API.
+    No Apify needed — all data comes from Instagram's official API.
     """
     import asyncio
     from app.core.security import decrypt_token
@@ -665,6 +675,13 @@ def ingest_instagram_via_graph_api(
     }
 
     try:
+        # ── Daily mode: only check last 5 posts ───────────────────────
+        if mode == "daily":
+            return _ingest_instagram_graph_daily(
+                db, connection, max_comments_per_post=max_comments_per_post,
+                progress_callback=progress_callback, step_callback=_step,
+            )
+
         access_token = decrypt_token(connection.access_token_enc)
         platform_user_id = connection.platform_user_id
         user_plan = db.query(User.plan).filter(User.id == connection.user_id).scalar() or "free"
@@ -723,7 +740,7 @@ def ingest_instagram_via_graph_api(
                 existing.content_clean = pd.get("caption") or existing.content_clean
                 existing.post_type = post_type
                 existing.like_count = pd.get("like_count", 0) or existing.like_count
-                existing.comment_count = pd.get("comments_count", 0) or existing.comment_count
+                existing.comment_count_api = pd.get("comments_count", 0) or existing.comment_count_api
                 existing.post_url = pd.get("permalink") or existing.post_url
                 if pd.get("media_url"):
                     existing.media_urls = {
@@ -771,7 +788,8 @@ def ingest_instagram_via_graph_api(
                         "thumbnail_url": pd.get("thumbnail_url") or media_url,
                     } if media_url else None,
                     like_count=_likes,
-                    comment_count=_comments,
+                    comment_count=0,
+                    comment_count_api=_comments,
                     view_count=0,
                     engagement_rate=_calc_engagement_rate(_likes, _comments, 0, followers),
                     published_at=_parse_timestamp(pd.get("timestamp")),
@@ -933,3 +951,338 @@ def _sync_comment_counts(db, connection_id):
     for post_id, count in post_counts:
         db.query(Post).filter(Post.id == post_id).update({"comment_count": count})
     db.commit()
+
+
+def _ingest_instagram_daily(
+    db: Session,
+    connection: SocialConnection,
+    max_comments_per_post: int = 100,
+    progress_callback=None,
+    step_callback=None,
+    use_apify_comments: bool = True,
+    comment_sample_mode: str = "all",
+) -> dict:
+    """Daily mode for Apify-based Instagram ingestion.
+
+    Instead of fetching all posts, only checks the 5 most recent posts in DB:
+    - Fetches latest posts from Apify to detect brand new posts
+    - For existing posts, only fetches comments where API count > scraped count
+    """
+    _step = step_callback or (lambda msg: None)
+    username = connection.username
+    followers = connection.followers_count or 0
+
+    stats = {
+        "posts_fetched": 0,
+        "posts_updated": 0,
+        "comments_fetched": 0,
+        "comments_updated": 0,
+        "errors": [],
+    }
+
+    try:
+        _step("Daily mode: verificando últimos 5 posts...")
+
+        # Get last 5 posts from DB
+        recent_posts = (
+            db.query(Post)
+            .filter(Post.connection_id == connection.id, Post.platform == "instagram")
+            .order_by(Post.published_at.desc())
+            .limit(5)
+            .all()
+        )
+        recent_post_ids = {p.platform_post_id for p in recent_posts}
+
+        # Fetch latest posts from Apify to detect new ones
+        from app.services.apify_service import fetch_posts_apify
+        posts_data = fetch_posts_apify(username, max_posts=10, step_callback=_step)
+
+        if not posts_data:
+            _step("Nenhum post encontrado via Apify")
+            return stats
+
+        # Separate new posts from existing ones
+        posts_need_comments = []
+        comment_counts = dict(
+            db.query(Comment.post_id, func.count(Comment.id))
+            .filter(Comment.connection_id == connection.id)
+            .group_by(Comment.post_id)
+            .all()
+        )
+
+        for post_data in posts_data:
+            pid = post_data["platform_post_id"]
+
+            if pid in recent_post_ids:
+                # Existing post — check if comment count increased
+                existing = next((p for p in recent_posts if p.platform_post_id == pid), None)
+                if not existing:
+                    continue
+
+                apify_comment_count = post_data.get("comment_count", 0) or 0
+                # Update API count
+                existing.comment_count_api = apify_comment_count
+                existing.like_count = post_data.get("like_count", 0) or existing.like_count
+                existing.view_count = post_data.get("view_count", 0) or existing.view_count
+                existing.fetched_at = datetime.now(timezone.utc)
+                stats["posts_updated"] += 1
+
+                db_count = comment_counts.get(existing.id, 0)
+                if apify_comment_count > db_count:
+                    posts_need_comments.append((post_data, existing))
+                    _step(f"Post {pid}: API={apify_comment_count} > DB={db_count}, buscando novos comentários")
+            else:
+                # Brand new post — check if it's newer than our newest
+                post_timestamp = _parse_timestamp(post_data.get("timestamp"))
+                newest_date = max((p.published_at for p in recent_posts if p.published_at), default=None) if recent_posts else None
+                if newest_date and post_timestamp and post_timestamp < newest_date:
+                    continue  # Old post we didn't have, skip in daily mode
+
+                media_url = post_data.get("media_url")
+                _likes = post_data.get("like_count", 0) or 0
+                _comments = post_data.get("comment_count", 0) or 0
+                post = Post(
+                    connection_id=connection.id,
+                    platform="instagram",
+                    platform_post_id=pid,
+                    post_type=post_data.get("post_type"),
+                    content_text=post_data.get("caption") or "",
+                    content_clean=post_data.get("caption") or "",
+                    media_urls={"url": media_url, "thumbnail_url": media_url} if media_url else None,
+                    like_count=_likes,
+                    comment_count=0,
+                    comment_count_api=_comments,
+                    view_count=post_data.get("view_count", 0) or 0,
+                    engagement_rate=_calc_engagement_rate(_likes, _comments, 0, followers),
+                    published_at=_parse_timestamp(post_data.get("timestamp")),
+                    post_url=post_data.get("permalink"),
+                    raw_payload=post_data,
+                    fetched_at=datetime.now(timezone.utc),
+                )
+                db.add(post)
+                db.flush()
+                stats["posts_fetched"] += 1
+                posts_need_comments.append((post_data, post))
+                _step(f"Novo post encontrado: {pid}")
+                if media_url:
+                    cache_image_stable(media_url, pid)
+
+        db.commit()
+
+        # Fetch comments for posts that need them
+        if posts_need_comments:
+            user_plan = db.query(User.plan).filter(User.id == connection.user_id).scalar() or "free"
+            total_comment_budget = max_comments_per_post if user_plan == "free" else None
+            _step(f"Buscando comentários para {len(posts_need_comments)} posts...")
+            _fetch_comments_apify_path(
+                db, connection, posts_need_comments,
+                max_comments=max_comments_per_post,
+                total_comments_cap=total_comment_budget,
+                sample_mode=comment_sample_mode,
+                stats=stats,
+                step_callback=_step,
+                progress_callback=progress_callback,
+            )
+            db.commit()
+
+        _sync_comment_counts(db, connection.id)
+        connection.last_sync_at = datetime.now(timezone.utc)
+        db.commit()
+
+        _step(f"Daily sync: {stats['posts_fetched']} novos, {stats['posts_updated']} atualizados, {stats['comments_fetched']} comentários")
+        logger.info("Instagram daily sync @%s: %s", username, stats)
+
+    except Exception as exc:
+        logger.error("Instagram daily ingestion failed for @%s: %s", username, exc)
+        stats["errors"].append(str(exc))
+        db.rollback()
+
+    return stats
+
+
+def _ingest_instagram_graph_daily(
+    db: Session,
+    connection: SocialConnection,
+    max_comments_per_post: int = 100,
+    progress_callback=None,
+    step_callback=None,
+) -> dict:
+    """Daily mode for Graph API-based Instagram ingestion.
+
+    Only checks the 5 most recent posts in DB, fetches new comments where count increased.
+    """
+    import asyncio
+    from app.core.security import decrypt_token
+    from app.services.instagram_service import fetch_user_posts, fetch_post_comments as graph_fetch_comments
+
+    _step = step_callback or (lambda msg: None)
+    username = connection.username
+    followers = connection.followers_count or 0
+
+    stats = {
+        "posts_fetched": 0,
+        "posts_updated": 0,
+        "comments_fetched": 0,
+        "comments_updated": 0,
+        "errors": [],
+    }
+
+    try:
+        access_token = decrypt_token(connection.access_token_enc)
+        platform_user_id = connection.platform_user_id
+
+        _step("Daily mode (Graph API): verificando últimos 5 posts...")
+
+        # Get last 5 posts from DB
+        recent_posts = (
+            db.query(Post)
+            .filter(Post.connection_id == connection.id, Post.platform == "instagram")
+            .order_by(Post.published_at.desc())
+            .limit(5)
+            .all()
+        )
+        recent_post_map = {p.platform_post_id: p for p in recent_posts}
+
+        # Fetch latest posts from Graph API
+        loop = asyncio.new_event_loop()
+        try:
+            posts_data = loop.run_until_complete(
+                fetch_user_posts(access_token, platform_user_id, limit=10)
+            )
+        finally:
+            loop.close()
+
+        comment_counts = dict(
+            db.query(Comment.post_id, func.count(Comment.id))
+            .filter(Comment.connection_id == connection.id)
+            .group_by(Comment.post_id)
+            .all()
+        )
+
+        posts_need_comments = []
+
+        for pd in posts_data:
+            pid = pd["platform_post_id"]
+            api_comment_count = pd.get("comments_count", 0) or 0
+
+            if pid in recent_post_map:
+                existing = recent_post_map[pid]
+                existing.comment_count_api = api_comment_count
+                existing.like_count = pd.get("like_count", 0) or existing.like_count
+                existing.fetched_at = datetime.now(timezone.utc)
+                stats["posts_updated"] += 1
+
+                db_count = comment_counts.get(existing.id, 0)
+                if api_comment_count > db_count:
+                    posts_need_comments.append((pid, existing))
+                    _step(f"Post {pid}: API={api_comment_count} > DB={db_count}")
+            else:
+                # Brand new post
+                newest_date = max((p.published_at for p in recent_posts if p.published_at), default=None) if recent_posts else None
+                post_timestamp = _parse_timestamp(pd.get("timestamp"))
+                if newest_date and post_timestamp and post_timestamp < newest_date:
+                    continue
+
+                media_type = pd.get("media_type", "IMAGE")
+                post_type = "video" if media_type in ("VIDEO", "REELS") else "carousel" if media_type == "CAROUSEL_ALBUM" else "image"
+                media_url = pd.get("media_url")
+                _likes = pd.get("like_count", 0) or 0
+                _comments = api_comment_count
+
+                post = Post(
+                    connection_id=connection.id,
+                    platform="instagram",
+                    platform_post_id=pid,
+                    post_type=post_type,
+                    content_text=pd.get("caption") or "",
+                    content_clean=pd.get("caption") or "",
+                    media_urls={
+                        "url": media_url,
+                        "thumbnail_url": pd.get("thumbnail_url") or media_url,
+                    } if media_url else None,
+                    like_count=_likes,
+                    comment_count=0,
+                    comment_count_api=_comments,
+                    view_count=0,
+                    engagement_rate=_calc_engagement_rate(_likes, _comments, 0, followers),
+                    published_at=post_timestamp,
+                    post_url=pd.get("permalink"),
+                    raw_payload=pd,
+                    fetched_at=datetime.now(timezone.utc),
+                )
+                db.add(post)
+                db.flush()
+                stats["posts_fetched"] += 1
+                posts_need_comments.append((pid, post))
+                _step(f"Novo post encontrado: {pid}")
+
+        db.commit()
+
+        # Fetch comments via Graph API for posts that need them
+        if posts_need_comments:
+            _step(f"Buscando comentários para {len(posts_need_comments)} posts via Graph API...")
+            for idx, (pid, post_obj) in enumerate(posts_need_comments, 1):
+                try:
+                    loop = asyncio.new_event_loop()
+                    try:
+                        comments_data = loop.run_until_complete(
+                            graph_fetch_comments(access_token, pid, limit=max_comments_per_post)
+                        )
+                    finally:
+                        loop.close()
+
+                    existing_ids = set(
+                        row[0] for row in
+                        db.query(Comment.platform_comment_id)
+                        .filter(Comment.post_id == post_obj.id)
+                        .all()
+                    )
+
+                    new_count = 0
+                    for cd in comments_data:
+                        cid = str(cd.get("platform_comment_id", "")).strip()
+                        if not cid or cid in existing_ids:
+                            continue
+                        text_original = (cd.get("text") or "").strip()
+                        if not text_original:
+                            continue
+                        text_hash = hashlib.sha256(text_original.encode("utf-8")).hexdigest()
+                        comment = Comment(
+                            post_id=post_obj.id,
+                            connection_id=connection.id,
+                            platform="instagram",
+                            platform_comment_id=cid,
+                            source_type="comment",
+                            author_username=cd.get("username"),
+                            author_name=cd.get("username"),
+                            like_count=cd.get("like_count", 0) or 0,
+                            published_at=_parse_timestamp(cd.get("timestamp")) or post_obj.published_at,
+                            text_original=text_original,
+                            text_clean=text_original,
+                            text_hash=text_hash,
+                            status="pending",
+                            raw_payload=cd,
+                        )
+                        db.add(comment)
+                        new_count += 1
+                        stats["comments_fetched"] += 1
+
+                    db.commit()
+                    _step(f"Post {idx}/{len(posts_need_comments)}: {new_count} comentários novos")
+                except Exception as e:
+                    logger.error("Graph API daily comments error for post %s: %s", pid, e)
+                    stats["errors"].append(f"Comments {pid}: {e}")
+
+        _sync_comment_counts(db, connection.id)
+        connection.last_sync_at = datetime.now(timezone.utc)
+        db.commit()
+
+        _step(f"Daily sync (Graph API): {stats['posts_fetched']} novos, {stats['posts_updated']} atualizados, {stats['comments_fetched']} comentários")
+        logger.info("Instagram Graph API daily sync @%s: %s", username, stats)
+
+    except Exception as exc:
+        logger.error("Instagram Graph API daily ingestion failed for @%s: %s", username, exc)
+        stats["errors"].append(str(exc))
+        db.rollback()
+
+    return stats

@@ -10,9 +10,9 @@ interface SentimentBarProps {
 
 export function SentimentBar({ positive, neutral, negative, height = 8, showLabels = false }: SentimentBarProps) {
   const total = positive + neutral + negative;
-  const pPct = Math.round((positive / total) * 100);
-  const nPct = Math.round((neutral / total) * 100);
-  const negPct = 100 - pPct - nPct;
+  const pPct = total > 0 ? Math.round((positive / total) * 100) : 0;
+  const nPct = total > 0 ? Math.round((neutral / total) * 100) : 0;
+  const negPct = total > 0 ? 100 - pPct - nPct : 0;
 
   return (
     <div>

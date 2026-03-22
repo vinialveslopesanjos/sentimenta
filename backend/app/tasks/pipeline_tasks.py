@@ -68,11 +68,18 @@ def _run_async(coro):
         loop.close()
 
 
-def _do_ingest(db, connection, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None, is_incremental: bool = False, progress_callback=None, step_callback=None, use_apify_comments: bool = False, comment_sample_mode: str = "all") -> dict:
+def _do_ingest(db, connection, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None, is_incremental: bool = False, mode: str = "full", progress_callback=None, step_callback=None, use_apify_comments: bool = False, comment_sample_mode: str = "all") -> dict:
     """Core ingest logic without creating a PipelineRun. Used by both task_ingest and task_full_pipeline."""
     if connection.platform == "youtube":
         from app.services.youtube_service import ingest_youtube_channel
-        return _run_async(ingest_youtube_channel(db, connection.id, max_comments=max_comments_per_post))
+        return _run_async(ingest_youtube_channel(
+            db, connection.id,
+            max_posts=max_posts,
+            max_comments_per_post=max_comments_per_post,
+            mode=mode,
+            progress_callback=progress_callback,
+            step_callback=step_callback,
+        ))
     elif connection.platform == "instagram":
         from datetime import date as date_type
         since = date_type.fromisoformat(since_date) if since_date else None
@@ -81,14 +88,17 @@ def _do_ingest(db, connection, max_posts: int = 10, max_comments_per_post: int =
         if connection.has_oauth_token:
             from app.services.instagram_ingest_service import ingest_instagram_via_graph_api
             logger.info("Using Graph API for @%s (OAuth token present)", connection.username)
-            return ingest_instagram_via_graph_api(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since, is_incremental=is_incremental, progress_callback=progress_callback, step_callback=step_callback)
+            return ingest_instagram_via_graph_api(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since, is_incremental=is_incremental, mode=mode, progress_callback=progress_callback, step_callback=step_callback)
         else:
             from app.services.instagram_ingest_service import ingest_instagram_profile
             logger.info("Using Apify for @%s (no OAuth token)", connection.username)
-            return ingest_instagram_profile(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since, is_incremental=is_incremental, progress_callback=progress_callback, step_callback=step_callback, use_apify_comments=use_apify_comments, comment_sample_mode=comment_sample_mode)
+            return ingest_instagram_profile(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since, is_incremental=is_incremental, mode=mode, progress_callback=progress_callback, step_callback=step_callback, use_apify_comments=use_apify_comments, comment_sample_mode=comment_sample_mode)
     elif connection.platform == "twitter":
-        from app.services.twitter_service import ingest_twitter_profile
-        return ingest_twitter_profile(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post)
+        logger.info("Twitter disabled for sync — skipping @%s", connection.username)
+        return {"posts_fetched": 0, "comments_fetched": 0, "skipped": "twitter_disabled"}
+    elif connection.platform == "tiktok":
+        from app.services.tiktok_ingest_service import ingest_tiktok_profile
+        return ingest_tiktok_profile(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, mode=mode, progress_callback=progress_callback, step_callback=step_callback)
     else:
         return {"error": f"Unsupported platform: {connection.platform}"}
 
@@ -361,7 +371,7 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
             _append_step(db, run, msg)
 
         _append_step(db, run, "Iniciando extração de dados...")
-        ingest_result = _do_ingest(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since_date, progress_callback=update_progress, step_callback=step_cb, use_apify_comments=use_apify_comments, comment_sample_mode=comment_sample_mode)
+        ingest_result = _do_ingest(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since_date, mode="full", progress_callback=update_progress, step_callback=step_cb, use_apify_comments=use_apify_comments, comment_sample_mode=comment_sample_mode)
         if "error" in ingest_result:
             run.status = "failed"
             _append_step(db, run, f"Erro: {ingest_result['error']}")
@@ -373,6 +383,21 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         run.comments_fetched = ingest_result.get("comments_fetched", 0)
         run.target_comments = run.comments_fetched
         _append_step(db, run, f"Extração concluída: {run.posts_fetched} posts, {run.comments_fetched} comentários")
+
+        # Log usage per platform (Fase 4)
+        try:
+            from app.services.plan_service import log_usage
+            log_usage(
+                db,
+                user_id=user_uuid,
+                connection_id=conn_uuid,
+                platform=connection.platform or "instagram",
+                operation="ingest",
+                posts_count=run.posts_fetched,
+                comments_count=run.comments_fetched,
+            )
+        except Exception as usage_exc:
+            logger.warning("Failed to log usage for full_pipeline: %s", usage_exc)
 
         # Step 2: Analyze each post
         posts = (
@@ -412,25 +437,15 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
             _append_step(db, run, f"Analisado post {idx}/{total_posts}: {analyzed_count} comentários processados")
             logger.info(f"Post {idx}/{total_posts} done. Total analyzed: {total_analyzed}")
 
-        # Sync comment counts from actual DB data
-        from app.models.comment import Comment
-        from sqlalchemy import func
-        post_counts = (
-            db.query(Post.id, func.count(Comment.id))
-            .join(Comment, Comment.post_id == Post.id)
-            .filter(Post.connection_id == conn_uuid)
-            .group_by(Post.id)
-            .all()
-        )
-        for post_id, count in post_counts:
-            db.query(Post).filter(Post.id == post_id).update({"comment_count": count})
         db.commit()
-        _append_step(db, run, f"Contagem de comentários atualizada para {len(post_counts)} posts")
 
         # Stage 3: Demographics (disabled by default)
         try:
             from app.services.demographics_service import run_demographics_pipeline
-            demo_result = run_demographics_pipeline(db, conn_uuid, enabled=True)
+            demo_result = run_demographics_pipeline(
+                db, conn_uuid, enabled=True,
+                platform=connection.platform or "instagram",
+            )
             if not demo_result.get("skipped"):
                 _append_step(db, run, f"Demographics: {demo_result.get('profiles_enriched', 0)} perfis enriquecidos")
         except Exception as e:
@@ -510,6 +525,11 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
             .filter(SocialConnection.status == "active")
             .all()
         )
+
+        # Prioritize by cost: youtube (free API) > twitter (cheap) > tiktok > instagram (most expensive)
+        PLATFORM_PRIORITY = {"youtube": 0, "twitter": 1, "tiktok": 2, "instagram": 3}
+        connections.sort(key=lambda c: PLATFORM_PRIORITY.get(c.platform, 99))
+
         results = {}
         for conn in connections:
             run = None
@@ -547,7 +567,8 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                         results[conn.username] = {"skipped": "frequency_mismatch"}
                         continue
 
-                logger.info("Weekly sync starting for @%s (%s)", conn.username, conn.platform)
+                logger.info("Daily sync starting for @%s [platform=%s, priority=%d]",
+                            conn.username, conn.platform, PLATFORM_PRIORITY.get(conn.platform, 99))
 
                 # Check for concurrent running pipeline
                 active_run = db.query(PipelineRun).filter(
@@ -584,7 +605,7 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
 
                 # Use plan limits for max_posts
                 plan_limits = get_plan_limits(user.plan) if user else get_plan_limits("free")
-                max_posts = plan_limits["max_posts_per_sync"]
+                max_posts = 5  # Daily sync: only check last 5 posts for new comments
                 max_comments = plan_limits["max_comments_per_post"]
 
                 # Use last_sync_at to only fetch new posts since last sync
@@ -601,6 +622,7 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                     max_comments_per_post=max_comments,
                     since_date=since_date,
                     is_incremental=True,
+                    mode="daily",
                     progress_callback=progress_cb,
                     step_callback=step_cb,
                 )
@@ -615,6 +637,21 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
 
                 run.posts_fetched = ingest_result.get("posts_fetched", 0) + ingest_result.get("posts_updated", 0)
                 run.comments_fetched = ingest_result.get("comments_fetched", 0) + ingest_result.get("comments_updated", 0)
+
+                # Log usage per platform (Fase 4)
+                try:
+                    from app.services.plan_service import log_usage
+                    log_usage(
+                        db,
+                        user_id=conn.user_id,
+                        connection_id=conn.id,
+                        platform=conn.platform or "instagram",
+                        operation="daily_sync",
+                        posts_count=run.posts_fetched,
+                        comments_count=run.comments_fetched,
+                    )
+                except Exception as usage_exc:
+                    logger.warning("Failed to log usage for daily_sync @%s: %s", conn.username, usage_exc)
 
                 # Analyze new pending comments
                 from app.services.analysis_service import analyze_post_comments, generate_post_summary
@@ -631,7 +668,10 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 # Stage 3: Demographics (disabled by default)
                 try:
                     from app.services.demographics_service import run_demographics_pipeline
-                    demo_result = run_demographics_pipeline(db, conn.id, enabled=True)
+                    demo_result = run_demographics_pipeline(
+                        db, conn.id, enabled=True,
+                        platform=conn.platform or "instagram",
+                    )
                     if demo_result.get("skipped"):
                         _append_step(db, run, "Demographics: desativado")
                     else:
@@ -639,18 +679,6 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 except Exception as e:
                     logger.warning("Demographics pipeline error: %s", e)
 
-                # Sync comment counts
-                from app.models.comment import Comment
-                from sqlalchemy import func
-                post_counts = (
-                    db.query(Post.id, func.count(Comment.id))
-                    .join(Comment, Comment.post_id == Post.id)
-                    .filter(Post.connection_id == conn.id)
-                    .group_by(Post.id)
-                    .all()
-                )
-                for post_id, count in post_counts:
-                    db.query(Post).filter(Post.id == post_id).update({"comment_count": count})
                 db.commit()
 
                 run.comments_analyzed = total_analyzed
@@ -794,7 +822,7 @@ def task_daily_follower_snapshots(self) -> dict:
         errors = 0
         for idx, conn in enumerate(connections):
             try:
-                # Refresh profile info first for Instagram (with 30s timeout)
+                # Refresh profile info first (with 30s timeout)
                 if conn.platform == "instagram":
                     from app.services.instagram_connection_service import discover_profile_info
 
@@ -814,6 +842,70 @@ def task_daily_follower_snapshots(self) -> dict:
                         logger.warning("Timeout (30s) fetching profile for @%s — skipping refresh", conn.username)
                     except Exception as prof_exc:
                         logger.warning("Profile refresh failed for @%s: %s — using cached values", conn.username, prof_exc)
+
+                elif conn.platform == "twitter":
+                    from app.services.twitter_service import get_twitter_profile
+
+                    try:
+                        with ThreadPoolExecutor(max_workers=1) as executor:
+                            future = executor.submit(get_twitter_profile, conn.username)
+                            prof = future.result(timeout=60)
+                        if prof:
+                            conn.followers_count = prof.get("followers_count", 0)
+                            conn.following_count = prof.get("following_count", 0)
+                            conn.media_count = prof.get("tweets_count", 0)
+                            db.commit()
+                    except FuturesTimeoutError:
+                        logger.warning("Timeout (60s) fetching Twitter profile for @%s — skipping refresh", conn.username)
+                    except Exception as prof_exc:
+                        logger.warning("Twitter profile refresh failed for @%s: %s — using cached values", conn.username, prof_exc)
+
+                elif conn.platform == "youtube":
+                    from app.services.youtube_service import discover_channel_info
+
+                    try:
+                        channel_input = conn.platform_user_id or conn.username
+                        with ThreadPoolExecutor(max_workers=1) as executor:
+                            future = executor.submit(discover_channel_info, channel_input)
+                            info = future.result(timeout=30)
+                        if info:
+                            subscriber_count = info.get("subscriber_count", 0)
+                            if subscriber_count:
+                                conn.followers_count = subscriber_count
+                                db.commit()
+                                logger.info("YouTube @%s subscriber count updated: %d", conn.username, subscriber_count)
+                    except FuturesTimeoutError:
+                        logger.warning("Timeout (30s) fetching YouTube channel info for @%s — skipping refresh", conn.username)
+                    except Exception as prof_exc:
+                        logger.warning("YouTube channel info refresh failed for @%s: %s — using cached values", conn.username, prof_exc)
+
+                elif conn.platform == "tiktok":
+                    # TikTok: use OAuth token if available, otherwise skip (Apify scraping is too expensive for daily snapshots)
+                    if conn.access_token_enc:
+                        from app.services.tiktok_service import fetch_user_profile
+                        from app.core.security import decrypt_token
+
+                        try:
+                            access_token = decrypt_token(conn.access_token_enc)
+
+                            def _fetch_tiktok_profile(token):
+                                return _run_async(fetch_user_profile(token))
+
+                            with ThreadPoolExecutor(max_workers=1) as executor:
+                                future = executor.submit(_fetch_tiktok_profile, access_token)
+                                user_data = future.result(timeout=30)
+                            if user_data:
+                                conn.followers_count = user_data.get("follower_count", 0)
+                                conn.following_count = user_data.get("following_count", 0)
+                                conn.media_count = user_data.get("video_count", 0)
+                                db.commit()
+                                logger.info("TikTok @%s follower count updated: %d", conn.username, conn.followers_count)
+                        except FuturesTimeoutError:
+                            logger.warning("Timeout (30s) fetching TikTok profile for @%s — skipping refresh", conn.username)
+                        except Exception as prof_exc:
+                            logger.warning("TikTok profile refresh failed for @%s: %s — using cached values", conn.username, prof_exc)
+                    else:
+                        logger.info("TikTok @%s has no OAuth token — skipping follower refresh (using cached values)", conn.username)
 
                 _create_follower_snapshot(db, conn)
                 created += 1

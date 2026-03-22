@@ -57,6 +57,42 @@ def _record_run_cost(actor_id: str) -> float:
         return 0.0
 
 
+def fetch_profile_apify(username: str) -> Optional[dict]:
+    """Fetch full Instagram profile data via Apify scraper.
+
+    Returns dict with: id, username, fullName, biography, followersCount,
+    followsCount, postsCount, private, verified, profilePicUrl, profilePicUrlHD
+    """
+    token = _get_token()
+    if not token:
+        logger.warning("APIFY_API_TOKEN not configured")
+        return None
+
+    if is_limit_reached():
+        return None
+
+    try:
+        run_url = f"{APIFY_BASE_URL}/acts/{SCRAPER_ACTOR}/run-sync-get-dataset-items"
+        payload = {
+            "directUrls": [f"https://www.instagram.com/{username}/"],
+            "resultsLimit": 1,
+            "resultsType": "details",
+        }
+        with httpx.Client(timeout=120) as client:
+            resp = client.post(run_url, params={"token": token}, json=payload)
+            resp.raise_for_status()
+            items = resp.json()
+
+        _record_run_cost(SCRAPER_ACTOR)
+
+        if items and len(items) > 0:
+            return items[0]
+        return None
+    except Exception as exc:
+        logger.error("Apify profile fetch failed for @%s: %s", username, exc)
+        return None
+
+
 def fetch_profile_pic_apify(username: str) -> Optional[str]:
     """Fetch Instagram profile picture URL via Apify scraper.
 

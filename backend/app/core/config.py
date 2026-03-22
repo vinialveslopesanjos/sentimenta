@@ -65,7 +65,6 @@ class Settings(BaseSettings):
     # Apify (Instagram comments)
     APIFY_API_TOKEN: str = os.getenv("APIFY_API_TOKEN", "")
     APIFY_DAILY_LIMIT_USD: float = float(os.getenv("APIFY_DAILY_LIMIT_USD", "3.0"))
-    XPOZ_TOKEN: str = os.getenv("XPOZ_TOKEN", "")
 
     # LLM (OpenRouter — OpenAI-compatible)
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
@@ -123,6 +122,10 @@ class Settings(BaseSettings):
     # Resend (transactional emails)
     RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
     EMAIL_FROM: str = os.getenv("EMAIL_FROM", "noreply@sentimenta.com.br")
+
+    # YouTube Data API v3
+    YOUTUBE_API_KEY: str = os.getenv("YOUTUBE_API_KEY", "")
+    YOUTUBE_USE_API: bool = os.getenv("YOUTUBE_USE_API", "true").lower() == "true"
 
     # Sentry (error monitoring)
     SENTRY_DSN: str = os.getenv("SENTRY_DSN", "")
