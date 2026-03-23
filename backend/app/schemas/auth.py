@@ -101,6 +101,7 @@ class ResetPasswordRequest(BaseModel):
 class OnboardingRequest(BaseModel):
     profile_type: str  # criador, marca, agencia
     main_goal: str     # monitorar_sentimento, benchmark, gestao_crise
+    description: str
 
 
 class UserResponse(BaseModel):

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip,
-  LineChart, Line, Legend, Cell, ZAxis,
+  ComposedChart, Line, Bar, Legend, Cell, ZAxis,
 } from "recharts";
 import { useTranslations } from "next-intl";
 import { Section } from "./ds/Section";
@@ -171,7 +171,7 @@ export function PostLifecycle({ posts, platformLabel }: { posts: LifecyclePost[]
         "{post.title}"
       </p>
       <ResponsiveContainer key={`lifecycle-${selectedPost}`} width="100%" height={260}>
-        <LineChart id={`lifecycle-line-${platformLabel}-${selectedPost}`} data={post.data}>
+        <ComposedChart id={`lifecycle-line-${platformLabel}-${selectedPost}`} data={post.data}>
           <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
           <XAxis dataKey="time" tick={{ fontSize: 9, fill: t.textFaint }} axisLine={false} tickLine={false} />
           <YAxis domain={[0, 10]} tick={{ fontSize: 9, fill: t.textFaint }} axisLine={false} tickLine={false}
@@ -179,9 +179,9 @@ export function PostLifecycle({ posts, platformLabel }: { posts: LifecyclePost[]
           />
           <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: `0 4px 16px ${t.primary}15`, fontSize: "0.78rem", backgroundColor: t.bgCard }} />
           <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
+          <Bar dataKey="volume" name={tc("postLifecycle.volumeComments")} fill={t.secondary} radius={[4, 4, 0, 0]} opacity={0.6} />
           <Line type="monotone" dataKey="score" name={tc("postLifecycle.scoreSentiment")} stroke={t.primary} strokeWidth={2.5} dot={{ r: 3, fill: t.primary, strokeWidth: 0 }} />
-          <Line type="monotone" dataKey="volume" name={tc("postLifecycle.volumeComments")} stroke={t.secondary} strokeWidth={1.5} strokeDasharray="5 5" dot={false} />
-        </LineChart>
+        </ComposedChart>
       </ResponsiveContainer>
       <div className="flex items-center gap-4 mt-2" style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>
         <span>⬆ {tc("postLifecycle.scoreRising")}</span>

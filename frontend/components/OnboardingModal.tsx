@@ -29,6 +29,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
   const [step, setStep] = useState(0);
   const [profileType, setProfileType] = useState("");
   const [mainGoal, setMainGoal] = useState("");
+  const [description, setDescription] = useState("");
   const [saving, setSaving] = useState(false);
 
   const handleFinish = async () => {
@@ -36,7 +37,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
     if (!token || !profileType || !mainGoal) return;
     setSaving(true);
     try {
-      await authApi.saveOnboarding(token, { profile_type: profileType, main_goal: mainGoal });
+      await authApi.saveOnboarding(token, { profile_type: profileType, main_goal: mainGoal, description });
       onComplete();
     } catch {
       onComplete(); // Don't block the user
@@ -46,7 +47,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)" }}>
+    <div className="fixed inset-0 flex items-center justify-center z-[70] p-4" style={{ backgroundColor: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)" }}>
       <div className="rounded-2xl p-8 max-w-md w-full relative" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 24px 48px -12px rgba(0,0,0,0.18)" }}>
         <button onClick={onComplete} className="absolute top-4 right-4 p-1 rounded-lg transition-colors" style={{ color: "var(--text-faint)" }}>
           <X className="w-4 h-4" />
@@ -85,8 +86,31 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
                 </button>
               ))}
             </div>
+            <div className="mt-4">
+              <label style={{ fontSize: "0.78rem", fontWeight: 600, color: "var(--text-primary)", display: "block", marginBottom: 6 }}>
+                {t("descriptionLabel")}
+              </label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder={t("descriptionPlaceholder")}
+                className="w-full rounded-xl p-3 resize-none focus:outline-none transition-all"
+                style={{
+                  fontSize: "0.82rem",
+                  backgroundColor: "var(--bg-subtle)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text-primary)",
+                  minHeight: 80,
+                }}
+                rows={3}
+                maxLength={500}
+              />
+              <p style={{ fontSize: "0.62rem", color: "var(--text-faint)", marginTop: 4 }}>
+                {t("descriptionHint")} ({description.length}/500)
+              </p>
+            </div>
             <div className="mt-6 flex justify-end">
-              <Button variant="primary" onClick={() => setStep(1)} disabled={!profileType}>{t("next")}</Button>
+              <Button variant="primary" onClick={() => setStep(1)} disabled={!profileType || description.length < 20}>{t("next")}</Button>
             </div>
           </div>
         )}
