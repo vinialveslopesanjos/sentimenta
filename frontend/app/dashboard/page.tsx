@@ -737,19 +737,13 @@ export default function DashboardPage() {
         </div>
         {loading ? <ChartSkeleton height={260} /> : timeRange === "Volume" && volumeTemporalData.length > 0 ? (
           <ResponsiveContainer width="100%" height={260}>
-            <AreaChart id="dash-temporal-volume" data={volumeTemporalData} margin={{ left: -10, right: 8 }}>
-              <defs>
-                <linearGradient id="dash-volGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={t.primary} stopOpacity={0.15} />
-                  <stop offset="95%" stopColor={t.primary} stopOpacity={0} />
-                </linearGradient>
-              </defs>
+            <BarChart id="dash-temporal-volume" data={volumeTemporalData} margin={{ left: -10, right: 8 }}>
               <CartesianGrid strokeDasharray="3 3" stroke={t.primaryBg} vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
-              <Area type="monotone" dataKey="volume" name={td("volume")} stroke={t.primary} strokeWidth={2} fill="url(#dash-volGradient)" dot={{ r: 2.5, fill: t.primary, strokeWidth: 0 }} />
-            </AreaChart>
+              <Bar dataKey="volume" name={td("volume")} fill={t.primary} radius={[4, 4, 0, 0]} />
+            </BarChart>
           </ResponsiveContainer>
         ) : timeRange === "Score" && scoreTemporalData.length > 0 ? (
           <ResponsiveContainer width="100%" height={260}>
@@ -789,18 +783,12 @@ export default function DashboardPage() {
       <Section title={td("engagementPeak")} subtitle={td("engagementSubtitle")}>
         {loading ? <ChartSkeleton height={180} /> : engagementData.length > 0 ? (
           <ResponsiveContainer width="100%" height={180}>
-            <AreaChart id="dash-engagement-area" data={engagementData} margin={{ left: -10, right: 8 }}>
-              <defs>
-                <linearGradient id="dash-engGradient" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={t.secondary} stopOpacity={0.15} />
-                  <stop offset="95%" stopColor={t.secondary} stopOpacity={0} />
-                </linearGradient>
-              </defs>
+            <BarChart id="dash-engagement-area" data={engagementData} margin={{ left: -10, right: 8 }}>
               <XAxis dataKey="hour" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
-              <Area type="monotone" dataKey="volume" stroke={t.secondary} strokeWidth={2} fill="url(#dash-engGradient)" dot={{ r: 2.5, fill: t.secondary, strokeWidth: 0 }} />
-            </AreaChart>
+              <Bar dataKey="volume" fill={t.secondary} radius={[4, 4, 0, 0]} />
+            </BarChart>
           </ResponsiveContainer>
         ) : (
           <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "40px 0" }}>{td("noEngagementData")}</p>

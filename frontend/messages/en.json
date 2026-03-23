@@ -1162,7 +1162,10 @@
     "next": "Next",
     "back": "Back",
     "finish": "Get started",
-    "saving": "Saving..."
+    "saving": "Saving...",
+    "descriptionLabel": "Tell us about yourself and your work",
+    "descriptionPlaceholder": "E.g.: I'm a content creator focused on tech reviews and gadget unboxing...",
+    "descriptionHint": "Minimum 20 characters. This helps our AI better understand the context of comments"
   },
   "cookies": {
     "message": "We use cookies to improve your experience. By continuing to browse, you agree to our use of cookies.",

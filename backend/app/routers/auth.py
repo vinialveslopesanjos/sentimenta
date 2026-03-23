@@ -139,9 +139,18 @@ def save_onboarding(
     current_user.onboarding_data = {
         "profile_type": data.profile_type,
         "main_goal": data.main_goal,
+        "description": data.description,
         "completed_at": datetime.now(timezone.utc).isoformat(),
     }
-    db.add(current_user)
+
+    # Set persona on all user's connections for LLM analysis context
+    from app.models.social_connection import SocialConnection
+    connections = db.query(SocialConnection).filter(
+        SocialConnection.user_id == current_user.id
+    ).all()
+    for conn in connections:
+        conn.persona = data.description
+
     db.commit()
     db.refresh(current_user)
     return current_user

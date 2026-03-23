@@ -1163,7 +1163,10 @@
     "next": "Próximo",
     "back": "Voltar",
     "finish": "Começar",
-    "saving": "Salvando..."
+    "saving": "Salvando...",
+    "descriptionLabel": "Conte sobre você e seu trabalho",
+    "descriptionPlaceholder": "Ex: Sou político em Pernambuco, trabalho com transparência pública e comunicação direta com a população nas redes sociais...",
+    "descriptionHint": "Mínimo 20 caracteres. Isso ajuda nossa IA a entender melhor o contexto dos comentários"
   },
   "cookies": {
     "message": "Usamos cookies para melhorar sua experiência. Ao continuar navegando, você concorda com o uso de cookies.",

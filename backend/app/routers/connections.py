@@ -104,6 +104,11 @@ def connect_instagram_public(
             detail="Instagram profile not found or is private. Only public profiles can be analyzed.",
         )
 
+    # Copy user persona to connection for LLM context
+    if current_user.onboarding_data and current_user.onboarding_data.get("description"):
+        connection.persona = current_user.onboarding_data["description"]
+        db.commit()
+
     return connection
 
 
@@ -156,6 +161,9 @@ def connect_youtube(
         followers_count=info.get("subscriber_count", 0),
         status="active",
     )
+    # Copy user persona to connection for LLM context
+    if current_user.onboarding_data and current_user.onboarding_data.get("description"):
+        conn.persona = current_user.onboarding_data["description"]
     db.add(conn)
     db.commit()
     db.refresh(conn)
@@ -200,6 +208,12 @@ def connect_twitter(
             status_code=404,
             detail="Twitter profile not found. Make sure the username is correct.",
         )
+
+    # Copy user persona to connection for LLM context
+    if current_user.onboarding_data and current_user.onboarding_data.get("description"):
+        connection.persona = current_user.onboarding_data["description"]
+        db.commit()
+
     return connection
 
 # --- TikTok (by username, no OAuth) ---
@@ -244,6 +258,9 @@ def connect_tiktok_public(
         status="active",
         connected_at=datetime.now(timezone.utc),
     )
+    # Copy user persona to connection for LLM context
+    if current_user.onboarding_data and current_user.onboarding_data.get("description"):
+        conn.persona = current_user.onboarding_data["description"]
     db.add(conn)
     db.commit()
     db.refresh(conn)
@@ -537,6 +554,10 @@ async def tiktok_connection_callback(
                 raw_profile_json=profile,
                 connected_at=datetime.now(timezone.utc),
             )
+            # Copy user persona to connection for LLM context
+            user_obj = db.get(User, user_uuid)
+            if user_obj and user_obj.onboarding_data and user_obj.onboarding_data.get("description"):
+                conn.persona = user_obj.onboarding_data["description"]
             db.add(conn)
 
         db.commit()

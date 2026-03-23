@@ -154,7 +154,7 @@ export const authApi = {
 
   saveOnboarding: (
     token: string,
-    payload: { profile_type: string; main_goal: string }
+    payload: { profile_type: string; main_goal: string; description: string }
   ) =>
     apiFetch<{ id: string; onboarding_data: Record<string, string> | null }>("/auth/onboarding", {
       method: "POST",

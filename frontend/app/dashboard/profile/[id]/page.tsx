@@ -540,13 +540,13 @@ export default function ProfileDetailPage() {
       case "Volume":
         return (
           <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={volumeData}>
+            <BarChart data={volumeData}>
               <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: `0 4px 16px ${t.primary}15`, fontSize: "0.78rem", backgroundColor: t.bgCard }} />
-              <Area type="monotone" dataKey="volume" stroke={t.primary} fill={t.primary} fillOpacity={0.08} strokeWidth={2} />
-            </AreaChart>
+              <Bar dataKey="volume" fill={t.primary} radius={[4, 4, 0, 0]} />
+            </BarChart>
           </ResponsiveContainer>
         );
       case "Score":
