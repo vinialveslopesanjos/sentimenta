@@ -520,12 +520,15 @@ export default function DashboardPage() {
               <p style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.08em", marginBottom: 12 }}>{td("connectedPlatforms")}</p>
               {connections.length > 0 ? (
                 <div className="grid grid-cols-4 gap-3">
-                  {connections.map(c => (
+                  {[...connections].sort((a, b) => {
+                    const order: Record<string, number> = { instagram: 0, youtube: 1, tiktok: 2, twitter: 3 };
+                    return (order[a.platform] ?? 9) - (order[b.platform] ?? 9);
+                  }).map(c => (
                     <button key={c.id} onClick={() => router.push(platformPath(c.platform))} className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors group" style={{ backgroundColor: "transparent" }}>
                       <GlassSocialIcon platform={c.platform.toLowerCase()} size={32} />
                       <div className="text-center">
                         <p style={{ fontSize: "0.72rem", fontWeight: 500, color: "var(--text-primary)" }}>{platformLabel(c.platform)}</p>
-                        <p style={{ fontSize: "0.6rem", color: "var(--text-faint)" }}>@{c.username}</p>
+                        <p style={{ fontSize: "0.6rem", color: "var(--text-faint)" }}>{c.username.startsWith("@") ? c.username : `@${c.username}`}</p>
                       </div>
                     </button>
                   ))}
