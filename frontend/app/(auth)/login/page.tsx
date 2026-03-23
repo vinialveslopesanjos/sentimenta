@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { Mail, Lock, Eye, EyeOff, Instagram, Music2 } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { authApi } from "@/lib/api";
 import { getToken, setTokens } from "@/lib/auth";
@@ -64,19 +64,6 @@ function LoginPageInner() {
     if (getToken()) router.replace("/dashboard");
     setMounted(true);
   }, [router]);
-
-  const handleSocialLogin = async (provider: "instagram" | "tiktok") => {
-    setSocialLoading(provider);
-    setError("");
-    track("social_login", { provider });
-    try {
-      const res = provider === "instagram" ? await authApi.instagramAuthUrl() : await authApi.tiktokAuthUrl();
-      window.location.href = res.auth_url;
-    } catch (err) {
-      setError(err instanceof Error ? err.message : t("errors.socialConnectFailed", { provider }));
-      setSocialLoading(null);
-    }
-  };
 
   const handleSubmit = async (e?: React.FormEvent) => {
     e?.preventDefault();
@@ -184,41 +171,6 @@ function LoginPageInner() {
               </button>
             ))}
           </div>
-
-          {/* OAuth desativado temporariamente */}
-          {false && (
-          <div className="space-y-2.5 mb-6">
-            <button
-              type="button"
-              onClick={() => handleSocialLogin("instagram")}
-              disabled={socialLoading !== null}
-              className="w-full flex items-center justify-center gap-2.5 py-3 rounded-xl bg-gradient-to-r from-[#833AB4] via-[#FD1D1D] to-[#FCAF45] text-white hover:opacity-90 transition-opacity disabled:opacity-60"
-              style={{ fontSize: "0.85rem", fontWeight: 500 }}
-            >
-              <Instagram className="w-4 h-4" />
-              {socialLoading === "instagram" ? t("redirecting") : t("continueWithInstagram")}
-            </button>
-            <button
-              type="button"
-              onClick={() => handleSocialLogin("tiktok")}
-              disabled={socialLoading !== null}
-              className="w-full flex items-center justify-center gap-2.5 py-3 rounded-xl text-white hover:opacity-90 transition-opacity disabled:opacity-60"
-              style={{ fontSize: "0.85rem", fontWeight: 500, backgroundColor: "#010119" }}
-            >
-              <Music2 className="w-4 h-4" />
-              {socialLoading === "tiktok" ? t("redirecting") : t("continueWithTiktok")}
-            </button>
-          </div>
-          )}
-
-          {/* OAuth desativado temporariamente */}
-          {false && (
-          <div className="flex items-center gap-4 mb-6">
-            <div className="flex-1 h-px" style={{ backgroundColor: "var(--border)" }} />
-            <span style={{ fontSize: "0.68rem", fontWeight: 500, color: "var(--text-faint)" }}>{t("orEmail")}</span>
-            <div className="flex-1 h-px" style={{ backgroundColor: "var(--border)" }} />
-          </div>
-          )}
 
           {/* Form */}
           <form onSubmit={handleSubmit} className="space-y-4">

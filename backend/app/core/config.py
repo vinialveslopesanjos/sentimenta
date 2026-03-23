@@ -71,10 +71,6 @@ class Settings(BaseSettings):
     LLM_MODEL: str = os.getenv("LLM_MODEL", "google/gemini-2.0-flash-001")
     LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1")
 
-    # Gemini direto (legado/backup)
-    GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    GEMINI_MODEL: str = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
-
     # LLM daily cost limit per user (USD)
     LLM_DAILY_LIMIT_USD: float = float(os.getenv("LLM_DAILY_LIMIT_USD", "1.0"))
 

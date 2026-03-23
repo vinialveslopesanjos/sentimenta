@@ -103,31 +103,6 @@ export function GlassShieldIcon({ size = 48, className = "" }: GlassIconProps) {
   );
 }
 
-/** Lock / Security icon - teal-purple glow */
-export function GlassLockIcon({ size = 48, className = "" }: GlassIconProps) {
-  const s = size * 0.35;
-  return (
-    <GlassShell size={size} className={className} glowColor="linear-gradient(135deg, #88d4dd, #c56d89)">
-      <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
-        <rect x="5" y="11" width="14" height="10" rx="2" fill="url(#gl1)" />
-        <path d="M8 11V7a4 4 0 118 0v4" stroke="url(#gl2)" strokeWidth="2.5" strokeLinecap="round" fill="none" />
-        <circle cx="12" cy="16" r="1.5" fill="white" />
-        <defs>
-          <linearGradient id="gl1" x1="12" y1="11" x2="12" y2="21" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#88d4dd" />
-            <stop offset="1" stopColor="#39b8c6" />
-          </linearGradient>
-          <linearGradient id="gl2" x1="8" y1="7" x2="16" y2="7" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#88d4dd" />
-            <stop offset="0.5" stopColor="#c56d89" />
-            <stop offset="1" stopColor="#b6496b" />
-          </linearGradient>
-        </defs>
-      </svg>
-    </GlassShell>
-  );
-}
-
 /** People / Team icon - green-blue glow */
 export function GlassPeopleIcon({ size = 48, className = "" }: GlassIconProps) {
   const s = size * 0.38;
@@ -218,24 +193,6 @@ export function GlassEyeIcon({ size = 48, className = "" }: GlassIconProps) {
   );
 }
 
-/** Cloud / Data icon - blue-teal glow */
-export function GlassCloudIcon({ size = 48, className = "" }: GlassIconProps) {
-  const s = size * 0.4;
-  return (
-    <GlassShell size={size} className={className} glowColor="linear-gradient(135deg, #88d4dd, #61c6d1)">
-      <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
-        <path d="M18 10h-1.26A8 8 0 109 20h9a5 5 0 000-10z" fill="url(#gcl1)" />
-        <defs>
-          <linearGradient id="gcl1" x1="12" y1="4" x2="12" y2="20" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#88d4dd" />
-            <stop offset="1" stopColor="#39b8c6" />
-          </linearGradient>
-        </defs>
-      </svg>
-    </GlassShell>
-  );
-}
-
 /** Target / Precision icon - rose-teal glow */
 export function GlassTargetIcon({ size = 48, className = "" }: GlassIconProps) {
   const s = size * 0.38;
@@ -287,31 +244,3 @@ export function GlassLinkIcon({ size = 48, className = "" }: GlassIconProps) {
   );
 }
 
-/** Plant / Growth icon - green glow */
-export function GlassPlantIcon({ size = 48, className = "" }: GlassIconProps) {
-  const s = size * 0.38;
-  return (
-    <GlassShell size={size} className={className} glowColor="linear-gradient(135deg, #22c55e, #34d399)">
-      <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
-        <path d="M12 22V8" stroke="url(#gpl1)" strokeWidth="2" strokeLinecap="round" />
-        <path d="M5 12s1-5 7-5" stroke="url(#gpl2)" strokeWidth="2" strokeLinecap="round" />
-        <path d="M19 8s-1 5-7 5" stroke="url(#gpl2)" strokeWidth="2" strokeLinecap="round" />
-        <path d="M7 3s0 4 5 5c5-1 5-5 5-5s-2 0-5 2c-3-2-5-2-5-2z" fill="url(#gpl3)" />
-        <defs>
-          <linearGradient id="gpl1" x1="12" y1="8" x2="12" y2="22" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#34d399" />
-            <stop offset="1" stopColor="#22c55e" />
-          </linearGradient>
-          <linearGradient id="gpl2" x1="5" y1="7" x2="19" y2="12" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#34d399" />
-            <stop offset="1" stopColor="#22c55e" />
-          </linearGradient>
-          <linearGradient id="gpl3" x1="12" y1="3" x2="12" y2="8" gradientUnits="userSpaceOnUse">
-            <stop stopColor="#34d399" />
-            <stop offset="1" stopColor="#22c55e" />
-          </linearGradient>
-        </defs>
-      </svg>
-    </GlassShell>
-  );
-}

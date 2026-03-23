@@ -18,7 +18,7 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 # OpenRouter config
-API_KEY = settings.OPENROUTER_API_KEY or settings.GEMINI_API_KEY
+API_KEY = settings.OPENROUTER_API_KEY
 BASE_URL = settings.LLM_BASE_URL  # https://openrouter.ai/api/v1
 MODEL = settings.LLM_MODEL  # google/gemini-2.0-flash-001
 

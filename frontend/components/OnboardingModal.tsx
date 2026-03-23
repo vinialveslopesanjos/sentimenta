@@ -39,8 +39,8 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
     try {
       await authApi.saveOnboarding(token, { profile_type: profileType, main_goal: mainGoal, description });
       onComplete();
-    } catch {
-      onComplete(); // Don't block the user
+    } catch (err) {
+      console.error("Onboarding save failed:", err);
     } finally {
       setSaving(false);
     }

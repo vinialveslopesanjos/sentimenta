@@ -62,3 +62,17 @@ postgres_data/
 # Claude
 .claude/
 output/media_cache/
+
+# Backups & artifacts
+backups/
+redesign/
+tests/
+.understand-anything/
+analise-custos-apify.xlsx
+
+# Windows scripts (prod is Linux)
+*.ps1
+*.bat
+
+# Skills
+skills-lock.json
