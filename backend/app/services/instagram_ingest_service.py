@@ -128,7 +128,8 @@ def ingest_instagram_profile(
         # ── Daily mode: only check last 5 posts ───────────────────────
         if mode == "daily":
             return _ingest_instagram_daily(
-                db, connection, max_comments_per_post=max_comments_per_post,
+                db, connection, max_posts=max_posts,
+                max_comments_per_post=max_comments_per_post,
                 progress_callback=progress_callback, step_callback=_step,
                 use_apify_comments=use_apify_comments,
                 comment_sample_mode=comment_sample_mode,
@@ -956,6 +957,7 @@ def _sync_comment_counts(db, connection_id):
 def _ingest_instagram_daily(
     db: Session,
     connection: SocialConnection,
+    max_posts: int = 5,
     max_comments_per_post: int = 100,
     progress_callback=None,
     step_callback=None,
@@ -995,7 +997,7 @@ def _ingest_instagram_daily(
 
         # Fetch latest posts from Apify to detect new ones
         from app.services.apify_service import fetch_posts_apify
-        posts_data = fetch_posts_apify(username, max_posts=10, step_callback=_step)
+        posts_data = fetch_posts_apify(username, max_posts=max_posts, step_callback=_step)
 
         if not posts_data:
             _step("Nenhum post encontrado via Apify")
@@ -1085,7 +1087,9 @@ def _ingest_instagram_daily(
             )
             db.commit()
 
-        _sync_comment_counts(db, connection.id)
+        # NOTE: _sync_comment_counts removed from daily mode — comment_count is
+        # maintained incrementally on insert, and comment_count_api stores the
+        # real API count.  _sync_comment_counts still runs in full ingest (line 278).
         connection.last_sync_at = datetime.now(timezone.utc)
         db.commit()
 

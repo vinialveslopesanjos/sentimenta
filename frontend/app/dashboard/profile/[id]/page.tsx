@@ -33,7 +33,7 @@ import YouTubeStats from "@/components/YouTubeStats";
 
 import { getToken } from "@/lib/auth";
 import {
-  dashboardApi, connectionsApi, postsApi, commentsApi, demographicsApi,
+  dashboardApi, connectionsApi, postsApi, commentsApi, demographicsApi, authApi,
 } from "@/lib/api";
 import type {
   ConnectionDashboard, TrendResponse, TrendsDetailedResponse,
@@ -124,6 +124,7 @@ export default function ProfileDetailPage() {
     emotions: string[];
     matrix: number[][];
   } | null>(null);
+  const [userPlan, setUserPlan] = useState<string>("free");
   const [connectionInfo, setConnectionInfo] = useState<{
     platform: string;
     username: string;
@@ -177,6 +178,7 @@ export default function ProfileDetailPage() {
         sentByAgeRes,
         sentByGenderRes,
         emotByGenderRes,
+        meRes,
       ] = await Promise.allSettled([
         dashboardApi.connectionDashboard(token, id),
         dashboardApi.trends(token, { connection_id: id, granularity: "week", days: 0 }),
@@ -190,6 +192,7 @@ export default function ProfileDetailPage() {
         demographicsApi.sentimentByAge(token, id),
         demographicsApi.sentimentByGender(token, id),
         demographicsApi.emotionsByGender(token, id),
+        authApi.me(token),
       ]);
 
       if (dashRes.status === "fulfilled") setDashboard(dashRes.value);
@@ -206,6 +209,7 @@ export default function ProfileDetailPage() {
       if (sentByAgeRes.status === "fulfilled") setSentimentByAge(sentByAgeRes.value);
       if (sentByGenderRes.status === "fulfilled") setSentimentByGender(sentByGenderRes.value);
       if (emotByGenderRes.status === "fulfilled") setEmotionsByGender(emotByGenderRes.value);
+      if (meRes.status === "fulfilled") setUserPlan(meRes.value.plan || "free");
 
       if (connectionsRes.status === "fulfilled") {
         const conn = connectionsRes.value.find((c) => c.id === id);
@@ -263,6 +267,7 @@ export default function ProfileDetailPage() {
   }, [timeRange, granularity]);
 
   // ── derived data ──
+  const hasDemographics = !["free", "starter"].includes(userPlan);
   const platform = connectionInfo?.platform || dashboard?.connection?.platform || "instagram";
   const platformLabel = getPlatformLabel(platform);
   const username = connectionInfo?.username || dashboard?.connection?.username || "";
@@ -741,7 +746,7 @@ export default function ProfileDetailPage() {
       )}
 
       {/* Demographics Overview */}
-      {demoOverview && demoOverview.enrichment_coverage.enriched > 0 && (
+      {hasDemographics && demoOverview && demoOverview.enrichment_coverage.enriched > 0 && (
         <DemographicsOverview
           genderDist={demoOverview.gender_distribution}
           ageDist={demoOverview.age_distribution}
@@ -752,7 +757,7 @@ export default function ProfileDetailPage() {
       )}
 
       {/* Sentiment by Age + Gender side by side */}
-      {(sentimentByAge || sentimentByGender) && (
+      {hasDemographics && (sentimentByAge || sentimentByGender) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {sentimentByAge && sentimentByAge.length > 0 && (
             <SentimentByAge data={sentimentByAge} />
@@ -784,7 +789,7 @@ export default function ProfileDetailPage() {
       )}
 
       {/* Emotions by Gender */}
-      {emotionsByGender && emotionsByGender.length > 0 && (
+      {hasDemographics && emotionsByGender && emotionsByGender.length > 0 && (
         <EmotionsByGender data={emotionsByGender} />
       )}
 

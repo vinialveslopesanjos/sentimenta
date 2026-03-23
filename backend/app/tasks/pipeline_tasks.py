@@ -653,29 +653,50 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 except Exception as usage_exc:
                     logger.warning("Failed to log usage for daily_sync @%s: %s", conn.username, usage_exc)
 
-                # Analyze new pending comments
+                # Analyze only posts with pending comments
                 from app.services.analysis_service import analyze_post_comments, generate_post_summary
-                posts = db.query(Post).filter(Post.connection_id == conn.id).all()
+                from app.models.comment import Comment
+                posts_with_pending = (
+                    db.query(Post)
+                    .join(Comment, Comment.post_id == Post.id)
+                    .filter(
+                        Post.connection_id == conn.id,
+                        Comment.status == "pending",
+                    )
+                    .distinct()
+                    .all()
+                )
                 total_analyzed = 0
-                for idx, post in enumerate(posts, 1):
+                if posts_with_pending:
+                    _append_step(db, run, f"Analisando {len(posts_with_pending)} posts com comentários pendentes")
+                for idx, post in enumerate(posts_with_pending, 1):
                     stats = analyze_post_comments(db, post.id)
                     analyzed = stats.get("analyzed", 0)
                     total_analyzed += analyzed
                     if analyzed > 0:
                         generate_post_summary(db, post.id)
-                        _append_step(db, run, f"Analisado post {idx}/{len(posts)}: {analyzed} novos comentários")
+                        _append_step(db, run, f"Analisado post {idx}/{len(posts_with_pending)}: {analyzed} novos comentários")
 
-                # Stage 3: Demographics (disabled by default)
+                # Stage 3: Demographics (only if enough new usernames)
                 try:
-                    from app.services.demographics_service import run_demographics_pipeline
-                    demo_result = run_demographics_pipeline(
-                        db, conn.id, enabled=True,
-                        platform=conn.platform or "instagram",
-                    )
-                    if demo_result.get("skipped"):
-                        _append_step(db, run, "Demographics: desativado")
+                    from app.services.demographics_service import extract_new_usernames, run_demographics_pipeline
+                    if not plan_limits.get("demographics", False):
+                        _append_step(db, run, "Demographics: não disponível no plano atual")
                     else:
-                        _append_step(db, run, f"Demographics: {demo_result.get('profiles_enriched', 0)} perfis enriquecidos")
+                        new_count = len(extract_new_usernames(db, conn.id, platform=conn.platform or "instagram"))
+                        if new_count >= 10:
+                            demo_result = run_demographics_pipeline(
+                                db, conn.id, enabled=True,
+                                platform=conn.platform or "instagram",
+                            )
+                            if demo_result.get("skipped"):
+                                _append_step(db, run, "Demographics: desativado")
+                            else:
+                                _append_step(db, run, f"Demographics: {demo_result.get('profiles_enriched', 0)} perfis enriquecidos")
+                        elif new_count > 0:
+                            _append_step(db, run, f"Demographics: {new_count} novos perfis (abaixo do mínimo de 10, adiado)")
+                        else:
+                            _append_step(db, run, "Demographics: nenhum perfil novo")
                 except Exception as e:
                     logger.warning("Demographics pipeline error: %s", e)
 
