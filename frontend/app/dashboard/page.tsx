@@ -866,12 +866,15 @@ export default function DashboardPage() {
           </div>
         ) : connections.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            {connections.map(profile => (
+            {[...connections].sort((a, b) => {
+              const order: Record<string, number> = { instagram: 0, youtube: 1, tiktok: 2, twitter: 3 };
+              return (order[a.platform] ?? 9) - (order[b.platform] ?? 9);
+            }).map(profile => (
               <div key={profile.id} className="rounded-xl p-5 transition-colors cursor-pointer group" style={{ backgroundColor: "var(--bg-subtle)" }} onClick={() => router.push(platformPath(profile.platform))}>
                 <div className="flex items-center gap-3 mb-5">
                   <GlassSocialIcon platform={profile.platform.toLowerCase()} size={40} />
                   <div className="flex-1 min-w-0">
-                    <p className="truncate" style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--text-primary)" }}>@{profile.username}</p>
+                    <p className="truncate" style={{ fontSize: "0.88rem", fontWeight: 600, color: "var(--text-primary)" }}>{profile.username.startsWith("@") ? profile.username : `@${profile.username}`}</p>
                     <p style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>{platformLabel(profile.platform)}</p>
                   </div>
                 </div>

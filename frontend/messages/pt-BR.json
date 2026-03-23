@@ -46,7 +46,8 @@
     "free": "Grátis",
     "month": "mês",
     "perMonth": "/mês",
-    "connectProfile": "Conectar perfil"
+    "connectProfile": "Conectar perfil",
+    "status": "Status"
   },
   "nav": {
     "dashboard": "Dashboard",

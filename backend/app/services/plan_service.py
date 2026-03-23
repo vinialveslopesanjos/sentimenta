@@ -21,10 +21,11 @@ from app.models.demographics import UsageLog
 logger = logging.getLogger(__name__)
 
 # ─── Platform Cost Estimates (USD per operation) ────────────────────
+# Verified from 1,575 Apify runs (Mar/2026) — real pay-per-result pricing
 PLATFORM_COSTS_USD = {
-    "instagram": {"per_post": 0.005, "per_comment": 0.0023, "per_profile": 0.005},
-    "tiktok": {"per_post": 0.0037, "per_comment": 0.00125, "per_profile": 0.004},
-    "twitter": {"per_post": 0.0004, "per_comment": 0.0004, "per_profile": 0.001},
+    "instagram": {"per_post": 0.000849, "per_comment": 0.003271, "per_profile": 0.001407},
+    "tiktok": {"per_post": 0.003023, "per_comment": 0.001241, "per_profile": 0.001},
+    "twitter": {"per_post": 0.001128, "per_comment": 0.001128, "per_profile": 0.001},
     "youtube": {"per_post": 0.0, "per_comment": 0.0, "per_profile": 0.0},
 }
 
@@ -49,7 +50,7 @@ PLAN_LIMITS = {
         "pdf_export": False,
         "comparison": True,
         "api_access": False,
-        "demographics": True,
+        "demographics": False,
     },
     "starter": {
         "max_connections": 3,
@@ -66,7 +67,7 @@ PLAN_LIMITS = {
         "pdf_export": False,
         "comparison": False,
         "api_access": False,
-        "demographics": True,
+        "demographics": False,
     },
     "pro": {
         "max_connections": 7,
@@ -144,10 +145,14 @@ LEGACY_PLAN_MAP = {
     "agency": "business",
 }
 
-# Apify cost reference: $2.30 per 1,000 comments
-# At BRL ~5.0/USD → R$11.50 per 1,000 comments → R$0.0115 per comment
-APIFY_COST_PER_COMMENT_BRL = 0.0115
-USD_TO_BRL = 5.0  # Update periodically or fetch from API
+# Apify cost reference (verified Mar/2026 from 1,575 real runs):
+# Instagram comments scraper: $3.27/1000 comments (pay-per-result)
+# Instagram profile scraper: $1.41/1000 profiles (demographics)
+# Full cost incl. demographics (~58% unique authors): ~$4.11/1000 comments
+# At BRL ~6.0/USD → R$24.68/1000 comments (first run) / R$21.15/1000 (ongoing, 30% new)
+# IMPORTANT: actual monthly cost is much lower because daily sync only checks 5 recent posts
+APIFY_COST_PER_COMMENT_BRL = 0.020  # R$0.02/comment — blended estimate (first + ongoing)
+USD_TO_BRL = 6.0  # Updated Mar/2026
 
 
 def get_plan_limits(plan: str) -> dict:
