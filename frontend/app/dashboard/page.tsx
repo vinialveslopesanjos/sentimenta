@@ -141,26 +141,25 @@ function formatDate(dateStr: string | null): string {
   return d.toLocaleDateString("pt-BR", { day: "2-digit", month: "short" }).replace(".", "");
 }
 
-function timeSince(dateStr: string | null): string {
-  if (!dateStr) return "nunca";
+function timeSince(dateStr: string | null, labels: { never: string; now: string; ago: string }): string {
+  if (!dateStr) return labels.never;
   const diff = Date.now() - new Date(dateStr).getTime();
   const mins = Math.floor(diff / 60000);
-  if (mins < 1) return "agora";
-  if (mins < 60) return `${mins} min atrás`;
+  if (mins < 1) return labels.now;
+  if (mins < 60) return `${mins} min ${labels.ago}`;
   const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h atrás`;
-  return `${Math.floor(hrs / 24)}d atrás`;
+  if (hrs < 24) return `${hrs}h ${labels.ago}`;
+  return `${Math.floor(hrs / 24)}d ${labels.ago}`;
 }
 
-function getReputationBadge(score: number): { variant: "positive" | "warning" | "negative" | "primary"; label: string } {
-  if (score >= 7) return { variant: "positive", label: "Boa reputação" };
-  if (score >= 4) return { variant: "warning", label: "Atenção necessária" };
-  return { variant: "negative", label: "Reputação crítica" };
+function getReputationBadge(score: number, labels: { good: string; attention: string; critical: string }): { variant: "positive" | "warning" | "negative" | "primary"; label: string } {
+  if (score >= 7) return { variant: "positive", label: labels.good };
+  if (score >= 4) return { variant: "warning", label: labels.attention };
+  return { variant: "negative", label: labels.critical };
 }
 
 /* ───────── Main Page ───────── */
 
-const heatmapDays = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 const heatmapHours = ["00", "02", "04", "06", "08", "10", "12", "14", "16", "18", "20", "22"];
 
 export default function DashboardPage() {
@@ -168,9 +167,11 @@ export default function DashboardPage() {
   const { t } = useTheme();
   const td = useTranslations("dashboard");
   const tc = useTranslations("common");
+  const tch = useTranslations("charts");
 
   // ── State ──
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState("Volume");
 
@@ -295,7 +296,9 @@ export default function DashboardPage() {
   const positive = sentDist?.positive ?? 0;
   const neutral = sentDist?.neutral ?? 0;
   const negative = sentDist?.negative ?? 0;
-  const repBadge = getReputationBadge(score);
+  const repBadge = getReputationBadge(score, { good: td("goodReputation"), attention: td("attentionNeeded"), critical: td("criticalReputation") });
+  const timeSinceLabels = { never: tc("never"), now: tc("now"), ago: tc("ago") };
+  const heatmapDays: string[] = tch.raw("heatmap.days") as unknown as string[];
 
   // Last sync time from connections
   const lastSyncTimes = connections.map(c => c.last_sync_at).filter(Boolean) as string[];
@@ -437,6 +440,15 @@ export default function DashboardPage() {
     }
   }
 
+  async function handleRefresh() {
+    setRefreshing(true);
+    try {
+      await fetchData();
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   // ── Error state ──
   if (error && !summary) {
     return (
@@ -460,8 +472,8 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <Badge variant="muted" dot>{td("lastSync", { time: timeSince(latestSync) })}</Badge>
-          <Button variant="ghost" size="sm" icon={<RefreshCw className="w-3.5 h-3.5" />} onClick={fetchData}>{td("refresh")}</Button>
+          <Badge variant="muted" dot>{td("lastSync", { time: timeSince(latestSync, timeSinceLabels) })}</Badge>
+          <Button variant="ghost" size="sm" icon={<RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />} onClick={handleRefresh} disabled={refreshing}>{refreshing ? "..." : td("refresh")}</Button>
         </div>
       </div>
 
@@ -482,12 +494,19 @@ export default function DashboardPage() {
                 <circle cx="50" cy="50" r="42" fill="none" stroke={t.primary} strokeWidth="6" strokeLinecap="round" strokeDasharray={`${scorePercent * 2.64} ${264 - scorePercent * 2.64}`} />
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 800, color: "var(--primary)" }}>{score.toFixed(1)}</span>
+                <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 800, color: "var(--primary)" }}>{(summary?.total_comments === 0 || connections.length === 0) ? "\u2014" : score.toFixed(1)}</span>
                 <span style={{ fontSize: "0.6rem", color: "var(--text-faint)" }}>{td("outOf10")}</span>
               </div>
             </div>
             <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.92rem", fontWeight: 600, color: "var(--text-primary)" }}>{td("overallReputation")}</p>
-            <Badge variant={repBadge.variant} dot>{score >= 7 ? td("goodReputation") : score >= 4 ? td("attentionNeeded") : td("criticalReputation")}</Badge>
+            {(summary?.total_comments === 0 || connections.length === 0) ? (
+              <>
+                <Badge variant="muted">{td("noDataYet")}</Badge>
+                <Button variant="primary" size="sm" className="mt-3" onClick={() => router.push("/dashboard/connect")}>{td("emptyState.cta")}</Button>
+              </>
+            ) : (
+              <Badge variant={repBadge.variant} dot>{score >= 7 ? td("goodReputation") : score >= 4 ? td("attentionNeeded") : td("criticalReputation")}</Badge>
+            )}
             {(positive + neutral + negative) > 0 && (
               <div className="w-full mt-4">
                 <SentimentBar positive={positive} neutral={neutral} negative={negative} height={8} showLabels />

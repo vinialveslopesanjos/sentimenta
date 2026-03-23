@@ -548,7 +548,10 @@
     "couldNotLoadDashboard": "Não foi possível carregar o dashboard. Tente novamente.",
     "dashboardLoadError": "Erro ao carregar dados do dashboard.",
     "generatedAt": "Gerado em {date}",
-    "generatingDiagnosis": "Gerando diagnóstico..."
+    "generatingDiagnosis": "Gerando diagnóstico...",
+    "noDataYet": "Sem dados ainda",
+    "noWordData": "Sem dados de palavras",
+    "refreshing": "Atualizando..."
   },
   "profile": {
     "loading": "Carregando perfil...",
@@ -759,6 +762,54 @@
       "connectOfficial": "Conectar conta oficial",
       "igConnectedSuccess": "Conta do Instagram conectada com sucesso.",
       "igConnectionError": "Erro de conexão: {error}"
+    },
+    "plans": {
+      "free": {
+        "name": "Grátis",
+        "description": "500 comentários/mês"
+      },
+      "starter": {
+        "name": "Starter",
+        "description": "5.000 comentários/mês"
+      },
+      "pro": {
+        "name": "Pro",
+        "description": "20.000 comentários/mês"
+      },
+      "business": {
+        "name": "Business",
+        "description": "80.000 comentários/mês"
+      },
+      "enterprise": {
+        "name": "Enterprise",
+        "description": "Sob consulta"
+      },
+      "admin": {
+        "name": "Admin",
+        "description": "Ilimitado"
+      },
+      "creator": {
+        "name": "Starter",
+        "description": "5.000 comentários/mês"
+      },
+      "agency": {
+        "name": "Business",
+        "description": "80.000 comentários/mês"
+      }
+    },
+    "planNames": {
+      "free": "Grátis",
+      "starter": "Starter",
+      "pro": "Pro",
+      "business": "Business",
+      "enterprise": "Enterprise"
+    },
+    "planDescriptions": {
+      "free": "500 comentários/mês",
+      "starter": "5.000 comentários/mês",
+      "pro": "20.000 comentários/mês",
+      "business": "80.000 comentários/mês",
+      "enterprise": "Personalizado"
     }
   },
   "connect": {
@@ -849,7 +900,9 @@
       "ok": "Entendi"
     },
     "freePlanNote": "Plano gratuito: até 5 posts e 500 comentários.",
-    "comingSoon": "Em breve"
+    "comingSoon": "Em breve",
+    "syncError": "Erro ao sincronizar",
+    "multipleProfiles": "{count} perfis"
   },
   "alerts": {
     "title": "Alertas",
@@ -1031,16 +1084,17 @@
       "nojo": "Noj",
       "medo": "Med",
       "amor": "Amo"
-    }
+    },
+    "noWordData": "Sem dados de palavras"
   },
   "demographics": {
     "insightLabel": "Demographics",
     "overview": {
-      "title": "Perfil Demogr\u00e1fico da Audi\u00eancia",
-      "subtitle": "Quem est\u00e1 interagindo com seu conte\u00fado",
-      "gender": "G\u00eanero",
-      "age": "Faixa Et\u00e1ria",
-      "locations": "Localiza\u00e7\u00e3o",
+      "title": "Perfil Demográfico da Audiência",
+      "subtitle": "Quem está interagindo com seu conteúdo",
+      "gender": "Gênero",
+      "age": "Faixa Etária",
+      "locations": "Localização",
       "states": "Estados",
       "coverage": "Cobertura",
       "commentersEnriched": "comentaristas enriquecidos"
@@ -1054,24 +1108,24 @@
     "neutral": "Neutro",
     "negative": "Negativo",
     "sentimentByAge": {
-      "title": "Sentimento por Faixa Et\u00e1ria",
-      "subtitle": "Como cada gera\u00e7\u00e3o percebe seu conte\u00fado"
+      "title": "Sentimento por Faixa Etária",
+      "subtitle": "Como cada geração percebe seu conteúdo"
     },
     "sentimentByGender": {
-      "title": "Sentimento por G\u00eanero",
-      "subtitle": "Diferen\u00e7as de percep\u00e7\u00e3o entre g\u00eaneros"
+      "title": "Sentimento por Gênero",
+      "subtitle": "Diferenças de percepção entre gêneros"
     },
     "emotionsByGender": {
-      "title": "Emo\u00e7\u00f5es por G\u00eanero",
-      "subtitle": "Padr\u00f5es emocionais distintos entre g\u00eaneros"
+      "title": "Emoções por Gênero",
+      "subtitle": "Padrões emocionais distintos entre gêneros"
     },
     "summary": {
-      "title": "Audi\u00eancia",
-      "subtitle": "Perfil demogr\u00e1fico agregado",
-      "dominantGender": "G\u00eanero dominante",
+      "title": "Audiência",
+      "subtitle": "Perfil demográfico agregado",
+      "dominantGender": "Gênero dominante",
       "dominantAge": "Faixa principal",
-      "ageRange": "faixa et\u00e1ria",
-      "topCountry": "Principal pa\u00eds"
+      "ageRange": "faixa etária",
+      "topCountry": "Principal país"
     }
   },
   "logs": {
@@ -1131,7 +1185,12 @@
       "volume": "Volume",
       "consistency": "Consistência",
       "growth": "Crescimento"
-    }
+    },
+    "profileA": "Perfil A",
+    "profileB": "Perfil B",
+    "selectProfile": "Selecione um perfil...",
+    "all": "Tudo",
+    "1y": "1a"
   },
   "onboarding": {
     "profileTitle": "Qual seu perfil?",

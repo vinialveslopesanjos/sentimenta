@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useTranslations } from "next-intl";
 
 // Stopwords PT-BR + EN — articles, prepositions, conjunctions, pronouns, common verbs, adverbs
 const STOPWORDS = new Set([
@@ -154,6 +155,7 @@ export default function WordCloudChart({
   height = 280,
   filterStopwords = true,
 }: Props) {
+  const tch = useTranslations("charts");
   const [hovered, setHovered] = useState<number | null>(null);
   const W = 520;
   const H = height;
@@ -177,7 +179,7 @@ export default function WordCloudChart({
     return (
       <div className="flex flex-col items-center justify-center text-slate-200 gap-2" style={{ height }}>
         <span className="material-symbols-outlined text-[36px]">cloud</span>
-        <p className="text-sm font-light">Sem dados de palavras</p>
+        <p className="text-sm font-light">{tch("noWordData")}</p>
       </div>
     );
   }

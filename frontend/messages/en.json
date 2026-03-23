@@ -400,7 +400,7 @@
     "forgotPassword": "Forgot your password?",
     "termsCheckbox": "I have read and accept the",
     "termsOfUse": "Terms of Use",
-    "and": "and the",
+    "and": "and",
     "privacyPolicy": "Privacy Policy",
     "loginButton": "Sign in",
     "registerButton": "Create account",
@@ -548,7 +548,10 @@
     "couldNotLoadDashboard": "Could not load dashboard. Try again.",
     "dashboardLoadError": "Error loading dashboard data.",
     "generatedAt": "Generated on {date}",
-    "generatingDiagnosis": "Generating diagnosis..."
+    "generatingDiagnosis": "Generating diagnosis...",
+    "noDataYet": "No data yet",
+    "noWordData": "No word data",
+    "refreshing": "Refreshing..."
   },
   "profile": {
     "loading": "Loading profile...",
@@ -758,6 +761,54 @@
       "connectOfficial": "Connect official account",
       "igConnectedSuccess": "Instagram account connected successfully.",
       "igConnectionError": "Connection error: {error}"
+    },
+    "plans": {
+      "free": {
+        "name": "Free",
+        "description": "500 comments/month"
+      },
+      "starter": {
+        "name": "Starter",
+        "description": "5,000 comments/month"
+      },
+      "pro": {
+        "name": "Pro",
+        "description": "20,000 comments/month"
+      },
+      "business": {
+        "name": "Business",
+        "description": "80,000 comments/month"
+      },
+      "enterprise": {
+        "name": "Enterprise",
+        "description": "By consultation"
+      },
+      "admin": {
+        "name": "Admin",
+        "description": "Unlimited"
+      },
+      "creator": {
+        "name": "Starter",
+        "description": "5,000 comments/month"
+      },
+      "agency": {
+        "name": "Business",
+        "description": "80,000 comments/month"
+      }
+    },
+    "planNames": {
+      "free": "Free",
+      "starter": "Starter",
+      "pro": "Pro",
+      "business": "Business",
+      "enterprise": "Enterprise"
+    },
+    "planDescriptions": {
+      "free": "500 comments/month",
+      "starter": "5,000 comments/month",
+      "pro": "20,000 comments/month",
+      "business": "80,000 comments/month",
+      "enterprise": "Custom"
     }
   },
   "connect": {
@@ -848,7 +899,9 @@
       "ok": "Got it"
     },
     "freePlanNote": "Free plan: up to 5 posts and 500 comments.",
-    "comingSoon": "Coming soon"
+    "comingSoon": "Coming soon",
+    "syncError": "Sync error",
+    "multipleProfiles": "{count} profiles"
   },
   "alerts": {
     "title": "Alerts",
@@ -1030,7 +1083,8 @@
       "nojo": "Dis",
       "medo": "Fea",
       "amor": "Lov"
-    }
+    },
+    "noWordData": "No word data available"
   },
   "demographics": {
     "insightLabel": "Demographics",
@@ -1130,7 +1184,12 @@
       "volume": "Volume",
       "consistency": "Consistency",
       "growth": "Growth"
-    }
+    },
+    "profileA": "Profile A",
+    "profileB": "Profile B",
+    "selectProfile": "Select a profile...",
+    "all": "All",
+    "1y": "1y"
   },
   "onboarding": {
     "profileTitle": "What's your profile?",
