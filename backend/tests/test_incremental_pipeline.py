@@ -206,7 +206,7 @@ def test_analyze_post_comments_skips_existing_analysis(db, test_connection, monk
                 captured_comment_ids.append(item["comment_id"])
                 yield {
                     "comment_id": item["comment_id"],
-                    "model": settings.GEMINI_MODEL,
+                    "model": settings.LLM_MODEL,
                     "prompt_version": "v1",
                     "score_0_10": 8.0,
                     "polarity": 0.8,

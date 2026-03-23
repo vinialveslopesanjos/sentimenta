@@ -299,57 +299,6 @@ def fetch_tiktok_comments(post_url: str, max_comments: int = 200) -> list[dict]:
     return normalized
 
 
-def fetch_tiktok_profiles(usernames: list[str]) -> list[dict]:
-    """Fetch TikTok profile data for a list of usernames via Apify.
-
-    Used for demographics enrichment.
-    Returns list of profile dicts.
-    """
-    if not usernames:
-        return []
-
-    # Clean usernames
-    clean = [u.lstrip("@").lower() for u in usernames if u]
-    if not clean:
-        return []
-
-    input_data = {
-        "usernames": clean,
-    }
-
-    raw_items = _run_apify_actor(ACTOR_TIKTOK_PROFILES, input_data, timeout=300)
-    if not raw_items:
-        return []
-
-    profiles = []
-    for item in raw_items:
-        uname = (
-            item.get("uniqueId", "")
-            or item.get("username", "")
-            or ""
-        )
-        if not uname:
-            continue
-
-        profiles.append({
-            "username": uname.lower(),
-            "display_name": item.get("nickname", "") or item.get("name", ""),
-            "bio": item.get("signature", "") or item.get("bio", ""),
-            "followers_count": _safe_int(item.get("followerCount", 0) or item.get("fans", 0)),
-            "following_count": _safe_int(item.get("followingCount", 0)),
-            "likes_count": _safe_int(item.get("heartCount", 0) or item.get("heart", 0)),
-            "video_count": _safe_int(item.get("videoCount", 0)),
-            "profile_url": f"https://www.tiktok.com/@{uname}",
-            "avatar_url": item.get("avatarLarger", "") or item.get("avatarMedium", ""),
-            "verified": bool(item.get("verified", False)),
-            "platform": "tiktok",
-            "raw": item,
-        })
-
-    logger.info("TikTok ingest: Fetched %d profiles", len(profiles))
-    return profiles
-
-
 # ── Main ingestion pipeline ──────────────────────────────────────────────
 
 def ingest_tiktok_profile(

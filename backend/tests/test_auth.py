@@ -1,5 +1,18 @@
 """Tests for authentication endpoints."""
 
+from app.models.user import User
+from tests.conftest import TestSessionLocal
+
+
+def _verify_email(email: str):
+    """Helper: mark a user's email as verified directly in DB."""
+    db = TestSessionLocal()
+    user = db.query(User).filter(User.email == email).first()
+    if user:
+        user.email_verified = True
+        db.commit()
+    db.close()
+
 
 def test_register_success(client):
     res = client.post(
@@ -31,12 +44,26 @@ def test_login_success(client):
         "/api/v1/auth/register",
         json={"email": "login@example.com", "password": "MyPass123", "accepted_terms": True},
     )
+    _verify_email("login@example.com")
     res = client.post(
         "/api/v1/auth/login",
         json={"email": "login@example.com", "password": "MyPass123"},
     )
     assert res.status_code == 200
     assert "access_token" in res.json()
+
+
+def test_login_unverified_email(client):
+    """Login should fail with 403 if email is not verified."""
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "unverified@example.com", "password": "MyPass123", "accepted_terms": True},
+    )
+    res = client.post(
+        "/api/v1/auth/login",
+        json={"email": "unverified@example.com", "password": "MyPass123"},
+    )
+    assert res.status_code == 403
 
 
 def test_login_wrong_password(client):

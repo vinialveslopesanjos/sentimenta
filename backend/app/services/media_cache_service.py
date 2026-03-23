@@ -180,10 +180,3 @@ def cache_image_stable(url: str, shortcode: str) -> Path | None:
         shutil.copy2(cached, stable_path)
 
     return stable_path
-
-
-def cache_path_for_url(url: str) -> str | None:
-    cached = cache_remote_image(url)
-    if not cached:
-        return None
-    return str(cached)

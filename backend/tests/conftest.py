@@ -22,7 +22,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Override DATABASE_URL before importing app modules
 os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only"
-os.environ["GEMINI_API_KEY"] = "test-key"
 os.environ["DEBUG"] = "true"
 
 from app.db.session import Base, get_db
