@@ -155,7 +155,7 @@ export default function ConnectPage() {
       const est = estimateSyncTime(syncParams);
       setSyncEstimate({ show: true, ...est, username: conn?.username || "" });
     } catch (err) {
-      setErrors(e => ({ ...e, [connId]: err instanceof Error ? err.message : "Erro ao sincronizar" }));
+      setErrors(e => ({ ...e, [connId]: err instanceof Error ? err.message : t("syncError") }));
     } finally {
       setTimeout(() => setSyncing(s => ({ ...s, [connId]: false })), 2500);
     }
@@ -180,7 +180,7 @@ export default function ConnectPage() {
       show: true,
       minMinutes: Math.ceil(est.minMinutes * factor),
       maxMinutes: Math.ceil(est.maxMinutes * factor),
-      username: connections.length === 1 ? connections[0].username : `${connections.length} perfis`,
+      username: connections.length === 1 ? connections[0].username : t("multipleProfiles", { count: connections.length }),
     });
   };
 
@@ -227,7 +227,7 @@ export default function ConnectPage() {
     { id: "instagram" as PlatformId, name: t("platforms.instagram.name"), desc: t("platforms.instagram.desc"), placeholder: t("platforms.instagram.placeholder"), hasInput: true, buttonText: t("platforms.instagram.button"), secondaryButton: t("platforms.instagram.oauthButton") },
     { id: "youtube" as PlatformId, name: t("platforms.youtube.name"), desc: t("platforms.youtube.desc"), placeholder: t("platforms.youtube.placeholder"), hasInput: true, buttonText: t("platforms.youtube.button") },
     { id: "tiktok" as PlatformId, name: t("platforms.tiktok.name"), desc: t("platforms.tiktok.desc"), placeholder: t("platforms.tiktok.placeholder"), hasInput: true, buttonText: t("platforms.tiktok.button") },
-    { id: "twitter" as PlatformId, name: t("platforms.twitter.name"), desc: t("platforms.twitter.desc"), placeholder: t("platforms.twitter.placeholder"), hasInput: true, buttonText: t("platforms.twitter.button"), disabled: true, disabledText: "Em breve" },
+    { id: "twitter" as PlatformId, name: t("platforms.twitter.name"), desc: t("platforms.twitter.desc"), placeholder: t("platforms.twitter.placeholder"), hasInput: true, buttonText: t("platforms.twitter.button"), disabled: true, disabledText: t("comingSoon") },
   ];
 
   return (
@@ -259,7 +259,7 @@ export default function ConnectPage() {
               {success[p.id] && <p className="text-xs mb-2" style={{ color: "var(--sentiment-positive)" }}>{success[p.id]}</p>}
 
               {p.disabled ? (
-                <Button variant="secondary" size="sm" fullWidth disabled>{p.disabledText || "Indisponível"}</Button>
+                <Button variant="secondary" size="sm" fullWidth disabled>{p.disabledText || t("comingSoon")}</Button>
               ) : <>
                   {p.hasInput && (
                     <input
@@ -362,7 +362,7 @@ export default function ConnectPage() {
             <div className="px-4 md:px-5 pb-5 space-y-5" style={{ borderTop: "1px solid var(--border)" }}>
               <div className="pt-4 grid grid-cols-1 md:grid-cols-2 gap-5">
                 <div>
-                  <label className="mb-2 block" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>Quantos posts carregar?</label>
+                  <label className="mb-2 block" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>{t("postsToAnalyze")}</label>
                   <select
                     value={syncParams.max_posts}
                     onChange={e => updateSyncParams({ ...syncParams, max_posts: Number(e.target.value) })}

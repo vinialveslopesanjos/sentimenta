@@ -24,16 +24,11 @@ const tabItems: { icon: React.ElementType; key: Tab }[] = [
 ];
 
 const PLAN_ORDER = ["free", "starter", "pro", "business", "enterprise"];
-const PLAN_FALLBACK: Record<string, BillingPlan> = {
-  free: { slug: "free", name: "Gratis", price_brl: 0, description: "500 comentarios/mes", limits: {} },
-  starter: { slug: "starter", name: "Starter", price_brl: 97, description: "5.000 comentarios/mes", limits: {} },
-  pro: { slug: "pro", name: "Pro", price_brl: 247, description: "20.000 comentarios/mes", limits: {} },
-  business: { slug: "business", name: "Business", price_brl: 597, description: "80.000 comentarios/mes", limits: {} },
-  enterprise: { slug: "enterprise", name: "Enterprise", price_brl: 0, description: "Sob consulta", limits: {} },
-  admin: { slug: "admin", name: "Admin", price_brl: 0, description: "Ilimitado", limits: {} },
-  // Legacy mappings
-  creator: { slug: "starter", name: "Starter", price_brl: 97, description: "5.000 comentarios/mes", limits: {} },
-  agency: { slug: "business", name: "Business", price_brl: 597, description: "80.000 comentarios/mes", limits: {} },
+const PLAN_FALLBACK_PRICES: Record<string, number> = {
+  free: 0, starter: 97, pro: 247, business: 597, enterprise: 0, admin: 0, creator: 97, agency: 597,
+};
+const PLAN_FALLBACK_SLUGS: Record<string, string> = {
+  free: "free", starter: "starter", pro: "pro", business: "business", enterprise: "enterprise", admin: "admin", creator: "starter", agency: "business",
 };
 
 function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
@@ -51,6 +46,19 @@ function SettingsPageInner() {
   const tc = useTranslations("common");
   const oauthStatus = searchParams.get("status");
   const initialTab = (searchParams.get("tab") as Tab) || "profile";
+
+  const PLAN_FALLBACK: Record<string, BillingPlan> = useMemo(() => {
+    const build = (key: string): BillingPlan => ({
+      slug: PLAN_FALLBACK_SLUGS[key] || key,
+      name: t(`plans.${key}.name`),
+      price_brl: PLAN_FALLBACK_PRICES[key] || 0,
+      description: t(`plans.${key}.description`),
+      limits: {},
+    });
+    return Object.fromEntries(
+      Object.keys(PLAN_FALLBACK_PRICES).map(k => [k, build(k)])
+    );
+  }, [t]);
 
   const [activeTab, setActiveTab] = useState<Tab>(initialTab);
   const [loading, setLoading] = useState(true);

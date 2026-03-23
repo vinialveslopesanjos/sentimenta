@@ -43,7 +43,7 @@ export default function AnalysisPage() {
   const [selectedA, setSelectedA] = useState("");
   const [selectedB, setSelectedB] = useState("");
   const [days, setDays] = useState(0);
-  const [activeTime, setActiveTime] = useState("Tudo");
+  const [activeTime, setActiveTime] = useState("all");
   const [data, setData] = useState<CompareConnection[]>([]);
   const [radarData, setRadarData] = useState<any[]>([]);
   const [insights, setInsights] = useState<{ advantage: any; opportunity: any; risk: any } | null>(null);
@@ -121,11 +121,18 @@ export default function AnalysisPage() {
     });
   })();
 
-  const handleTimeChange = (tt: string) => {
-    setActiveTime(tt);
-    if (tt === "30d") setDays(30);
-    else if (tt === "90d") setDays(90);
-    else if (tt === "Tudo") setDays(0);
+  const timeFilters = [
+    { key: "30d", label: "30d" },
+    { key: "90d", label: "90d" },
+    { key: "1y", label: ta("1y") },
+    { key: "all", label: ta("all") },
+  ];
+
+  const handleTimeChange = (key: string) => {
+    setActiveTime(key);
+    if (key === "30d") setDays(30);
+    else if (key === "90d") setDays(90);
+    else if (key === "all") setDays(0);
     else setDays(365);
   };
 
@@ -140,16 +147,16 @@ export default function AnalysisPage() {
       <div className="rounded-2xl p-5" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
           <div>
-            <label className="block mb-1.5" style={{ fontSize: "0.72rem", fontWeight: 500, color: "var(--text-muted)" }}>Perfil A</label>
+            <label className="block mb-1.5" style={{ fontSize: "0.72rem", fontWeight: 500, color: "var(--text-muted)" }}>{ta("profileA")}</label>
             <select value={selectedA} onChange={e => setSelectedA(e.target.value)} className="w-full px-3 py-2.5 rounded-xl transition-all" style={{ fontSize: "0.82rem", border: "1px solid var(--primary)", backgroundColor: "var(--primary-bg)", color: "var(--primary)" }}>
-              <option value="">Selecione um perfil...</option>
+              <option value="">{ta("selectProfile")}</option>
               {connections.map(c => (
                 <option key={c.id} value={c.id} disabled={c.id === selectedB}>@{c.username} ({c.platform})</option>
               ))}
             </select>
           </div>
           <div>
-            <label className="block mb-1.5" style={{ fontSize: "0.72rem", fontWeight: 500, color: "var(--text-muted)" }}>Perfil B</label>
+            <label className="block mb-1.5" style={{ fontSize: "0.72rem", fontWeight: 500, color: "var(--text-muted)" }}>{ta("profileB")}</label>
             <select value={selectedB} onChange={e => setSelectedB(e.target.value)} className="w-full px-3 py-2.5 rounded-xl transition-all" style={{ fontSize: "0.82rem", border: "1px solid var(--border)", backgroundColor: "var(--bg-card)", color: "var(--text-primary)" }}>
               <option value="">{ta("showOnlyA")}</option>
               {connections.map(c => (
@@ -160,8 +167,8 @@ export default function AnalysisPage() {
         </div>
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-0.5 rounded-xl p-1" style={{ backgroundColor: "var(--bg-subtle)" }}>
-            {["30d", "90d", "1a", "Tudo"].map(tt => (
-              <button key={tt} onClick={() => handleTimeChange(tt)} className="px-3 py-1.5 rounded-lg transition-all" style={{ fontSize: "0.72rem", fontWeight: 500, backgroundColor: activeTime === tt ? "var(--bg-card)" : "transparent", color: activeTime === tt ? "var(--text-primary)" : "var(--text-muted)" }}>{tt}</button>
+            {timeFilters.map(tf => (
+              <button key={tf.key} onClick={() => handleTimeChange(tf.key)} className="px-3 py-1.5 rounded-lg transition-all" style={{ fontSize: "0.72rem", fontWeight: 500, backgroundColor: activeTime === tf.key ? "var(--bg-card)" : "transparent", color: activeTime === tf.key ? "var(--text-primary)" : "var(--text-muted)" }}>{tf.label}</button>
             ))}
           </div>
         </div>
@@ -219,10 +226,10 @@ export default function AnalysisPage() {
                   <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
                   <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
                   {trendsA.data_points.length > 0 && (
-                    <Line data={trendsA.data_points} type="monotone" dataKey="avg_score" name={connA ? `@${connA.username}` : "Perfil A"} stroke={t.primary} strokeWidth={2.5} dot={false} connectNulls />
+                    <Line data={trendsA.data_points} type="monotone" dataKey="avg_score" name={connA ? `@${connA.username}` : ta("profileA")} stroke={t.primary} strokeWidth={2.5} dot={false} connectNulls />
                   )}
                   {trendsB.data_points.length > 0 && (
-                    <Line data={trendsB.data_points} type="monotone" dataKey="avg_score" name={connB ? `@${connB.username}` : "Perfil B"} stroke={t.secondary} strokeWidth={2.5} dot={false} connectNulls strokeDasharray="8 4" />
+                    <Line data={trendsB.data_points} type="monotone" dataKey="avg_score" name={connB ? `@${connB.username}` : ta("profileB")} stroke={t.secondary} strokeWidth={2.5} dot={false} connectNulls strokeDasharray="8 4" />
                   )}
                 </LineChart>
               </ResponsiveContainer>

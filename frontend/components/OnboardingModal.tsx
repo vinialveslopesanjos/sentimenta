@@ -48,7 +48,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
 
   return (
     <div className="fixed inset-0 flex items-center justify-center z-[70] p-4" style={{ backgroundColor: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)" }}>
-      <div className="rounded-2xl p-8 max-w-md w-full relative" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 24px 48px -12px rgba(0,0,0,0.18)" }}>
+      <div className="rounded-2xl p-8 max-w-md w-full max-h-[90vh] overflow-y-auto relative" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 24px 48px -12px rgba(0,0,0,0.18)" }}>
         <button onClick={onComplete} className="absolute top-4 right-4 p-1 rounded-lg transition-colors" style={{ color: "var(--text-faint)" }}>
           <X className="w-4 h-4" />
         </button>
