@@ -120,6 +120,10 @@ class Settings(BaseSettings):
     STRIPE_PRICE_PACK_5000: str = os.getenv("STRIPE_PRICE_PACK_5000", "")
     STRIPE_PRICE_PACK_10000: str = os.getenv("STRIPE_PRICE_PACK_10000", "")
 
+    # PostHog Analytics
+    POSTHOG_API_KEY: str = os.getenv("POSTHOG_API_KEY", "")
+    POSTHOG_HOST: str = os.getenv("POSTHOG_HOST", "https://us.i.posthog.com")
+
     # Resend (transactional emails)
     RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
     EMAIL_FROM: str = os.getenv("EMAIL_FROM", "noreply@sentimenta.com.br")

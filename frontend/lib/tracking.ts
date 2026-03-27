@@ -20,7 +20,12 @@ export type TrackEvent =
   // Dashboard
   | "filter_changed"
   | "period_changed"
-  | "post_clicked";
+  | "post_clicked"
+  // Credits
+  | "credits_pack_clicked"
+  | "credits_pack_purchased"
+  | "credits_depleted"
+  | "plan_upgraded";
 
 // ---------------------------------------------------------------------------
 // Consent helpers

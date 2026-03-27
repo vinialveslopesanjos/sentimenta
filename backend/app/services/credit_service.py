@@ -165,6 +165,14 @@ def consume(
         "Credits consumed: user=%s amount=%d type=%s remaining=%d (plan=%d pack=%d)",
         user_id, amount, type, remaining, bal.plan_credits, bal.pack_credits,
     )
+
+    from app.core.analytics import capture
+    capture(str(user_id), "credits_consumed", {
+        "amount": amount, "type": type, "remaining": remaining,
+    })
+    if remaining <= 0:
+        capture(str(user_id), "credits_depleted", {"type": type})
+
     return remaining
 
 
@@ -256,6 +264,10 @@ def grant_pack(
         "Pack credits granted: user=%s amount=%d total=%d session=%s",
         user_id, amount, total, stripe_session_id,
     )
+
+    from app.core.analytics import capture
+    capture(str(user_id), "credits_pack_purchased", {"amount": amount, "total": total})
+
     return total
 
 

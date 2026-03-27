@@ -74,6 +74,10 @@ def register(data: UserRegister, request: Request, db: Session = Depends(get_db)
     except Exception as exc:
         logger.error("Failed to send verification email on register: %s", exc)
 
+    from app.core.analytics import capture, identify
+    identify(str(user.id), {"email": user.email, "name": user.name, "plan": user.plan})
+    capture(str(user.id), "user_signup", {"plan": user.plan})
+
     return create_tokens(user)
 
 
@@ -90,6 +94,11 @@ def login(data: UserLogin, db: Session = Depends(get_db)):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Email not verified. Please check your inbox.",
         )
+
+    from app.core.analytics import capture, identify
+    identify(str(user.id), {"email": user.email, "name": user.name, "plan": user.plan})
+    capture(str(user.id), "user_login")
+
     return create_tokens(user)
 
 
