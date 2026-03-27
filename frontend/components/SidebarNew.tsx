@@ -20,8 +20,9 @@ import {
 import { useTranslations } from "next-intl";
 import { Logo } from "./ds/Logo";
 import { GlassInstagram, GlassYoutube, GlassTiktok, GlassTwitter, GlassX } from "./GlassSocialIcons";
-import { authApi, connectionsApi } from "@/lib/api";
+import { authApi, connectionsApi, creditsApi } from "@/lib/api";
 import { clearTokens, getRefreshToken, getToken } from "@/lib/auth";
+import { CreditIndicator } from "./CreditBalance";
 
 interface SubItem {
   label: string;
@@ -59,6 +60,7 @@ export default function SidebarNew() {
   const [dashExpanded, setDashExpanded] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [connections, setConnections] = useState<SubItem[]>([]);
+  const [creditData, setCreditData] = useState<{ total: number; planAllocation: number; planCredits: number } | null>(null);
   const router = useRouter();
   const pathname = usePathname();
 
@@ -76,6 +78,9 @@ export default function SidebarNew() {
         connectionId: c.id,
       }));
       setConnections(items);
+    }).catch(() => {});
+    creditsApi.getCredits(token).then((data) => {
+      setCreditData({ total: data.total, planAllocation: data.plan_allocation, planCredits: data.plan_credits });
     }).catch(() => {});
   }, []);
 
@@ -215,6 +220,18 @@ export default function SidebarNew() {
 
       {/* Bottom */}
       <div className="px-2.5 pb-4 space-y-1 pt-3 shrink-0">
+        {!collapsed && creditData && (
+          <div
+            className="mb-1 cursor-pointer"
+            onClick={() => navigate("/dashboard/settings?tab=billing")}
+          >
+            <CreditIndicator
+              total={creditData.total}
+              planAllocation={creditData.planAllocation}
+              planCredits={creditData.planCredits}
+            />
+          </div>
+        )}
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="hidden md:flex w-full items-center gap-3 px-3 py-2.5 rounded-xl transition-all"

@@ -127,6 +127,94 @@ def create_portal(
     return {"url": url}
 
 
+# ─── Credit System Endpoints (ADR-011) ──────────────────────────────
+
+@router.get("/credits")
+def get_credits(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get current credit balance for the authenticated user."""
+    from app.services.credit_service import get_balance, get_credits_for_plan, CREDIT_PACKS, DEMOGRAPHIC_CREDIT_COST
+    balance = get_balance(db, current_user.id)
+    plan_allocation = get_credits_for_plan(current_user.plan)
+    return {
+        **balance,
+        "plan": current_user.plan,
+        "plan_allocation": plan_allocation,
+        "demographic_cost": DEMOGRAPHIC_CREDIT_COST,
+        "packs": [
+            {"id": k, "credits": v["credits"], "price_brl": v["price_brl"]}
+            for k, v in CREDIT_PACKS.items()
+        ],
+    }
+
+
+@router.get("/credits/history")
+def get_credit_history(
+    limit: int = 50,
+    offset: int = 0,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Get credit transaction history."""
+    from app.services.credit_service import get_transaction_history
+    return get_transaction_history(db, current_user.id, limit=limit, offset=offset)
+
+
+class BuyCreditsRequest(BaseModel):
+    pack: str = Field(..., pattern=r"^(2500|5000|10000)$")
+
+
+@router.post("/credits/buy")
+def buy_credits(
+    payload: BuyCreditsRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Create a Stripe Checkout session for a credit pack purchase."""
+    import stripe
+    from app.core.config import settings
+    from app.services.credit_service import CREDIT_PACKS
+
+    pack = CREDIT_PACKS.get(payload.pack)
+    if not pack:
+        raise HTTPException(status_code=400, detail="Pacote inválido")
+
+    price_map = {
+        "2500": settings.STRIPE_PRICE_PACK_2500,
+        "5000": settings.STRIPE_PRICE_PACK_5000,
+        "10000": settings.STRIPE_PRICE_PACK_10000,
+    }
+    price_id = price_map.get(payload.pack)
+    if not price_id:
+        raise HTTPException(status_code=400, detail="Pacote de créditos não configurado no Stripe. Configure STRIPE_PRICE_PACK_* nas env vars.")
+
+    stripe.api_key = settings.STRIPE_SECRET_KEY
+
+    # Ensure user has a Stripe customer ID
+    if not current_user.stripe_customer_id:
+        customer = stripe.Customer.create(email=current_user.email, name=current_user.name)
+        current_user.stripe_customer_id = customer.id
+        db.add(current_user)
+        db.commit()
+
+    session = stripe.checkout.Session.create(
+        customer=current_user.stripe_customer_id,
+        mode="payment",
+        line_items=[{"price": price_id, "quantity": 1}],
+        metadata={
+            "type": "credit_pack",
+            "user_id": str(current_user.id),
+            "credits": str(pack["credits"]),
+        },
+        success_url=settings.STRIPE_SUCCESS_URL + "&credits=purchased",
+        cancel_url=settings.STRIPE_CANCEL_URL,
+    )
+
+    return {"url": session.url, "session_id": session.id}
+
+
 @router.post("/webhook", include_in_schema=False)
 async def stripe_webhook(
     request: Request,
@@ -146,17 +234,54 @@ async def stripe_webhook(
     obj = (event.get("data") or {}).get("object", {})
 
     if event_type == "checkout.session.completed":
+        metadata = obj.get("metadata") or {}
         customer_id = obj.get("customer")
         subscription_id = obj.get("subscription")
-        user_id = (obj.get("metadata") or {}).get("user_id")
-        subscription = {"id": subscription_id, "status": "active", "metadata": obj.get("metadata") or {}}
-        sync_subscription_by_customer(db, customer_id, subscription, user_id=user_id)
+        user_id = metadata.get("user_id")
+
+        # Check if this is a credit pack purchase (ADR-011)
+        if metadata.get("type") == "credit_pack":
+            from app.services.credit_service import grant_pack
+            pack_user_id = metadata.get("user_id")
+            pack_credits = int(metadata.get("credits", 0))
+            session_id = obj.get("id")
+            if pack_user_id and pack_credits > 0:
+                import uuid as _uuid
+                grant_pack(db, _uuid.UUID(pack_user_id), pack_credits, stripe_session_id=session_id)
+                db.commit()
+                logger.info("Credit pack granted: user=%s credits=%d session=%s", pack_user_id, pack_credits, session_id)
+        else:
+            # Regular subscription checkout
+            subscription = {"id": subscription_id, "status": "active", "metadata": metadata}
+            sync_subscription_by_customer(db, customer_id, subscription, user_id=user_id)
+
     elif event_type in {"customer.subscription.created", "customer.subscription.updated"}:
         customer_id = obj.get("customer")
         sync_subscription_by_customer(db, customer_id, obj)
+
+        # Grant initial credits on subscription creation (ADR-011)
+        if event_type == "customer.subscription.created":
+            from app.services.credit_service import grant_monthly
+            user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+            if user:
+                grant_monthly(db, user.id, user.plan)
+                db.commit()
+
     elif event_type == "customer.subscription.deleted":
         customer_id = obj.get("customer")
         sync_subscription_by_customer(db, customer_id, None)
+
+    elif event_type == "invoice.paid":
+        # Monthly credit renewal (ADR-011)
+        customer_id = obj.get("customer")
+        if customer_id:
+            from app.services.credit_service import grant_monthly
+            user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
+            if user and user.subscription_status == "active":
+                grant_monthly(db, user.id, user.plan)
+                db.commit()
+                logger.info("Monthly credits renewed for user %s (plan=%s)", user.id, user.plan)
+
     elif event_type == "invoice.payment_failed":
         customer_id = obj.get("customer")
         subscription_id = obj.get("subscription")

@@ -156,6 +156,8 @@ export default function LandingPage() {
     { name: t("pricing.businessPlan"), price: t("pricing.businessPlanPrice"), desc: t("pricing.businessPlanDesc"), features: [t("pricing.businessPlanFeature1"), t("pricing.businessPlanFeature2"), t("pricing.businessPlanFeature3"), t("pricing.businessPlanFeature4"), t("pricing.businessPlanFeature5")], popular: false },
   ];
 
+  const creditExplanation = t("pricing.creditExplanation");
+
   const faqs = [
     { q: t("faq.q1"), a: t("faq.a1") },
     { q: t("faq.q2"), a: t("faq.a2") },
@@ -652,6 +654,11 @@ export default function LandingPage() {
               </FadeIn>
             ))}
           </div>
+          <FadeIn>
+            <p className="text-center mt-8" style={{ fontSize: "0.82rem", color: "var(--text-muted)", maxWidth: 600, margin: "2rem auto 0" }}>
+              {creditExplanation}
+            </p>
+          </FadeIn>
         </div>
       </section>
 

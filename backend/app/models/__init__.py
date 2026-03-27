@@ -6,6 +6,7 @@ from app.models.analysis import CommentAnalysis, PostAnalysisSummary
 from app.models.pipeline_run import PipelineRun
 from app.models.follower_snapshot import FollowerSnapshot
 from app.models.demographics import CommenterProfile, UserEnrichment
+from app.models.credits import CreditBalance, CreditTransaction
 
 __all__ = [
     "User",
@@ -18,4 +19,6 @@ __all__ = [
     "FollowerSnapshot",
     "CommenterProfile",
     "UserEnrichment",
+    "CreditBalance",
+    "CreditTransaction",
 ]

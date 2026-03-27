@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { authApi } from "@/lib/api";
+import { authApi, creditsApi } from "@/lib/api";
 import { clearTokens, getToken } from "@/lib/auth";
 import { identifyUser } from "@/lib/tracking";
 import SidebarNew from "@/components/SidebarNew";
@@ -11,12 +11,15 @@ import { Bell, Plus, Moon, Sun } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import OnboardingModal from "@/components/OnboardingModal";
+import { CreditDepletedBanner } from "@/components/CreditBalance";
 
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [ok, setOk] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [creditsDepleted, setCreditsDepleted] = useState(false);
+  const [userPlan, setUserPlan] = useState("free");
   const { theme, toggleTheme } = useTheme();
   const tl = useTranslations("layout");
   const tc = useTranslations("common");
@@ -36,9 +39,13 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           return;
         }
         identifyUser(user.id, { email: user.email, name: user.name, plan: user.plan });
+        setUserPlan(user.plan);
         if (!user.onboarding_data) {
           setShowOnboarding(true);
         }
+        creditsApi.getCredits(token).then((c) => {
+          if (c.total <= 0) setCreditsDepleted(true);
+        }).catch(() => {});
         setOk(true);
       })
       .catch((err) => {
@@ -115,6 +122,11 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         </header>
         <main className="p-4 md:p-6 lg:p-8">
           <div className="max-w-[1320px] mx-auto">
+            {creditsDepleted && (
+              <div className="mb-6">
+                <CreditDepletedBanner plan={userPlan} />
+              </div>
+            )}
             {children}
           </div>
         </main>
