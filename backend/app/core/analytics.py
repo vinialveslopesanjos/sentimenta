@@ -43,11 +43,7 @@ def capture(
         client = _get_client()
         if not client:
             return
-        client.capture(
-            distinct_id=str(user_id),
-            event=event,
-            properties=properties or {},
-        )
+        client.capture(event, distinct_id=str(user_id), properties=properties or {})
     except Exception as e:
         logger.debug("PostHog capture failed: %s", e)
 
@@ -56,14 +52,11 @@ def identify(
     user_id: str,
     properties: Optional[dict] = None,
 ):
-    """Identify a user in PostHog with traits."""
+    """Identify a user in PostHog with person properties."""
     try:
         client = _get_client()
         if not client:
             return
-        client.identify(
-            distinct_id=str(user_id),
-            properties=properties or {},
-        )
+        client.capture("$set", distinct_id=str(user_id), properties={"$set": properties or {}})
     except Exception as e:
         logger.debug("PostHog identify failed: %s", e)
