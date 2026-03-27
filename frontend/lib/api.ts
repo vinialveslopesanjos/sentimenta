@@ -637,7 +637,7 @@ export const creditsApi = {
       Array<{
         id: string;
         type: string;
-        credits: number;
+        amount: number;
         balance_after: number;
         description: string;
         created_at: string;

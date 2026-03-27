@@ -93,7 +93,7 @@ function SettingsPageInner() {
     packs: Array<{ id: string; credits: number; price_brl: number }>;
   } | null>(null);
   const [creditHistory, setCreditHistory] = useState<Array<{
-    id: string; type: string; credits: number; balance_after: number;
+    id: string; type: string; amount: number; balance_after: number;
     description: string; created_at: string;
   }>>([]);
 
@@ -368,7 +368,7 @@ function SettingsPageInner() {
                   </h3>
                   <div className="space-y-2">
                     {creditHistory.slice(0, 10).map((tx) => {
-                      const isPositive = tx.credits > 0;
+                      const isPositive = tx.amount > 0;
                       return (
                         <div
                           key={tx.id}
@@ -403,7 +403,7 @@ function SettingsPageInner() {
                               fontWeight: 600,
                               color: isPositive ? "var(--sentiment-positive)" : "var(--sentiment-negative)",
                             }}>
-                              {isPositive ? "+" : ""}{tx.credits.toLocaleString("pt-BR")}
+                              {isPositive ? "+" : ""}{tx.amount.toLocaleString("pt-BR")}
                             </p>
                             <p style={{ fontSize: "0.6rem", color: "var(--text-muted)" }}>
                               Saldo: {tx.balance_after.toLocaleString("pt-BR")}
