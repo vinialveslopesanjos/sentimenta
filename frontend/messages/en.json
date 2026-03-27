@@ -202,11 +202,11 @@
         "free": {
           "name": "Free",
           "price": "0",
-          "desc": "Try with 500 comments/month.",
+          "desc": "Try with 200 credits/month.",
           "features": [
             "1 connected profile",
-            "500 comments/month",
-            "Sentiment analysis + demographics",
+            "200 credits/month",
+            "Sentiment analysis",
             "30 days of history"
           ]
         },
@@ -216,10 +216,10 @@
           "desc": "For creators and small brands.",
           "features": [
             "3 connected profiles",
-            "5,000 comments/month",
-            "Sentiment analysis + demographics",
+            "5,000 credits/month",
+            "Sentiment analysis",
             "Weekly health report",
-            "Overage: R$0.04/comment"
+            "Extra packs available"
           ]
         },
         "pro": {
@@ -228,10 +228,10 @@
           "desc": "For growing brands and professionals.",
           "features": [
             "7 connected profiles",
-            "20,000 comments/month",
-            "Daily auto sync",
-            "PDF export + comparisons",
-            "Overage: R$0.035/comment"
+            "20,000 credits/month",
+            "Demographics (5 cred/profile)",
+            "Daily sync + PDF export",
+            "Extra packs available"
           ]
         },
         "business": {
@@ -240,10 +240,10 @@
           "desc": "For agencies and high-volume operations.",
           "features": [
             "20 connected profiles",
-            "80,000 comments/month",
-            "API access",
+            "40,000 credits/month",
+            "Demographics + API access",
             "12 months of history",
-            "Overage: R$0.03/comment"
+            "Extra packs available"
           ]
         }
       },
@@ -297,7 +297,7 @@
         },
         {
           "q": "What happens if I exceed my limit?",
-          "a": "On the free plan, analysis pauses until next month. On paid plans, you can continue analyzing with proportional overage charges."
+          "a": "On the free plan, analysis pauses until next cycle. On paid plans, you can buy extra credit packs to continue analyzing right away."
         }
       ],
       "q1": "Do I need an Instagram login to connect?",
@@ -387,7 +387,7 @@
     "welcomeBack": "Welcome back",
     "createAccount": "Create your account",
     "accessDashboard": "Access your sentiment dashboard.",
-    "freePlanInfo": "Free plan with 500 comments/month.",
+    "freePlanInfo": "Free plan with 200 credits/month.",
     "loginTab": "Login",
     "registerTab": "Sign up",
     "continueWithInstagram": "Continue with Instagram",
@@ -766,19 +766,19 @@
     "plans": {
       "free": {
         "name": "Free",
-        "description": "500 comments/month"
+        "description": "200 credits/month"
       },
       "starter": {
         "name": "Starter",
-        "description": "5,000 comments/month"
+        "description": "5,000 credits/month"
       },
       "pro": {
         "name": "Pro",
-        "description": "20,000 comments/month"
+        "description": "20,000 credits/month"
       },
       "business": {
         "name": "Business",
-        "description": "80,000 comments/month"
+        "description": "40,000 credits/month"
       },
       "enterprise": {
         "name": "Enterprise",
@@ -790,11 +790,11 @@
       },
       "creator": {
         "name": "Starter",
-        "description": "5,000 comments/month"
+        "description": "5,000 credits/month"
       },
       "agency": {
         "name": "Business",
-        "description": "80,000 comments/month"
+        "description": "40,000 credits/month"
       }
     },
     "planNames": {
@@ -805,10 +805,10 @@
       "enterprise": "Enterprise"
     },
     "planDescriptions": {
-      "free": "500 comments/month",
-      "starter": "5,000 comments/month",
-      "pro": "20,000 comments/month",
-      "business": "80,000 comments/month",
+      "free": "200 credits/month",
+      "starter": "5,000 credits/month",
+      "pro": "20,000 credits/month",
+      "business": "40,000 credits/month",
       "enterprise": "Custom"
     }
   },
@@ -899,7 +899,7 @@
       "steps": "Collecting posts and comments, analyzing sentiment with AI, and enriching demographic profiles.",
       "ok": "Got it"
     },
-    "freePlanNote": "Free plan: up to 5 posts and 500 comments.",
+    "freePlanNote": "Free plan: up to 5 posts and 200 credits/month. 1 credit = 1 comment.",
     "comingSoon": "Coming soon",
     "syncError": "Sync error",
     "multipleProfiles": "{count} profiles"

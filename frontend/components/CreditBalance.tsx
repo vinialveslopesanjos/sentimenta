@@ -59,7 +59,10 @@ export function CreditBalance({
       setShowPackModal(false);
       onPurchase?.();
     } catch (error) {
-      setBuyError(error instanceof Error ? error.message : "Erro ao processar compra.");
+      const msg = error instanceof Error ? error.message : "Erro ao processar compra.";
+      setBuyError(msg.includes("não configurado") || msg.includes("Configure STRIPE")
+        ? "Compra de pacotes será habilitada em breve."
+        : msg);
     } finally {
       setBuyingPack(null);
     }
@@ -70,7 +73,7 @@ export function CreditBalance({
       <div className="rounded-2xl p-5 md:p-6" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
         <div className="flex items-center justify-between mb-5">
           <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1rem", fontWeight: 600, color: "var(--text-primary)" }}>
-            Saldo de Cr\u00e9ditos
+            Saldo de Créditos
           </h3>
           <Badge variant="primary">{plan.charAt(0).toUpperCase() + plan.slice(1)}</Badge>
         </div>
@@ -81,7 +84,7 @@ export function CreditBalance({
             {total.toLocaleString("pt-BR")}
           </span>
           <span style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
-            cr\u00e9ditos dispon\u00edveis
+            créditos disponíveis
           </span>
         </div>
 
@@ -135,7 +138,7 @@ export function CreditBalance({
 
         {/* Info line */}
         <p className="mb-4" style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
-          1 cr\u00e9dito = 1 coment\u00e1rio analisado. Demographics: {demographicCost} cr\u00e9ditos/perfil.
+          1 crédito = 1 comentário analisado. Demographics: {demographicCost} créditos/perfil.
         </p>
 
         {/* Buy button */}
@@ -147,7 +150,7 @@ export function CreditBalance({
             onClick={() => setShowPackModal(true)}
             fullWidth
           >
-            Comprar cr\u00e9ditos
+            Comprar créditos
           </Button>
         )}
       </div>
@@ -160,10 +163,10 @@ export function CreditBalance({
         >
           <DialogHeader>
             <DialogTitle style={{ fontFamily: "'Outfit', sans-serif", color: "var(--text-primary)" }}>
-              Comprar Cr\u00e9ditos
+              Comprar Créditos
             </DialogTitle>
             <DialogDescription style={{ color: "var(--text-muted)" }}>
-              Pacotes avulsos somam ao saldo do seu plano e n\u00e3o expiram no ciclo.
+              Pacotes avulsos somam ao saldo do seu plano e não expiram no ciclo.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 mt-2">
@@ -175,10 +178,10 @@ export function CreditBalance({
               >
                 <div>
                   <p style={{ fontSize: "0.92rem", fontWeight: 600, color: "var(--text-primary)" }}>
-                    {pack.credits.toLocaleString("pt-BR")} cr\u00e9ditos
+                    {pack.credits.toLocaleString("pt-BR")} créditos
                   </p>
                   <p style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
-                    R$ {(pack.price_brl / pack.credits * 100).toFixed(1)} centavos/cr\u00e9dito
+                    R$ {(pack.price_brl / pack.credits * 100).toFixed(1)} centavos/crédito
                   </p>
                 </div>
                 <Button
@@ -226,7 +229,7 @@ export function CreditIndicator({
           <span style={{ fontSize: "0.72rem", fontWeight: 600, color: isLow ? "var(--sentiment-negative)" : "var(--text-primary)" }}>
             {total.toLocaleString("pt-BR")}
           </span>
-          <span style={{ fontSize: "0.6rem", color: "var(--text-muted)" }}>cr\u00e9d.</span>
+          <span style={{ fontSize: "0.6rem", color: "var(--text-muted)" }}>créd.</span>
         </div>
         <div className="w-full rounded-full mt-0.5" style={{ height: 3, backgroundColor: "var(--border)" }}>
           <div
@@ -259,8 +262,8 @@ export function CreditDepletedBanner({ plan }: { plan: string }) {
       <div className="flex-1">
         <p style={{ fontSize: "0.82rem", fontWeight: 500, color: "var(--sentiment-negative)" }}>
           {isFree
-            ? "Seus cr\u00e9ditos acabaram. Fa\u00e7a upgrade para continuar analisando."
-            : "Seus cr\u00e9ditos acabaram. Compre um pacote extra para continuar."}
+            ? "Seus créditos acabaram. Faça upgrade para continuar analisando."
+            : "Seus créditos acabaram. Compre um pacote extra para continuar."}
         </p>
       </div>
       <Button
@@ -272,7 +275,7 @@ export function CreditDepletedBanner({ plan }: { plan: string }) {
             : "/dashboard/settings?tab=billing";
         }}
       >
-        {isFree ? "Fazer upgrade" : "Comprar cr\u00e9ditos"}
+        {isFree ? "Fazer upgrade" : "Comprar créditos"}
       </Button>
     </div>
   );

@@ -364,7 +364,7 @@ function SettingsPageInner() {
               {creditHistory.length > 0 && (
                 <div className="rounded-2xl p-5 md:p-6" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
                   <h3 className="mb-4" style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1rem", fontWeight: 600, color: "var(--text-primary)" }}>
-                    Hist\u00f3rico de Cr\u00e9ditos
+                    Histórico de Créditos
                   </h3>
                   <div className="space-y-2">
                     {creditHistory.slice(0, 10).map((tx) => {
