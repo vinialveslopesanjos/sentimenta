@@ -399,6 +399,23 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         except Exception as usage_exc:
             logger.warning("Failed to log usage for full_pipeline: %s", usage_exc)
 
+        # Consume credits for comments fetched (ADR-011)
+        try:
+            from app.services.credit_service import consume, InsufficientCreditsError
+            if run.comments_fetched > 0:
+                consume(
+                    db, user_uuid, run.comments_fetched,
+                    type="consume_comment",
+                    source="full_pipeline",
+                    description=f"Sync @{connection.username}: {run.comments_fetched} comentários",
+                    metadata={"pipeline_run_id": str(run.id), "platform": connection.platform},
+                )
+                db.commit()
+        except InsufficientCreditsError:
+            logger.warning("Insufficient credits for user %s after ingest (consumed partially)", user_uuid)
+        except Exception as credit_exc:
+            logger.warning("Failed to consume credits for full_pipeline: %s", credit_exc)
+
         # Step 2: Analyze each post
         posts = (
             db.query(Post)
@@ -447,7 +464,22 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
                 platform=connection.platform or "instagram",
             )
             if not demo_result.get("skipped"):
-                _append_step(db, run, f"Demographics: {demo_result.get('profiles_enriched', 0)} perfis enriquecidos")
+                profiles_enriched = demo_result.get("profiles_enriched", 0)
+                _append_step(db, run, f"Demographics: {profiles_enriched} perfis enriquecidos")
+                # Consume credits for demographics (5 credits per profile — ADR-011)
+                if profiles_enriched > 0:
+                    try:
+                        from app.services.credit_service import consume, DEMOGRAPHIC_CREDIT_COST
+                        consume(
+                            db, user_uuid, profiles_enriched * DEMOGRAPHIC_CREDIT_COST,
+                            type="consume_demographic",
+                            source="full_pipeline",
+                            description=f"Demographics @{connection.username}: {profiles_enriched} perfis × {DEMOGRAPHIC_CREDIT_COST} créd",
+                            metadata={"pipeline_run_id": str(run.id), "profiles": profiles_enriched},
+                        )
+                        db.commit()
+                    except Exception as credit_exc:
+                        logger.warning("Failed to consume credits for demographics: %s", credit_exc)
         except Exception as e:
             logger.warning("Demographics pipeline error for %s: %s", connection_id, e)
 
@@ -653,6 +685,23 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 except Exception as usage_exc:
                     logger.warning("Failed to log usage for daily_sync @%s: %s", conn.username, usage_exc)
 
+                # Consume credits for comments fetched (ADR-011)
+                try:
+                    from app.services.credit_service import consume, InsufficientCreditsError
+                    if run.comments_fetched > 0:
+                        consume(
+                            db, conn.user_id, run.comments_fetched,
+                            type="consume_comment",
+                            source="daily_sync",
+                            description=f"Daily sync @{conn.username}: {run.comments_fetched} comentários",
+                            metadata={"pipeline_run_id": str(run.id), "platform": conn.platform},
+                        )
+                        db.commit()
+                except InsufficientCreditsError:
+                    logger.warning("Insufficient credits for user %s during daily_sync @%s", conn.user_id, conn.username)
+                except Exception as credit_exc:
+                    logger.warning("Failed to consume credits for daily_sync @%s: %s", conn.username, credit_exc)
+
                 # Analyze only posts with pending comments
                 from app.services.analysis_service import analyze_post_comments, generate_post_summary
                 from app.models.comment import Comment
@@ -692,7 +741,22 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                             if demo_result.get("skipped"):
                                 _append_step(db, run, "Demographics: desativado")
                             else:
-                                _append_step(db, run, f"Demographics: {demo_result.get('profiles_enriched', 0)} perfis enriquecidos")
+                                profiles_enriched = demo_result.get("profiles_enriched", 0)
+                                _append_step(db, run, f"Demographics: {profiles_enriched} perfis enriquecidos")
+                                # Consume credits for demographics (5 credits per profile — ADR-011)
+                                if profiles_enriched > 0:
+                                    try:
+                                        from app.services.credit_service import consume, DEMOGRAPHIC_CREDIT_COST
+                                        consume(
+                                            db, conn.user_id, profiles_enriched * DEMOGRAPHIC_CREDIT_COST,
+                                            type="consume_demographic",
+                                            source="daily_sync",
+                                            description=f"Demographics @{conn.username}: {profiles_enriched} perfis × {DEMOGRAPHIC_CREDIT_COST} créd",
+                                            metadata={"pipeline_run_id": str(run.id), "profiles": profiles_enriched},
+                                        )
+                                        db.commit()
+                                    except Exception as credit_exc:
+                                        logger.warning("Failed to consume credits for demographics: %s", credit_exc)
                         elif new_count > 0:
                             _append_step(db, run, f"Demographics: {new_count} novos perfis (abaixo do mínimo de 10, adiado)")
                         else:

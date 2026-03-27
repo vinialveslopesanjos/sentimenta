@@ -115,6 +115,11 @@ class Settings(BaseSettings):
     STRIPE_SUCCESS_URL: str = os.getenv("STRIPE_SUCCESS_URL", "http://localhost:3000/settings?payment=success")
     STRIPE_CANCEL_URL: str = os.getenv("STRIPE_CANCEL_URL", "http://localhost:3000/pricing")
 
+    # Credit Packs (Stripe Price IDs)
+    STRIPE_PRICE_PACK_2500: str = os.getenv("STRIPE_PRICE_PACK_2500", "")
+    STRIPE_PRICE_PACK_5000: str = os.getenv("STRIPE_PRICE_PACK_5000", "")
+    STRIPE_PRICE_PACK_10000: str = os.getenv("STRIPE_PRICE_PACK_10000", "")
+
     # Resend (transactional emails)
     RESEND_API_KEY: str = os.getenv("RESEND_API_KEY", "")
     EMAIL_FROM: str = os.getenv("EMAIL_FROM", "noreply@sentimenta.com.br")

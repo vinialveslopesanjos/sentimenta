@@ -617,6 +617,41 @@ export const billingApi = {
     }),
 };
 
+// Credits
+export const creditsApi = {
+  getCredits: (token: string) =>
+    apiFetch<{
+      plan_credits: number;
+      pack_credits: number;
+      total: number;
+      cycle_start: string;
+      cycle_end: string | null;
+      plan: string;
+      plan_allocation: number;
+      demographic_cost: number;
+      packs: Array<{ id: string; credits: number; price_brl: number }>;
+    }>("/billing/credits", { token }),
+
+  getHistory: (token: string) =>
+    apiFetch<
+      Array<{
+        id: string;
+        type: string;
+        credits: number;
+        balance_after: number;
+        description: string;
+        created_at: string;
+      }>
+    >("/billing/credits/history", { token }),
+
+  buyCredits: (token: string, pack: string) =>
+    apiFetch<{ url: string }>("/billing/credits/buy", {
+      method: "POST",
+      token,
+      body: JSON.stringify({ pack }),
+    }),
+};
+
 // Pipeline
 export const pipelineApi = {
   listRuns: (token: string) =>

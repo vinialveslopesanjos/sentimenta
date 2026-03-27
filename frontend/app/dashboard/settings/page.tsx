@@ -3,13 +3,14 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
-import { User, CreditCard, Bell, Shield, Link2, Camera, Trash2, Check, X, Eye, EyeOff, Key, Smartphone, Globe, Mail, Clock, AlertTriangle } from "lucide-react";
+import { User, CreditCard, Bell, Shield, Link2, Camera, Trash2, Check, X, Eye, EyeOff, Key, Smartphone, Globe, Mail, Clock, AlertTriangle, Coins, ArrowDownCircle, ArrowUpCircle, RefreshCw } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { authApi, billingApi, connectionsApi } from "@/lib/api";
+import { authApi, billingApi, connectionsApi, creditsApi } from "@/lib/api";
 import { clearTokens, getToken, setTokens } from "@/lib/auth";
 import { Button } from "@/components/ds/Button";
 import { Badge } from "@/components/ds/Badge";
 import { GlassSocialIcon } from "@/components/GlassSocialIcons";
+import { CreditBalance } from "@/components/CreditBalance";
 
 type Tab = "profile" | "billing" | "notifications" | "security" | "integrations";
 type UserData = { id: string; email: string; name: string | null; avatar_url: string | null; plan: string };
@@ -86,6 +87,16 @@ function SettingsPageInner() {
   const [billingBusy, setBillingBusy] = useState<"checkout" | "portal" | null>(null);
   const [billingMsg, setBillingMsg] = useState<string | null>(null);
 
+  const [creditData, setCreditData] = useState<{
+    plan_credits: number; pack_credits: number; total: number;
+    plan_allocation: number; plan: string; demographic_cost: number;
+    packs: Array<{ id: string; credits: number; price_brl: number }>;
+  } | null>(null);
+  const [creditHistory, setCreditHistory] = useState<Array<{
+    id: string; type: string; credits: number; balance_after: number;
+    description: string; created_at: string;
+  }>>([]);
+
   const [notifEmail, setNotifEmail] = useState(true);
   const [notifPush, setNotifPush] = useState(false);
   const [notifAlertScore, setNotifAlertScore] = useState(true);
@@ -116,11 +127,13 @@ function SettingsPageInner() {
     let mounted = true;
     (async () => {
       try {
-        const [me, plans, usage, conns] = await Promise.all([
+        const [me, plans, usage, conns, credits, history] = await Promise.all([
           authApi.me(token),
           billingApi.plans(token),
           billingApi.usage(token),
           connectionsApi.list(token),
+          creditsApi.getCredits(token).catch(() => null),
+          creditsApi.getHistory(token).catch(() => []),
         ]);
         if (!mounted) return;
         setUser(me);
@@ -129,6 +142,8 @@ function SettingsPageInner() {
         setUsageData(usage.usage || null);
         setIgConnected(conns.some(c => c.platform === "instagram" && c.has_oauth_token));
         setConnections(conns);
+        if (credits) setCreditData(credits);
+        if (Array.isArray(history)) setCreditHistory(history);
         const parts = (me.name || "").trim().split(" ");
         setFirstName(parts[0] || "");
         setLastName(parts.slice(1).join(" ") || "");
@@ -325,6 +340,82 @@ function SettingsPageInner() {
 
           {activeTab === "billing" && (
             <>
+              {/* Credits Section */}
+              {creditData && (
+                <CreditBalance
+                  planCredits={creditData.plan_credits}
+                  packCredits={creditData.pack_credits}
+                  total={creditData.total}
+                  planAllocation={creditData.plan_allocation}
+                  plan={creditData.plan}
+                  packs={creditData.packs}
+                  demographicCost={creditData.demographic_cost}
+                  onPurchase={async () => {
+                    const token = getToken();
+                    if (token) {
+                      const updated = await creditsApi.getCredits(token).catch(() => null);
+                      if (updated) setCreditData(updated);
+                    }
+                  }}
+                />
+              )}
+
+              {/* Recent Credit History */}
+              {creditHistory.length > 0 && (
+                <div className="rounded-2xl p-5 md:p-6" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                  <h3 className="mb-4" style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1rem", fontWeight: 600, color: "var(--text-primary)" }}>
+                    Hist\u00f3rico de Cr\u00e9ditos
+                  </h3>
+                  <div className="space-y-2">
+                    {creditHistory.slice(0, 10).map((tx) => {
+                      const isPositive = tx.credits > 0;
+                      return (
+                        <div
+                          key={tx.id}
+                          className="flex items-center gap-3 p-3 rounded-xl"
+                          style={{ backgroundColor: "var(--bg-subtle)" }}
+                        >
+                          <div
+                            className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                            style={{
+                              backgroundColor: isPositive ? "var(--sentiment-positive-bg)" : "var(--sentiment-negative-bg)",
+                            }}
+                          >
+                            {tx.type === "sync" ? (
+                              <RefreshCw className="w-3.5 h-3.5" style={{ color: "var(--sentiment-negative)" }} />
+                            ) : isPositive ? (
+                              <ArrowDownCircle className="w-3.5 h-3.5" style={{ color: "var(--sentiment-positive)" }} />
+                            ) : (
+                              <ArrowUpCircle className="w-3.5 h-3.5" style={{ color: "var(--sentiment-negative)" }} />
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="truncate" style={{ fontSize: "0.78rem", fontWeight: 500, color: "var(--text-primary)" }}>
+                              {tx.description}
+                            </p>
+                            <p style={{ fontSize: "0.65rem", color: "var(--text-muted)" }}>
+                              {new Date(tx.created_at).toLocaleDateString("pt-BR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                            </p>
+                          </div>
+                          <div className="text-right shrink-0">
+                            <p style={{
+                              fontSize: "0.82rem",
+                              fontWeight: 600,
+                              color: isPositive ? "var(--sentiment-positive)" : "var(--sentiment-negative)",
+                            }}>
+                              {isPositive ? "+" : ""}{tx.credits.toLocaleString("pt-BR")}
+                            </p>
+                            <p style={{ fontSize: "0.6rem", color: "var(--text-muted)" }}>
+                              Saldo: {tx.balance_after.toLocaleString("pt-BR")}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+
               {paymentSuccess && (
                 <div className="rounded-2xl p-4 flex items-center gap-3" style={{ backgroundColor: "var(--sentiment-positive-bg)", border: "1px solid var(--sentiment-positive)" }}>
                   <Check className="w-5 h-5 shrink-0" style={{ color: "var(--sentiment-positive)" }} />

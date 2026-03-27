@@ -23,21 +23,22 @@ logger = logging.getLogger(__name__)
 # ─── Platform Cost Estimates (USD per operation) ────────────────────
 # Verified from 1,575 Apify runs (Mar/2026) — real pay-per-result pricing
 PLATFORM_COSTS_USD = {
-    "instagram": {"per_post": 0.000849, "per_comment": 0.003271, "per_profile": 0.001407},
-    "tiktok": {"per_post": 0.003023, "per_comment": 0.001241, "per_profile": 0.001},
-    "twitter": {"per_post": 0.001128, "per_comment": 0.001128, "per_profile": 0.001},
+    "instagram": {"per_post": 0.0023, "per_comment": 0.0005, "per_profile": 0.0023},
+    "tiktok": {"per_post": 0.003023, "per_comment": 0.001, "per_profile": 0.001},
+    "twitter": {"per_post": 0.001128, "per_comment": 0.0004, "per_profile": 0.001},
     "youtube": {"per_post": 0.0, "per_comment": 0.0, "per_profile": 0.0},
 }
 
-# ─── Plan Configuration — Strategy 1: Tiers + Excedente ─────────────
-# Demographics em todos os planos como diferencial competitivo.
-# Modelo: quota mensal de comments incluídos + cobrança por excedente.
+# ─── Plan Configuration — Strategy 2: Credits-based (ADR-011) ───────
+# Modelo: plano base + créditos mensais (1 crédito = 1 comentário).
+# Demographics Pro+ only: 5 créditos por perfil demográfico.
 # Gap de mercado: entre mLabs (R$70, sem sentiment) e Buzzmonitor (R$1.590).
 
 PLAN_LIMITS = {
     "free": {
         "max_connections": 1,
-        "comments_included_per_month": 500,
+        "credits_per_month": 200,
+        "comments_included_per_month": 200,
         "overage_price_per_comment": 0.0,  # Blocked — must upgrade
         "overage_allowed": False,
         "sync_frequency": "weekly",          # auto sync semanal
@@ -54,6 +55,7 @@ PLAN_LIMITS = {
     },
     "starter": {
         "max_connections": 3,
+        "credits_per_month": 5_000,
         "comments_included_per_month": 5_000,
         "overage_price_per_comment": 0.04,
         "overage_allowed": True,
@@ -71,6 +73,7 @@ PLAN_LIMITS = {
     },
     "pro": {
         "max_connections": 7,
+        "credits_per_month": 20_000,
         "comments_included_per_month": 20_000,
         "overage_price_per_comment": 0.035,
         "overage_allowed": True,
@@ -88,7 +91,8 @@ PLAN_LIMITS = {
     },
     "business": {
         "max_connections": 20,
-        "comments_included_per_month": 80_000,
+        "credits_per_month": 40_000,
+        "comments_included_per_month": 40_000,
         "overage_price_per_comment": 0.03,
         "overage_allowed": True,
         "sync_frequency": "daily",
@@ -105,6 +109,7 @@ PLAN_LIMITS = {
     },
     "enterprise": {
         "max_connections": 999,
+        "credits_per_month": 999_999,
         "comments_included_per_month": 999_999,
         "overage_price_per_comment": 0.0,  # Negotiated
         "overage_allowed": True,
@@ -122,6 +127,7 @@ PLAN_LIMITS = {
     },
     "admin": {
         "max_connections": 100,
+        "credits_per_month": 999_999,
         "comments_included_per_month": 999_999,
         "overage_price_per_comment": 0.0,
         "overage_allowed": True,
@@ -252,7 +258,9 @@ def calculate_overage(db: Session, user: User) -> dict:
 
 
 def get_user_usage(db: Session, user: User) -> dict:
-    """Get full usage summary for a user."""
+    """Get full usage summary for a user, including credit balance."""
+    from app.services.credit_service import get_balance
+
     limits = get_plan_limits(user.plan)
     period_start = get_billing_period_start()
     now = datetime.now(timezone.utc)
@@ -262,6 +270,7 @@ def get_user_usage(db: Session, user: User) -> dict:
         period_end = now.replace(month=now.month + 1, day=1)
 
     overage = calculate_overage(db, user)
+    credits = get_balance(db, user.id)
 
     return {
         "syncs_used_this_month": count_syncs_this_month(db, user.id),
@@ -274,6 +283,9 @@ def get_user_usage(db: Session, user: User) -> dict:
         "overage_cost_brl": overage["overage_cost_brl"],
         "overage_price_per_comment": overage["overage_price_per_comment"],
         "overage_allowed": overage["overage_allowed"],
+        # Credit system (ADR-011)
+        "credits": credits,
+        "credits_per_month": limits.get("credits_per_month", 0),
         # Legacy fields (backward compat)
         "apify_credits_used_brl": round(get_apify_spend_this_month(db, user.id), 2),
         "apify_credits_limit_brl": limits.get("apify_budget_brl", 0),
@@ -314,8 +326,11 @@ def enforce_sync_limits(db: Session, user: User) -> dict:
     Check if user can trigger a sync. Returns the effective limits
     (max_posts, max_comments) that should be applied to this sync.
 
+    Uses credit system as primary enforcement (ADR-011).
     Raises PlanLimitError if any limit is exceeded.
     """
+    from app.services.credit_service import get_or_create_balance
+
     limits = get_plan_limits(user.plan)
 
     # 1. Check syncs per month
@@ -328,18 +343,21 @@ def enforce_sync_limits(db: Session, user: User) -> dict:
             code="max_syncs",
         )
 
-    # 2. Check comments quota (primary limit)
-    comments_used = get_comments_this_month(db, user.id)
-    included = limits["comments_included_per_month"]
-    overage_allowed = limits.get("overage_allowed", False)
+    # 2. Check credit balance (primary enforcement — ADR-011)
+    bal = get_or_create_balance(db, user.id)
+    total_credits = bal.plan_credits + bal.pack_credits
 
-    if comments_used >= included and not overage_allowed:
-        raise PlanLimitError(
-            f"Sua cota de {included:,} comentários/mês foi atingida "
-            f"({comments_used:,} usados). "
-            f"Faça upgrade para continuar analisando.",
-            code="comments_quota",
-        )
+    if total_credits <= 0:
+        if user.plan == "free":
+            raise PlanLimitError(
+                "Seus créditos acabaram. Faça upgrade para continuar analisando.",
+                code="no_credits",
+            )
+        else:
+            raise PlanLimitError(
+                "Seus créditos acabaram. Compre um pacote de créditos extras para continuar.",
+                code="no_credits",
+            )
 
     # 3. Check Apify budget (safety net)
     apify_spent = get_apify_spend_this_month(db, user.id)
@@ -351,16 +369,9 @@ def enforce_sync_limits(db: Session, user: User) -> dict:
             code="apify_budget",
         )
 
-    # Log usage with comments quota info
-    overage_str = ""
-    if comments_used > included:
-        overage_comments = comments_used - included
-        overage_price = limits.get("overage_price_per_comment", 0)
-        overage_str = f", excedente: {overage_comments:,} comments (R${overage_comments * overage_price:.2f})"
-
     logger.info(
         f"User {user.id} ({user.plan}): sync {syncs_used + 1}/{limits['syncs_per_month']}, "
-        f"comments {comments_used:,}/{included:,}{overage_str}"
+        f"credits {total_credits:,} (plan={bal.plan_credits:,} pack={bal.pack_credits:,})"
     )
 
     result = {
@@ -368,10 +379,9 @@ def enforce_sync_limits(db: Session, user: User) -> dict:
         "max_comments_per_post": limits["max_comments_per_post"],
     }
 
-    # Free tier: remaining comments cap across all posts
+    # Free tier: remaining comments cap across all posts (capped by credits)
     if user.plan == "free":
-        remaining = max(0, included - comments_used)
-        result["free_total_comments_cap"] = remaining
+        result["free_total_comments_cap"] = total_credits
 
     return result
 
