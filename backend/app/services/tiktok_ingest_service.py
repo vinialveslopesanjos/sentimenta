@@ -25,6 +25,7 @@ from app.core.apify_cost_tracker import is_limit_reached, add_cost
 from app.models.post import Post
 from app.models.comment import Comment
 from app.models.social_connection import SocialConnection
+from app.services.apify_service import ApifyError, ApifyRateLimitError, ApifyFetchError
 
 logger = logging.getLogger(__name__)
 
@@ -105,8 +106,9 @@ def _run_apify_actor(
         return []
 
     if is_limit_reached():
-        logger.warning("TikTok ingest: Apify daily cost limit reached, skipping actor %s", actor_id)
-        return []
+        msg = f"TikTok ingest: Apify daily cost limit reached, skipping actor {actor_id}"
+        logger.warning(msg)
+        raise ApifyRateLimitError(msg)
 
     # Start run
     try:
@@ -120,11 +122,14 @@ def _run_apify_actor(
         run_data = resp.json().get("data", {})
         run_id = run_data.get("id")
         if not run_id:
-            logger.error("TikTok ingest: Apify returned no run ID for actor %s", actor_id)
-            return []
+            msg = f"TikTok ingest: Apify returned no run ID for actor {actor_id}"
+            logger.error(msg)
+            raise ApifyFetchError(msg)
+    except ApifyError:
+        raise
     except Exception as exc:
         logger.error("TikTok ingest: Failed to start Apify actor %s: %s", actor_id, exc)
-        return []
+        raise ApifyFetchError(f"Failed to start Apify actor {actor_id}: {exc}") from exc
 
     logger.info("TikTok ingest: Started Apify run %s for actor %s", run_id, actor_id)
 
@@ -148,8 +153,9 @@ def _run_apify_actor(
             logger.warning("TikTok ingest: Error polling run %s: %s", run_id, exc)
 
     if status != "SUCCEEDED":
-        logger.error("TikTok ingest: Apify run %s ended with status %s", run_id, status)
-        return []
+        msg = f"TikTok ingest: Apify run {run_id} ended with status {status}"
+        logger.error(msg)
+        raise ApifyFetchError(msg)
 
     # Record cost
     try:
@@ -181,7 +187,7 @@ def _run_apify_actor(
         return items
     except Exception as exc:
         logger.error("TikTok ingest: Failed to fetch dataset items for run %s: %s", run_id, exc)
-        return []
+        raise ApifyFetchError(f"Failed to fetch dataset for run {run_id}: {exc}") from exc
 
 
 # ── Fetch functions ──────────────────────────────────────────────────────
@@ -331,7 +337,18 @@ def ingest_tiktok_profile(
         step_callback(f"Buscando posts do TikTok @{username}...")
 
     # Fetch posts
-    raw_posts = fetch_tiktok_posts(username, max_posts=max_posts)
+    try:
+        raw_posts = fetch_tiktok_posts(username, max_posts=max_posts)
+    except ApifyRateLimitError as exc:
+        logger.warning("TikTok ingest @%s aborted: %s", username, exc)
+        if step_callback:
+            step_callback(f"TikTok @{username}: limite Apify atingido")
+        return {"posts_fetched": 0, "comments_fetched": 0, "status": "failed", "error": str(exc)}
+    except ApifyFetchError as exc:
+        logger.error("TikTok ingest @%s failed to fetch posts: %s", username, exc)
+        if step_callback:
+            step_callback(f"TikTok @{username}: erro ao buscar posts")
+        return {"posts_fetched": 0, "comments_fetched": 0, "status": "failed", "error": str(exc)}
     if not raw_posts:
         logger.warning("TikTok ingest: No posts fetched for @%s", username)
         if step_callback:
@@ -407,7 +424,15 @@ def ingest_tiktok_profile(
         if step_callback:
             step_callback(f"Buscando comentários do post {idx}/{len(raw_posts)}...")
 
-        replies = fetch_tiktok_comments(post_url, max_comments=max_comments_per_post)
+        try:
+            replies = fetch_tiktok_comments(post_url, max_comments=max_comments_per_post)
+        except ApifyError as exc:
+            logger.error("TikTok ingest: Failed to fetch comments for post %s: %s", post_id, exc)
+            if step_callback:
+                step_callback(f"Erro ao buscar comentários do post {post_id}: {exc}")
+            if progress_callback:
+                progress_callback(posts_fetched, comments_fetched)
+            continue
 
         for reply in replies:
             text_original = reply.get("text", "")
@@ -509,7 +534,16 @@ def _ingest_tiktok_daily(
     recent_post_ids = {p.platform_post_id for p in recent_posts}
 
     # Fetch latest posts from Apify
-    raw_posts = fetch_tiktok_posts(username, max_posts=10)
+    try:
+        raw_posts = fetch_tiktok_posts(username, max_posts=10)
+    except ApifyRateLimitError as exc:
+        logger.warning("TikTok daily @%s aborted: %s", username, exc)
+        _step(f"TikTok @{username}: limite Apify atingido")
+        return {"posts_fetched": 0, "comments_fetched": 0, "status": "failed", "error": str(exc)}
+    except ApifyFetchError as exc:
+        logger.error("TikTok daily @%s failed to fetch posts: %s", username, exc)
+        _step(f"TikTok @{username}: erro ao buscar posts")
+        return {"posts_fetched": 0, "comments_fetched": 0, "status": "failed", "error": str(exc)}
     if not raw_posts:
         _step(f"Nenhum post encontrado para @{username}")
         return {"posts_fetched": 0, "comments_fetched": 0}
@@ -590,7 +624,12 @@ def _ingest_tiktok_daily(
     for idx, (post_obj, post_url) in enumerate(posts_to_fetch_comments, 1):
         _step(f"Buscando comentários do post {idx}/{len(posts_to_fetch_comments)}...")
 
-        replies = fetch_tiktok_comments(post_url, max_comments=max_comments_per_post)
+        try:
+            replies = fetch_tiktok_comments(post_url, max_comments=max_comments_per_post)
+        except ApifyError as exc:
+            logger.error("TikTok daily: Failed to fetch comments for %s: %s", post_url, exc)
+            _step(f"Erro ao buscar comentários: {exc}")
+            continue
 
         existing_comment_ids = set(
             row[0] for row in

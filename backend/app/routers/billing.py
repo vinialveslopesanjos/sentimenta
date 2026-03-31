@@ -230,8 +230,18 @@ async def stripe_webhook(
         logger.error("Stripe webhook verification failed: %s", exc)
         raise HTTPException(status_code=400, detail="Invalid Stripe webhook")
 
+    event_id = event.get("id")
     event_type = event.get("type")
     obj = (event.get("data") or {}).get("object", {})
+
+    # Dedup: skip if this event was already processed (Stripe retries)
+    if event_id:
+        from app.models.stripe_event import StripeEvent
+        if db.query(StripeEvent).filter(StripeEvent.event_id == event_id).first():
+            logger.info("Stripe event %s already processed, skipping", event_id)
+            return {"received": True, "duplicate": True}
+        db.add(StripeEvent(event_id=event_id, event_type=event_type or "unknown"))
+        db.flush()
 
     if event_type == "checkout.session.completed":
         metadata = obj.get("metadata") or {}

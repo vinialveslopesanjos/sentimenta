@@ -21,11 +21,11 @@ def get_redis() -> Optional[redis.Redis]:
 
 
 def cache_key(prefix: str, *args, **kwargs) -> str:
+    from sqlalchemy.orm import Session as SASession
+    filtered_args = [str(a) for a in args if not isinstance(a, SASession)]
+    filtered_kwargs = {k: str(v) for k, v in sorted(kwargs.items()) if not isinstance(v, SASession)}
     key_data = json.dumps(
-        {
-            "args": [str(a) for a in args],
-            "kwargs": {k: str(v) for k, v in sorted(kwargs.items())},
-        },
+        {"args": filtered_args, "kwargs": filtered_kwargs},
         sort_keys=True,
     )
     hash_val = hashlib.md5(key_data.encode()).hexdigest()[:12]

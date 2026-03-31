@@ -66,12 +66,12 @@ export default function SyncButton({ connectionId, onComplete }: Props) {
     },
   });
 
-  const pollStatus = useCallback(async (tid: string) => {
+  const pollStatus = useCallback(async (runId: string) => {
     const token = getToken();
     if (!token) return;
     try {
       const runs = await pipelineApi.listRuns(token);
-      const run = runs.find((r) => r.connection_id === connectionId && r.status === "running");
+      const run = runs.find((r) => r.id === runId) || runs.find((r) => r.connection_id === connectionId && r.status === "running");
       if (run) {
         let status = "Acessando rede...";
         if (run.comments_fetched > 0) {
@@ -121,19 +121,13 @@ export default function SyncButton({ connectionId, onComplete }: Props) {
   useEffect(() => {
     if (state !== "syncing" || !taskId) return;
 
-    // Try SSE first
-    sseConnect();
-
-    // After 5s if not connected, use fallback
-    const t = setTimeout(() => {
-      setUseFallback(true);
-    }, 5000);
+    // Use polling directly (SSE requires JWT in query string which is a security risk)
+    setUseFallback(true);
 
     return () => {
-      clearTimeout(t);
       sseDisconnect();
     };
-  }, [state, taskId, sseConnect, sseDisconnect]);
+  }, [state, taskId, sseDisconnect]);
 
   useEffect(() => {
     if (state !== "syncing" || !taskId || !useFallback) return;
@@ -165,7 +159,7 @@ export default function SyncButton({ connectionId, onComplete }: Props) {
     });
     try {
       const res = await connectionsApi.analyze(token, connectionId);
-      setTaskId(res.task_id);
+      setTaskId(res.run_id || res.task_id);
     } catch (err: unknown) {
       setState("error");
       const message = err instanceof Error ? err.message : "Erro ao iniciar";

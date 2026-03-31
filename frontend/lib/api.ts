@@ -280,13 +280,13 @@ export const connectionsApi = {
     connectionId: string,
     params?: { max_posts?: number; max_comments_per_post?: number; since_date?: string; use_apify_comments?: boolean; comment_sample_mode?: string }
   ) =>
-    apiFetch<{ connection_id: string; task_id: string; message: string }>(
+    apiFetch<{ connection_id: string; task_id: string; run_id?: string; message: string }>(
       `/connections/${connectionId}/sync`,
       { method: "POST", token, body: params ? JSON.stringify(params) : undefined }
     ),
 
   analyze: (token: string, connectionId: string) =>
-    apiFetch<{ connection_id: string; task_id: string; message: string }>(
+    apiFetch<{ connection_id: string; task_id: string; run_id?: string; message: string }>(
       `/connections/${connectionId}/analyze`,
       { method: "POST", token }
     ),
@@ -637,7 +637,7 @@ export const creditsApi = {
       Array<{
         id: string;
         type: string;
-        credits: number;
+        amount: number;
         balance_after: number;
         description: string;
         created_at: string;

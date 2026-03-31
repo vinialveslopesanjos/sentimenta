@@ -48,6 +48,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 def register(data: UserRegister, request: Request, db: Session = Depends(get_db)):
+    from app.middleware.rate_limiter import rate_limiter
+    client_ip = request.client.host if request.client else "unknown"
+    rate_limiter.check(f"register:{client_ip}", max_requests=5, window_seconds=3600)
+
     try:
         user = register_user(db, data.email, data.password, data.name)
         mark_terms_accepted(
@@ -74,11 +78,19 @@ def register(data: UserRegister, request: Request, db: Session = Depends(get_db)
     except Exception as exc:
         logger.error("Failed to send verification email on register: %s", exc)
 
+    from app.core.analytics import capture, identify
+    identify(str(user.id), {"email": user.email, "name": user.name, "plan": user.plan})
+    capture(str(user.id), "user_signup", {"plan": user.plan})
+
     return create_tokens(user)
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(data: UserLogin, db: Session = Depends(get_db)):
+def login(data: UserLogin, request: Request, db: Session = Depends(get_db)):
+    from app.middleware.rate_limiter import rate_limiter
+    client_ip = request.client.host if request.client else "unknown"
+    rate_limiter.check(f"login:{client_ip}", max_requests=5, window_seconds=60)
+
     user = authenticate_user(db, data.email, data.password)
     if not user:
         raise HTTPException(
@@ -90,6 +102,11 @@ def login(data: UserLogin, db: Session = Depends(get_db)):
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Email not verified. Please check your inbox.",
         )
+
+    from app.core.analytics import capture, identify
+    identify(str(user.id), {"email": user.email, "name": user.name, "plan": user.plan})
+    capture(str(user.id), "user_login")
+
     return create_tokens(user)
 
 
@@ -231,8 +248,12 @@ def change_password_endpoint(
 # Password reset
 # ---------------------------------------------------------------------------
 @router.post("/forgot-password")
-def forgot_password(data: ForgotPasswordRequest, db: Session = Depends(get_db)):
+def forgot_password(data: ForgotPasswordRequest, request: Request, db: Session = Depends(get_db)):
     """Request password reset email. Always returns 200 to not reveal if email exists."""
+    from app.middleware.rate_limiter import rate_limiter
+    client_ip = request.client.host if request.client else "unknown"
+    rate_limiter.check(f"forgot_password:{client_ip}", max_requests=3, window_seconds=3600)
+
     user = db.query(User).filter(User.email == data.email).first()
     if user and user.password_hash:
         token = str(_uuid.uuid4())

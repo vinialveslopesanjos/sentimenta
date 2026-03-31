@@ -234,11 +234,11 @@
         "free": {
           "name": "Grátis",
           "price": "0",
-          "desc": "Teste com 500 comentários/mês.",
+          "desc": "Teste com 200 créditos/mês.",
           "features": [
             "1 perfil conectado",
-            "500 comentários/mês",
-            "Análise de sentimento + demographics",
+            "200 créditos/mês",
+            "Análise de sentimento",
             "30 dias de histórico"
           ]
         },
@@ -248,10 +248,10 @@
           "desc": "Para criadores e marcas pequenas.",
           "features": [
             "3 perfis conectados",
-            "5.000 comentários/mês",
-            "Análise de sentimento + demographics",
+            "5.000 créditos/mês",
+            "Análise de sentimento",
             "Health report semanal",
-            "Excedente: R$0,04/comentário"
+            "Pacotes extras disponíveis"
           ]
         },
         "pro": {
@@ -260,10 +260,10 @@
           "desc": "Para marcas e profissionais em crescimento.",
           "features": [
             "7 perfis conectados",
-            "20.000 comentários/mês",
-            "Sync diário automático",
-            "PDF export + comparativos",
-            "Excedente: R$0,035/comentário"
+            "20.000 créditos/mês",
+            "Demographics (5 créd/perfil)",
+            "Sync diário + PDF export",
+            "Pacotes extras disponíveis"
           ]
         },
         "business": {
@@ -272,10 +272,10 @@
           "desc": "Para agências e operações de alto volume.",
           "features": [
             "20 perfis conectados",
-            "80.000 comentários/mês",
-            "Acesso via API",
+            "40.000 créditos/mês",
+            "Demographics + API access",
             "12 meses de histórico",
-            "Excedente: R$0,03/comentário"
+            "Pacotes extras disponíveis"
           ]
         }
       }
@@ -289,7 +289,7 @@
       "q3": "Meus dados ficam seguros?",
       "a3": "Criptografia ponta a ponta, servidores brasileiros, compliance LGPD.",
       "q4": "O que acontece se eu exceder meu limite?",
-      "a4": "No plano grátis, a análise pausa até o próximo mês. Nos planos pagos, você pode continuar analisando com cobrança de excedente proporcional.",
+      "a4": "No plano grátis, a análise pausa até o próximo ciclo. Nos planos pagos, você pode comprar pacotes de créditos extras para continuar analisando na hora.",
       "items": [
         {
           "q": "Preciso de login no Instagram para conectar?",
@@ -305,7 +305,7 @@
         },
         {
           "q": "O que acontece se eu exceder meu limite?",
-          "a": "No plano grátis, a análise pausa até o próximo mês. Nos planos pagos, você pode continuar analisando com cobrança de excedente proporcional."
+          "a": "No plano grátis, a análise pausa até o próximo ciclo. Nos planos pagos, você pode comprar pacotes de créditos extras para continuar analisando na hora."
         }
       ]
     },
@@ -387,7 +387,7 @@
     "welcomeBack": "Bem-vindo de volta",
     "createAccount": "Crie sua conta",
     "accessDashboard": "Acesse seu dashboard de sentimento.",
-    "freePlanInfo": "Plano grátis com 500 comentários/mês.",
+    "freePlanInfo": "Plano grátis com 200 créditos/mês.",
     "loginTab": "Login",
     "registerTab": "Cadastrar",
     "continueWithInstagram": "Continuar com Instagram",
@@ -767,19 +767,19 @@
     "plans": {
       "free": {
         "name": "Grátis",
-        "description": "500 comentários/mês"
+        "description": "200 créditos/mês"
       },
       "starter": {
         "name": "Starter",
-        "description": "5.000 comentários/mês"
+        "description": "5.000 créditos/mês"
       },
       "pro": {
         "name": "Pro",
-        "description": "20.000 comentários/mês"
+        "description": "20.000 créditos/mês"
       },
       "business": {
         "name": "Business",
-        "description": "80.000 comentários/mês"
+        "description": "40.000 créditos/mês"
       },
       "enterprise": {
         "name": "Enterprise",
@@ -791,11 +791,11 @@
       },
       "creator": {
         "name": "Starter",
-        "description": "5.000 comentários/mês"
+        "description": "5.000 créditos/mês"
       },
       "agency": {
         "name": "Business",
-        "description": "80.000 comentários/mês"
+        "description": "40.000 créditos/mês"
       }
     },
     "planNames": {
@@ -806,10 +806,10 @@
       "enterprise": "Enterprise"
     },
     "planDescriptions": {
-      "free": "500 comentários/mês",
-      "starter": "5.000 comentários/mês",
-      "pro": "20.000 comentários/mês",
-      "business": "80.000 comentários/mês",
+      "free": "200 créditos/mês",
+      "starter": "5.000 créditos/mês",
+      "pro": "20.000 créditos/mês",
+      "business": "40.000 créditos/mês",
       "enterprise": "Personalizado"
     }
   },
@@ -900,7 +900,7 @@
       "steps": "Coletando posts e comentários, analisando sentimento com IA e enriquecendo perfis demográficos.",
       "ok": "Entendi"
     },
-    "freePlanNote": "Plano gratuito: até 5 posts e 500 comentários.",
+    "freePlanNote": "Plano gratuito: até 5 posts e 200 créditos/mês. 1 crédito = 1 comentário.",
     "comingSoon": "Em breve",
     "syncError": "Erro ao sincronizar",
     "multipleProfiles": "{count} perfis"
@@ -1233,5 +1233,63 @@
     "accept": "Aceitar",
     "decline": "Recusar",
     "learnMore": "Saiba mais"
+  },
+  "support": {
+    "startFree": "Comece gratis",
+    "backHome": "Voltar",
+    "title": "Central de Suporte",
+    "subtitle": "Estamos aqui para ajudar",
+    "emailTitle": "E-mail",
+    "emailAddress": "suporte@sentimenta.com.br",
+    "emailResponseTime": "Resposta em ate 24h uteis",
+    "chatTitle": "Chat",
+    "chatAvailability": "Disponivel no dashboard",
+    "chatHours": "Seg-Sex, 9h as 18h",
+    "faqTitle": "Perguntas frequentes",
+    "faq1": {
+      "q": "Como conectar meu perfil do Instagram?",
+      "a": "Basta informar o @ do perfil público que deseja monitorar. Não é necessário login no Instagram. Nossa IA coleta apenas comentários de perfis públicos."
+    },
+    "faq2": {
+      "q": "Quanto tempo leva a primeira análise?",
+      "a": "A primeira análise completa leva menos de 2 minutos. Após isso, as sincronizações são automáticas e levam segundos."
+    },
+    "faq3": {
+      "q": "Posso monitorar perfis de concorrentes?",
+      "a": "Sim! Você pode monitorar qualquer perfil público, incluindo concorrentes. É ótimo para benchmarking de sentimento."
+    },
+    "faq4": {
+      "q": "Como funciona o alerta de crise?",
+      "a": "Quando a porcentagem de comentários negativos ultrapassa o limiar configurado por você, o sistema envia uma notificação por e-mail e/ou no dashboard."
+    },
+    "faq5": {
+      "q": "Meus dados estão seguros?",
+      "a": "Sim. Utilizamos criptografia ponta a ponta, servidores brasileiros e somos compliance com a LGPD."
+    },
+    "faq6": {
+      "q": "Posso cancelar a qualquer momento?",
+      "a": "Sim. Sem multas ou burocracia. Ao cancelar, sua conta fica pausada e você pode reativar quando quiser."
+    },
+    "formTitle": "Envie uma mensagem",
+    "formSubtitle": "Preencha o formulario abaixo e retornaremos o mais breve possivel.",
+    "sentTitle": "Mensagem enviada!",
+    "sentSubtitle": "Retornaremos em ate 24h uteis.",
+    "sendAnother": "Enviar outra mensagem",
+    "labelName": "Nome",
+    "labelEmail": "E-mail",
+    "labelSubject": "Assunto",
+    "labelMessage": "Mensagem",
+    "placeholderName": "Seu nome",
+    "placeholderEmail": "seu@email.com",
+    "placeholderSubject": "Resumo do seu problema ou duvida",
+    "placeholderMessage": "Descreva em detalhes como podemos ajudar...",
+    "sending": "Enviando...",
+    "sendMessage": "Enviar mensagem",
+    "sendError": "Erro ao enviar mensagem. Tente novamente ou envie para suporte@sentimenta.com.br",
+    "footerPrivacy": "Privacidade",
+    "footerTerms": "Termos",
+    "footerSupport": "Suporte",
+    "footerBlog": "Blog",
+    "footerCopyright": "© 2026 Sentimenta"
   }
 }

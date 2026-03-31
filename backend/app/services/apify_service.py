@@ -20,6 +20,23 @@ from app.core.apify_cost_tracker import is_limit_reached, add_cost, fetch_last_r
 
 logger = logging.getLogger(__name__)
 
+
+# ── Custom exceptions ─────────────────────────────────────────────────
+class ApifyError(Exception):
+    """Base error for Apify operations."""
+    pass
+
+
+class ApifyRateLimitError(ApifyError):
+    """Apify daily spending limit reached."""
+    pass
+
+
+class ApifyFetchError(ApifyError):
+    """Failed to fetch data from Apify."""
+    pass
+
+
 APIFY_BASE_URL = "https://api.apify.com/v2"
 SCRAPER_ACTOR = "apify~instagram-scraper"
 
@@ -195,8 +212,9 @@ def fetch_posts_apify(
     if is_limit_reached():
         limit = settings.APIFY_DAILY_LIMIT_USD
         spent = get_daily_spend()
-        _step(f"Apify daily limit reached (${spent:.2f}/${limit:.2f}), skipping scraping")
-        return []
+        msg = f"Apify daily limit reached (${spent:.2f}/${limit:.2f}), skipping scraping"
+        _step(msg)
+        raise ApifyRateLimitError(msg)
 
     try:
         run_url = f"{APIFY_BASE_URL}/acts/{SCRAPER_ACTOR}/run-sync-get-dataset-items"
@@ -239,10 +257,12 @@ def fetch_posts_apify(
         _step(f"Apify: {len(results)} posts obtidos")
         logger.info("Apify posts: fetched %d posts for @%s", len(results), username)
         return results
+    except ApifyError:
+        raise
     except Exception as exc:
         logger.error("Apify posts fetch failed for @%s: %s", username, exc)
         _step(f"Apify posts: erro — {exc}")
-        return []
+        raise ApifyFetchError(f"Failed to fetch posts for @{username}: {exc}") from exc
 
 
 def _parse_apify_item(item: dict) -> Optional[dict]:
@@ -264,7 +284,7 @@ def _parse_apify_item(item: dict) -> Optional[dict]:
 def _enrich_batch(shortcodes: list[str], token: str) -> dict[str, dict]:
     """Single Apify run for a batch of shortcodes. Falls back to 1-by-1 on failure."""
     if is_limit_reached():
-        return {}
+        raise ApifyRateLimitError("Apify daily limit reached during enrichment batch")
 
     run_url = f"{APIFY_BASE_URL}/acts/{SCRAPER_ACTOR}/run-sync-get-dataset-items"
     payload = {
@@ -330,7 +350,7 @@ def enrich_posts_apify(shortcodes: list[str]) -> dict[str, dict]:
 
     if is_limit_reached():
         logger.warning("Apify daily limit reached, skipping enrichment")
-        return {}
+        raise ApifyRateLimitError("Apify daily limit reached, skipping enrichment")
 
     result: dict[str, dict] = {}
     total_batches = (len(shortcodes) + BATCH_SIZE - 1) // BATCH_SIZE
@@ -342,8 +362,12 @@ def enrich_posts_apify(shortcodes: list[str]) -> dict[str, dict]:
         try:
             batch_result = _enrich_batch(batch, token)
             result.update(batch_result)
+        except ApifyRateLimitError:
+            logger.warning("Apify daily limit reached at batch %d/%d", batch_num, total_batches)
+            break
         except Exception as exc:
             logger.error("Apify batch %d/%d failed: %s", batch_num, total_batches, exc)
+            raise ApifyFetchError(f"Apify enrichment batch {batch_num}/{total_batches} failed: {exc}") from exc
 
     logger.info("Apify enrichment: got data for %d/%d posts", len(result), len(shortcodes))
     return result
@@ -492,8 +516,9 @@ def fetch_comments_apify(
     if is_limit_reached():
         limit = settings.APIFY_DAILY_LIMIT_USD
         spent = get_daily_spend()
-        _step(f"Apify daily limit reached (${spent:.2f}/${limit:.2f}), skipping scraping")
-        return {}
+        msg = f"Apify daily limit reached (${spent:.2f}/${limit:.2f}), skipping comment scraping"
+        logger.warning(msg)
+        raise ApifyRateLimitError(msg)
 
     # IMPORTANT: step_callback may commit on a SQLAlchemy session that is NOT
     # thread-safe.  We must only call it from the caller's thread (after all

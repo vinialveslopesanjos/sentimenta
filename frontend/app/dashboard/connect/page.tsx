@@ -4,8 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { RefreshCw, BarChart3, Trash2, ChevronDown, Settings2, X } from "lucide-react";
-import { connectionsApi } from "@/lib/api";
+import { RefreshCw, BarChart3, Trash2, ChevronDown, Settings2, X, Info } from "lucide-react";
+import { connectionsApi, authApi, creditsApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import {
   DEFAULT_SYNC_SETTINGS,
@@ -53,6 +53,8 @@ export default function ConnectPage() {
   const [configOpen, setConfigOpen] = useState(false);
   const [syncParams, setSyncParams] = useState<SyncSettings>(DEFAULT_SYNC_SETTINGS);
   const [syncEstimate, setSyncEstimate] = useState<{ show: boolean; minMinutes: number; maxMinutes: number; username: string }>({ show: false, minMinutes: 0, maxMinutes: 0, username: "" });
+  const [userPlan, setUserPlan] = useState("free");
+  const [creditBalance, setCreditBalance] = useState<{ total: number; plan_credits: number; plan_allocation: number } | null>(null);
 
   const loadConnections = useCallback(async () => {
     const token = getToken();
@@ -68,6 +70,11 @@ export default function ConnectPage() {
   useEffect(() => {
     loadConnections();
     setSyncParams(loadSyncSettings());
+    const token = getToken();
+    if (token) {
+      authApi.me(token).then(u => setUserPlan(u.plan || "free")).catch(() => {});
+      creditsApi.getCredits(token).then(c => setCreditBalance({ total: c.total, plan_credits: c.plan_credits, plan_allocation: c.plan_allocation })).catch(() => {});
+    }
   }, [loadConnections]);
 
   const updateSyncParams = useCallback((next: SyncSettings) => {
@@ -346,9 +353,38 @@ export default function ConnectPage() {
       {!loading && connections.length > 0 && (
         <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
           <div className="px-4 md:px-5 pt-4">
-            <p className="text-xs px-3 py-2 rounded-lg" style={{ backgroundColor: "var(--primary-bg)", color: "var(--primary)", fontWeight: 500 }}>
-              {t("freePlanNote")}
-            </p>
+            {/* Credit info box */}
+            <div className="px-4 py-3 rounded-xl flex items-start gap-3" style={{ backgroundColor: "var(--primary-bg)", border: "1px solid color-mix(in srgb, var(--primary) 20%, transparent)" }}>
+              <Info className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--primary)" }} />
+              <div style={{ fontSize: "0.75rem", color: "var(--text-primary)", lineHeight: 1.5 }}>
+                {(() => {
+                  const planConfig: Record<string, { credits: string; sync: string; posts: string; demo: boolean; extra?: string }> = {
+                    free: { credits: "200", sync: "semanal", posts: "5", demo: false, extra: "Faça upgrade para mais créditos" },
+                    starter: { credits: "5.000", sync: "semanal", posts: "30", demo: false },
+                    pro: { credits: "20.000", sync: "diário", posts: "60", demo: true },
+                    business: { credits: "40.000", sync: "diário", posts: "120", demo: true },
+                    admin: { credits: "ilimitados", sync: "diário", posts: "ilimitados", demo: true },
+                    enterprise: { credits: "ilimitados", sync: "diário", posts: "ilimitados", demo: true },
+                  };
+                  const cfg = planConfig[userPlan] || planConfig.free;
+                  const remaining = creditBalance ? creditBalance.total.toLocaleString("pt-BR") : "...";
+                  return (
+                    <>
+                      <span style={{ fontWeight: 600 }}>Seu plano: {cfg.credits} créditos/mês</span>
+                      {creditBalance && <span style={{ color: "var(--text-muted)" }}> ({remaining} restantes)</span>}
+                      <br />
+                      1 crédito = 1 comentário analisado.
+                      {cfg.demo && " Demographics: 5 créditos/perfil."}
+                      {" "}Sync {cfg.sync}, até {cfg.posts} posts.
+                      {cfg.extra && <><br /><a href="/dashboard/settings?tab=billing" style={{ color: "var(--primary)", fontWeight: 500 }}>{cfg.extra}</a></>}
+                      {!cfg.extra && userPlan !== "admin" && userPlan !== "enterprise" && (
+                        <><br /><span style={{ color: "var(--text-muted)" }}>Acabou? <a href="/dashboard/settings?tab=billing" style={{ color: "var(--primary)", fontWeight: 500 }}>Compre pacotes extras</a></span></>
+                      )}
+                    </>
+                  );
+                })()}
+              </div>
+            </div>
           </div>
           <button onClick={() => setConfigOpen(!configOpen)} className="w-full flex items-center justify-between p-4 md:p-5 transition-colors">
             <div className="flex items-center gap-3">

@@ -104,95 +104,6 @@ def _do_ingest(db, connection, max_posts: int = 10, max_comments_per_post: int =
 
 
 @celery_app.task(bind=True)
-def task_ingest(self, connection_id: str, user_id: str, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None, use_apify_comments: bool = False, comment_sample_mode: str = "all") -> dict:
-    """Ingest data from a social media platform (standalone task with its own PipelineRun)."""
-    db = SessionLocal()
-    try:
-        conn_uuid = uuid.UUID(connection_id)
-        user_uuid = uuid.UUID(user_id)
-
-        connection = db.get(SocialConnection, conn_uuid)
-        if not connection:
-            return {"error": f"Connection {connection_id} not found"}
-
-        run = PipelineRun(
-            user_id=user_uuid,
-            connection_id=conn_uuid,
-            run_type="ingest",
-            status="running",
-        )
-        run.celery_task_id = self.request.id
-        run.target_posts = max_posts
-        db.add(run)
-        db.commit()
-
-        def update_progress(posts_done, comments_done):
-            run.posts_fetched = posts_done
-            run.comments_fetched = comments_done
-            try:
-                db.commit()
-            except Exception as exc:
-                logger.error("update_progress commit failed: %s", exc)
-                try:
-                    db.rollback()
-                except Exception:
-                    pass
-
-        try:
-            result = _do_ingest(db, connection, max_posts, max_comments_per_post, since_date, progress_callback=update_progress, use_apify_comments=use_apify_comments, comment_sample_mode=comment_sample_mode)
-
-            if "error" in result:
-                run.status = "failed"
-                run.notes = result["error"]
-            else:
-                run.posts_fetched = result.get("posts_fetched", 0)
-                run.comments_fetched = result.get("comments_fetched", 0)
-                run.target_comments = run.comments_fetched
-                run.status = "completed"
-            run.ended_at = datetime.now(timezone.utc)
-            db.commit()
-            return result
-
-        except Exception as e:
-            logger.exception("Ingestion failed for connection %s", connection_id)
-            run.status = "failed"
-            run.errors_count += 1
-            run.notes = str(e)[:500]
-            run.ended_at = datetime.now(timezone.utc)
-            db.commit()
-            return {"error": str(e)}
-
-    finally:
-        db.close()
-
-
-@celery_app.task(bind=True)
-def task_analyze(self, post_id: str, user_id: str) -> dict:
-    """Analyze all pending comments for a single post."""
-    db = SessionLocal()
-    try:
-        from app.services.analysis_service import (
-            analyze_post_comments,
-            generate_post_summary,
-        )
-
-        post_uuid = uuid.UUID(post_id)
-
-        stats = analyze_post_comments(
-            db, post_uuid, batch_size=30, prompt_version="v1"
-        )
-        generate_post_summary(db, post_uuid)
-
-        return stats
-
-    except Exception as e:
-        logger.exception("Analysis failed for post %s", post_id)
-        return {"error": str(e)}
-    finally:
-        db.close()
-
-
-@celery_app.task(bind=True)
 def task_analyze_connection(self, connection_id: str, user_id: str) -> dict:
     """Analyze-only: run sentiment analysis on existing pending comments (no ingestion)."""
     db = SessionLocal()
@@ -324,23 +235,34 @@ def task_analyze_connection(self, connection_id: str, user_id: str) -> dict:
 
 
 @celery_app.task(bind=True)
-def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None, use_apify_comments: bool = False, comment_sample_mode: str = "all") -> dict:
+def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None, use_apify_comments: bool = False, comment_sample_mode: str = "all", run_id: str | None = None) -> dict:
     """Run the full pipeline: ingest + analyze for all posts."""
     db = SessionLocal()
     try:
         conn_uuid = uuid.UUID(connection_id)
         user_uuid = uuid.UUID(user_id)
 
-        # Create run
-        run = PipelineRun(
-            user_id=user_uuid,
-            connection_id=conn_uuid,
-            run_type="full",
-            status="running",
-        )
+        # Reuse run created by router, or create a new one (for callers like daily_sync, oauth callbacks)
+        if run_id:
+            run = db.get(PipelineRun, uuid.UUID(run_id))
+            if not run:
+                logger.error("PipelineRun %s not found, creating new one", run_id)
+                run = None
+        else:
+            run = None
+
+        if run is None:
+            run = PipelineRun(
+                user_id=user_uuid,
+                connection_id=conn_uuid,
+                run_type="full",
+                status="running",
+            )
+            run.target_posts = max_posts
+            db.add(run)
+
         run.celery_task_id = self.request.id
-        run.target_posts = max_posts
-        db.add(run)
+        run.status = "running"
         db.commit()
 
         connection = db.get(SocialConnection, conn_uuid)
@@ -398,23 +320,6 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
             )
         except Exception as usage_exc:
             logger.warning("Failed to log usage for full_pipeline: %s", usage_exc)
-
-        # Consume credits for comments fetched (ADR-011)
-        try:
-            from app.services.credit_service import consume, InsufficientCreditsError
-            if run.comments_fetched > 0:
-                consume(
-                    db, user_uuid, run.comments_fetched,
-                    type="consume_comment",
-                    source="full_pipeline",
-                    description=f"Sync @{connection.username}: {run.comments_fetched} comentários",
-                    metadata={"pipeline_run_id": str(run.id), "platform": connection.platform},
-                )
-                db.commit()
-        except InsufficientCreditsError:
-            logger.warning("Insufficient credits for user %s after ingest (consumed partially)", user_uuid)
-        except Exception as credit_exc:
-            logger.warning("Failed to consume credits for full_pipeline: %s", credit_exc)
 
         # Step 2: Analyze each post
         posts = (
@@ -482,6 +387,23 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
                         logger.warning("Failed to consume credits for demographics: %s", credit_exc)
         except Exception as e:
             logger.warning("Demographics pipeline error for %s: %s", connection_id, e)
+
+        # Consume credits for actually analyzed comments (ADR-011)
+        try:
+            from app.services.credit_service import consume, InsufficientCreditsError
+            if total_analyzed > 0:
+                consume(
+                    db, user_uuid, total_analyzed,
+                    type="consume_comment",
+                    source="full_pipeline",
+                    description=f"Sync @{connection.username}: {total_analyzed} comentários analisados",
+                    metadata={"pipeline_run_id": str(run.id), "platform": connection.platform},
+                )
+                db.commit()
+        except InsufficientCreditsError:
+            logger.warning("Insufficient credits for user %s after analysis", user_uuid)
+        except Exception as credit_exc:
+            logger.warning("Failed to consume credits for full_pipeline: %s", credit_exc)
 
         # Update run
         run.comments_analyzed = total_analyzed
@@ -685,23 +607,6 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 except Exception as usage_exc:
                     logger.warning("Failed to log usage for daily_sync @%s: %s", conn.username, usage_exc)
 
-                # Consume credits for comments fetched (ADR-011)
-                try:
-                    from app.services.credit_service import consume, InsufficientCreditsError
-                    if run.comments_fetched > 0:
-                        consume(
-                            db, conn.user_id, run.comments_fetched,
-                            type="consume_comment",
-                            source="daily_sync",
-                            description=f"Daily sync @{conn.username}: {run.comments_fetched} comentários",
-                            metadata={"pipeline_run_id": str(run.id), "platform": conn.platform},
-                        )
-                        db.commit()
-                except InsufficientCreditsError:
-                    logger.warning("Insufficient credits for user %s during daily_sync @%s", conn.user_id, conn.username)
-                except Exception as credit_exc:
-                    logger.warning("Failed to consume credits for daily_sync @%s: %s", conn.username, credit_exc)
-
                 # Analyze only posts with pending comments
                 from app.services.analysis_service import analyze_post_comments, generate_post_summary
                 from app.models.comment import Comment
@@ -716,15 +621,38 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                     .all()
                 )
                 total_analyzed = 0
+                total_llm_calls = 0
+                total_errors = 0
+                total_cost = 0.0
                 if posts_with_pending:
                     _append_step(db, run, f"Analisando {len(posts_with_pending)} posts com comentários pendentes")
                 for idx, post in enumerate(posts_with_pending, 1):
                     stats = analyze_post_comments(db, post.id)
                     analyzed = stats.get("analyzed", 0)
                     total_analyzed += analyzed
+                    total_llm_calls += stats.get("llm_calls", 0)
+                    total_errors += stats.get("errors", 0)
+                    total_cost += stats.get("cost_usd", 0.0)
                     if analyzed > 0:
                         generate_post_summary(db, post.id)
                         _append_step(db, run, f"Analisado post {idx}/{len(posts_with_pending)}: {analyzed} novos comentários")
+
+                # Consume credits for actually analyzed comments (ADR-011)
+                try:
+                    from app.services.credit_service import consume, InsufficientCreditsError
+                    if total_analyzed > 0:
+                        consume(
+                            db, conn.user_id, total_analyzed,
+                            type="consume_comment",
+                            source="daily_sync",
+                            description=f"Daily sync @{conn.username}: {total_analyzed} comentários analisados",
+                            metadata={"pipeline_run_id": str(run.id), "platform": conn.platform},
+                        )
+                        db.commit()
+                except InsufficientCreditsError:
+                    logger.warning("Insufficient credits for user %s during daily_sync @%s", conn.user_id, conn.username)
+                except Exception as credit_exc:
+                    logger.warning("Failed to consume credits for daily_sync @%s: %s", conn.username, credit_exc)
 
                 # Stage 3: Demographics (only if enough new usernames)
                 try:
@@ -767,9 +695,12 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 db.commit()
 
                 run.comments_analyzed = total_analyzed
-                run.status = "completed"
+                run.llm_calls = total_llm_calls
+                run.errors_count = total_errors
+                run.total_cost_usd = total_cost
+                run.status = "partial" if total_errors > 0 else "completed"
                 run.ended_at = datetime.now(timezone.utc)
-                _append_step(db, run, f"Sync semanal concluído: {run.posts_fetched} posts, {total_analyzed} analisados")
+                _append_step(db, run, f"Sync concluído: {run.posts_fetched} posts, {total_analyzed} analisados, {total_llm_calls} LLM calls, custo ${total_cost:.4f}")
 
                 # Invalidate cache
                 try:

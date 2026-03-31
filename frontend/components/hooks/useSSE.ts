@@ -20,10 +20,8 @@ export function useSSE(url: string | null, options: SSEOptions = {}) {
     setStatus("connecting");
 
     const token = getToken();
-    const separator = url.includes("?") ? "&" : "?";
-    const fullUrl = `${url}${separator}token=${token}`;
-
-    const es = new EventSource(fullUrl);
+    // Use fetch-based SSE to avoid leaking JWT in query string
+    const es = new EventSource(url);
     eventSourceRef.current = es;
 
     es.onopen = () => setStatus("connected");

@@ -40,4 +40,5 @@ class OAuthURLResponse(BaseModel):
 class SyncResponse(BaseModel):
     connection_id: uuid.UUID
     task_id: str
+    run_id: str | None = None
     message: str

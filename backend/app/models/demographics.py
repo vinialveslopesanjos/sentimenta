@@ -10,7 +10,7 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import (
-    Boolean, Float, String, Text, Integer, DateTime, Index, Uuid,
+    JSON, Boolean, Float, String, Text, Integer, DateTime, Index, Uuid,
     UniqueConstraint, ForeignKey,
 )
 from sqlalchemy.dialects.postgresql import JSONB
@@ -37,10 +37,10 @@ class CommenterProfile(Base):
     profile_pic_url_hd: Mapped[str | None] = mapped_column(String(1000), nullable=True)
     followers_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     following_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
-    is_business: Mapped[bool] = mapped_column(Boolean, default=False)
+    is_business: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=False)
     category: Mapped[str | None] = mapped_column(String(255), nullable=True)
     website: Mapped[str | None] = mapped_column(String(1000), nullable=True)
-    raw_payload: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
+    raw_payload: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     scraped_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True,
         default=lambda: datetime.now(timezone.utc),
@@ -94,12 +94,12 @@ class UserEnrichment(Base):
 
     # Metadata
     source_model: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    had_photo: Mapped[bool] = mapped_column(Boolean, default=False)
-    had_bio: Mapped[bool] = mapped_column(Boolean, default=False)
-    had_location_field: Mapped[bool] = mapped_column(Boolean, default=False)
+    had_photo: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=False)
+    had_bio: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=False)
+    had_location_field: Mapped[bool | None] = mapped_column(Boolean, nullable=True, default=False)
     evidence_json: Mapped[dict | None] = mapped_column(JSONB, nullable=True)
-    computed_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    computed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=lambda: datetime.now(timezone.utc)
     )
 
     __table_args__ = (
@@ -129,12 +129,12 @@ class UsageLog(Base):
     operation: Mapped[str] = mapped_column(
         String(50), nullable=False
     )  # "ingest", "demographics", "follower_snapshot"
-    posts_count: Mapped[int] = mapped_column(Integer, default=0)
-    comments_count: Mapped[int] = mapped_column(Integer, default=0)
-    profiles_count: Mapped[int] = mapped_column(Integer, default=0)
-    estimated_cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    posts_count: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
+    comments_count: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
+    profiles_count: Mapped[int | None] = mapped_column(Integer, nullable=True, default=0)
+    estimated_cost_usd: Mapped[float | None] = mapped_column(Float, nullable=True, default=0.0)
+    created_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=lambda: datetime.now(timezone.utc)
     )
 
     __table_args__ = (
