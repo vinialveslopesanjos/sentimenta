@@ -11,6 +11,8 @@ import logging
 import os
 from typing import Optional
 
+from app.core.config import settings
+
 logger = logging.getLogger(__name__)
 
 
@@ -18,19 +20,18 @@ def _get_resend():
     """Lazy-import resend to avoid crash when not installed."""
     try:
         import resend as _resend
-        api_key = os.getenv("RESEND_API_KEY", "")
-        if not api_key:
+        if not settings.RESEND_API_KEY:
             logger.warning("RESEND_API_KEY not set — emails will be skipped")
             return None
-        _resend.api_key = api_key
+        _resend.api_key = settings.RESEND_API_KEY
         return _resend
     except ImportError:
         logger.warning("resend package not installed — pip install resend")
         return None
 
 
-FROM_ADDRESS = os.getenv("EMAIL_FROM", "noreply@sentimenta.com.br")
-APP_URL = os.getenv("APP_URL", "https://app.sentimenta.com.br")
+FROM_ADDRESS = settings.EMAIL_FROM
+APP_URL = settings.APP_URL
 
 
 def _email_wrapper(title_html: str, body_html: str) -> str:

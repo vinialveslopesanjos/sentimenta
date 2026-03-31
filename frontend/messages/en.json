@@ -695,7 +695,8 @@
       "currentPasswordPlaceholder": "Current password",
       "cancel": "Cancel",
       "deletePermanently": "Delete Permanently",
-      "deleting": "Deleting..."
+      "deleting": "Deleting...",
+      "deleteError": "Could not delete account."
     },
     "billing": {
       "currentPlan": "Your Current Plan",
@@ -1232,5 +1233,63 @@
     "accept": "Accept",
     "decline": "Decline",
     "learnMore": "Learn more"
+  },
+  "support": {
+    "startFree": "Start free",
+    "backHome": "Back",
+    "title": "Support Center",
+    "subtitle": "We're here to help",
+    "emailTitle": "E-mail",
+    "emailAddress": "suporte@sentimenta.com.br",
+    "emailResponseTime": "Response within 24 business hours",
+    "chatTitle": "Chat",
+    "chatAvailability": "Available on dashboard",
+    "chatHours": "Mon-Fri, 9am to 6pm",
+    "faqTitle": "Frequently asked questions",
+    "faq1": {
+      "q": "How do I connect my Instagram profile?",
+      "a": "Just enter the @ of the public profile you want to monitor. No Instagram login required. Our AI only collects comments from public profiles."
+    },
+    "faq2": {
+      "q": "How long does the first analysis take?",
+      "a": "The first full analysis takes less than 2 minutes. After that, syncs are automatic and take seconds."
+    },
+    "faq3": {
+      "q": "Can I monitor competitor profiles?",
+      "a": "Yes! You can monitor any public profile, including competitors. It's great for sentiment benchmarking."
+    },
+    "faq4": {
+      "q": "How does the crisis alert work?",
+      "a": "When the percentage of negative comments exceeds the threshold you set, the system sends a notification via email and/or on the dashboard."
+    },
+    "faq5": {
+      "q": "Is my data secure?",
+      "a": "Yes. We use end-to-end encryption, Brazilian servers, and are LGPD compliant."
+    },
+    "faq6": {
+      "q": "Can I cancel at any time?",
+      "a": "Yes. No fines or red tape. When you cancel, your account is paused and you can reactivate whenever you want."
+    },
+    "formTitle": "Send a message",
+    "formSubtitle": "Fill out the form below and we'll get back to you as soon as possible.",
+    "sentTitle": "Message sent!",
+    "sentSubtitle": "We'll get back to you within 24 business hours.",
+    "sendAnother": "Send another message",
+    "labelName": "Name",
+    "labelEmail": "E-mail",
+    "labelSubject": "Subject",
+    "labelMessage": "Message",
+    "placeholderName": "Your name",
+    "placeholderEmail": "you@email.com",
+    "placeholderSubject": "Summary of your issue or question",
+    "placeholderMessage": "Describe in detail how we can help...",
+    "sending": "Sending...",
+    "sendMessage": "Send message",
+    "sendError": "Error sending message. Try again or email suporte@sentimenta.com.br",
+    "footerPrivacy": "Privacy",
+    "footerTerms": "Terms",
+    "footerSupport": "Support",
+    "footerBlog": "Blog",
+    "footerCopyright": "© 2026 Sentimenta"
   }
 }
