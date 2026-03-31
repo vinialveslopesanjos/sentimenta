@@ -139,8 +139,19 @@ def ingest_instagram_profile(
         _step("Buscando catálogo de posts via Apify...")
         user_plan = db.query(User.plan).filter(User.id == connection.user_id).scalar() or "free"
         total_comment_budget = max_comments_per_post if user_plan == "free" else None
-        from app.services.apify_service import fetch_posts_apify
-        posts_data = fetch_posts_apify(username, max_posts=max_posts, step_callback=_step)
+        from app.services.apify_service import fetch_posts_apify, ApifyError, ApifyRateLimitError, ApifyFetchError
+        try:
+            posts_data = fetch_posts_apify(username, max_posts=max_posts, step_callback=_step)
+        except ApifyRateLimitError as exc:
+            logger.warning("Instagram ingest @%s aborted: %s", username, exc)
+            stats["errors"].append(str(exc))
+            stats["status"] = "failed"
+            return stats
+        except ApifyFetchError as exc:
+            logger.error("Instagram ingest @%s failed to fetch posts: %s", username, exc)
+            stats["errors"].append(str(exc))
+            stats["status"] = "failed"
+            return stats
 
         if not posts_data:
             _step("Nenhum post encontrado via Apify")
@@ -446,7 +457,7 @@ def _fetch_comments_apify_path(
     progress_callback=None,
 ):
     """Fetch comments via Apify comment actor and save to DB."""
-    from app.services.apify_service import fetch_comments_apify
+    from app.services.apify_service import fetch_comments_apify, ApifyError
 
     _step = step_callback or (lambda msg: None)
 
@@ -475,14 +486,22 @@ def _fetch_comments_apify_path(
             remaining -= per_post_limits[url]
 
     # Fetch comments via Apify
-    comments_by_url = fetch_comments_apify(
-        post_urls=post_urls,
-        max_per_post=max_comments,
-        per_post_limits=per_post_limits,
-        sample_mode=sample_mode,
-        comment_counts=comment_counts,
-        step_callback=_step,
-    )
+    try:
+        comments_by_url = fetch_comments_apify(
+            post_urls=post_urls,
+            max_per_post=max_comments,
+            per_post_limits=per_post_limits,
+            sample_mode=sample_mode,
+            comment_counts=comment_counts,
+            step_callback=_step,
+        )
+    except ApifyError as exc:
+        logger.error("Apify comment fetch failed: %s", exc)
+        _step(f"Apify comentários: erro — {exc}")
+        if stats is not None:
+            stats["errors"].append(str(exc))
+            stats["status"] = "failed"
+        return
 
     # Apply smart sampling (top-liked reservation) when in sample mode
     if sample_mode == "sample":
@@ -567,7 +586,7 @@ def _enrich_via_apify(db, connection_id, platform_post_ids, followers, step_call
     Uses its own DB session when called from a thread.
     """
     try:
-        from app.services.apify_service import enrich_posts_apify
+        from app.services.apify_service import enrich_posts_apify, ApifyError
 
         # Build shortcode <-> platform_post_id mapping
         pid_to_sc = {}
@@ -579,7 +598,12 @@ def _enrich_via_apify(db, connection_id, platform_post_ids, followers, step_call
 
         total_batches = (len(shortcodes) + 19) // 20
         step_callback(f"Apify: {len(shortcodes)} posts em {total_batches} batch(es)...")
-        enriched = enrich_posts_apify(shortcodes)
+        try:
+            enriched = enrich_posts_apify(shortcodes)
+        except ApifyError as exc:
+            logger.warning("Apify enrichment aborted: %s", exc)
+            step_callback(f"Apify enrichment: erro — {exc}")
+            return
 
         if not enriched:
             step_callback("Apify: nenhum dado retornado")
@@ -996,8 +1020,19 @@ def _ingest_instagram_daily(
         recent_post_ids = {p.platform_post_id for p in recent_posts}
 
         # Fetch latest posts from Apify to detect new ones
-        from app.services.apify_service import fetch_posts_apify
-        posts_data = fetch_posts_apify(username, max_posts=max_posts, step_callback=_step)
+        from app.services.apify_service import fetch_posts_apify, ApifyRateLimitError, ApifyFetchError
+        try:
+            posts_data = fetch_posts_apify(username, max_posts=max_posts, step_callback=_step)
+        except ApifyRateLimitError as exc:
+            logger.warning("Instagram daily @%s aborted: %s", username, exc)
+            stats["errors"].append(str(exc))
+            stats["status"] = "failed"
+            return stats
+        except ApifyFetchError as exc:
+            logger.error("Instagram daily @%s failed to fetch posts: %s", username, exc)
+            stats["errors"].append(str(exc))
+            stats["status"] = "failed"
+            return stats
 
         if not posts_data:
             _step("Nenhum post encontrado via Apify")

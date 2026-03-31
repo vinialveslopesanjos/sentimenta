@@ -1233,5 +1233,63 @@
     "accept": "Aceitar",
     "decline": "Recusar",
     "learnMore": "Saiba mais"
+  },
+  "support": {
+    "startFree": "Comece gratis",
+    "backHome": "Voltar",
+    "title": "Central de Suporte",
+    "subtitle": "Estamos aqui para ajudar",
+    "emailTitle": "E-mail",
+    "emailAddress": "suporte@sentimenta.com.br",
+    "emailResponseTime": "Resposta em ate 24h uteis",
+    "chatTitle": "Chat",
+    "chatAvailability": "Disponivel no dashboard",
+    "chatHours": "Seg-Sex, 9h as 18h",
+    "faqTitle": "Perguntas frequentes",
+    "faq1": {
+      "q": "Como conectar meu perfil do Instagram?",
+      "a": "Basta informar o @ do perfil público que deseja monitorar. Não é necessário login no Instagram. Nossa IA coleta apenas comentários de perfis públicos."
+    },
+    "faq2": {
+      "q": "Quanto tempo leva a primeira análise?",
+      "a": "A primeira análise completa leva menos de 2 minutos. Após isso, as sincronizações são automáticas e levam segundos."
+    },
+    "faq3": {
+      "q": "Posso monitorar perfis de concorrentes?",
+      "a": "Sim! Você pode monitorar qualquer perfil público, incluindo concorrentes. É ótimo para benchmarking de sentimento."
+    },
+    "faq4": {
+      "q": "Como funciona o alerta de crise?",
+      "a": "Quando a porcentagem de comentários negativos ultrapassa o limiar configurado por você, o sistema envia uma notificação por e-mail e/ou no dashboard."
+    },
+    "faq5": {
+      "q": "Meus dados estão seguros?",
+      "a": "Sim. Utilizamos criptografia ponta a ponta, servidores brasileiros e somos compliance com a LGPD."
+    },
+    "faq6": {
+      "q": "Posso cancelar a qualquer momento?",
+      "a": "Sim. Sem multas ou burocracia. Ao cancelar, sua conta fica pausada e você pode reativar quando quiser."
+    },
+    "formTitle": "Envie uma mensagem",
+    "formSubtitle": "Preencha o formulario abaixo e retornaremos o mais breve possivel.",
+    "sentTitle": "Mensagem enviada!",
+    "sentSubtitle": "Retornaremos em ate 24h uteis.",
+    "sendAnother": "Enviar outra mensagem",
+    "labelName": "Nome",
+    "labelEmail": "E-mail",
+    "labelSubject": "Assunto",
+    "labelMessage": "Mensagem",
+    "placeholderName": "Seu nome",
+    "placeholderEmail": "seu@email.com",
+    "placeholderSubject": "Resumo do seu problema ou duvida",
+    "placeholderMessage": "Descreva em detalhes como podemos ajudar...",
+    "sending": "Enviando...",
+    "sendMessage": "Enviar mensagem",
+    "sendError": "Erro ao enviar mensagem. Tente novamente ou envie para suporte@sentimenta.com.br",
+    "footerPrivacy": "Privacidade",
+    "footerTerms": "Termos",
+    "footerSupport": "Suporte",
+    "footerBlog": "Blog",
+    "footerCopyright": "© 2026 Sentimenta"
   }
 }
