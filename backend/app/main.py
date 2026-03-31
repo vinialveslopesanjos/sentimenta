@@ -5,8 +5,6 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.db.session import Base, engine
-import app.models  # noqa: F401 - ensure all models registered before create_all
 from app.routers import auth, connections, posts, dashboard, pipeline, comments, billing, support, demographics
 
 logger = logging.getLogger(__name__)
@@ -26,17 +24,8 @@ if settings.SENTRY_DSN:
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Create tables on startup (in dev; use Alembic in production)
-    if settings.DEBUG:
-        try:
-            Base.metadata.create_all(bind=engine)
-            logger.info("Database tables created successfully")
-        except Exception as e:
-            logger.warning(
-                f"Could not create database tables: {e}. "
-                "Make sure PostgreSQL is running. "
-                "The API will start but database operations will fail."
-            )
+    if not settings.SECRET_KEY:
+        raise RuntimeError("SECRET_KEY is not set. Set it in .env before starting the app.")
     yield
 
 

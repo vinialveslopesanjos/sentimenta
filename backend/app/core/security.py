@@ -16,11 +16,13 @@ def _get_fernet() -> Fernet:
     if _fernet is None:
         key = settings.TOKEN_ENCRYPTION_KEY
         if not key:
-            key = Fernet.generate_key().decode()
-        else:
-            # Ensure key is valid Fernet key (32 url-safe base64-encoded bytes)
-            if len(key) != 44:
-                key = base64.urlsafe_b64encode(key.ljust(32)[:32].encode()).decode()
+            raise RuntimeError(
+                "TOKEN_ENCRYPTION_KEY is not set. "
+                "Generate one with: python -c \"from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())\""
+            )
+        # Ensure key is valid Fernet key (32 url-safe base64-encoded bytes)
+        if len(key) != 44:
+            key = base64.urlsafe_b64encode(key.ljust(32)[:32].encode()).decode()
         _fernet = Fernet(key.encode() if isinstance(key, str) else key)
     return _fernet
 

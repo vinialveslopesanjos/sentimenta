@@ -582,9 +582,18 @@ def trigger_sync(
 ):
     from app.middleware.rate_limiter import rate_limiter
     from app.services.plan_service import enforce_sync_limits, PlanLimitError
+    from app.models.pipeline_run import PipelineRun
 
     # Rate limit: 1 sync per connection per 5 minutes
     rate_limiter.check(f"sync:{connection_id}", max_requests=1, window_seconds=300)
+
+    # Block if sync already running for this connection
+    active_run = db.query(PipelineRun).filter(
+        PipelineRun.connection_id == str(connection_id),
+        PipelineRun.status == "running",
+    ).first()
+    if active_run:
+        raise HTTPException(status_code=409, detail="Sync already running for this connection")
 
     # Enforce plan limits (syncs/month, Apify budget)
     try:
@@ -616,6 +625,17 @@ def trigger_sync(
     if params.use_apify_comments:
         effective_max_comments = min(10000, plan_limits.get("max_comments_per_post", 10000))
 
+    # Create PipelineRun in router so we can return the real run_id
+    run = PipelineRun(
+        user_id=current_user.id,
+        connection_id=connection_id,
+        run_type="full",
+        status="running",
+        target_posts=effective_max_posts,
+    )
+    db.add(run)
+    db.commit()
+
     from app.tasks.pipeline_tasks import task_full_pipeline
 
     result = task_full_pipeline.delay(
@@ -626,11 +646,17 @@ def trigger_sync(
         since_date=since_date_str,
         use_apify_comments=params.use_apify_comments,
         comment_sample_mode=params.comment_sample_mode,
+        run_id=str(run.id),
     )
+
+    # Store celery task id on the run
+    run.celery_task_id = result.id
+    db.commit()
 
     return SyncResponse(
         connection_id=connection_id,
-        task_id=result.id,
+        task_id=str(run.id),
+        run_id=str(run.id),
         message=f"Sync started for {conn.platform}:{conn.username}",
     )
 
@@ -642,6 +668,20 @@ def trigger_analyze(
     db: Session = Depends(get_db),
 ):
     """Analyze-only: run sentiment analysis on existing pending comments (no ingestion)."""
+    from app.middleware.rate_limiter import rate_limiter
+    from app.models.pipeline_run import PipelineRun
+
+    # Rate limit: 1 analyze per connection per 5 minutes
+    rate_limiter.check(f"analyze:{connection_id}", max_requests=1, window_seconds=300)
+
+    # Block if sync/analyze already running for this connection
+    active_run = db.query(PipelineRun).filter(
+        PipelineRun.connection_id == str(connection_id),
+        PipelineRun.status == "running",
+    ).first()
+    if active_run:
+        raise HTTPException(status_code=409, detail="Sync or analysis already running for this connection")
+
     conn = (
         db.query(SocialConnection)
         .filter(
