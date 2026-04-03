@@ -92,7 +92,7 @@ def analyze_post_comments(
 
     post = db.get(Post, post_id)
     if not post:
-        return {"analyzed": 0, "errors": 0, "llm_calls": 0}
+        return {"analyzed": 0, "errors": 0, "llm_calls": 0, "cost_usd": 0.0}
 
     connection = db.get(SocialConnection, post.connection_id)
     ignore_author = connection.ignore_author_comments if connection else False
@@ -109,7 +109,7 @@ def analyze_post_comments(
                 "User %s hit daily LLM limit ($%.2f/$%.2f)",
                 email, spent_today, daily_limit,
             )
-            return {"analyzed": 0, "errors": 0, "llm_calls": 0, "skipped_reason": "daily_limit"}
+            return {"analyzed": 0, "errors": 0, "llm_calls": 0, "cost_usd": 0.0, "skipped_reason": "daily_limit"}
 
     pending_query = (
         db.query(Comment)
@@ -129,11 +129,12 @@ def analyze_post_comments(
 
     if not pending:
         db.commit()
-        return {"analyzed": 0, "errors": 0, "llm_calls": 0}
+        return {"analyzed": 0, "errors": 0, "llm_calls": 0, "cost_usd": 0.0}
 
     llm = LLMClient()
 
     stats = {"analyzed": 0, "errors": 0, "llm_calls": 0}
+    total_cost_usd = 0.0
 
     post_context = {}
     persona_text = None
@@ -274,6 +275,7 @@ def analyze_post_comments(
                     )
 
                 stats["analyzed"] += 1
+                total_cost_usd += result.get("cost_estimate_usd") or 0.0
                 if is_error:
                     stats["errors"] += 1
 
@@ -285,6 +287,7 @@ def analyze_post_comments(
             stats["errors"] += len(batch)
 
     db.commit()
+    stats["cost_usd"] = total_cost_usd
     return stats
 
 

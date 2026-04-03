@@ -695,10 +695,29 @@ def trigger_analyze(
 
     from app.tasks.pipeline_tasks import task_analyze_connection
 
-    result = task_analyze_connection.delay(str(connection_id), str(current_user.id))
+    # Create PipelineRun before dispatch (same pattern as sync)
+    run = PipelineRun(
+        user_id=current_user.id,
+        connection_id=connection_id,
+        run_type="analyze",
+        status="running",
+    )
+    db.add(run)
+    db.commit()
+
+    result = task_analyze_connection.delay(
+        str(connection_id),
+        str(current_user.id),
+        run_id=str(run.id),
+    )
+
+    # Store celery task id on the run
+    run.celery_task_id = result.id
+    db.commit()
 
     return SyncResponse(
         connection_id=connection_id,
-        task_id=result.id,
+        task_id=str(run.id),
+        run_id=str(run.id),
         message=f"Analysis started for {conn.platform}:{conn.username}",
     )

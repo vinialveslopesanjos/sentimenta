@@ -10,6 +10,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
+from celery.exceptions import SoftTimeLimitExceeded
 from app.tasks.celery_app import celery_app
 from app.db.session import SessionLocal
 from app.models.pipeline_run import PipelineRun
@@ -19,6 +20,14 @@ from app.models.social_connection import SocialConnection
 from app.models.follower_snapshot import FollowerSnapshot
 
 logger = logging.getLogger(__name__)
+
+# Per-item Apify scraping costs in USD (verified Mar/2026)
+PLATFORM_COSTS_USD = {
+    "instagram": {"per_post": 0.0023, "per_comment": 0.0005, "per_profile": 0.0023},
+    "youtube": {"per_post": 0.0, "per_comment": 0.0, "per_profile": 0.0},
+    "tiktok": {"per_post": 0.0023, "per_comment": 0.001, "per_profile": 0.0},
+    "twitter": {"per_post": 0.0, "per_comment": 0.0004, "per_profile": 0.0},
+}
 
 
 def _mark_stale_running_runs(db, max_age_hours: int = 6) -> int:
@@ -104,7 +113,7 @@ def _do_ingest(db, connection, max_posts: int = 10, max_comments_per_post: int =
 
 
 @celery_app.task(bind=True)
-def task_analyze_connection(self, connection_id: str, user_id: str) -> dict:
+def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str | None = None) -> dict:
     """Analyze-only: run sentiment analysis on existing pending comments (no ingestion)."""
     db = SessionLocal()
     try:
@@ -118,16 +127,30 @@ def task_analyze_connection(self, connection_id: str, user_id: str) -> dict:
         if not connection:
             return {"error": f"Connection {connection_id} not found"}
 
-        # Create pipeline run for tracking
-        run = PipelineRun(
-            user_id=user_uuid,
-            connection_id=conn_uuid,
-            run_type="analyze",
-            status="running",
-        )
-        run.celery_task_id = self.request.id
-        db.add(run)
-        db.commit()
+        # Reuse existing PipelineRun if run_id provided (created by endpoint)
+        if run_id:
+            run = db.query(PipelineRun).filter(PipelineRun.id == run_id).first()
+            if not run:
+                run = PipelineRun(
+                    user_id=user_uuid,
+                    connection_id=conn_uuid,
+                    run_type="analyze",
+                    status="running",
+                )
+                run.celery_task_id = self.request.id
+                db.add(run)
+                db.commit()
+        else:
+            # Backward compatibility: create new run
+            run = PipelineRun(
+                user_id=user_uuid,
+                connection_id=conn_uuid,
+                run_type="analyze",
+                status="running",
+            )
+            run.celery_task_id = self.request.id
+            db.add(run)
+            db.commit()
 
         def step_cb(msg):
             _append_step(db, run, msg)
@@ -172,6 +195,7 @@ def task_analyze_connection(self, connection_id: str, user_id: str) -> dict:
         total_analyzed = 0
         total_llm_calls = 0
         total_errors = 0
+        total_cost = 0.0
 
         for idx, post in enumerate(posts, 1):
             stats = analyze_post_comments(db, post.id)
@@ -179,6 +203,7 @@ def task_analyze_connection(self, connection_id: str, user_id: str) -> dict:
             total_analyzed += analyzed
             total_llm_calls += stats.get("llm_calls", 0)
             total_errors += stats.get("errors", 0)
+            total_cost += stats.get("cost_usd", 0.0)
 
             if analyzed > 0:
                 generate_post_summary(db, post.id)
@@ -201,6 +226,7 @@ def task_analyze_connection(self, connection_id: str, user_id: str) -> dict:
         run.comments_analyzed = total_analyzed
         run.llm_calls = total_llm_calls
         run.errors_count = total_errors
+        run.total_cost_usd = total_cost
         run.status = "completed" if total_errors == 0 else "partial"
         run.ended_at = datetime.now(timezone.utc)
         step_cb(f"Análise concluída: {total_analyzed} comentários processados")
@@ -306,6 +332,13 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         run.target_comments = run.comments_fetched
         _append_step(db, run, f"Extração concluída: {run.posts_fetched} posts, {run.comments_fetched} comentários")
 
+        # Calculate Apify scraping cost
+        platform = connection.platform or "instagram"
+        platform_costs = PLATFORM_COSTS_USD.get(platform, PLATFORM_COSTS_USD["instagram"])
+        apify_cost = (run.posts_fetched * platform_costs["per_post"]
+                      + run.comments_fetched * platform_costs["per_comment"])
+        run.apify_cost_usd = apify_cost
+
         # Log usage per platform (Fase 4)
         try:
             from app.services.plan_service import log_usage
@@ -409,7 +442,7 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         run.comments_analyzed = total_analyzed
         run.llm_calls = total_llm_calls
         run.errors_count = total_errors
-        run.total_cost_usd = total_cost
+        run.total_cost_usd = total_cost + apify_cost
         run.status = "completed" if total_errors == 0 else "partial"
         run.ended_at = datetime.now(timezone.utc)
         _append_step(db, run, "Pipeline concluído ✓")
@@ -592,6 +625,13 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 run.posts_fetched = ingest_result.get("posts_fetched", 0) + ingest_result.get("posts_updated", 0)
                 run.comments_fetched = ingest_result.get("comments_fetched", 0) + ingest_result.get("comments_updated", 0)
 
+                # Calculate Apify scraping cost
+                ds_platform = conn.platform or "instagram"
+                ds_costs = PLATFORM_COSTS_USD.get(ds_platform, PLATFORM_COSTS_USD["instagram"])
+                apify_cost = (run.posts_fetched * ds_costs["per_post"]
+                              + run.comments_fetched * ds_costs["per_comment"])
+                run.apify_cost_usd = apify_cost
+
                 # Log usage per platform (Fase 4)
                 try:
                     from app.services.plan_service import log_usage
@@ -610,8 +650,8 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 # Analyze only posts with pending comments
                 from app.services.analysis_service import analyze_post_comments, generate_post_summary
                 from app.models.comment import Comment
-                posts_with_pending = (
-                    db.query(Post)
+                pending_post_ids = (
+                    db.query(Post.id)
                     .join(Comment, Comment.post_id == Post.id)
                     .filter(
                         Post.connection_id == conn.id,
@@ -620,6 +660,11 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                     .distinct()
                     .all()
                 )
+                posts_with_pending = (
+                    db.query(Post)
+                    .filter(Post.id.in_([pid for (pid,) in pending_post_ids]))
+                    .all()
+                ) if pending_post_ids else []
                 total_analyzed = 0
                 total_llm_calls = 0
                 total_errors = 0
@@ -697,10 +742,10 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 run.comments_analyzed = total_analyzed
                 run.llm_calls = total_llm_calls
                 run.errors_count = total_errors
-                run.total_cost_usd = total_cost
+                run.total_cost_usd = total_cost + apify_cost
                 run.status = "partial" if total_errors > 0 else "completed"
                 run.ended_at = datetime.now(timezone.utc)
-                _append_step(db, run, f"Sync concluído: {run.posts_fetched} posts, {total_analyzed} analisados, {total_llm_calls} LLM calls, custo ${total_cost:.4f}")
+                _append_step(db, run, f"Sync concluído: {run.posts_fetched} posts, {total_analyzed} analisados, {total_llm_calls} LLM calls, custo ${total_cost + apify_cost:.4f} (LLM ${total_cost:.4f} + Apify ${apify_cost:.4f})")
 
                 # Invalidate cache
                 try:
@@ -729,6 +774,19 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                     "analyzed": total_analyzed,
                 }
                 logger.info("Weekly sync done for @%s: %s", conn.username, results[conn.username])
+
+            except SoftTimeLimitExceeded:
+                logger.warning("daily_sync atingiu soft time limit durante @%s, finalizando parcialmente", conn.username)
+                if run is not None:
+                    try:
+                        run.status = "partial"
+                        run.ended_at = datetime.now(timezone.utc)
+                        _append_step(db, run, "Sync interrompido por timeout")
+                        db.commit()
+                    except Exception:
+                        db.rollback()
+                results[conn.username] = {"error": "soft_time_limit_exceeded"}
+                break  # sair do loop de conexões, preservando as já processadas
 
             except Exception as exc:
                 logger.error("Weekly sync failed for @%s: %s", conn.username, exc)

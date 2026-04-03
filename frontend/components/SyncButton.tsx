@@ -71,7 +71,7 @@ export default function SyncButton({ connectionId, onComplete }: Props) {
     if (!token) return;
     try {
       const runs = await pipelineApi.listRuns(token);
-      const run = runs.find((r) => r.id === runId) || runs.find((r) => r.connection_id === connectionId && r.status === "running");
+      const run = runs.find((r) => r.id === runId);
       if (run) {
         let status = "Acessando rede...";
         if (run.comments_fetched > 0) {
@@ -92,7 +92,7 @@ export default function SyncButton({ connectionId, onComplete }: Props) {
         if (run.status === "running") return true;
       }
       const completedRun = runs.find(
-        (r) => r.connection_id === connectionId && r.status !== "running"
+        (r) => r.id === runId && r.status !== "running"
       );
       if (completedRun && completedRun.status === "completed") {
         setState("done");
@@ -116,7 +116,7 @@ export default function SyncButton({ connectionId, onComplete }: Props) {
     } catch {
       return true;
     }
-  }, [connectionId, onComplete]);
+  }, [onComplete]);
 
   useEffect(() => {
     if (state !== "syncing" || !taskId) return;

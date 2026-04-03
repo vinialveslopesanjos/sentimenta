@@ -152,12 +152,17 @@ LEGACY_PLAN_MAP = {
 }
 
 # Apify cost reference (verified Mar/2026 from 1,575 real runs):
-# Instagram comments scraper: $3.27/1000 comments (pay-per-result)
-# Instagram profile scraper: $1.41/1000 profiles (demographics)
-# Full cost incl. demographics (~58% unique authors): ~$4.11/1000 comments
-# At BRL ~6.0/USD → R$24.68/1000 comments (first run) / R$21.15/1000 (ongoing, 30% new)
+# Apify scraping costs (verified Mar/2026):
+#   Per-item USD: IG Comments $0.0005, IG Posts $0.0023, Demographics $0.0023
+#   Instagram comments scraper: $3.27/1000 comments (pay-per-result)
+#   Instagram profile scraper: $1.41/1000 profiles (demographics)
+#   Full cost incl. demographics (~58% unique authors): ~$4.11/1000 comments
+#   At BRL ~6.0/USD -> R$24.68/1000 comments (first run) / R$21.15/1000 (ongoing, 30% new)
 # IMPORTANT: actual monthly cost is much lower because daily sync only checks 5 recent posts
-APIFY_COST_PER_COMMENT_BRL = 0.020  # R$0.02/comment — blended estimate (first + ongoing)
+# NOTE: R$0.020 is a conservative blended estimate including posts + comments + overhead.
+# Raw per-comment cost is lower (~R$0.003), but this accounts for the combined cost of
+# fetching posts, comments, and occasional demographics enrichment per comment analyzed.
+APIFY_COST_PER_COMMENT_BRL = 0.020  # R$0.02/comment — blended estimate (posts + comments + overhead)
 USD_TO_BRL = 6.0  # Updated Mar/2026
 
 

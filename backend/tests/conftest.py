@@ -34,6 +34,12 @@ from app.models import (
     CommentAnalysis,
     PostAnalysisSummary,
     PipelineRun,
+    CreditBalance,
+    CreditTransaction,
+    StripeEvent,
+    FollowerSnapshot,
+    CommenterProfile,
+    UserEnrichment,
 )
 from app.core.security import hash_password, create_access_token
 
@@ -181,3 +187,10 @@ def test_comments(db, test_post, test_connection):
     for c in comments:
         db.refresh(c)
     return comments
+
+
+@pytest.fixture(params=["free", "starter", "pro", "business"])
+def user_with_plan(request, db):
+    """Create a test user for each plan tier."""
+    from tests.factories import create_user
+    return create_user(db, plan=request.param)

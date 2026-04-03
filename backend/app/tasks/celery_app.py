@@ -23,6 +23,7 @@ celery_app.conf.beat_schedule = {
     "refresh-social-tokens": {
         "task": "app.tasks.pipeline_tasks.task_refresh_social_tokens",
         "schedule": crontab(hour=2, minute=30),  # 2:30AM UTC (before daily sync)
+        "options": {"soft_time_limit": 300, "time_limit": 360},  # 5min soft, 6min hard
     },
     "daily-follower-snapshots": {
         "task": "app.tasks.pipeline_tasks.task_daily_follower_snapshots",
@@ -33,11 +34,13 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.pipeline_tasks.task_daily_sync",
         "schedule": crontab(hour=3, minute=25, day_of_week=1),  # Monday 3:25AM - Free/Starter (offset from daily)
         "kwargs": {"frequency_filter": "weekly"},
+        "options": {"soft_time_limit": 3600, "time_limit": 3900},  # 60min soft, 65min hard
     },
     "daily-sync": {
         "task": "app.tasks.pipeline_tasks.task_daily_sync",
         "schedule": crontab(hour=3, minute=15),  # Daily 3:15AM - Pro/Business/Enterprise
         "kwargs": {"frequency_filter": "daily"},
+        "options": {"soft_time_limit": 3600, "time_limit": 3900},  # 60min soft, 65min hard
     },
 }
 
