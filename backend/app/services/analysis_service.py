@@ -97,6 +97,24 @@ def analyze_post_comments(
     connection = db.get(SocialConnection, post.connection_id)
     ignore_author = connection.ignore_author_comments if connection else False
 
+    # ADR-013: Persona is required for analysis. Skip if missing.
+    if connection and not (connection.persona and connection.persona.strip()):
+        logger.warning(
+            "Skipping analysis for post %s: connection %s has no persona set",
+            post_id, connection.id,
+        )
+        return {"analyzed": 0, "errors": 0, "llm_calls": 0, "cost_usd": 0.0, "skipped_reason": "missing_persona"}
+
+    # ADR-013: Post context validation. Need caption (>10 chars) or image_context.
+    has_caption = bool(post.content_text and len(post.content_text) > 10)
+    has_image_ctx = bool(post.image_context)
+    if not has_caption and not has_image_ctx:
+        logger.warning(
+            "Skipping analysis for post %s: missing context (no caption >10 chars and no image_context)",
+            post_id,
+        )
+        return {"analyzed": 0, "errors": 0, "llm_calls": 0, "cost_usd": 0.0, "skipped_reason": "skipped_missing_context"}
+
     # ── Daily LLM cost limit check ──────────────────────────────
     daily_limit = settings.LLM_DAILY_LIMIT_USD
     if daily_limit > 0 and connection:

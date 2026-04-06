@@ -572,6 +572,206 @@ async def tiktok_connection_callback(
     return RedirectResponse(url=f"{base_url}/settings?tab=integrations&status=success&platform=tiktok")
 
 
+# --- Preflight ---
+class PreflightBlocker(BaseModel):
+    code: str
+    message: str
+
+class PreflightWarning(BaseModel):
+    code: str
+    message: str
+
+class PreflightResponse(BaseModel):
+    can_sync: bool
+    blockers: list[PreflightBlocker]
+    warnings: list[PreflightWarning]
+    credits_available: int
+    estimated_credits_comments: int
+    estimated_credits_demographics: int
+    estimated_credits_total: int
+    estimated_cost_brl: float
+    eta_min: int
+    eta_max: int
+    persona_set: bool
+    context_readiness_mode: str  # "known" | "estimated"
+    known_posts_with_context: int
+    known_posts_missing_context: int
+    is_first_run: bool
+
+
+@router.get("/{connection_id}/sync/preflight", response_model=PreflightResponse)
+def sync_preflight(
+    connection_id: uuid.UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Pre-sync check: returns blockers, warnings, cost/credit estimates."""
+    from app.services.plan_service import (
+        get_plan_limits,
+        count_syncs_this_month,
+        get_apify_spend_this_month,
+        estimate_sync_cost_brl,
+        get_platform_costs,
+    )
+    from app.services.credit_service import get_or_create_balance
+    from app.models.pipeline_run import PipelineRun
+    from app.models.post import Post
+
+    conn = (
+        db.query(SocialConnection)
+        .filter(
+            SocialConnection.id == connection_id,
+            SocialConnection.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not conn:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    blockers: list[dict] = []
+    warnings: list[dict] = []
+    limits = get_plan_limits(current_user.plan)
+
+    # --- Persona check ---
+    persona_set = bool(conn.persona and conn.persona.strip())
+    if not persona_set:
+        blockers.append({
+            "code": "missing_persona",
+            "message": "Defina a persona da conexão antes de sincronizar.",
+        })
+
+    # --- Credits check ---
+    bal = get_or_create_balance(db, current_user.id)
+    credits_available = bal.plan_credits + bal.pack_credits
+
+    if credits_available <= 0:
+        blockers.append({
+            "code": "insufficient_credits",
+            "message": "Créditos insuficientes para iniciar sync.",
+        })
+    elif credits_available < limits["credits_per_month"] * 0.1:
+        warnings.append({
+            "code": "low_credits",
+            "message": f"Você tem apenas {credits_available} créditos restantes.",
+        })
+
+    # --- Budget guardrail ---
+    apify_spent = get_apify_spend_this_month(db, current_user.id)
+    if apify_spent >= limits.get("apify_budget_brl", 999999):
+        blockers.append({
+            "code": "budget_guardrail",
+            "message": "Orçamento de coleta do mês atingido.",
+        })
+
+    # --- Syncs per month ---
+    syncs_used = count_syncs_this_month(db, current_user.id)
+    if syncs_used >= limits["syncs_per_month"]:
+        blockers.append({
+            "code": "budget_guardrail",
+            "message": f"Limite de syncs atingido ({syncs_used}/{limits['syncs_per_month']}).",
+        })
+
+    # --- Already running ---
+    active_run = db.query(PipelineRun).filter(
+        PipelineRun.connection_id == connection_id,
+        PipelineRun.status == "running",
+    ).first()
+    if active_run:
+        blockers.append({
+            "code": "already_running",
+            "message": "Já existe um sync em andamento para esta conexão.",
+        })
+
+    # --- Is first run ---
+    any_completed = db.query(PipelineRun).filter(
+        PipelineRun.connection_id == connection_id,
+        PipelineRun.status.in_(["completed", "partial"]),
+    ).first()
+    is_first_run = any_completed is None
+
+    # --- Post context readiness ---
+    existing_posts = (
+        db.query(Post)
+        .filter(Post.connection_id == connection_id)
+        .all()
+    )
+
+    if not existing_posts:
+        context_readiness_mode = "estimated"
+        known_posts_with_context = 0
+        known_posts_missing_context = 0
+    else:
+        context_readiness_mode = "known"
+        known_posts_with_context = 0
+        known_posts_missing_context = 0
+        for p in existing_posts:
+            has_caption = bool(p.content_text and len(p.content_text) > 10)
+            has_image_ctx = bool(p.image_context)
+            if has_caption or has_image_ctx:
+                known_posts_with_context += 1
+            else:
+                known_posts_missing_context += 1
+
+        if known_posts_missing_context > 0:
+            warnings.append({
+                "code": "posts_missing_context",
+                "message": f"{known_posts_missing_context} post(s) podem ser ignorados por falta de contexto.",
+            })
+
+    # --- Cost estimates ---
+    max_posts = limits["max_posts_per_sync"]
+    max_comments = limits["max_comments_per_post"]
+    has_demographics = limits.get("demographics", False)
+
+    cost_result = estimate_sync_cost_brl(
+        num_posts=max_posts,
+        avg_comments_per_post=max_comments,
+        platform=conn.platform,
+        include_demographics=has_demographics,
+    )
+
+    estimated_credits_comments = max_posts * max_comments  # 1 credit per comment
+    estimated_credits_demographics = 0
+    if has_demographics:
+        from app.services.credit_service import DEMOGRAPHIC_CREDIT_COST
+        unique_authors = int(estimated_credits_comments * 0.6)
+        estimated_credits_demographics = unique_authors * DEMOGRAPHIC_CREDIT_COST
+
+    estimated_credits_total = estimated_credits_comments + estimated_credits_demographics
+
+    if cost_result["estimated_cost_brl"] > limits.get("apify_budget_brl", 999999) * 0.5:
+        warnings.append({
+            "code": "high_estimated_cost",
+            "message": f"Custo estimado alto: R${cost_result['estimated_cost_brl']:.2f}.",
+        })
+
+    # --- ETA ---
+    # Rough: 2s per post for scraping + 1s per 50 comments for LLM
+    total_comments_est = max_posts * max_comments
+    eta_min = max(1, (max_posts * 2 + total_comments_est // 50) // 60)
+    eta_max = max(eta_min + 1, eta_min * 2)
+
+    can_sync = len(blockers) == 0
+
+    return PreflightResponse(
+        can_sync=can_sync,
+        blockers=blockers,
+        warnings=warnings,
+        credits_available=credits_available,
+        estimated_credits_comments=estimated_credits_comments,
+        estimated_credits_demographics=estimated_credits_demographics,
+        estimated_credits_total=estimated_credits_total,
+        estimated_cost_brl=cost_result["estimated_cost_brl"],
+        eta_min=eta_min,
+        eta_max=eta_max,
+        persona_set=persona_set,
+        context_readiness_mode=context_readiness_mode,
+        known_posts_with_context=known_posts_with_context,
+        known_posts_missing_context=known_posts_missing_context,
+        is_first_run=is_first_run,
+    )
+
+
 # --- Sync ---
 @router.post("/{connection_id}/sync", response_model=SyncResponse)
 def trigger_sync(

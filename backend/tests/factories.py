@@ -39,7 +39,7 @@ def create_user(db, plan="free", email=None, password_hash="hashed_test", name="
     return user
 
 
-def create_connection(db, user, platform="instagram", username=None, auto_sync=True):
+def create_connection(db, user, platform="instagram", username=None, auto_sync=True, persona=None):
     """Cria SocialConnection."""
     conn = SocialConnection(
         id=uuid.uuid4(),
@@ -49,6 +49,7 @@ def create_connection(db, user, platform="instagram", username=None, auto_sync=T
         display_name="Test Account",
         status="active",
         auto_sync=auto_sync,
+        persona=persona,
         connected_at=datetime.now(timezone.utc),
     )
     db.add(conn)
