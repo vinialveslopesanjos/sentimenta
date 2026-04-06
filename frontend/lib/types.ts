@@ -26,6 +26,40 @@ export interface PipelineStatus {
   comments_fetched: number;
   comments_analyzed: number;
   errors_count: number;
+  eta_min?: number;
+  eta_max?: number;
+  current_step?: string;
+  progress_pct?: number;
+}
+
+// --- Preflight ---
+
+export interface PreflightBlocker {
+  code: "missing_persona" | "insufficient_credits" | "budget_guardrail" | "already_running";
+  message: string;
+}
+
+export interface PreflightWarning {
+  code: "low_credits" | "high_estimated_cost" | "posts_missing_context";
+  message: string;
+}
+
+export interface PreflightResponse {
+  can_sync: boolean;
+  blockers: PreflightBlocker[];
+  warnings: PreflightWarning[];
+  credits_available: number;
+  estimated_credits_comments: number;
+  estimated_credits_demographics: number;
+  estimated_credits_total: number;
+  estimated_cost_brl: number;
+  eta_min: number;
+  eta_max: number;
+  persona_set: boolean;
+  context_readiness_mode: "known" | "estimated";
+  known_posts_with_context: number;
+  known_posts_missing_context: number;
+  is_first_run: boolean;
 }
 
 // --- Dashboard ---

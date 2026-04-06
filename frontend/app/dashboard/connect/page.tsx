@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { RefreshCw, BarChart3, Trash2, ChevronDown, Settings2, X, Info } from "lucide-react";
+import { RefreshCw, BarChart3, Trash2, ChevronDown, Settings2, X, Info, Pencil } from "lucide-react";
 import { connectionsApi, authApi, creditsApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import {
@@ -19,6 +19,7 @@ import { track } from "@/lib/tracking";
 import { Button } from "@/components/ds/Button";
 import { Badge } from "@/components/ds/Badge";
 import { GlassSocialIcon } from "@/components/GlassSocialIcons";
+import PersonaEditor from "@/components/PersonaEditor";
 
 type Connection = {
   id: string;
@@ -31,6 +32,7 @@ type Connection = {
   connected_at: string;
   last_sync_at: string | null;
   auto_sync: boolean;
+  persona: string | null;
 };
 
 type PlatformId = "instagram" | "youtube" | "twitter" | "tiktok";
@@ -55,6 +57,7 @@ export default function ConnectPage() {
   const [syncEstimate, setSyncEstimate] = useState<{ show: boolean; minMinutes: number; maxMinutes: number; username: string }>({ show: false, minMinutes: 0, maxMinutes: 0, username: "" });
   const [userPlan, setUserPlan] = useState("free");
   const [creditBalance, setCreditBalance] = useState<{ total: number; plan_credits: number; plan_allocation: number } | null>(null);
+  const [editingPersona, setEditingPersona] = useState<{ id: string; persona: string | null } | null>(null);
 
   const loadConnections = useCallback(async () => {
     const token = getToken();
@@ -515,6 +518,9 @@ export default function ConnectPage() {
                         <Link href={`/profile/${conn.id}`} className="p-1.5 rounded-lg transition-colors">
                           <BarChart3 className="w-3.5 h-3.5" style={{ color: "var(--text-muted)" }} />
                         </Link>
+                        <button onClick={() => setEditingPersona({ id: conn.id, persona: conn.persona })} className="p-1.5 rounded-lg transition-colors" title="Editar persona">
+                          <Pencil className="w-3.5 h-3.5" style={{ color: "var(--text-muted)" }} />
+                        </button>
                         <button onClick={() => handleSync(conn.id)} disabled={syncing[conn.id]} className="p-1.5 rounded-lg transition-colors disabled:opacity-50">
                           <RefreshCw className={`w-3.5 h-3.5 ${syncing[conn.id] ? "animate-spin" : ""}`} style={{ color: "var(--text-muted)" }} />
                         </button>
@@ -580,6 +586,19 @@ export default function ConnectPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Persona editor modal */}
+      {editingPersona && (
+        <PersonaEditor
+          connectionId={editingPersona.id}
+          initialPersona={editingPersona.persona}
+          onSave={() => {
+            setEditingPersona(null);
+            loadConnections();
+          }}
+          onClose={() => setEditingPersona(null)}
+        />
       )}
     </div>
   );

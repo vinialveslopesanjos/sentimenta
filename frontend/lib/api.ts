@@ -1,6 +1,7 @@
 import type {
   PipelineRun,
   PipelineStatus,
+  PreflightResponse,
   DashboardSummary,
   ConnectionDashboard,
   TrendResponse,
@@ -289,6 +290,12 @@ export const connectionsApi = {
     apiFetch<{ connection_id: string; task_id: string; run_id?: string; message: string }>(
       `/connections/${connectionId}/analyze`,
       { method: "POST", token }
+    ),
+
+  preflight: (token: string, connectionId: string) =>
+    apiFetch<PreflightResponse>(
+      `/connections/${connectionId}/sync/preflight`,
+      { token }
     ),
 
   delete: (token: string, connectionId: string) =>

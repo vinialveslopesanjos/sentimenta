@@ -11,6 +11,9 @@ import {
   ChevronRight,
   Pencil,
   X,
+  Loader2,
+  AlertCircle,
+  Zap,
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -34,7 +37,8 @@ import { GlassSocialIcon } from "@/components/GlassSocialIcons";
 import { AmbassadorsVsDetractors } from "@/components/AdvancedCharts";
 import { DemographicsSummary } from "@/components/DemographicsCharts";
 import WordCloudChart from "@/components/charts/WordCloudChart";
-import { dashboardApi, connectionsApi, commentsApi, postsApi, demographicsApi } from "@/lib/api";
+import { dashboardApi, connectionsApi, commentsApi, postsApi, demographicsApi, pipelineApi, billingApi } from "@/lib/api";
+import SyncButton from "@/components/SyncButton";
 import { getToken } from "@/lib/auth";
 import type {
   DashboardSummary,
@@ -197,6 +201,11 @@ export default function DashboardPage() {
     enrichment_coverage: { total_commenters: number; enriched: number; coverage_pct: number };
   } | null>(null);
 
+  // Empty state tracking
+  const [hasRunningAnalysis, setHasRunningAnalysis] = useState(false);
+  const [creditsExhausted, setCreditsExhausted] = useState(false);
+  const [neverSynced, setNeverSynced] = useState(false);
+
   // Chart filters
   const [chartGranularity, setChartGranularity] = useState<"day" | "week" | "month">("week");
   const [chartDays, setChartDays] = useState<number>(0);
@@ -254,6 +263,25 @@ export default function DashboardPage() {
 
       // Fetch global demographics overview
       demographicsApi.globalOverview(token).then(setGlobalDemoOverview).catch(() => {});
+
+      // Detect empty state scenarios
+      if (results[1].status === "fulfilled") {
+        const conns = results[1].value as ConnectionItem[];
+        const allNeverSynced = conns.length > 0 && conns.every(c => !c.last_sync_at);
+        setNeverSynced(allNeverSynced);
+      }
+
+      // Check for running analyses
+      pipelineApi.listRuns(token).then(runs => {
+        const running = runs.some(r => r.status === "running");
+        setHasRunningAnalysis(running);
+      }).catch(() => {});
+
+      // Check credit status
+      billingApi.usage(token).then(data => {
+        const remaining = data.usage.comments_included - data.usage.comments_used_this_month;
+        setCreditsExhausted(remaining <= 0);
+      }).catch(() => {});
 
       // If summary failed, that's critical
       if (results[0].status === "rejected") {
@@ -499,10 +527,44 @@ export default function DashboardPage() {
               </div>
             </div>
             <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.92rem", fontWeight: 600, color: "var(--text-primary)" }}>{td("overallReputation")}</p>
-            {(summary?.total_comments === 0 || connections.length === 0) ? (
+            {connections.length === 0 ? (
               <>
                 <Badge variant="muted">{td("noDataYet")}</Badge>
+                <p style={{ fontSize: "0.72rem", color: "var(--text-faint)", marginTop: 4, textAlign: "center" }}>Conecte seu primeiro perfil para comecar</p>
                 <Button variant="primary" size="sm" className="mt-3" onClick={() => router.push("/dashboard/connect")}>{td("emptyState.cta")}</Button>
+              </>
+            ) : hasRunningAnalysis ? (
+              <>
+                <Badge variant="primary" dot>
+                  <span className="flex items-center gap-1">
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    Analise em andamento
+                  </span>
+                </Badge>
+                <p style={{ fontSize: "0.72rem", color: "var(--text-faint)", marginTop: 4, textAlign: "center" }}>Os resultados aparecerão aqui quando concluir</p>
+              </>
+            ) : neverSynced ? (
+              <>
+                <Badge variant="muted">Aguardando primeira analise</Badge>
+                <p style={{ fontSize: "0.72rem", color: "var(--text-faint)", marginTop: 4, textAlign: "center" }}>Inicie a analise para ver os resultados</p>
+                {connections.length > 0 && (
+                  <div className="mt-3">
+                    <SyncButton connectionId={connections[0].id} onComplete={() => fetchData()} />
+                  </div>
+                )}
+              </>
+            ) : creditsExhausted ? (
+              <>
+                <Badge variant="negative">Creditos esgotados</Badge>
+                <p style={{ fontSize: "0.72rem", color: "var(--text-faint)", marginTop: 4, textAlign: "center" }}>Faca upgrade do seu plano para continuar analisando</p>
+                <Button variant="primary" size="sm" className="mt-3" onClick={() => router.push("/dashboard/settings")}>Ver planos</Button>
+              </>
+            ) : summary?.total_comments === 0 ? (
+              <>
+                <Badge variant="muted">Nenhum comentario encontrado</Badge>
+                <p style={{ fontSize: "0.72rem", color: "var(--text-faint)", marginTop: 4, textAlign: "center", maxWidth: 200 }}>
+                  Os posts analisados nao tinham comentarios. Tente novamente com posts mais recentes ou com mais interacoes.
+                </p>
               </>
             ) : (
               <Badge variant={repBadge.variant} dot>{score >= 7 ? td("goodReputation") : score >= 4 ? td("attentionNeeded") : td("criticalReputation")}</Badge>
