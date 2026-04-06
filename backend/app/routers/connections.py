@@ -728,6 +728,7 @@ def sync_preflight(
         avg_comments_per_post=max_comments,
         platform=conn.platform,
         include_demographics=has_demographics,
+        is_first_run=is_first_run,
     )
 
     estimated_credits_comments = max_posts * max_comments  # 1 credit per comment

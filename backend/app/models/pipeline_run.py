@@ -39,6 +39,12 @@ class PipelineRun(Base):
     target_posts: Mapped[int | None] = mapped_column(Integer, nullable=True)
     target_comments: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
+    # Financial tracking (ADR-013)
+    estimated_cost_brl: Mapped[float | None] = mapped_column(Float, nullable=True)
+    observed_cost_brl: Mapped[float | None] = mapped_column(Float, nullable=True)
+    credits_consumed: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    pricing_basis: Mapped[str | None] = mapped_column(String(50), nullable=True)
+
     # Relationships
     user = relationship("User", back_populates="pipeline_runs")
     connection = relationship("SocialConnection", back_populates="pipeline_runs")

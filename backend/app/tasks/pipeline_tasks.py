@@ -22,7 +22,7 @@ from app.models.follower_snapshot import FollowerSnapshot
 logger = logging.getLogger(__name__)
 
 # Platform costs imported from plan_service (single source of truth — ADR-013)
-from app.services.plan_service import get_platform_costs as _get_platform_costs
+from app.services.plan_service import get_platform_costs as _get_platform_costs, USD_TO_BRL
 from app.services.credit_service import DEMOGRAPHIC_CREDIT_COST
 
 
@@ -319,6 +319,28 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
             )
             db.commit()
             _append_step(db, run, f"Reserva: {reserved_credits} créditos")
+
+            # Populate financial fields (ADR-013)
+            try:
+                from app.services.plan_service import estimate_sync_cost_brl
+                user_obj = db.get(User, user_uuid) if 'User' in dir() else None
+                if user_obj is None:
+                    from app.models.user import User as _User
+                    user_obj = db.get(_User, user_uuid)
+                is_first = not db.query(PipelineRun).filter(
+                    PipelineRun.connection_id == conn_uuid,
+                    PipelineRun.status.in_(["completed", "partial"]),
+                ).first()
+                cost_est = estimate_sync_cost_brl(
+                    max_posts, max_comments_per_post,
+                    platform=connection.platform or "instagram",
+                    is_first_run=is_first,
+                )
+                run.estimated_cost_brl = cost_est["estimated_cost_brl"]
+                run.pricing_basis = user_obj.plan if user_obj else "free"
+                db.commit()
+            except Exception as est_exc:
+                logger.warning("Failed to set estimated_cost_brl: %s", est_exc)
         except InsufficientCreditsError as e:
             run.status = "failed"
             _append_step(db, run, f"Créditos insuficientes: {e.available} disponíveis")
@@ -491,6 +513,11 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         run.total_cost_usd = total_cost + apify_cost
         run.status = "completed" if total_errors == 0 else "partial"
         run.ended_at = datetime.now(timezone.utc)
+
+        # Financial fields — observed cost + credits consumed (ADR-013)
+        _demo_credits_final = profiles_enriched * DEMOGRAPHIC_CREDIT_COST if 'profiles_enriched' in dir() and profiles_enriched else 0
+        run.credits_consumed = total_analyzed + _demo_credits_final
+        run.observed_cost_brl = round((total_cost + apify_cost) * USD_TO_BRL, 2)
         _append_step(db, run, "Pipeline concluído ✓")
 
         # Invalidate dashboard cache for this user

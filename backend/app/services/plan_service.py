@@ -444,8 +444,12 @@ def estimate_sync_cost_brl(
     layer: str = "estimated",
     include_demographics: bool = False,
     avg_unique_authors_ratio: float = 0.6,
+    is_first_run: bool = False,
 ) -> dict:
     """Estimate the cost of a sync in BRL before running it.
+
+    D+0 (first run) is typically 5-10x more expensive because it fetches
+    historic posts. Recurring syncs only check last ~5 posts.
 
     Returns dict with estimated_cost_brl, guardrail_cost_brl, and breakdown.
     """
@@ -453,23 +457,27 @@ def estimate_sync_cost_brl(
     costs_guard = get_platform_costs(platform, "guardrail")
     total_comments = num_posts * avg_comments_per_post
 
+    # D+0 multiplier: first run collects historic data (more posts, more comments)
+    d0_multiplier = 5.0 if is_first_run else 1.0
+
     def _calc(costs: dict) -> float:
         apify = (
             num_posts * costs.get("per_post", 0)
             + total_comments * costs.get("per_comment", 0)
-        )
-        llm = total_comments * LLM_COST_PER_COMMENT_USD
+        ) * d0_multiplier
+        llm = total_comments * LLM_COST_PER_COMMENT_USD * d0_multiplier
         demographics = 0.0
         if include_demographics:
-            profiles = int(total_comments * avg_unique_authors_ratio)
+            profiles = int(total_comments * avg_unique_authors_ratio * d0_multiplier)
             demographics = profiles * costs.get("per_profile", 0)
         return round((apify + llm + demographics) * USD_TO_BRL, 2)
 
     return {
         "estimated_cost_brl": _calc(costs_est),
         "guardrail_cost_brl": _calc(costs_guard),
-        "total_comments": total_comments,
+        "total_comments": int(total_comments * d0_multiplier),
         "platform": platform,
+        "is_first_run": is_first_run,
     }
 
 
