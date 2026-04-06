@@ -510,15 +510,19 @@ async def instagram_login_callback(
 
         tokens = create_tokens(user)
 
-        # Auto-trigger data ingestion pipeline in background
+        # Auto-trigger data ingestion pipeline in background (with guardrails — ADR-013)
         pipeline_started = False
         try:
+            from app.services.plan_service import enforce_sync_limits
             from app.tasks.pipeline_tasks import task_full_pipeline
-            task_full_pipeline.delay(str(connection.id), str(user.id), max_posts=50, max_comments_per_post=100)
+            plan_limits = enforce_sync_limits(db, user)
+            effective_posts = min(50, plan_limits["max_posts"])
+            effective_comments = min(100, plan_limits["max_comments_per_post"])
+            task_full_pipeline.delay(str(connection.id), str(user.id), max_posts=effective_posts, max_comments_per_post=effective_comments)
             pipeline_started = True
-            logger.info("Auto-triggered pipeline for Instagram login user %s, connection %s", user.id, connection.id)
+            logger.info("Auto-triggered pipeline for Instagram login user %s (posts=%d, comments=%d)", user.id, effective_posts, effective_comments)
         except Exception as exc:
-            logger.error("Failed to trigger pipeline after Instagram login: %s", exc)
+            logger.warning("Auto-trigger skipped for Instagram login user %s: %s", user.id, exc)
 
         # Store tokens in Redis via one-time code (never in URL)
         login_code = _store_oauth_tokens(tokens, "instagram", pipeline_started)
@@ -627,15 +631,19 @@ async def tiktok_login_callback(
 
         tokens = create_tokens(user)
 
-        # Auto-trigger data ingestion pipeline in background
+        # Auto-trigger data ingestion pipeline in background (with guardrails — ADR-013)
         pipeline_started = False
         try:
+            from app.services.plan_service import enforce_sync_limits
             from app.tasks.pipeline_tasks import task_full_pipeline
-            task_full_pipeline.delay(str(connection.id), str(user.id), max_posts=50, max_comments_per_post=100)
+            plan_limits = enforce_sync_limits(db, user)
+            effective_posts = min(50, plan_limits["max_posts"])
+            effective_comments = min(100, plan_limits["max_comments_per_post"])
+            task_full_pipeline.delay(str(connection.id), str(user.id), max_posts=effective_posts, max_comments_per_post=effective_comments)
             pipeline_started = True
-            logger.info("Auto-triggered pipeline for TikTok login user %s, connection %s", user.id, connection.id)
+            logger.info("Auto-triggered pipeline for TikTok login user %s (posts=%d, comments=%d)", user.id, effective_posts, effective_comments)
         except Exception as exc:
-            logger.error("Failed to trigger pipeline after TikTok login: %s", exc)
+            logger.warning("Auto-trigger skipped for TikTok login user %s: %s", user.id, exc)
 
         # Store tokens in Redis via one-time code (never in URL)
         login_code = _store_oauth_tokens(tokens, "tiktok", pipeline_started)

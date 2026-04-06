@@ -176,7 +176,121 @@ def consume(
     return remaining
 
 
-def grant_monthly(db: Session, user_id, plan: str = None) -> int:
+def reserve(
+    db: Session,
+    user_id,
+    amount: int,
+    source: str = "sync",
+    description: str = None,
+    metadata: dict = None,
+) -> int:
+    """
+    Reserve credits before a pipeline run starts (pre-authorization).
+
+    Logically holds credits so they can't be double-spent by concurrent runs.
+    Uses the same row-level lock as consume() to prevent race conditions.
+
+    Returns remaining (unreserved) balance.
+    Raises InsufficientCreditsError if not enough credits.
+    """
+    bal = (
+        db.query(CreditBalance)
+        .filter(CreditBalance.user_id == user_id)
+        .with_for_update()
+        .first()
+    )
+    if bal is None:
+        bal = get_or_create_balance(db, user_id)
+        bal = (
+            db.query(CreditBalance)
+            .filter(CreditBalance.user_id == user_id)
+            .with_for_update()
+            .one()
+        )
+
+    total = bal.plan_credits + bal.pack_credits
+    if total < amount:
+        user = db.get(User, user_id)
+        raise InsufficientCreditsError(total, amount, user.plan if user else "free")
+
+    # Drain plan credits first (they expire), same logic as consume()
+    from_plan = min(bal.plan_credits, amount)
+    from_pack = amount - from_plan
+    bal.plan_credits -= from_plan
+    bal.pack_credits -= from_pack
+
+    remaining = bal.plan_credits + bal.pack_credits
+
+    _record_transaction(
+        db, bal, -amount, "reserve", source,
+        description or f"Reserva: {amount} créditos",
+        metadata,
+    )
+
+    logger.info(
+        "Credits reserved: user=%s amount=%d source=%s remaining=%d",
+        user_id, amount, source, remaining,
+    )
+    return remaining
+
+
+def release(
+    db: Session,
+    user_id,
+    amount: int,
+    source: str = "sync",
+    description: str = None,
+    metadata: dict = None,
+) -> int:
+    """
+    Release unused reserved credits back to the user's balance.
+
+    Called after a pipeline run completes to return the difference between
+    reserved amount and actual consumption.
+
+    Uses row-level lock to prevent race conditions.
+    Returns new total balance.
+    """
+    if amount <= 0:
+        bal = get_or_create_balance(db, user_id)
+        return bal.plan_credits + bal.pack_credits
+
+    bal = (
+        db.query(CreditBalance)
+        .filter(CreditBalance.user_id == user_id)
+        .with_for_update()
+        .first()
+    )
+    if bal is None:
+        bal = get_or_create_balance(db, user_id)
+        bal = (
+            db.query(CreditBalance)
+            .filter(CreditBalance.user_id == user_id)
+            .with_for_update()
+            .one()
+        )
+
+    # Return credits to pack_credits (conservative: plan credits may have been
+    # the ones originally reserved, but returning to pack avoids inflating
+    # plan_credits above their monthly allocation)
+    bal.pack_credits += amount
+
+    total = bal.plan_credits + bal.pack_credits
+
+    _record_transaction(
+        db, bal, amount, "release", source,
+        description or f"Liberação: {amount} créditos devolvidos",
+        metadata,
+    )
+
+    logger.info(
+        "Credits released: user=%s amount=%d source=%s total=%d",
+        user_id, amount, source, total,
+    )
+    return total
+
+
+
     """
     Reset plan credits for a new billing cycle.
     Called on invoice.paid webhook.

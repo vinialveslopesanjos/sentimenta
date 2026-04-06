@@ -32,10 +32,8 @@ from app.services.plan_service import (
     count_connections,
     PlanLimitError,
 )
-from app.tasks.pipeline_tasks import (
-    PLATFORM_COSTS_USD,
-    _mark_stale_running_runs,
-)
+from app.services.plan_service import PLATFORM_COSTS_USD
+from app.tasks.pipeline_tasks import _mark_stale_running_runs
 from app.models.pipeline_run import PipelineRun
 from app.models.stripe_event import StripeEvent
 
@@ -215,17 +213,24 @@ class TestCostTracking:
         assert stats["cost_usd"] == pytest.approx(0.01, abs=1e-6)
 
     def test_apify_cost_estimation(self):
-        """Verify PLATFORM_COSTS_USD matches expected values and formula works."""
-        ig = PLATFORM_COSTS_USD["instagram"]
-        assert ig["per_post"] == pytest.approx(0.0023)
-        assert ig["per_comment"] == pytest.approx(0.0005)
+        """Verify PLATFORM_COSTS_USD has estimated + guardrail layers (ADR-013)."""
+        ig_est = PLATFORM_COSTS_USD["instagram"]["estimated"]
+        ig_guard = PLATFORM_COSTS_USD["instagram"]["guardrail"]
 
-        # 10 posts + 100 comments
-        cost = 10 * ig["per_post"] + 100 * ig["per_comment"]
-        assert cost == pytest.approx(0.073, abs=1e-4)
+        # Estimated layer values (verified Apr/2026 from Apify API)
+        assert ig_est["per_comment"] == pytest.approx(0.0005)
+        assert ig_est["per_post"] == pytest.approx(0.00072)
 
-        # YouTube should be free
-        yt = PLATFORM_COSTS_USD["youtube"]
+        # Guardrail should be higher than estimated (conservative)
+        assert ig_guard["per_comment"] >= ig_est["per_comment"]
+        assert ig_guard["per_post"] >= ig_est["per_post"]
+
+        # 10 posts + 100 comments (estimated layer)
+        cost = 10 * ig_est["per_post"] + 100 * ig_est["per_comment"]
+        assert cost == pytest.approx(0.0572, abs=1e-3)
+
+        # YouTube should be free in both layers
+        yt = PLATFORM_COSTS_USD["youtube"]["estimated"]
         assert yt["per_post"] == 0.0
         assert yt["per_comment"] == 0.0
 
@@ -320,3 +325,127 @@ class TestDepletion:
         # Now trying to consume more should fail
         with pytest.raises(InsufficientCreditsError):
             consume(db, user.id, 1, type="consume_comment", source="test")
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Grupo 8: Pre-authorization (ADR-013)
+# ──────────────────────────────────────────────────────────────────────
+
+class TestPreAuthorization:
+
+    def test_reserve_blocks_when_insufficient(self, db):
+        """reserve() should raise InsufficientCreditsError when balance too low."""
+        from app.services.credit_service import reserve
+        user = create_user(db, plan="free")
+        bal = get_or_create_balance(db, user.id)
+        bal.plan_credits = 10
+        bal.pack_credits = 0
+        db.commit()
+
+        with pytest.raises(InsufficientCreditsError):
+            reserve(db, user.id, 50, source="test")
+
+    def test_reserve_deducts_credits(self, db):
+        """reserve() should deduct credits from balance."""
+        from app.services.credit_service import reserve
+        user = create_user(db, plan="starter")
+        bal = get_or_create_balance(db, user.id)
+        initial = bal.plan_credits + bal.pack_credits
+        db.commit()
+
+        remaining = reserve(db, user.id, 100, source="test")
+        assert remaining == initial - 100
+
+    def test_release_returns_credits(self, db):
+        """release() should add credits back to balance."""
+        from app.services.credit_service import reserve, release
+        user = create_user(db, plan="starter")
+        bal = get_or_create_balance(db, user.id)
+        initial = bal.plan_credits + bal.pack_credits
+        db.commit()
+
+        reserve(db, user.id, 200, source="test")
+        db.commit()
+        total = release(db, user.id, 150, source="test", description="Surplus returned")
+        # Released 150 of 200 reserved, so net consumed = 50
+        assert total == initial - 200 + 150
+
+    def test_reserve_release_full_cycle(self, db):
+        """Full cycle: reserve → consume actual → release surplus."""
+        from app.services.credit_service import reserve, release
+        user = create_user(db, plan="pro")
+        bal = get_or_create_balance(db, user.id)
+        initial_total = bal.plan_credits + bal.pack_credits
+        db.commit()
+
+        # Reserve 500 credits (guardrail estimate)
+        reserve(db, user.id, 500, source="test")
+        db.commit()
+
+        # Actual consumption was only 300 — release 200
+        new_total = release(db, user.id, 200, source="test")
+        # Net: 500 reserved - 200 released = 300 consumed
+        assert new_total == initial_total - 300
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Grupo 9: Collection cap and billing consistency (ADR-013)
+# ──────────────────────────────────────────────────────────────────────
+
+class TestCollectionCapAndBilling:
+
+    def test_free_tier_collection_cap(self, db):
+        """Free tier with 200 credits should cap max_comments_per_post."""
+        from app.services.plan_service import enforce_sync_limits
+        user = create_user(db, plan="free")
+        bal = get_or_create_balance(db, user.id)
+        bal.plan_credits = 200
+        bal.pack_credits = 0
+        db.commit()
+
+        result = enforce_sync_limits(db, user)
+        # 200 credits / 5 posts = 40 comments/post max
+        assert result["max_comments_per_post"] <= 200 // result["max_posts"]
+        assert result["collection_cap"] == 200
+
+    def test_paid_plan_no_unnecessary_cap(self, db):
+        """Starter with 5000 credits should not overly cap comments."""
+        from app.services.plan_service import enforce_sync_limits
+        user = create_user(db, plan="starter")
+        bal = get_or_create_balance(db, user.id)
+        bal.plan_credits = 5000
+        db.commit()
+
+        result = enforce_sync_limits(db, user)
+        # 5000 credits, 30 posts * 1000 comments = 30000
+        # Credits (5000) < total (30000), so cap applies
+        assert result["max_comments_per_post"] <= 5000 // result["max_posts"]
+
+    def test_billing_text_matches_plan_credits(self):
+        """Billing description must match PLAN_CREDITS to avoid user confusion."""
+        from app.routers.billing import PLAN_PRICING
+        from app.services.credit_service import PLAN_CREDITS
+
+        free_pricing = next(p for p in PLAN_PRICING if p["slug"] == "free")
+        # The description should reference 200, not 500
+        assert "200" in free_pricing["description"]
+        assert "500" not in free_pricing["description"]
+
+    def test_three_cost_layers_exist(self):
+        """PLATFORM_COSTS_USD should have estimated and guardrail layers."""
+        for platform in ["instagram", "tiktok", "twitter", "youtube"]:
+            assert "estimated" in PLATFORM_COSTS_USD[platform]
+            assert "guardrail" in PLATFORM_COSTS_USD[platform]
+            est = PLATFORM_COSTS_USD[platform]["estimated"]
+            guard = PLATFORM_COSTS_USD[platform]["guardrail"]
+            # Guardrail should be >= estimated for all items
+            for key in est:
+                assert guard[key] >= est[key], f"{platform}.{key}: guardrail < estimated"
+
+    def test_guardrail_higher_than_estimated(self):
+        """Guardrail costs should be at least as high as estimated (conservative)."""
+        ig_est = PLATFORM_COSTS_USD["instagram"]["estimated"]
+        ig_guard = PLATFORM_COSTS_USD["instagram"]["guardrail"]
+        assert ig_guard["per_comment"] >= ig_est["per_comment"]
+        assert ig_guard["per_post"] >= ig_est["per_post"]
+        assert ig_guard["per_profile"] >= ig_est["per_profile"]

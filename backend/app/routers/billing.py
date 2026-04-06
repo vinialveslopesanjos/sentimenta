@@ -31,7 +31,7 @@ PLAN_PRICING = [
         "name": "Gratis",
         "price_brl": 0,
         "price_annual_brl": 0,
-        "description": "Teste o Sentimenta com 500 comentarios/mes.",
+        "description": "Teste o Sentimenta com 200 comentarios/mes.",
     },
     {
         "slug": "starter",
@@ -92,13 +92,12 @@ def get_usage(
 
 
 @router.get("/estimate")
-def estimate_cost(num_posts: int = 10, avg_comments: int = 50):
-    cost = estimate_sync_cost_brl(num_posts, avg_comments)
+def estimate_cost(num_posts: int = 10, avg_comments: int = 50, platform: str = "instagram"):
+    result = estimate_sync_cost_brl(num_posts, avg_comments, platform=platform)
     return {
         "num_posts": num_posts,
         "avg_comments_per_post": avg_comments,
-        "total_comments": num_posts * avg_comments,
-        "estimated_cost_brl": cost,
+        **result,
     }
 
 

@@ -21,13 +21,9 @@ from app.models.follower_snapshot import FollowerSnapshot
 
 logger = logging.getLogger(__name__)
 
-# Per-item Apify scraping costs in USD (verified Mar/2026)
-PLATFORM_COSTS_USD = {
-    "instagram": {"per_post": 0.0023, "per_comment": 0.0005, "per_profile": 0.0023},
-    "youtube": {"per_post": 0.0, "per_comment": 0.0, "per_profile": 0.0},
-    "tiktok": {"per_post": 0.0023, "per_comment": 0.001, "per_profile": 0.0},
-    "twitter": {"per_post": 0.0, "per_comment": 0.0004, "per_profile": 0.0},
-}
+# Platform costs imported from plan_service (single source of truth — ADR-013)
+from app.services.plan_service import get_platform_costs as _get_platform_costs
+from app.services.credit_service import DEMOGRAPHIC_CREDIT_COST
 
 
 def _mark_stale_running_runs(db, max_age_hours: int = 6) -> int:
@@ -299,6 +295,39 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
             db.commit()
             return {"error": run.notes}
 
+        # Pre-authorization: reserve credits before collection (ADR-013)
+        reserved_credits = 0
+        try:
+            from app.services.credit_service import reserve, release, InsufficientCreditsError
+            estimated_credits = min(max_posts * max_comments_per_post, 50_000)  # cap sanity
+            # For free tier, cap to available balance
+            from app.services.credit_service import get_or_create_balance
+            bal = get_or_create_balance(db, user_uuid)
+            available = bal.plan_credits + bal.pack_credits
+            reserved_credits = min(estimated_credits, available)
+            if reserved_credits <= 0:
+                run.status = "failed"
+                _append_step(db, run, "Créditos insuficientes para iniciar coleta")
+                run.ended_at = datetime.now(timezone.utc)
+                db.commit()
+                return {"error": "Créditos insuficientes"}
+            reserve(
+                db, user_uuid, reserved_credits,
+                source="full_pipeline",
+                description=f"Reserva pré-coleta @{connection.username}: {reserved_credits} créditos",
+                metadata={"pipeline_run_id": str(run.id)},
+            )
+            db.commit()
+            _append_step(db, run, f"Reserva: {reserved_credits} créditos")
+        except InsufficientCreditsError as e:
+            run.status = "failed"
+            _append_step(db, run, f"Créditos insuficientes: {e.available} disponíveis")
+            run.ended_at = datetime.now(timezone.utc)
+            db.commit()
+            return {"error": str(e)}
+        except Exception as reserve_exc:
+            logger.warning("Credit reservation failed, proceeding without: %s", reserve_exc)
+
         # Step 1: Ingest (uses shared logic, no separate PipelineRun)
         def update_progress(posts_done, comments_done):
             run.posts_fetched = posts_done
@@ -332,11 +361,12 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         run.target_comments = run.comments_fetched
         _append_step(db, run, f"Extração concluída: {run.posts_fetched} posts, {run.comments_fetched} comentários")
 
-        # Calculate Apify scraping cost
+        # Calculate Apify scraping cost (using estimated layer)
         platform = connection.platform or "instagram"
-        platform_costs = PLATFORM_COSTS_USD.get(platform, PLATFORM_COSTS_USD["instagram"])
-        apify_cost = (run.posts_fetched * platform_costs["per_post"]
-                      + run.comments_fetched * platform_costs["per_comment"])
+        from app.services.plan_service import get_platform_costs
+        platform_costs = get_platform_costs(platform, "estimated")
+        apify_cost = (run.posts_fetched * platform_costs.get("per_post", 0)
+                      + run.comments_fetched * platform_costs.get("per_comment", 0))
         run.apify_cost_usd = apify_cost
 
         # Log usage per platform (Fase 4)
@@ -421,10 +451,28 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         except Exception as e:
             logger.warning("Demographics pipeline error for %s: %s", connection_id, e)
 
-        # Consume credits for actually analyzed comments (ADR-011)
-        try:
-            from app.services.credit_service import consume, InsufficientCreditsError
-            if total_analyzed > 0:
+        # Release unused reserved credits (ADR-013: reserve → consume real → release surplus)
+        # Credits were reserved at pipeline start. Now release the difference.
+        _demo_credits = profiles_enriched * DEMOGRAPHIC_CREDIT_COST if 'profiles_enriched' in dir() and profiles_enriched else 0
+        actual_consumed = total_analyzed + _demo_credits
+        surplus = reserved_credits - actual_consumed
+        if surplus > 0 and reserved_credits > 0:
+            try:
+                from app.services.credit_service import release
+                release(
+                    db, user_uuid, surplus,
+                    source="full_pipeline",
+                    description=f"Liberação @{connection.username}: {surplus} créditos não utilizados (reservados {reserved_credits}, consumidos {actual_consumed})",
+                    metadata={"pipeline_run_id": str(run.id)},
+                )
+                db.commit()
+                _append_step(db, run, f"Créditos: consumidos {actual_consumed}, devolvidos {surplus}")
+            except Exception as release_exc:
+                logger.warning("Failed to release surplus credits: %s", release_exc)
+        elif reserved_credits == 0 and total_analyzed > 0:
+            # Fallback: no reservation was made, consume directly (legacy path)
+            try:
+                from app.services.credit_service import consume
                 consume(
                     db, user_uuid, total_analyzed,
                     type="consume_comment",
@@ -433,10 +481,8 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
                     metadata={"pipeline_run_id": str(run.id), "platform": connection.platform},
                 )
                 db.commit()
-        except InsufficientCreditsError:
-            logger.warning("Insufficient credits for user %s after analysis", user_uuid)
-        except Exception as credit_exc:
-            logger.warning("Failed to consume credits for full_pipeline: %s", credit_exc)
+            except Exception as credit_exc:
+                logger.warning("Failed to consume credits for full_pipeline: %s", credit_exc)
 
         # Update run
         run.comments_analyzed = total_analyzed
@@ -602,6 +648,31 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                     # First sync: fetch last 7 days
                     since_date = (datetime.now(timezone.utc) - timedelta(days=7)).date().isoformat()
 
+                # Pre-authorization: reserve credits before collection (ADR-013)
+                ds_reserved = 0
+                try:
+                    from app.services.credit_service import reserve, release as ds_release, get_or_create_balance
+                    ds_bal = get_or_create_balance(db, conn.user_id)
+                    ds_available = ds_bal.plan_credits + ds_bal.pack_credits
+                    ds_estimated = min(max_posts * max_comments, ds_available)
+                    if ds_estimated <= 0:
+                        run.status = "failed"
+                        _append_step(db, run, "Créditos insuficientes")
+                        run.ended_at = datetime.now(timezone.utc)
+                        db.commit()
+                        results[conn.username] = {"skipped": "no_credits"}
+                        continue
+                    reserve(
+                        db, conn.user_id, ds_estimated,
+                        source="daily_sync",
+                        description=f"Reserva daily_sync @{conn.username}: {ds_estimated} créditos",
+                        metadata={"pipeline_run_id": str(run.id)},
+                    )
+                    ds_reserved = ds_estimated
+                    db.commit()
+                except Exception as ds_reserve_exc:
+                    logger.warning("Daily sync credit reservation failed for @%s: %s", conn.username, ds_reserve_exc)
+
                 _append_step(db, run, f"Sync semanal iniciado para @{conn.username}")
                 ingest_result = _do_ingest(
                     db, conn,
@@ -625,11 +696,11 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 run.posts_fetched = ingest_result.get("posts_fetched", 0) + ingest_result.get("posts_updated", 0)
                 run.comments_fetched = ingest_result.get("comments_fetched", 0) + ingest_result.get("comments_updated", 0)
 
-                # Calculate Apify scraping cost
+                # Calculate Apify scraping cost (using estimated layer — ADR-013)
                 ds_platform = conn.platform or "instagram"
-                ds_costs = PLATFORM_COSTS_USD.get(ds_platform, PLATFORM_COSTS_USD["instagram"])
-                apify_cost = (run.posts_fetched * ds_costs["per_post"]
-                              + run.comments_fetched * ds_costs["per_comment"])
+                ds_costs = _get_platform_costs(ds_platform, "estimated")
+                apify_cost = (run.posts_fetched * ds_costs.get("per_post", 0)
+                              + run.comments_fetched * ds_costs.get("per_comment", 0))
                 run.apify_cost_usd = apify_cost
 
                 # Log usage per platform (Fase 4)
@@ -682,10 +753,24 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                         generate_post_summary(db, post.id)
                         _append_step(db, run, f"Analisado post {idx}/{len(posts_with_pending)}: {analyzed} novos comentários")
 
-                # Consume credits for actually analyzed comments (ADR-011)
-                try:
-                    from app.services.credit_service import consume, InsufficientCreditsError
-                    if total_analyzed > 0:
+                # Release unused reserved credits (ADR-013)
+                ds_actual = total_analyzed
+                ds_surplus = ds_reserved - ds_actual
+                if ds_surplus > 0 and ds_reserved > 0:
+                    try:
+                        ds_release(
+                            db, conn.user_id, ds_surplus,
+                            source="daily_sync",
+                            description=f"Liberação @{conn.username}: {ds_surplus} créditos (reservados {ds_reserved}, consumidos {ds_actual})",
+                            metadata={"pipeline_run_id": str(run.id)},
+                        )
+                        db.commit()
+                    except Exception as rel_exc:
+                        logger.warning("Failed to release surplus credits for daily_sync @%s: %s", conn.username, rel_exc)
+                elif ds_reserved == 0 and total_analyzed > 0:
+                    # Fallback: no reservation, consume directly
+                    try:
+                        from app.services.credit_service import consume
                         consume(
                             db, conn.user_id, total_analyzed,
                             type="consume_comment",
@@ -694,10 +779,8 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                             metadata={"pipeline_run_id": str(run.id), "platform": conn.platform},
                         )
                         db.commit()
-                except InsufficientCreditsError:
-                    logger.warning("Insufficient credits for user %s during daily_sync @%s", conn.user_id, conn.username)
-                except Exception as credit_exc:
-                    logger.warning("Failed to consume credits for daily_sync @%s: %s", conn.username, credit_exc)
+                    except Exception as credit_exc:
+                        logger.warning("Failed to consume credits for daily_sync @%s: %s", conn.username, credit_exc)
 
                 # Stage 3: Demographics (only if enough new usernames)
                 try:

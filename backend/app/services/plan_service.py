@@ -20,14 +20,43 @@ from app.models.demographics import UsageLog
 
 logger = logging.getLogger(__name__)
 
-# ─── Platform Cost Estimates (USD per operation) ────────────────────
-# Verified from 1,575 Apify runs (Mar/2026) — real pay-per-result pricing
+# ─── Platform Cost Model (USD per item) ─────────────────────────────
+# Three layers of cost (ADR-013):
+#   observed_cost  — real cost from Apify API per run. Used for auditoria.
+#   estimated_cost — pre-run estimate based on historical averages. Shown to user.
+#   guardrail_cost — conservative p95/worst-case. Used for budget protection & pre-auth.
+#
+# Verified from 2,057 Apify runs (Apr/2026) via API sampling.
+# guardrail uses ~2x estimated as safety margin.
+
 PLATFORM_COSTS_USD = {
-    "instagram": {"per_post": 0.0023, "per_comment": 0.0005, "per_profile": 0.0023},
-    "tiktok": {"per_post": 0.003023, "per_comment": 0.001, "per_profile": 0.001},
-    "twitter": {"per_post": 0.001128, "per_comment": 0.0004, "per_profile": 0.001},
-    "youtube": {"per_post": 0.0, "per_comment": 0.0, "per_profile": 0.0},
+    "instagram": {
+        "estimated": {"per_post": 0.00072, "per_comment": 0.0005, "per_profile": 0.0023},
+        "guardrail": {"per_post": 0.0023, "per_comment": 0.001, "per_profile": 0.0046},
+    },
+    "tiktok": {
+        "estimated": {"per_post": 0.003, "per_comment": 0.0009, "per_profile": 0.001},
+        "guardrail": {"per_post": 0.006, "per_comment": 0.002, "per_profile": 0.002},
+    },
+    "twitter": {
+        "estimated": {"per_post": 0.0011, "per_comment": 0.0005, "per_profile": 0.001},
+        "guardrail": {"per_post": 0.0022, "per_comment": 0.001, "per_profile": 0.002},
+    },
+    "youtube": {
+        "estimated": {"per_post": 0.0, "per_comment": 0.0, "per_profile": 0.0},
+        "guardrail": {"per_post": 0.0, "per_comment": 0.0, "per_profile": 0.0},
+    },
 }
+
+# LLM cost per comment (Gemini 2.0 Flash) — negligible but tracked
+LLM_COST_PER_COMMENT_USD = 0.000064  # ~$0.064/1000 comments
+
+
+def get_platform_costs(platform: str, layer: str = "estimated") -> dict:
+    """Get cost dict for a platform. layer: 'estimated' or 'guardrail'."""
+    return PLATFORM_COSTS_USD.get(platform, PLATFORM_COSTS_USD["youtube"]).get(
+        layer, PLATFORM_COSTS_USD["youtube"]["estimated"]
+    )
 
 # ─── Plan Configuration — Strategy 2: Credits-based (ADR-011) ───────
 # Modelo: plano base + créditos mensais (1 crédito = 1 comentário).
@@ -45,7 +74,7 @@ PLAN_LIMITS = {
         "historic_days": 30,               # First run: max days back
         "max_posts_per_sync": 5,
         "max_comments_per_post": 500,
-        "syncs_per_month": 4,              # 4 syncs/month (cap enforced by 500 comments)
+        "syncs_per_month": 4,              # 4 syncs/month (cap enforced by 200 credits)
         "apify_budget_brl": 15.0,
         "health_report": True,
         "pdf_export": False,
@@ -151,19 +180,13 @@ LEGACY_PLAN_MAP = {
     "agency": "business",
 }
 
-# Apify cost reference (verified Mar/2026 from 1,575 real runs):
-# Apify scraping costs (verified Mar/2026):
-#   Per-item USD: IG Comments $0.0005, IG Posts $0.0023, Demographics $0.0023
-#   Instagram comments scraper: $3.27/1000 comments (pay-per-result)
-#   Instagram profile scraper: $1.41/1000 profiles (demographics)
-#   Full cost incl. demographics (~58% unique authors): ~$4.11/1000 comments
-#   At BRL ~6.0/USD -> R$24.68/1000 comments (first run) / R$21.15/1000 (ongoing, 30% new)
-# IMPORTANT: actual monthly cost is much lower because daily sync only checks 5 recent posts
-# NOTE: R$0.020 is a conservative blended estimate including posts + comments + overhead.
-# Raw per-comment cost is lower (~R$0.003), but this accounts for the combined cost of
-# fetching posts, comments, and occasional demographics enrichment per comment analyzed.
-APIFY_COST_PER_COMMENT_BRL = 0.020  # R$0.02/comment — blended estimate (posts + comments + overhead)
+# Exchange rate for BRL conversions
 USD_TO_BRL = 6.0  # Updated Mar/2026
+
+# Legacy constant — kept for backward compatibility in get_apify_spend_this_month().
+# Uses guardrail layer (conservative) for budget protection.
+# Real cost is much lower (~R$0.003/comment), this is intentionally conservative.
+APIFY_COST_PER_COMMENT_BRL = 0.006  # R$0.006/comment — guardrail (was 0.020, adjusted Apr/2026)
 
 
 def get_plan_limits(plan: str) -> dict:
@@ -379,14 +402,23 @@ def enforce_sync_limits(db: Session, user: User) -> dict:
         f"credits {total_credits:,} (plan={bal.plan_credits:,} pack={bal.pack_credits:,})"
     )
 
-    result = {
-        "max_posts": limits["max_posts_per_sync"],
-        "max_comments_per_post": limits["max_comments_per_post"],
-    }
+    max_posts = limits["max_posts_per_sync"]
+    max_comments_per_post = limits["max_comments_per_post"]
 
-    # Free tier: remaining comments cap across all posts (capped by credits)
-    if user.plan == "free":
-        result["free_total_comments_cap"] = total_credits
+    # ADR-013: Cap collection to what user can actually analyze (credits available).
+    # This prevents wasting Apify budget on comments that won't be analyzed.
+    collection_cap = total_credits  # 1 credit = 1 comment analyzed
+    max_total_comments = max_posts * max_comments_per_post
+    if collection_cap < max_total_comments:
+        # Reduce max_comments_per_post so total doesn't exceed available credits
+        max_comments_per_post = max(1, collection_cap // max(max_posts, 1))
+
+    result = {
+        "max_posts": max_posts,
+        "max_comments_per_post": max_comments_per_post,
+        "collection_cap": collection_cap,
+        "credits_available": total_credits,
+    }
 
     return result
 
@@ -405,13 +437,40 @@ def enforce_feature_access(user: User, feature: str) -> None:
         )
 
 
-def estimate_sync_cost_brl(num_posts: int, avg_comments_per_post: int) -> float:
-    """Estimate the cost of a sync in BRL before running it."""
+def estimate_sync_cost_brl(
+    num_posts: int,
+    avg_comments_per_post: int,
+    platform: str = "instagram",
+    layer: str = "estimated",
+    include_demographics: bool = False,
+    avg_unique_authors_ratio: float = 0.6,
+) -> dict:
+    """Estimate the cost of a sync in BRL before running it.
+
+    Returns dict with estimated_cost_brl, guardrail_cost_brl, and breakdown.
+    """
+    costs_est = get_platform_costs(platform, "estimated")
+    costs_guard = get_platform_costs(platform, "guardrail")
     total_comments = num_posts * avg_comments_per_post
-    apify_cost = total_comments * APIFY_COST_PER_COMMENT_BRL
-    # Add ~5% for Gemini API cost
-    gemini_cost = apify_cost * 0.05
-    return round(apify_cost + gemini_cost, 2)
+
+    def _calc(costs: dict) -> float:
+        apify = (
+            num_posts * costs.get("per_post", 0)
+            + total_comments * costs.get("per_comment", 0)
+        )
+        llm = total_comments * LLM_COST_PER_COMMENT_USD
+        demographics = 0.0
+        if include_demographics:
+            profiles = int(total_comments * avg_unique_authors_ratio)
+            demographics = profiles * costs.get("per_profile", 0)
+        return round((apify + llm + demographics) * USD_TO_BRL, 2)
+
+    return {
+        "estimated_cost_brl": _calc(costs_est),
+        "guardrail_cost_brl": _calc(costs_guard),
+        "total_comments": total_comments,
+        "platform": platform,
+    }
 
 
 # ─── Usage Logging & Budget Tracking (Fase 4 — Multi-Platform) ─────
@@ -430,7 +489,7 @@ def log_usage(
 
     Returns the estimated cost in USD for this operation.
     """
-    costs = PLATFORM_COSTS_USD.get(platform, {})
+    costs = get_platform_costs(platform, "estimated")
     estimated_cost = (
         posts_count * costs.get("per_post", 0)
         + comments_count * costs.get("per_comment", 0)

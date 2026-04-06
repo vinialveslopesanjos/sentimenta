@@ -693,6 +693,14 @@ def trigger_analyze(
     if not conn:
         raise HTTPException(status_code=404, detail="Connection not found")
 
+    # Guardrail: check credits before allowing analysis (ADR-013)
+    from app.services.credit_service import has_enough
+    if not has_enough(db, current_user.id, 1):
+        raise HTTPException(
+            status_code=403,
+            detail="Créditos insuficientes para iniciar análise. Faça upgrade ou compre créditos extras.",
+        )
+
     from app.tasks.pipeline_tasks import task_analyze_connection
 
     # Create PipelineRun before dispatch (same pattern as sync)
