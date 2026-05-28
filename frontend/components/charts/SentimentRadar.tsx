@@ -60,12 +60,19 @@ function RadarTooltip({ active, payload }: { active?: boolean; payload?: Array<{
   if (!active || !payload?.length) return null;
   const d = payload[0];
   return (
-    <div className="bg-white/95 backdrop-blur-md border border-slate-100 rounded-xl px-3 py-2 shadow-float">
-      <p className="text-xs text-slate-400 mb-0.5">{d.payload.axis}</p>
-      <p className="text-sm font-semibold text-brand-lilacDark">
-        {d.payload.count} <span className="text-xs font-normal text-slate-400">ocorrencias</span>
+    <div
+      className="backdrop-blur-md rounded-xl px-3 py-2"
+      style={{
+        backgroundColor: "color-mix(in srgb, var(--bg-card) 96%, transparent)",
+        border: "1px solid var(--border)",
+        boxShadow: "0 8px 24px -14px rgba(0, 0, 0, 0.28)",
+      }}
+    >
+      <p className="text-xs mb-0.5" style={{ color: "var(--text-muted)" }}>{d.payload.axis}</p>
+      <p className="text-sm font-semibold" style={{ color: "var(--primary)" }}>
+        {d.payload.count} <span className="text-xs font-normal" style={{ color: "var(--text-muted)" }}>ocorrencias</span>
       </p>
-      <p className="text-xs text-slate-300">{d.value.toFixed(0)}% do maximo</p>
+      <p className="text-xs" style={{ color: "var(--text-faint)" }}>{d.value.toFixed(0)}% do maximo</p>
     </div>
   );
 }
@@ -73,7 +80,7 @@ function RadarTooltip({ active, payload }: { active?: boolean; payload?: Array<{
 export default function SentimentRadar({ distribution, height = 280, maxItems = 8 }: Props) {
   if (!distribution || Object.keys(distribution).length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center text-slate-200 gap-2" style={{ height }}>
+      <div className="flex flex-col items-center justify-center gap-2" style={{ height, color: "var(--text-faint)" }}>
         <span className="material-symbols-outlined text-[36px]">radar</span>
         <p className="text-sm font-light">Sem dados de emocoes</p>
       </div>
@@ -95,10 +102,10 @@ export default function SentimentRadar({ distribution, height = 280, maxItems = 
   return (
     <ResponsiveContainer width="100%" height={height}>
       <RadarChart data={data} margin={{ top: 10, right: 30, bottom: 10, left: 30 }}>
-        <PolarGrid stroke="rgba(196, 181, 253, 0.15)" />
+        <PolarGrid stroke="color-mix(in srgb, var(--accent) 24%, transparent)" />
         <PolarAngleAxis
           dataKey="axis"
-          tick={{ fill: "#94A3B8", fontSize: 11, fontFamily: "Outfit, sans-serif" }}
+          tick={{ fill: "var(--text-muted)", fontSize: 11, fontFamily: "Outfit, sans-serif" }}
         />
         <PolarRadiusAxis
           angle={90}
@@ -110,11 +117,11 @@ export default function SentimentRadar({ distribution, height = 280, maxItems = 
         <Radar
           name="Emocoes"
           dataKey="value"
-          stroke="#8B5CF6"
-          fill="#8B5CF6"
-          fillOpacity={0.15}
+          stroke="var(--primary)"
+          fill="var(--primary)"
+          fillOpacity={0.16}
           strokeWidth={2}
-          dot={{ r: 3, fill: "#8B5CF6" }}
+          dot={{ r: 3, fill: "var(--primary)" }}
         />
         <Tooltip content={<RadarTooltip />} />
       </RadarChart>

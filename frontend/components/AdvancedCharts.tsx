@@ -1,7 +1,7 @@
 import { useState } from "react";
 import {
   ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip,
-  ComposedChart, Line, Bar, Legend, Cell, ZAxis,
+  ComposedChart, Line, Bar, Legend, Cell, ZAxis, ReferenceLine,
 } from "recharts";
 import { useTranslations } from "next-intl";
 import { Section } from "./ds/Section";
@@ -17,11 +17,12 @@ import { AlertTriangle, TrendingDown, TrendingUp, User, Shield, Flame, Zap, Mess
 interface GapPost {
   title: string;
   engagement: number; // 0-100
+  rawEngagement?: number;
   sentiment: number;  // 0-10
   comments: number;
 }
 
-export function GapAnalysis({ posts, platformLabel }: { posts: GapPost[]; platformLabel: string }) {
+function LegacyGapAnalysis({ posts, platformLabel }: { posts: GapPost[]; platformLabel: string }) {
   const { t } = useTheme();
   const tc = useTranslations("charts");
   const [hovered, setHovered] = useState<number | null>(null);
@@ -29,7 +30,7 @@ export function GapAnalysis({ posts, platformLabel }: { posts: GapPost[]; platfo
   const getQuadrantColor = (eng: number, sent: number) => {
     if (eng >= 50 && sent >= 5) return t.sentimentPositive; // viral + positive
     if (eng >= 50 && sent < 5) return t.sentimentNegative;  // viral + negative (danger)
-    if (eng < 50 && sent >= 5) return t.secondary;          // low reach + positive (hidden gem)
+    if (eng < 50 && sent >= 5) return t.accent;             // low reach + positive (hidden gem)
     return t.sentimentNeutral;                               // low reach + negative
   };
 
@@ -41,7 +42,7 @@ export function GapAnalysis({ posts, platformLabel }: { posts: GapPost[]; platfo
       </div>
       {/* Quadrant labels */}
       <div className="relative">
-        <div className="absolute top-2 left-12 z-10 px-2 py-0.5 rounded" style={{ fontSize: "0.58rem", fontWeight: 600, color: t.secondary, backgroundColor: `${t.secondaryBg}` }}>
+        <div className="absolute top-2 left-12 z-10 px-2 py-0.5 rounded" style={{ fontSize: "0.58rem", fontWeight: 600, color: t.accent, backgroundColor: `${t.accentBg}` }}>
           💎 {tc("gapAnalysis.hiddenGem")}
         </div>
         <div className="absolute top-2 right-4 z-10 px-2 py-0.5 rounded" style={{ fontSize: "0.58rem", fontWeight: 600, color: t.sentimentPositive, backgroundColor: `${t.sentimentPositive}15` }}>
@@ -96,6 +97,135 @@ export function GapAnalysis({ posts, platformLabel }: { posts: GapPost[]; platfo
 // #2 — POST LIFECYCLE (sentiment over time within a post)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
+export function GapAnalysis({ posts, platformLabel }: { posts: GapPost[]; platformLabel: string }) {
+  const { t } = useTheme();
+  const tc = useTranslations("charts");
+  const [hovered, setHovered] = useState<number | null>(null);
+  const chartPosts = posts.map(p => ({
+    ...p,
+    engagement: Math.min(100, Math.max(0, p.engagement)),
+  }));
+  const riskPost = [...chartPosts]
+    .filter(p => p.sentiment < 5)
+    .sort((a, b) => (b.engagement - a.engagement) || (a.sentiment - b.sentiment))[0];
+  const opportunityPost = [...chartPosts]
+    .filter(p => p.sentiment >= 5)
+    .sort((a, b) => ((50 - a.engagement) + b.sentiment) - ((50 - b.engagement) + a.sentiment))[0];
+  const maxComments = Math.max(...chartPosts.map(p => p.comments), 1);
+
+  const getQuadrantColor = (eng: number, sent: number) => {
+    if (eng >= 50 && sent >= 5) return t.sentimentPositive;
+    if (eng >= 50 && sent < 5) return t.sentimentNegative;
+    if (eng < 50 && sent >= 5) return t.accent;
+    return t.sentimentNeutral;
+  };
+
+  const Signal = ({ icon, label, post, tone }: { icon: React.ReactNode; label: string; post?: GapPost; tone: string }) => (
+    <div className="flex items-start gap-3 rounded-xl p-3" style={{ backgroundColor: "var(--bg-subtle)", border: `1px solid ${tone}22` }}>
+      <div className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ color: tone, backgroundColor: `${tone}18` }}>
+        {icon}
+      </div>
+      <div className="min-w-0">
+        <p style={{ fontSize: "0.72rem", fontWeight: 800, color: tone }}>{label}</p>
+        {post ? (
+          <>
+            <p className="truncate" style={{ fontSize: "0.78rem", fontWeight: 700, color: "var(--text-primary)", maxWidth: 420 }}>{post.title}</p>
+            <p style={{ fontSize: "0.66rem", color: "var(--text-muted)", marginTop: 2 }}>
+              {tc("gapAnalysis.relativeEngagementAxis")}: {Math.round(post.engagement)}/100 · Score {post.sentiment.toFixed(1)}
+            </p>
+          </>
+        ) : (
+          <p style={{ fontSize: "0.72rem", color: "var(--text-faint)" }}>{tc("gapAnalysis.noPrioritySignal")}</p>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <Section title={tc("gapAnalysis.title")} subtitle={tc("gapAnalysis.subtitle")} className="ui-reveal">
+      <div className="flex items-center gap-2 mb-4 flex-wrap">
+        <Badge variant="primary">{tc("insightPremium")}</Badge>
+        <span style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>{tc("gapAnalysis.eachDot")}</span>
+      </div>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
+        <Signal icon={<AlertTriangle className="w-4 h-4" />} label={tc("gapAnalysis.priorityRisk")} post={riskPost} tone={t.sentimentNegative} />
+        <Signal icon={<TrendingUp className="w-4 h-4" />} label={tc("gapAnalysis.priorityOpportunity")} post={opportunityPost} tone={t.sentimentPositive} />
+      </div>
+      <div className="relative">
+        <div className="absolute top-2 left-12 z-10 px-2 py-0.5 rounded" style={{ fontSize: "0.58rem", fontWeight: 700, color: t.accent, backgroundColor: `${t.accentBg}` }}>
+          {tc("gapAnalysis.hiddenGem")}
+        </div>
+        <div className="absolute top-2 right-4 z-10 px-2 py-0.5 rounded" style={{ fontSize: "0.58rem", fontWeight: 700, color: t.sentimentPositive, backgroundColor: `${t.sentimentPositive}15` }}>
+          {tc("gapAnalysis.viralPositive")}
+        </div>
+        <div className="absolute bottom-8 left-12 z-10 px-2 py-0.5 rounded" style={{ fontSize: "0.58rem", fontWeight: 700, color: t.sentimentNeutral, backgroundColor: `${t.sentimentNeutral}15` }}>
+          {tc("gapAnalysis.lowImpact")}
+        </div>
+        <div className="absolute bottom-8 right-4 z-10 px-2 py-0.5 rounded" style={{ fontSize: "0.58rem", fontWeight: 700, color: t.sentimentNegative, backgroundColor: `${t.sentimentNegative}15` }}>
+          {tc("gapAnalysis.viralCrisis")}
+        </div>
+        <ResponsiveContainer width="100%" height={300}>
+          <ScatterChart id={`gap-scatter-v2-${platformLabel}`} margin={{ top: 20, right: 20, bottom: 10, left: 10 }}>
+            <CartesianGrid strokeDasharray="3 3" stroke={t.border} />
+            <XAxis
+              type="number"
+              dataKey="engagement"
+              name={tc("gapAnalysis.engagementLabel")}
+              unit="%"
+              domain={[0, 100]}
+              tick={{ fontSize: 10, fill: t.textFaint }}
+              axisLine={false}
+              tickLine={false}
+              label={{ value: `${tc("gapAnalysis.relativeEngagementAxis")} ->`, position: "insideBottom", offset: -5, style: { fontSize: 10, fill: t.textMuted } }}
+            />
+            <YAxis
+              type="number"
+              dataKey="sentiment"
+              name={tc("gapAnalysis.sentiment")}
+              domain={[0, 10]}
+              tick={{ fontSize: 10, fill: t.textFaint }}
+              axisLine={false}
+              tickLine={false}
+              label={{ value: `${tc("gapAnalysis.sentimentAxis")} ->`, angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 10, fill: t.textMuted } }}
+            />
+            <ZAxis type="number" dataKey="comments" range={[48, Math.min(240, 80 + Math.sqrt(maxComments) * 16)]} name={tc("gapAnalysis.commentsLabel")} />
+            <ReferenceLine x={50} stroke={t.border} strokeDasharray="6 6" ifOverflow="extendDomain" />
+            <ReferenceLine y={5} stroke={t.border} strokeDasharray="6 6" ifOverflow="extendDomain" />
+            <Tooltip
+              content={({ payload }) => {
+                if (!payload?.length) return null;
+                const d = payload[0].payload as GapPost;
+                const rawEngagement = d.rawEngagement ?? d.engagement;
+                return (
+                  <div className="rounded-xl p-3 shadow-lg" style={{ backgroundColor: t.bgCard, border: `1px solid ${t.border}` }}>
+                    <p style={{ fontSize: "0.78rem", fontWeight: 700, color: t.textPrimary }}>{d.title}</p>
+                    <p style={{ fontSize: "0.68rem", color: t.textMuted }}>
+                      {tc("gapAnalysis.relativeEngagementAxis")}: {Math.round(d.engagement)}/100 · {tc("gapAnalysis.rawEngagementLabel")}: {rawEngagement.toFixed(2)}% · Score: {d.sentiment.toFixed(1)} · {d.comments} com.
+                    </p>
+                  </div>
+                );
+              }}
+            />
+            <Scatter data={chartPosts} isAnimationActive>
+              {chartPosts.map((p, i) => (
+                <Cell
+                  key={`gap-v2-${i}-${p.title}`}
+                  fill={getQuadrantColor(p.engagement, p.sentiment)}
+                  fillOpacity={hovered === i ? 0.95 : 0.72}
+                  stroke={getQuadrantColor(p.engagement, p.sentiment)}
+                  strokeWidth={hovered === i ? 2 : 1}
+                  onMouseEnter={() => setHovered(i)}
+                  onMouseLeave={() => setHovered(null)}
+                />
+              ))}
+            </Scatter>
+          </ScatterChart>
+        </ResponsiveContainer>
+      </div>
+    </Section>
+  );
+}
+
 interface LifecyclePoint {
   time: string;
   score: number;
@@ -113,7 +243,7 @@ export function PostLifecycle({ posts, platformLabel }: { posts: LifecyclePost[]
   const [selectedPost, setSelectedPost] = useState(0);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const post = posts[selectedPost];
-  const lineColors = [t.primary, t.secondary, t.accent, t.primaryMuted, t.secondaryLight];
+  const lineColors = [t.primary, t.accent, t.secondary, t.primaryMuted, t.secondaryLight];
 
   return (
     <Section title={tc("postLifecycle.title")} subtitle={tc("postLifecycle.subtitle")}>
@@ -179,7 +309,7 @@ export function PostLifecycle({ posts, platformLabel }: { posts: LifecyclePost[]
           />
           <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: `0 4px 16px ${t.primary}15`, fontSize: "0.78rem", backgroundColor: t.bgCard }} />
           <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
-          <Bar dataKey="volume" name={tc("postLifecycle.volumeComments")} fill={t.secondary} radius={[4, 4, 0, 0]} opacity={0.6} />
+          <Bar dataKey="volume" name={tc("postLifecycle.volumeComments")} fill={t.accent} radius={[4, 4, 0, 0]} opacity={0.62} />
           <Line type="monotone" dataKey="score" name={tc("postLifecycle.scoreSentiment")} stroke={t.primary} strokeWidth={2.5} dot={{ r: 3, fill: t.primary, strokeWidth: 0 }} />
         </ComposedChart>
       </ResponsiveContainer>
@@ -300,14 +430,14 @@ export function TopicTreemap({ topics, platformLabel }: { topics: TopicNode[]; p
 
   const getColorForScore = (score: number) => {
     if (score >= 7) return t.sentimentPositive;
-    if (score >= 5) return t.secondary;
+    if (score >= 5) return t.accent;
     if (score >= 3) return t.primaryMuted;
     return t.sentimentNegative;
   };
 
   const getBgForScore = (score: number) => {
     if (score >= 7) return `${t.sentimentPositive}20`;
-    if (score >= 5) return `${t.secondary}20`;
+    if (score >= 5) return `${t.accent}20`;
     if (score >= 3) return `${t.primaryMuted}20`;
     return `${t.sentimentNegative}20`;
   };
@@ -334,7 +464,7 @@ export function TopicTreemap({ topics, platformLabel }: { topics: TopicNode[]; p
         <Badge variant="primary">{tc("insightPremium")}</Badge>
         <div className="flex items-center gap-3 ml-auto" style={{ fontSize: "0.62rem" }}>
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: t.sentimentPositive }} /> {tc("topicTreemap.positiveLabel")}</span>
-          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: t.secondary }} /> {tc("topicTreemap.neutralLabel")}</span>
+          <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: t.accent }} /> {tc("topicTreemap.neutralLabel")}</span>
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: t.primaryMuted }} /> {tc("topicTreemap.alertLabel")}</span>
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: t.sentimentNegative }} /> {tc("topicTreemap.negativeLabel")}</span>
         </div>
@@ -398,7 +528,7 @@ export function SmartAlerts({ alerts, platformLabel }: { alerts: SmartAlert[]; p
   const getSeverityStyle = (severity: SmartAlert["severity"]) => {
     switch (severity) {
       case "high": return { color: t.sentimentNegative, bg: `${t.sentimentNegative}15`, label: tc("smartAlertsSection.severityHigh") };
-      case "medium": return { color: t.secondary, bg: `${t.secondary}20`, label: tc("smartAlertsSection.severityMedium") };
+      case "medium": return { color: t.accent, bg: `${t.accent}20`, label: tc("smartAlertsSection.severityMedium") };
       case "low": return { color: t.sentimentPositive, bg: `${t.sentimentPositive}15`, label: tc("smartAlertsSection.severityLow") };
     }
   };

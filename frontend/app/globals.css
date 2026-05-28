@@ -54,22 +54,44 @@
   --bg-hover: #eaf4f5;
 
   /* Sentiment (green / gray / rose) */
-  --sentiment-positive: #22c55e;
-  --sentiment-positive-bg: #dcfce7;
-  --sentiment-neutral: #94a3b8;
-  --sentiment-neutral-bg: #f1f5f9;
-  --sentiment-negative: #b6496b;
-  --sentiment-negative-bg: #f8edf0;
+  --sentiment-positive: #2fbc73;
+  --sentiment-positive-bg: #e5f8ef;
+  --sentiment-neutral: #849aa3;
+  --sentiment-neutral-bg: #edf4f5;
+  --sentiment-negative: #bd4b70;
+  --sentiment-negative-bg: #f9eaf0;
 
   /* Charts */
   --chart-1: #39b8c6;
-  --chart-2: #61c6d1;
-  --chart-3: #b6496b;
-  --chart-4: #c56d89;
-  --chart-5: #b88147;
-  --chart-6: #c69a6c;
-  --chart-7: #88d4dd;
-  --chart-8: #d392a6;
+  --chart-2: #2fadb8;
+  --chart-3: #bd4b70;
+  --chart-4: #cf7890;
+  --chart-5: #c08a4a;
+  --chart-6: #7f8b54;
+  --chart-7: #2fbc73;
+  --chart-8: #849aa3;
+
+  /* Emotional data colors */
+  --emotion-joy: #e2be73;
+  --emotion-sadness: #c96486;
+  --emotion-anger: #a86b42;
+  --emotion-support: #42cc78;
+  --emotion-applause: #d9a14e;
+  --emotion-neutral: #8592a4;
+  --emotion-fear: #8dae7a;
+  --emotion-disgust: #7f8b54;
+
+  /* Textural charts */
+  --word-cloud-1: #2e939e;
+  --word-cloud-2: #39b8c6;
+  --word-cloud-3: #b88147;
+  --word-cloud-4: #7f8b54;
+  --word-cloud-5: #226e77;
+  --word-cloud-6: #c69a6c;
+  --word-cloud-7: #61c6d1;
+  --word-cloud-8: #a86b42;
+  --word-cloud-9: #398b93;
+  --word-cloud-10: #8dae7a;
 
   --radius: 0.75rem;
   --sidebar: #ffffff;
@@ -124,21 +146,41 @@
   --bg-subtle: #1d4649;
   --bg-hover: #226e77;
 
-  --sentiment-positive: #34d399;
-  --sentiment-positive-bg: #064e3b;
-  --sentiment-neutral: #94a3b8;
-  --sentiment-neutral-bg: #1e293b;
-  --sentiment-negative: #c56d89;
-  --sentiment-negative-bg: #491d2b;
+  --sentiment-positive: #54d69a;
+  --sentiment-positive-bg: #103f34;
+  --sentiment-neutral: #91aab3;
+  --sentiment-neutral-bg: #1c3035;
+  --sentiment-negative: #dd6e92;
+  --sentiment-negative-bg: #4b1d2d;
 
-  --chart-1: #61c6d1;
-  --chart-2: #88d4dd;
-  --chart-3: #c56d89;
-  --chart-4: #d392a6;
-  --chart-5: #c69a6c;
-  --chart-6: #d4b491;
-  --chart-7: #39b8c6;
-  --chart-8: #b6496b;
+  --chart-1: #66d4de;
+  --chart-2: #46c6b8;
+  --chart-3: #dd6e92;
+  --chart-4: #e38aa5;
+  --chart-5: #d9ad74;
+  --chart-6: #9cad6f;
+  --chart-7: #54d69a;
+  --chart-8: #91aab3;
+
+  --emotion-joy: #f0cf80;
+  --emotion-sadness: #dd6e92;
+  --emotion-anger: #ce8154;
+  --emotion-support: #54d69a;
+  --emotion-applause: #e4b45c;
+  --emotion-neutral: #91aab3;
+  --emotion-fear: #a5c588;
+  --emotion-disgust: #9cad6f;
+
+  --word-cloud-1: #66d4de;
+  --word-cloud-2: #46c6b8;
+  --word-cloud-3: #d9ad74;
+  --word-cloud-4: #9cad6f;
+  --word-cloud-5: #88d4dd;
+  --word-cloud-6: #e4b45c;
+  --word-cloud-7: #a5c588;
+  --word-cloud-8: #ce8154;
+  --word-cloud-9: #91aab3;
+  --word-cloud-10: #c69a6c;
 
   --sidebar: #0f2424;
   --sidebar-foreground: #e8eef0;
@@ -280,6 +322,54 @@
 
 .animate-breathe {
   animation: breathe 3.8s ease-in-out infinite;
+}
+
+@keyframes uiReveal {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ui-reveal {
+  animation: uiReveal 360ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.ui-reveal-delay-1 {
+  animation-delay: 80ms;
+}
+
+.ui-reveal-delay-2 {
+  animation-delay: 160ms;
+}
+
+.interactive-lift {
+  transition: transform 180ms ease, border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+.interactive-lift:hover {
+  transform: translateY(-2px);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in-up,
+  .animate-breathe,
+  .progress-shimmer,
+  .ui-reveal,
+  .ui-reveal-delay-1,
+  .ui-reveal-delay-2 {
+    animation: none !important;
+  }
+
+  .interactive-lift,
+  .interactive-lift:hover {
+    transition: none !important;
+    transform: none !important;
+  }
 }
 
 /* Focus ring */

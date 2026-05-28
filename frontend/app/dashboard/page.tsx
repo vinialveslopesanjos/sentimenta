@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
-  RadarChart, PolarGrid, PolarAngleAxis, Radar,
   AreaChart, Area,
   LineChart, Line,
 } from "recharts";
@@ -33,6 +32,7 @@ import {
 import { GlassSocialIcon } from "@/components/GlassSocialIcons";
 import { AmbassadorsVsDetractors } from "@/components/AdvancedCharts";
 import { DemographicsSummary } from "@/components/DemographicsCharts";
+import EmotionRadarCard from "@/components/EmotionRadarCard";
 import WordCloudChart from "@/components/charts/WordCloudChart";
 import { dashboardApi, connectionsApi, commentsApi, postsApi, demographicsApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
@@ -160,6 +160,48 @@ function getReputationBadge(score: number, labels: { good: string; attention: st
 
 /* ───────── Main Page ───────── */
 
+function DashboardQuestionHeader({ eyebrow, title, description }: { eyebrow: string; title: string; description: string }) {
+  return (
+    <div className="pt-3 max-w-3xl ui-reveal">
+      <p style={{ fontSize: "0.68rem", fontWeight: 800, color: "var(--primary)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+        {eyebrow}
+      </p>
+      <h2 className="mt-1" style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.12rem", fontWeight: 800, color: "var(--text-primary)", lineHeight: 1.25 }}>
+        {title}
+      </h2>
+      <p className="mt-1" style={{ fontSize: "0.78rem", color: "var(--text-muted)", lineHeight: 1.6 }}>
+        {description}
+      </p>
+    </div>
+  );
+}
+
+function DashboardMetricTile({ icon, label, value, sub, accent = "var(--primary)", strong = false }: {
+  icon: ReactNode;
+  label: string;
+  value: string | number;
+  sub: string;
+  accent?: string;
+  strong?: boolean;
+}) {
+  return (
+    <div
+      className="rounded-2xl p-4 md:p-5 interactive-lift"
+      style={{
+        backgroundColor: strong ? "var(--primary)" : "var(--bg-card)",
+        border: strong ? "1px solid transparent" : "1px solid var(--border)",
+        boxShadow: strong ? "0 10px 28px -10px var(--primary)" : "0 1px 8px -2px rgba(0,0,0,0.06)",
+        color: strong ? "var(--primary-foreground)" : "var(--text-primary)",
+      }}
+    >
+      <div className="mb-3" style={{ color: strong ? "var(--primary-foreground)" : accent }}>{icon}</div>
+      <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.65rem", fontWeight: 800, lineHeight: 1 }}>{value}</p>
+      <p style={{ fontSize: "0.72rem", color: strong ? "color-mix(in srgb, var(--primary-foreground) 76%, transparent)" : "var(--text-muted)", marginTop: 4 }}>{label}</p>
+      <p style={{ fontSize: "0.62rem", color: strong ? "color-mix(in srgb, var(--primary-foreground) 62%, transparent)" : "var(--text-faint)", marginTop: 2 }}>{sub}</p>
+    </div>
+  );
+}
+
 const heatmapHours = ["00", "02", "04", "06", "08", "10", "12", "14", "16", "18", "20", "22"];
 
 export default function DashboardPage() {
@@ -174,6 +216,7 @@ export default function DashboardPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [timeRange, setTimeRange] = useState("Volume");
+  const [sentimentTemporalMode, setSentimentTemporalMode] = useState<"grouped" | "stacked100">("grouped");
 
   // Data
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
@@ -296,6 +339,10 @@ export default function DashboardPage() {
   const positive = sentDist?.positive ?? 0;
   const neutral = sentDist?.neutral ?? 0;
   const negative = sentDist?.negative ?? 0;
+  const totalSentiment = positive + neutral + negative || 1;
+  const positivePct = Math.round((positive / totalSentiment) * 100);
+  const neutralPct = Math.round((neutral / totalSentiment) * 100);
+  const negativePct = 100 - positivePct - neutralPct;
   const repBadge = getReputationBadge(score, { good: td("goodReputation"), attention: td("attentionNeeded"), critical: td("criticalReputation") });
   const timeSinceLabels = { never: tc("never"), now: tc("now"), ago: tc("ago") };
   const heatmapDays: string[] = tch.raw("heatmap.days") as unknown as string[];
@@ -359,6 +406,18 @@ export default function DashboardPage() {
     negativo: dp.negative,
   })) ?? [];
 
+  const temporalPctData = temporalData.map(point => {
+    const total = point.positivo + point.neutro + point.negativo || 1;
+    return {
+      date: point.date,
+      positivo: Math.round((point.positivo / total) * 100),
+      neutro: Math.round((point.neutro / total) * 100),
+      negativo: Math.round((point.negativo / total) * 100),
+      total,
+    };
+  });
+  const hasSentimentTemporalVolume = temporalData.some(point => (point.positivo + point.neutro + point.negativo) > 0);
+
   // Volume temporal data
   const volumeTemporalData = trendsDetailed?.data_points?.map(dp => ({
     date: new Date(dp.period).toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "2-digit" }),
@@ -394,6 +453,31 @@ export default function DashboardPage() {
       isNeg: false,
     };
   });
+
+  const firstTrendScore = scoreTrendData.find(point => point.score > 0)?.score ?? null;
+  const lastTrendScore = scoreTrendData.length > 0 ? scoreTrendData[scoreTrendData.length - 1].score : null;
+  const trendDelta = firstTrendScore != null && lastTrendScore != null ? Number((lastTrendScore - firstTrendScore).toFixed(1)) : null;
+  const dominantEmotion = emotionPie[0]?.name ?? td("diagnosticHero.noEmotion");
+  const dominantPlatform = platformStats.length > 0
+    ? [...platformStats].sort((a, b) => b.comments - a.comments)[0]
+    : null;
+  const sentimentDriver = negativePct >= 35
+    ? td("diagnosticHero.driverNegative", { pct: negativePct })
+    : positivePct >= 50
+      ? td("diagnosticHero.driverPositive", { pct: positivePct })
+      : td("diagnosticHero.driverMixed", { positive: positivePct, negative: negativePct });
+  const trendNarrative = trendDelta == null
+    ? td("diagnosticHero.trendUnknown")
+    : trendDelta > 0.2
+      ? td("diagnosticHero.trendUp", { delta: trendDelta.toFixed(1) })
+      : trendDelta < -0.2
+        ? td("diagnosticHero.trendDown", { delta: Math.abs(trendDelta).toFixed(1) })
+        : td("diagnosticHero.trendStable");
+  const diagnosticTitle = score >= 7
+    ? td("diagnosticHero.titleGood")
+    : score >= 4
+      ? td("diagnosticHero.titleAttention")
+      : td("diagnosticHero.titleCritical");
 
   // Top comments — merge positive and negative
   const allTopComments = [
@@ -480,74 +564,81 @@ export default function DashboardPage() {
       {/* ═══ REPUTATION HERO + QUICK STATS ═══ */}
       {loading ? (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          <div className="lg:col-span-3"><CardSkeleton /></div>
-          <div className="lg:col-span-9 grid grid-cols-2 md:grid-cols-3 gap-4">
+          <div className="lg:col-span-7"><CardSkeleton /></div>
+          <div className="lg:col-span-5 grid grid-cols-2 gap-4">
             {Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}
           </div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
-          <div className="lg:col-span-3 rounded-2xl p-6 flex flex-col items-center justify-center" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 1px 8px -2px rgba(0,0,0,0.06)" }}>
-            <div className="relative w-28 h-28 mb-3">
-              <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                <circle cx="50" cy="50" r="42" fill="none" stroke={t.primaryBg} strokeWidth="6" />
-                <circle cx="50" cy="50" r="42" fill="none" stroke={t.primary} strokeWidth="6" strokeLinecap="round" strokeDasharray={`${scorePercent * 2.64} ${264 - scorePercent * 2.64}`} />
-              </svg>
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 800, color: "var(--primary)" }}>{(summary?.total_comments === 0 || connections.length === 0) ? "\u2014" : score.toFixed(1)}</span>
-                <span style={{ fontSize: "0.6rem", color: "var(--text-faint)" }}>{td("outOf10")}</span>
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 ui-reveal">
+          <div
+            className="lg:col-span-7 rounded-2xl p-5 md:p-6"
+            style={{
+              background: "linear-gradient(135deg, color-mix(in srgb, var(--primary-bg) 62%, var(--bg-card)) 0%, color-mix(in srgb, var(--accent-bg) 76%, var(--bg-card)) 100%)",
+              border: "1px solid color-mix(in srgb, var(--primary) 24%, var(--border))",
+              boxShadow: "0 16px 42px -28px var(--primary)",
+            }}
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div className="min-w-0">
+                <Badge variant={repBadge.variant} dot>{repBadge.label}</Badge>
+                <h2 className="mt-4" style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.45rem", fontWeight: 850, color: "var(--text-primary)", lineHeight: 1.18 }}>
+                  {diagnosticTitle}
+                </h2>
+                <p className="mt-2" style={{ fontSize: "0.88rem", color: "var(--text-secondary)", lineHeight: 1.65 }}>
+                  {sentimentDriver} {trendNarrative}
+                </p>
+              </div>
+              <div className="relative w-28 h-28 shrink-0">
+                <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                  <circle cx="50" cy="50" r="42" fill="none" stroke="color-mix(in srgb, var(--primary) 16%, var(--bg-card))" strokeWidth="7" />
+                  <circle cx="50" cy="50" r="42" fill="none" stroke={score >= 7 ? t.sentimentPositive : score >= 4 ? t.primary : t.sentimentNegative} strokeWidth="7" strokeLinecap="round" strokeDasharray={`${scorePercent * 2.64} ${264 - scorePercent * 2.64}`} />
+                </svg>
+                <div className="absolute inset-0 flex flex-col items-center justify-center">
+                  <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 850, color: "var(--text-primary)" }}>{(summary?.total_comments === 0 || connections.length === 0) ? "\u2014" : score.toFixed(1)}</span>
+                  <span style={{ fontSize: "0.6rem", color: "var(--text-faint)" }}>{td("outOf10")}</span>
+                </div>
               </div>
             </div>
-            <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.92rem", fontWeight: 600, color: "var(--text-primary)" }}>{td("overallReputation")}</p>
-            {(summary?.total_comments === 0 || connections.length === 0) ? (
-              <>
-                <Badge variant="muted">{td("noDataYet")}</Badge>
-                <Button variant="primary" size="sm" className="mt-3" onClick={() => router.push("/dashboard/connect")}>{td("emptyState.cta")}</Button>
-              </>
-            ) : (
-              <Badge variant={repBadge.variant} dot>{score >= 7 ? td("goodReputation") : score >= 4 ? td("attentionNeeded") : td("criticalReputation")}</Badge>
-            )}
+
             {(positive + neutral + negative) > 0 && (
-              <div className="w-full mt-4">
-                <SentimentBar positive={positive} neutral={neutral} negative={negative} height={8} showLabels />
+              <div className="mt-5">
+                <SentimentBar positive={positive} neutral={neutral} negative={negative} height={10} showLabels />
               </div>
             )}
+
+            <div className="mt-5 grid grid-cols-1 md:grid-cols-3 gap-4 pt-5" style={{ borderTop: "1px solid color-mix(in srgb, var(--primary) 18%, var(--border))" }}>
+              {[
+                { label: td("diagnosticHero.trendLabel"), value: trendDelta == null ? td("diagnosticHero.noTrendShort") : `${trendDelta > 0 ? "+" : ""}${trendDelta.toFixed(1)}` },
+                { label: td("diagnosticHero.mainEmotion"), value: dominantEmotion },
+                { label: td("diagnosticHero.mainAudience"), value: dominantPlatform?.name ?? td("diagnosticHero.noPlatform") },
+              ].map(item => (
+                <div key={item.label}>
+                  <p style={{ fontSize: "0.65rem", fontWeight: 800, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{item.label}</p>
+                  <p className="truncate" style={{ fontSize: "0.92rem", fontWeight: 800, color: "var(--text-primary)", marginTop: 4 }}>{item.value}</p>
+                </div>
+              ))}
+            </div>
           </div>
 
-          <div className="lg:col-span-9 grid grid-cols-2 md:grid-cols-3 gap-4">
-            <div className="rounded-2xl p-5 md:p-6 text-white" style={{ backgroundColor: "var(--primary)", boxShadow: `0 8px 24px -4px ${t.primary}50` }}>
-              <GlassChartIcon size={36} className="mb-3" />
-              <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 800, lineHeight: 1 }}>{totalComments.toLocaleString("pt-BR")}</p>
-              <p style={{ fontSize: "0.75rem", opacity: 0.6, marginTop: 4 }}>{td("analyzedComments")}</p>
-            </div>
-            <div className="rounded-2xl p-5 md:p-6" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 1px 8px -2px rgba(0,0,0,0.06)" }}>
-              <GlassHeartIcon size={36} className="mb-3" />
-              <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 800, color: "var(--text-primary)", lineHeight: 1 }}>{totalPosts.toLocaleString("pt-BR")}</p>
-              <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: 4 }}>{td("monitoredPosts")}</p>
-            </div>
-            <div className="rounded-2xl p-5 md:p-6" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 1px 8px -2px rgba(0,0,0,0.06)" }}>
-              <GlassLinkIcon size={36} className="mb-3" />
-              <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 800, color: "var(--text-primary)", lineHeight: 1 }}>{connectedProfiles}</p>
-              <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: 4 }}>{td("connectedProfiles")}</p>
-            </div>
-            <div className="rounded-2xl p-5 md:p-6" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 1px 8px -2px rgba(0,0,0,0.06)" }}>
-              <GlassZapIcon size={36} className="mb-3" />
-              <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 800, color: "var(--text-primary)", lineHeight: 1 }}>8</p>
-              <p style={{ fontSize: "0.75rem", color: "var(--text-muted)", marginTop: 4 }}>{td("trackedEmotions")}</p>
-            </div>
-            <div className="col-span-2 rounded-2xl p-5 md:p-6" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 1px 8px -2px rgba(0,0,0,0.06)" }}>
-              <p style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.08em", marginBottom: 12 }}>{td("connectedPlatforms")}</p>
+          <div className="lg:col-span-5 grid grid-cols-2 gap-4">
+            <DashboardMetricTile strong icon={<GlassChartIcon size={34} />} value={totalComments.toLocaleString("pt-BR")} label={td("analyzedComments")} sub={td("diagnosticHero.volumeSub")} />
+            <DashboardMetricTile icon={<GlassHeartIcon size={34} />} value={totalPosts.toLocaleString("pt-BR")} label={td("monitoredPosts")} sub={td("diagnosticHero.postsSub")} accent="var(--secondary)" />
+            <DashboardMetricTile icon={<GlassLinkIcon size={34} />} value={connectedProfiles} label={td("connectedProfiles")} sub={td("diagnosticHero.profilesSub")} accent="var(--accent)" />
+            <DashboardMetricTile icon={<GlassZapIcon size={34} />} value="8" label={td("trackedEmotions")} sub={td("diagnosticHero.emotionsSub")} accent="var(--primary)" />
+            <div className="col-span-2 rounded-2xl p-4 md:p-5" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 1px 8px -2px rgba(0,0,0,0.06)" }}>
+              <p style={{ fontSize: "0.68rem", fontWeight: 800, color: "var(--text-muted)", letterSpacing: "0.08em", marginBottom: 12 }}>{td("connectedPlatforms")}</p>
               {connections.length > 0 ? (
-                <div className="grid grid-cols-4 gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {[...connections].sort((a, b) => {
                     const order: Record<string, number> = { instagram: 0, youtube: 1, tiktok: 2, twitter: 3 };
                     return (order[a.platform] ?? 9) - (order[b.platform] ?? 9);
                   }).map(c => (
-                    <button key={c.id} onClick={() => router.push(platformPath(c.platform))} className="flex flex-col items-center gap-2 p-3 rounded-xl transition-colors group" style={{ backgroundColor: "transparent" }}>
-                      <GlassSocialIcon platform={c.platform.toLowerCase()} size={32} />
-                      <div className="text-center">
-                        <p style={{ fontSize: "0.72rem", fontWeight: 500, color: "var(--text-primary)" }}>{platformLabel(c.platform)}</p>
-                        <p style={{ fontSize: "0.6rem", color: "var(--text-faint)" }}>{c.username.startsWith("@") ? c.username : `@${c.username}`}</p>
+                    <button key={c.id} onClick={() => router.push(platformPath(c.platform))} className="flex items-center gap-2 p-2 rounded-xl transition-colors group" style={{ backgroundColor: "var(--bg-subtle)" }}>
+                      <GlassSocialIcon platform={c.platform.toLowerCase()} size={28} />
+                      <div className="min-w-0 text-left">
+                        <p className="truncate" style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--text-primary)" }}>{platformLabel(c.platform)}</p>
+                        <p className="truncate" style={{ fontSize: "0.58rem", color: "var(--text-faint)" }}>{c.username.startsWith("@") ? c.username : `@${c.username}`}</p>
                       </div>
                     </button>
                   ))}
@@ -632,12 +723,18 @@ export default function DashboardPage() {
       )}
 
       {/* ═══ CHART FILTERS ═══ */}
+      <DashboardQuestionHeader
+        eyebrow={td("sections.reputation.eyebrow")}
+        title={td("sections.reputation.title")}
+        description={td("sections.reputation.description")}
+      />
+
       <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center rounded-xl overflow-hidden" style={{ border: "1px solid var(--border)", backgroundColor: "var(--bg-card)" }}>
           {(["day", "week", "month"] as const).map(g => (
             <button key={g} onClick={() => setChartGranularity(g)}
               className="px-3 py-1.5 transition-colors"
-              style={{ fontSize: "0.68rem", fontWeight: 600, backgroundColor: chartGranularity === g ? "var(--primary)" : "transparent", color: chartGranularity === g ? "white" : "var(--text-muted)" }}>
+              style={{ fontSize: "0.68rem", fontWeight: 600, backgroundColor: chartGranularity === g ? "var(--primary)" : "transparent", color: chartGranularity === g ? "var(--primary-foreground)" : "var(--text-muted)" }}>
               {g === "day" ? td("day") : g === "week" ? td("week") : td("month")}
             </button>
           ))}
@@ -646,7 +743,7 @@ export default function DashboardPage() {
           {[{ label: "7d", v: 7 }, { label: "30d", v: 30 }, { label: "90d", v: 90 }, { label: td("total"), v: 0 }].map(p => (
             <button key={p.v} onClick={() => setChartDays(p.v)}
               className="px-3 py-1.5 transition-colors"
-              style={{ fontSize: "0.68rem", fontWeight: 600, backgroundColor: chartDays === p.v ? "var(--primary)" : "transparent", color: chartDays === p.v ? "white" : "var(--text-muted)" }}>
+              style={{ fontSize: "0.68rem", fontWeight: 600, backgroundColor: chartDays === p.v ? "var(--primary)" : "transparent", color: chartDays === p.v ? "var(--primary-foreground)" : "var(--text-muted)" }}>
               {p.label}
             </button>
           ))}
@@ -697,20 +794,24 @@ export default function DashboardPage() {
       </div>
 
       {/* ═══ RADAR + WORD CLOUD ═══ */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Section title={td("emotionRadar")}>
-          {loading ? <ChartSkeleton /> : radarData.length > 0 ? (
-            <ResponsiveContainer width="100%" height={240}>
-              <RadarChart id="dash-radar" data={radarData}>
-                <PolarGrid stroke={t.textXfaint} />
-                <PolarAngleAxis dataKey="emotion" tick={{ fontSize: 10, fill: t.textMuted }} />
-                <Radar dataKey="value" stroke={t.primary} fill={t.primary} fillOpacity={0.08} strokeWidth={2} />
-              </RadarChart>
-            </ResponsiveContainer>
-          ) : (
+      <DashboardQuestionHeader
+        eyebrow={td("sections.drivers.eyebrow")}
+        title={td("sections.drivers.title")}
+        description={td("sections.drivers.description")}
+      />
+
+      <div className="space-y-4">
+        {loading ? (
+          <Section title={td("emotionRadar")}>
+            <ChartSkeleton height={300} />
+          </Section>
+        ) : radarData.length > 0 ? (
+          <EmotionRadarCard title={td("emotionRadar")} data={radarData} />
+        ) : (
+          <Section title={td("emotionRadar")}>
             <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "60px 0" }}>{td("noEmotionData")}</p>
-          )}
-        </Section>
+          </Section>
+        )}
         <Section title={td("wordCloud")} subtitle={td("wordCloudSubtitle")}>
           {loading ? <ChartSkeleton height={180} /> : (
             <WordCloudChart topics={summary?.word_frequency || null} maxWords={25} height={240} />
@@ -748,11 +849,34 @@ export default function DashboardPage() {
         <div className="flex items-center justify-between mb-5 flex-wrap gap-2">
           <div className="flex items-center gap-1 rounded-xl p-1" style={{ backgroundColor: "color-mix(in srgb, var(--bg-card) 60%, transparent)", border: "0.5px solid var(--border)", backdropFilter: "blur(12px)", boxShadow: "0 2px 10px -2px rgba(0,0,0,0.05)" }}>
             {[{ key: "Volume", label: td("volume") }, { key: "Score", label: tc("score") }, { key: "Sentimento", label: td("sentiment") }].map(range => (
-              <button key={range.key} onClick={() => setTimeRange(range.key)} className="px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap" style={{ fontSize: "0.75rem", fontWeight: 500, backgroundColor: timeRange === range.key ? "var(--primary)" : "transparent", color: timeRange === range.key ? "white" : "var(--text-muted)", boxShadow: timeRange === range.key ? "0 4px 16px -4px var(--primary)" : "none" }}>
+            <button key={range.key} onClick={() => setTimeRange(range.key)} className="px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap" style={{ fontSize: "0.75rem", fontWeight: 500, backgroundColor: timeRange === range.key ? "var(--primary)" : "transparent", color: timeRange === range.key ? "var(--primary-foreground)" : "var(--text-muted)", boxShadow: timeRange === range.key ? "0 4px 16px -4px var(--primary)" : "none" }}>
                 {range.label}
               </button>
             ))}
           </div>
+          {timeRange === "Sentimento" && (
+            <div className="flex items-center gap-1 rounded-xl p-1" style={{ backgroundColor: "color-mix(in srgb, var(--accent-bg) 58%, var(--bg-card))", border: "0.5px solid color-mix(in srgb, var(--accent) 28%, var(--border))", boxShadow: "0 2px 10px -2px rgba(0,0,0,0.05)" }}>
+              {([
+                { key: "grouped", label: td("temporalModes.grouped") },
+                { key: "stacked100", label: td("temporalModes.stacked100") },
+              ] as const).map((mode) => (
+                <button
+                  key={mode.key}
+                  onClick={() => setSentimentTemporalMode(mode.key)}
+                  className="px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap"
+                  style={{
+                    fontSize: "0.72rem",
+                    fontWeight: 700,
+                    backgroundColor: sentimentTemporalMode === mode.key ? "var(--accent)" : "transparent",
+                    color: sentimentTemporalMode === mode.key ? "var(--primary-foreground)" : "var(--text-muted)",
+                    boxShadow: sentimentTemporalMode === mode.key ? "0 6px 18px -8px var(--accent)" : "none",
+                  }}
+                >
+                  {mode.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
         {loading ? <ChartSkeleton height={260} /> : timeRange === "Volume" && volumeTemporalData.length > 0 ? (
           <ResponsiveContainer width="100%" height={260}>
@@ -769,30 +893,45 @@ export default function DashboardPage() {
             <AreaChart id="dash-temporal-score" data={scoreTemporalData} margin={{ left: -10, right: 8 }}>
               <defs>
                 <linearGradient id="dash-scoreTemporalGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor={t.secondary} stopOpacity={0.15} />
-                  <stop offset="95%" stopColor={t.secondary} stopOpacity={0} />
+                  <stop offset="5%" stopColor={t.primary} stopOpacity={0.18} />
+                  <stop offset="95%" stopColor={t.primary} stopOpacity={0} />
                 </linearGradient>
               </defs>
               <CartesianGrid strokeDasharray="3 3" stroke={t.primaryBg} vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
               <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
-              <Area type="monotone" dataKey="score" name={tc("score")} stroke={t.secondary} strokeWidth={2.5} fill="url(#dash-scoreTemporalGrad)" dot={{ r: 3, fill: t.secondary, strokeWidth: 0 }} />
+              <Area type="monotone" dataKey="score" name={tc("score")} stroke={t.primary} strokeWidth={2.5} fill="url(#dash-scoreTemporalGrad)" dot={{ r: 3, fill: t.primary, strokeWidth: 0 }} />
             </AreaChart>
           </ResponsiveContainer>
-        ) : timeRange === "Sentimento" && temporalData.length > 0 ? (
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart id="dash-temporal-bar" data={temporalData} barGap={2} margin={{ left: -10, right: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke={t.primaryBg} vertical={false} />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
-              <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
-              <Bar dataKey="positivo" fill={t.sentimentPositive} stackId="sentiment" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="neutro" fill={t.sentimentNeutral} stackId="sentiment" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="negativo" fill={t.sentimentNegative} stackId="sentiment" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+        ) : timeRange === "Sentimento" && temporalData.length > 0 && hasSentimentTemporalVolume ? (
+          sentimentTemporalMode === "stacked100" ? (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart id="dash-temporal-bar-stacked" data={temporalPctData} barGap={2} margin={{ left: 8, right: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="color-mix(in srgb, var(--accent) 28%, transparent)" vertical={false} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+                <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tickFormatter={(value) => `${value}%`} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={44} />
+                <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} formatter={(value: number, name: string) => [`${value}%`, name]} />
+                <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
+                <Bar dataKey="positivo" name={tc("positive")} fill={t.sentimentPositive} stackId="sentiment" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="neutro" name={tc("neutral")} fill={t.sentimentNeutral} stackId="sentiment" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="negativo" name={tc("negative")} fill={t.sentimentNegative} stackId="sentiment" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          ) : (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart id="dash-temporal-bar-grouped" data={temporalData} barGap={4} margin={{ left: 0, right: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="color-mix(in srgb, var(--accent) 28%, transparent)" vertical={false} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
+                <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
+                <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
+                <Bar dataKey="negativo" name={tc("negative")} fill={t.sentimentNegative} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="neutro" name={tc("neutral")} fill={t.sentimentNeutral} radius={[4, 4, 0, 0]} />
+                <Bar dataKey="positivo" name={tc("positive")} fill={t.sentimentPositive} radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          )
         ) : (
           <p style={{ fontSize: "0.82rem", color: "var(--text-faint)", textAlign: "center", padding: "60px 0" }}>{td("noTemporalData")}</p>
         )}
@@ -806,7 +945,7 @@ export default function DashboardPage() {
               <XAxis dataKey="hour" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
-              <Bar dataKey="volume" fill={t.secondary} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="volume" fill={t.primaryMuted} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         ) : (
