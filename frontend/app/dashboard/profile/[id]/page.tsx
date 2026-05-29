@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, type ReactNode } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import {
@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import {
   ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
-  RadarChart, PolarGrid, PolarAngleAxis, Radar,
   BarChart, Bar, Legend, LineChart, Line,
 } from "recharts";
 
@@ -26,6 +25,7 @@ import {
   SmartAlerts, TopicEmotionHeatmap,
 } from "@/components/AdvancedCharts";
 import { DemographicsOverview, SentimentByAge, SentimentByGender, EmotionsByGender } from "@/components/DemographicsCharts";
+import EmotionRadarCard from "@/components/EmotionRadarCard";
 import { GlassHeartIcon, GlassZapIcon, GlassPeopleIcon, GlassShieldIcon } from "@/components/GlassIcons";
 import { GlassSocialIcon } from "@/components/GlassSocialIcons";
 import WordCloudChart from "@/components/charts/WordCloudChart";
@@ -80,6 +80,93 @@ function getPlatformLabel(platform: string): string {
   return map[platform.toLowerCase()] || platform;
 }
 
+function ProfileQuestionGroup({
+  eyebrow,
+  title,
+  description,
+  children,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+  children: ReactNode;
+}) {
+  return (
+    <section className="space-y-4 md:space-y-5 ui-reveal">
+      <div className="max-w-3xl">
+        <p
+          style={{
+            fontSize: "0.68rem",
+            fontWeight: 700,
+            color: "var(--primary)",
+            letterSpacing: "0.08em",
+            textTransform: "uppercase",
+          }}
+        >
+          {eyebrow}
+        </p>
+        <h2
+          className="mt-1"
+          style={{
+            fontFamily: "'Outfit', sans-serif",
+            fontSize: "1.12rem",
+            fontWeight: 700,
+            color: "var(--text-primary)",
+            lineHeight: 1.25,
+          }}
+        >
+          {title}
+        </h2>
+        <p className="mt-1" style={{ fontSize: "0.78rem", color: "var(--text-muted)", lineHeight: 1.6 }}>
+          {description}
+        </p>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function ProfileQuestionHeader({
+  eyebrow,
+  title,
+  description,
+}: {
+  eyebrow: string;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="pt-3 max-w-3xl ui-reveal">
+      <p
+        style={{
+          fontSize: "0.68rem",
+          fontWeight: 700,
+          color: "var(--primary)",
+          letterSpacing: "0.08em",
+          textTransform: "uppercase",
+        }}
+      >
+        {eyebrow}
+      </p>
+      <h2
+        className="mt-1"
+        style={{
+          fontFamily: "'Outfit', sans-serif",
+          fontSize: "1.12rem",
+          fontWeight: 700,
+          color: "var(--text-primary)",
+          lineHeight: 1.25,
+        }}
+      >
+        {title}
+      </h2>
+      <p className="mt-1" style={{ fontSize: "0.78rem", color: "var(--text-muted)", lineHeight: 1.6 }}>
+        {description}
+      </p>
+    </div>
+  );
+}
+
 // ─── time range to days mapping ────────────
 const timeRangeDays: Record<string, number> = {
   "7d": 7,
@@ -108,6 +195,7 @@ export default function ProfileDetailPage() {
   const [error, setError] = useState<string | null>(null);
   const [postSort, setPostSort] = useState<"recent" | "score">("recent");
   const [postLimit, setPostLimit] = useState<number>(10);
+  const [sentimentTemporalMode, setSentimentTemporalMode] = useState<"grouped" | "stacked100">("grouped");
 
   // ── data ──
   const [dashboard, setDashboard] = useState<ConnectionDashboard | null>(null);
@@ -268,6 +356,7 @@ export default function ProfileDetailPage() {
 
   // ── derived data ──
   const hasDemographics = !["free", "starter"].includes(userPlan);
+  const hasEmotionsByGender = hasDemographics && !!emotionsByGender && emotionsByGender.length > 0;
   const platform = connectionInfo?.platform || dashboard?.connection?.platform || "instagram";
   const platformLabel = getPlatformLabel(platform);
   const username = connectionInfo?.username || dashboard?.connection?.username || "";
@@ -336,6 +425,43 @@ export default function ProfileDetailPage() {
       negativo: dp.negative,
     }));
   }, [trends]);
+
+  const sentimentTemporalPctData = useMemo(() => {
+    return sentimentTemporalData.map((point) => {
+      const total = point.positivo + point.neutro + point.negativo || 1;
+      return {
+        date: point.date,
+        positivo: Math.round((point.positivo / total) * 100),
+        neutro: Math.round((point.neutro / total) * 100),
+        negativo: Math.round((point.negativo / total) * 100),
+        total,
+      };
+    });
+  }, [sentimentTemporalData]);
+
+  const profileScorePercent = Math.min(100, Math.max(0, score * 10));
+  const firstTrendScore = scoreTemporalData.find(point => point.score > 0)?.score ?? null;
+  const lastTrendScore = scoreTemporalData.length > 0 ? scoreTemporalData[scoreTemporalData.length - 1].score : null;
+  const profileTrendDelta = firstTrendScore != null && lastTrendScore != null ? Number((lastTrendScore - firstTrendScore).toFixed(1)) : null;
+  const dominantProfileEmotion = [...radarData].sort((a, b) => b.value - a.value)[0]?.emotion ?? td("diagnosticHero.noEmotion");
+  const profileSentimentDriver = negPct >= 35
+    ? td("diagnosticHero.driverNegative", { pct: negPct })
+    : posPct >= 50
+      ? td("diagnosticHero.driverPositive", { pct: posPct })
+      : td("diagnosticHero.driverMixed", { positive: posPct, negative: negPct });
+  const profileTrendNarrative = profileTrendDelta == null
+    ? td("diagnosticHero.trendUnknown")
+    : profileTrendDelta > 0.2
+      ? td("diagnosticHero.trendUp", { delta: profileTrendDelta.toFixed(1) })
+      : profileTrendDelta < -0.2
+        ? td("diagnosticHero.trendDown", { delta: Math.abs(profileTrendDelta).toFixed(1) })
+        : td("diagnosticHero.trendStable");
+  const profileDiagnosticTitle = score >= 7
+    ? td("diagnosticHero.titleGood")
+    : score >= 4
+      ? td("diagnosticHero.titleAttention")
+      : td("diagnosticHero.titleCritical");
+  const profileReputationVariant: "positive" | "warning" | "negative" = score >= 7 ? "positive" : score >= 4 ? "warning" : "negative";
 
   const emotionTemporalData = useMemo(() => {
     if (!trendsDetailed?.data_points) return [];
@@ -413,9 +539,20 @@ export default function ProfileDetailPage() {
   // ── gap analysis posts ──
   const gapPosts = useMemo(() => {
     if (!gapData?.posts) return [];
+    const rawRates = gapData.posts.map((p) => Math.max(0, p.engagement ?? 0));
+    const minRate = Math.min(...rawRates);
+    const maxRate = Math.max(...rawRates);
+    const minLog = Math.log1p(minRate);
+    const maxLog = Math.log1p(maxRate);
+    const normalizeEngagement = (rate: number) => {
+      if (rawRates.length <= 1 || maxLog === minLog) return 50;
+      return Math.round(((Math.log1p(Math.max(0, rate)) - minLog) / (maxLog - minLog)) * 100);
+    };
+
     return gapData.posts.map((p) => ({
       title: p.title?.slice(0, 60) || "Post",
-      engagement: p.engagement,
+      engagement: normalizeEngagement(p.engagement),
+      rawEngagement: p.engagement,
       sentiment: p.sentiment,
       comments: p.comments,
     }));
@@ -557,22 +694,49 @@ export default function ProfileDetailPage() {
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
               <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
-              <Area type="monotone" dataKey="score" stroke={t.secondary} fill={t.secondary} fillOpacity={0.08} strokeWidth={2.5} dot={{ r: 3, fill: t.secondary, strokeWidth: 0 }} />
+              <Area type="monotone" dataKey="score" stroke={t.primary} fill={t.primary} fillOpacity={0.1} strokeWidth={2.5} dot={{ r: 3, fill: t.primary, strokeWidth: 0 }} />
             </AreaChart>
           </ResponsiveContainer>
         );
       case "Sentimento":
+        if (sentimentTemporalMode === "stacked100") {
+          return (
+            <ResponsiveContainer width="100%" height={280}>
+              <BarChart data={sentimentTemporalPctData} barGap={2}>
+                <CartesianGrid strokeDasharray="3 3" stroke="color-mix(in srgb, var(--accent) 28%, transparent)" vertical={false} />
+                <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+                <YAxis
+                  domain={[0, 100]}
+                  ticks={[0, 25, 50, 75, 100]}
+                  tickFormatter={(value) => `${value}%`}
+                  tick={{ fontSize: 10, fill: t.textFaint }}
+                  axisLine={false}
+                  tickLine={false}
+                  width={36}
+                />
+                <Tooltip
+                  contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }}
+                  formatter={(value: number, name: string) => [`${value}%`, name]}
+                />
+                <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
+                <Bar dataKey="positivo" name={tc("positive")} fill={t.sentimentPositive} stackId="sentiment" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="neutro" name={tc("neutral")} fill={t.sentimentNeutral} stackId="sentiment" radius={[0, 0, 0, 0]} />
+                <Bar dataKey="negativo" name={tc("negative")} fill={t.sentimentNegative} stackId="sentiment" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ResponsiveContainer>
+          );
+        }
         return (
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={sentimentTemporalData} barGap={2}>
-              <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
+          <ResponsiveContainer width="100%" height={280}>
+            <BarChart data={sentimentTemporalData} barGap={4}>
+              <CartesianGrid strokeDasharray="3 3" stroke="color-mix(in srgb, var(--accent) 28%, transparent)" vertical={false} />
               <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
               <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
-              <Bar dataKey="positivo" name={tc("positive")} fill={t.sentimentPositive} stackId="sentiment" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="neutro" name={tc("neutral")} fill={t.sentimentNeutral} stackId="sentiment" radius={[0, 0, 0, 0]} />
-              <Bar dataKey="negativo" name={tc("negative")} fill={t.sentimentNegative} stackId="sentiment" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="negativo" name={tc("negative")} fill={t.sentimentNegative} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="neutro" name={tc("neutral")} fill={t.sentimentNeutral} radius={[4, 4, 0, 0]} />
+              <Bar dataKey="positivo" name={tc("positive")} fill={t.sentimentPositive} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
         );
@@ -637,7 +801,7 @@ export default function ProfileDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
       <div className="flex items-center gap-3">
         <button onClick={() => router.push("/dashboard")} className="p-1.5 rounded-xl transition-colors shrink-0">
@@ -657,83 +821,152 @@ export default function ProfileDetailPage() {
         </Button>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-        <StatCard
-          variant="tinted"
-          tintColor="var(--primary)"
-          tintBg="var(--primary-bg)"
-          icon={<GlassHeartIcon size={32} />}
-          label={ti("stats.score")}
-          value={score.toFixed(1)}
-          sub="/10"
-        />
-        <StatCard
-          variant="tinted"
-          tintColor="var(--primary)"
-          tintBg="var(--primary-bg)"
-          icon={<GlassZapIcon size={32} />}
-          label={ti("stats.engagementRate")}
-          value={`${engagementRate}%`}
-          sub={ti("stats.commentsPerFollower")}
-        />
-        <StatCard
-          variant="tinted"
-          tintColor="var(--sentiment-negative)"
-          tintBg="var(--sentiment-negative-bg)"
-          icon={<GlassPeopleIcon size={32} />}
-          label={ti("stats.polarization")}
-          value={polarizationLabel}
-          sub={polarizationSub}
-        />
-        <StatCard
-          variant="highlighted"
-          icon={<GlassShieldIcon size={32} />}
-          label={ti("stats.total")}
-          value={fmtNum(totalComments)}
-          sub={tc("comments")}
-        />
-      </div>
+      <ProfileQuestionGroup
+        eyebrow="Resumo"
+        title="Como está a reputação agora?"
+        description="Uma leitura inicial do humor da audiência antes dos recortes por público, tópico e post."
+      >
+        <div className="space-y-4">
+          <div
+            className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.22fr)_minmax(260px,0.78fr)] gap-4 ui-reveal"
+          >
+            <div
+              className="rounded-2xl p-5 md:p-6"
+              style={{
+                background: "linear-gradient(135deg, color-mix(in srgb, var(--primary-bg) 60%, var(--bg-card)) 0%, color-mix(in srgb, var(--accent-bg) 78%, var(--bg-card)) 100%)",
+                border: "1px solid color-mix(in srgb, var(--primary) 24%, var(--border))",
+                boxShadow: "0 16px 42px -30px var(--primary)",
+              }}
+            >
+              <Badge variant={profileReputationVariant} dot>
+                {score >= 7 ? td("goodReputation") : score >= 4 ? td("attentionNeeded") : td("criticalReputation")}
+              </Badge>
+              <h2 className="mt-4" style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.35rem", fontWeight: 850, color: "var(--text-primary)", lineHeight: 1.18 }}>
+                {profileDiagnosticTitle}
+              </h2>
+              <p className="mt-2" style={{ fontSize: "0.86rem", color: "var(--text-secondary)", lineHeight: 1.65 }}>
+                {profileSentimentDriver} {profileTrendNarrative}
+              </p>
+              <div className="mt-5 grid grid-cols-1 sm:grid-cols-3 gap-4 pt-5" style={{ borderTop: "1px solid color-mix(in srgb, var(--primary) 18%, var(--border))" }}>
+                {[
+                  { label: td("diagnosticHero.trendLabel"), value: profileTrendDelta == null ? td("diagnosticHero.noTrendShort") : `${profileTrendDelta > 0 ? "+" : ""}${profileTrendDelta.toFixed(1)}` },
+                  { label: td("diagnosticHero.mainEmotion"), value: dominantProfileEmotion },
+                  { label: ti("stats.total"), value: fmtNum(totalAnalyzed || totalComments) },
+                ].map(item => (
+                  <div key={item.label} className="min-w-0">
+                    <p style={{ fontSize: "0.65rem", fontWeight: 800, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{item.label}</p>
+                    <p className="truncate" style={{ fontSize: "0.92rem", fontWeight: 800, color: "var(--text-primary)", marginTop: 4 }}>{item.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
 
-      {/* Sentiment + Engagement */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Section title={ti("sentimentDistribution")}>
-          <SentimentBar positive={positive} neutral={neutral} negative={negative} height={12} showLabels />
-          <div className="mt-4 space-y-2">
-            {[
-              { label: tc("positive"), count: fmtNum(positive), pct: `${posPct}%`, color: chartColors.positive },
-              { label: tc("neutral"), count: fmtNum(neutral), pct: `${neuPct}%`, color: chartColors.neutral },
-              { label: tc("negative"), count: fmtNum(negative), pct: `${negPct}%`, color: chartColors.negative },
-            ].map((s) => (
-              <div key={s.label} className="flex items-center gap-2">
-                <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
-                <span style={{ fontSize: "0.78rem", fontWeight: 500, color: "var(--text-primary)" }}>{s.label}</span>
-                <span className="ml-auto" style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>{s.count}</span>
-                <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "var(--text-primary)" }}>{s.pct}</span>
-              </div>
-            ))}
-          </div>
-        </Section>
-        <Section title={ti("engagement")}>
-          <div className="space-y-3">
-            {[
-              { label: tc("likes"), value: fmtNum(totalLikes), icon: Heart },
-              { label: tc("views"), value: fmtNum(totalViews), icon: Eye },
-              { label: tc("comments"), value: fmtNum(totalCommentsEng), icon: MessageCircle },
-            ].map((s) => (
-              <div key={s.label} className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "var(--primary-bg)" }}>
-                  <s.icon className="w-3.5 h-3.5" style={{ color: "var(--primary)" }} />
-                </div>
+            <div
+              className="rounded-2xl p-5 md:p-6 flex flex-col justify-between"
+              style={{
+                backgroundColor: "var(--bg-card)",
+                border: "1px solid var(--border)",
+                boxShadow: "0 1px 8px -2px rgba(0,0,0,0.06)",
+              }}
+            >
+              <div className="flex items-center justify-between gap-4">
                 <div>
-                  <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.88rem", fontWeight: 700, color: "var(--text-primary)" }}>{s.value}</p>
-                  <p style={{ fontSize: "0.62rem", color: "var(--text-muted)" }}>{s.label}</p>
+                  <p style={{ fontSize: "0.72rem", fontWeight: 800, color: "var(--text-muted)", letterSpacing: "0.08em", textTransform: "uppercase" }}>{ti("stats.score")}</p>
+                  <p className="mt-1" style={{ fontSize: "0.78rem", color: "var(--text-faint)" }}>{td("outOf10")}</p>
+                </div>
+                <div className="relative w-24 h-24 shrink-0">
+                  <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                    <circle cx="50" cy="50" r="41" fill="none" stroke="color-mix(in srgb, var(--primary) 14%, var(--bg-subtle))" strokeWidth="8" />
+                    <circle cx="50" cy="50" r="41" fill="none" stroke={score >= 7 ? t.sentimentPositive : score >= 4 ? t.primary : t.sentimentNegative} strokeWidth="8" strokeLinecap="round" strokeDasharray={`${profileScorePercent * 2.58} ${258 - profileScorePercent * 2.58}`} />
+                  </svg>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.65rem", fontWeight: 850, color: "var(--text-primary)" }}>{score.toFixed(1)}</span>
+                  </div>
                 </div>
               </div>
-            ))}
+              <div className="mt-5">
+                <SentimentBar positive={positive} neutral={neutral} negative={negative} height={10} showLabels />
+              </div>
+            </div>
           </div>
-        </Section>
-      </div>
+
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <StatCard
+              variant="tinted"
+              tintColor="var(--primary)"
+              tintBg="var(--primary-bg)"
+              icon={<GlassHeartIcon size={32} />}
+              label={ti("stats.score")}
+              value={score.toFixed(1)}
+              sub="/10"
+            />
+            <StatCard
+              variant="tinted"
+              tintColor="var(--primary)"
+              tintBg="var(--primary-bg)"
+              icon={<GlassZapIcon size={32} />}
+              label={ti("stats.engagementRate")}
+              value={`${engagementRate}%`}
+              sub={ti("stats.commentsPerFollower")}
+            />
+            <StatCard
+              variant="tinted"
+              tintColor="var(--sentiment-negative)"
+              tintBg="var(--sentiment-negative-bg)"
+              icon={<GlassPeopleIcon size={32} />}
+              label={ti("stats.polarization")}
+              value={polarizationLabel}
+              sub={polarizationSub}
+            />
+            <StatCard
+              variant="default"
+              icon={<GlassShieldIcon size={32} />}
+              label={ti("stats.total")}
+              value={fmtNum(totalComments)}
+              sub={tc("comments")}
+            />
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-[minmax(0,1.2fr)_minmax(280px,0.8fr)] gap-4">
+            <Section title={ti("sentimentDistribution")}>
+              <SentimentBar positive={positive} neutral={neutral} negative={negative} height={12} showLabels />
+              <div className="mt-4 space-y-2">
+                {[
+                  { label: tc("positive"), count: fmtNum(positive), pct: `${posPct}%`, color: chartColors.positive },
+                  { label: tc("neutral"), count: fmtNum(neutral), pct: `${neuPct}%`, color: chartColors.neutral },
+                  { label: tc("negative"), count: fmtNum(negative), pct: `${negPct}%`, color: chartColors.negative },
+                ].map((s) => (
+                  <div key={s.label} className="flex items-center gap-2">
+                    <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: s.color }} />
+                    <span style={{ fontSize: "0.78rem", fontWeight: 500, color: "var(--text-primary)" }}>{s.label}</span>
+                    <span className="ml-auto" style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>{s.count}</span>
+                    <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "var(--text-primary)" }}>{s.pct}</span>
+                  </div>
+                ))}
+              </div>
+            </Section>
+            <Section title={ti("engagement")}>
+              <div className="space-y-3">
+                {[
+                  { label: tc("likes"), value: fmtNum(totalLikes), icon: Heart },
+                  { label: tc("views"), value: fmtNum(totalViews), icon: Eye },
+                  { label: tc("comments"), value: fmtNum(totalCommentsEng), icon: MessageCircle },
+                ].map((s) => (
+                  <div key={s.label} className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{ backgroundColor: "var(--primary-bg)" }}>
+                      <s.icon className="w-3.5 h-3.5" style={{ color: "var(--primary)" }} />
+                    </div>
+                    <div>
+                      <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.88rem", fontWeight: 700, color: "var(--text-primary)" }}>{s.value}</p>
+                      <p style={{ fontSize: "0.62rem", color: "var(--text-muted)" }}>{s.label}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Section>
+          </div>
+        </div>
+      </ProfileQuestionGroup>
 
       {/* YouTube-specific stats */}
       {platform === "youtube" && youtubeStats && (
@@ -743,6 +976,14 @@ export default function ProfileDetailPage() {
       {/* Featured Comments — near top after stats */}
       {featuredComments.length > 0 && (
         <FeaturedComments comments={featuredComments} />
+      )}
+
+      {hasDemographics && ((demoOverview && demoOverview.enrichment_coverage.enriched > 0) || sentimentByAge || sentimentByGender || emotionsByGender) && (
+        <ProfileQuestionHeader
+          eyebrow="Públicos"
+          title="Quais públicos explicam o sentimento?"
+          description="Recortes demográficos ajudam a entender onde a percepção muda de tom."
+        />
       )}
 
       {/* Demographics Overview */}
@@ -768,6 +1009,14 @@ export default function ProfileDetailPage() {
         </div>
       )}
 
+      {(gapPosts.length > 0 || ambassadorsList.length > 0 || detractorsList.length > 0) && (
+        <ProfileQuestionHeader
+          eyebrow="Prioridades"
+          title="Onde investigar primeiro?"
+          description="Posts extremos e pessoas recorrentes mostram onde a reação merece leitura mais próxima."
+        />
+      )}
+
       {/* Gap Analysis */}
       {gapPosts.length > 0 && (
         <GapAnalysis posts={gapPosts} platformLabel={platformLabel} />
@@ -776,6 +1025,14 @@ export default function ProfileDetailPage() {
       {/* Ambassadors vs Detractors */}
       {(ambassadorsList.length > 0 || detractorsList.length > 0) && (
         <AmbassadorsVsDetractors ambassadors={ambassadorsList} detractors={detractorsList} platformLabel={platformLabel} />
+      )}
+
+      {(topicNodes.length > 0 || (topicEmotionData && topicEmotionData.topics.length > 0)) && (
+        <ProfileQuestionHeader
+          eyebrow="Tópicos"
+          title="Quais temas estão puxando a conversa?"
+          description="Temas com volume e emoção forte revelam o que está dando forma ao sentimento."
+        />
       )}
 
       {/* Topic Treemap */}
@@ -788,23 +1045,25 @@ export default function ProfileDetailPage() {
         <TopicEmotionHeatmap matrix={{ topics: topicEmotionData.topics, emotions: topicEmotionData.emotions, data: topicEmotionData.matrix }} platformLabel={platformLabel} />
       )}
 
-      {/* Emotions by Gender */}
-      {hasDemographics && emotionsByGender && emotionsByGender.length > 0 && (
-        <EmotionsByGender data={emotionsByGender} />
+      {(hasEmotionsByGender || radarData.length > 0 || (dashboard?.word_frequency && Object.keys(dashboard.word_frequency).length > 0) || (heatmapData && heatmapData.length > 0)) && (
+        <ProfileQuestionHeader
+          eyebrow="Contexto"
+          title="Que sinais dão textura para a leitura?"
+          description="Sinais complementares mostram vocabulário, emoção geral e momentos de maior atividade."
+        />
       )}
 
       {/* Radar + Words */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {radarData.length > 0 && (
-          <Section title={ti("emotionRadar")}>
-            <ResponsiveContainer width="100%" height={220}>
-              <RadarChart data={radarData}>
-                <PolarGrid stroke="var(--border)" />
-                <PolarAngleAxis dataKey="emotion" tick={{ fontSize: 9, fill: "var(--text-muted)" }} />
-                <Radar dataKey="value" stroke={t.primary} fill={t.primary} fillOpacity={0.12} strokeWidth={2} />
-              </RadarChart>
-            </ResponsiveContainer>
-          </Section>
+      <div className="space-y-4">
+        {(hasEmotionsByGender || radarData.length > 0) && (
+          <div className={`grid gap-4 items-stretch ${hasEmotionsByGender && radarData.length > 0 ? "grid-cols-1 xl:grid-cols-[minmax(340px,0.84fr)_minmax(420px,1.16fr)]" : "grid-cols-1"}`}>
+            {hasEmotionsByGender && emotionsByGender && (
+              <EmotionsByGender data={emotionsByGender} />
+            )}
+            {radarData.length > 0 && (
+              <EmotionRadarCard title={ti("emotionRadar")} data={radarData} compact />
+            )}
+          </div>
         )}
         {dashboard?.word_frequency && Object.keys(dashboard.word_frequency).length > 0 && (
           <Section title={ti("wordCloud")} subtitle={ti("wordCloudSub")}>
@@ -818,6 +1077,12 @@ export default function ProfileDetailPage() {
         <Heatmap data={heatmapData} />
       )}
 
+      <ProfileQuestionHeader
+        eyebrow="Evidência"
+        title="Como a reputação se moveu ao longo do tempo?"
+        description="A evolução temporal, os posts e os comentários deixam a leitura auditável."
+      />
+
       {/* Temporal */}
       <Section title={ti("temporalAnalysis")} subtitle={ti("temporalSub")}>
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -825,12 +1090,35 @@ export default function ProfileDetailPage() {
             {(["Volume", "Score", "Sentimento", "Emocoes", "Topicos"] as const).map((tab) => {
               const tabLabels: Record<string, string> = { Volume: td("tabs.volume"), Score: td("tabs.score"), Sentimento: td("tabs.sentiment"), Emocoes: td("tabs.emotions"), Topicos: td("tabs.topics") };
               return (
-              <button key={tab} onClick={() => setActiveTab(tab)} className="px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap" style={{ fontSize: "0.72rem", fontWeight: 500, backgroundColor: activeTab === tab ? "var(--primary)" : "transparent", color: activeTab === tab ? "white" : "var(--text-muted)", boxShadow: activeTab === tab ? "0 4px 16px -4px var(--primary)" : "none" }}>
+              <button key={tab} onClick={() => setActiveTab(tab)} className="px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap" style={{ fontSize: "0.72rem", fontWeight: 500, backgroundColor: activeTab === tab ? "var(--primary)" : "transparent", color: activeTab === tab ? "var(--primary-foreground)" : "var(--text-muted)", boxShadow: activeTab === tab ? "0 4px 16px -4px var(--primary)" : "none" }}>
                 {tabLabels[tab]}
               </button>);
             })}
           </div>
           <div className="flex items-center gap-2">
+            {activeTab === "Sentimento" && (
+              <div className="flex items-center gap-1 rounded-xl p-1" style={{ backgroundColor: "color-mix(in srgb, var(--accent-bg) 58%, var(--bg-card))", border: "0.5px solid color-mix(in srgb, var(--accent) 28%, var(--border))", boxShadow: "0 2px 10px -2px rgba(0,0,0,0.05)" }}>
+                {([
+                  { key: "grouped", label: td("temporalModes.grouped") },
+                  { key: "stacked100", label: td("temporalModes.stacked100") },
+                ] as const).map((mode) => (
+                  <button
+                    key={mode.key}
+                    onClick={() => setSentimentTemporalMode(mode.key)}
+                    className="px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap"
+                    style={{
+                      fontSize: "0.72rem",
+                      fontWeight: 700,
+                      backgroundColor: sentimentTemporalMode === mode.key ? "var(--accent)" : "transparent",
+                      color: sentimentTemporalMode === mode.key ? "var(--primary-foreground)" : "var(--text-muted)",
+                      boxShadow: sentimentTemporalMode === mode.key ? "0 6px 18px -8px var(--accent)" : "none",
+                    }}
+                  >
+                    {mode.label}
+                  </button>
+                ))}
+              </div>
+            )}
             <select value={granularity} onChange={(e) => setGranularity(e.target.value)} className="px-3 py-1.5 rounded-xl focus:outline-none transition-all duration-200 cursor-pointer hover:opacity-80" style={{ fontSize: "0.75rem", fontWeight: 500, border: "0.5px solid var(--border)", backgroundColor: "color-mix(in srgb, var(--bg-card) 60%, transparent)", backdropFilter: "blur(12px)", color: "var(--text-primary)", boxShadow: "0 2px 8px -2px rgba(0,0,0,0.05)" }}>
               <option value="day">{td("granularity.day")}</option>
               <option value="week">{td("granularity.week")}</option>

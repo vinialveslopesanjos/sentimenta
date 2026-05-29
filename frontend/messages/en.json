@@ -49,6 +49,10 @@
     "connectProfile": "Connect profile",
     "status": "Status"
   },
+  "layout": {
+    "darkMode": "Dark mode",
+    "lightMode": "Light mode"
+  },
   "nav": {
     "dashboard": "Dashboard",
     "connectProfiles": "Connect Profiles",
@@ -455,6 +459,10 @@
       "emotions": "Emotions",
       "topics": "Topics"
     },
+    "temporalModes": {
+      "grouped": "Grouped",
+      "stacked100": "Stacked 100%"
+    },
     "granularity": {
       "day": "Day",
       "week": "Week",
@@ -552,7 +560,41 @@
     "generatingDiagnosis": "Generating diagnosis...",
     "noDataYet": "No data yet",
     "noWordData": "No word data",
-    "refreshing": "Refreshing..."
+    "refreshing": "Refreshing...",
+    "diagnosticHero": {
+      "titleGood": "Reputation is healthy, with signals worth sustaining.",
+      "titleAttention": "Reputation needs attention: there is energy, but sentiment is mixed.",
+      "titleCritical": "Reputation is critical and needs an immediate read.",
+      "driverNegative": "{pct}% of comments are negative, so the main risk is the tone of the conversation.",
+      "driverPositive": "{pct}% of comments are positive, so the moment favors reinforcing what already works.",
+      "driverMixed": "The audience is split: {positive}% positive versus {negative}% negative.",
+      "trendUp": "The trend rose {delta} point in the analyzed period.",
+      "trendDown": "The trend fell {delta} point in the analyzed period.",
+      "trendStable": "The trend is nearly stable in the period.",
+      "trendUnknown": "There is not enough time-series data yet to say whether it is improving or worsening.",
+      "trendLabel": "Trend",
+      "mainEmotion": "Dominant emotion",
+      "mainAudience": "Main channel",
+      "noEmotion": "No dominant emotion",
+      "noPlatform": "No channel",
+      "noTrendShort": "No series",
+      "volumeSub": "diagnostic base",
+      "postsSub": "content with readings",
+      "profilesSub": "monitored sources",
+      "emotionsSub": "emotional voices"
+    },
+    "sections": {
+      "reputation": {
+        "eyebrow": "Trend",
+        "title": "Is my reputation improving or worsening?",
+        "description": "The temporal read comes right after diagnosis to show whether the picture is momentary or persistent."
+      },
+      "drivers": {
+        "eyebrow": "Explanation",
+        "title": "Which signals explain the sentiment?",
+        "description": "Emotions, words, and timing provide context for why reputation moved."
+      }
+    }
   },
   "profile": {
     "loading": "Loading profile...",
@@ -999,6 +1041,11 @@
       "sentimentAxis": "Sentiment Score",
       "commentsLabel": "Comments",
       "engagementLabel": "Engagement",
+      "relativeEngagementAxis": "Relative engagement strength",
+      "rawEngagementLabel": "Real rate",
+      "priorityRisk": "Risk to investigate",
+      "priorityOpportunity": "Opportunity to amplify",
+      "noPrioritySignal": "No priority signal in this slice",
       "engagement": "Engagement",
       "sentiment": "Sentiment"
     },
@@ -1098,7 +1145,12 @@
       "locations": "Location",
       "states": "States",
       "coverage": "Coverage",
-      "commentersEnriched": "commenters enriched"
+      "commentersEnriched": "commenters enriched",
+      "geographicConcentration": "Geographic concentration",
+      "statesPresent": "{count} states present",
+      "genderModel": "Inference from public profile",
+      "ageModel": "Demographic model · 6 ranges",
+      "profilesAnalyzed": "Based on {count} analyzed profiles"
     },
     "genders": {
       "male": "Male",
@@ -1108,6 +1160,12 @@
     "positive": "Positive",
     "neutral": "Neutral",
     "negative": "Negative",
+    "commentsAnalyzed": "Based on {count} analyzed comments",
+    "commentsCount": "{count} comments",
+    "strongestSignal": "Best read",
+    "sensitivePoint": "Sensitive point",
+    "largestSample": "Largest sample",
+    "bestScore": "Best score",
     "sentimentByAge": {
       "title": "Sentiment by Age",
       "subtitle": "How each generation perceives your content"

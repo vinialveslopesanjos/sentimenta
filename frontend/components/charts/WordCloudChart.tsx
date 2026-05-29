@@ -33,11 +33,9 @@ const STOPWORDS = new Set([
 ]);
 
 const PALETTE = [
-  "#8B5CF6", "#06B6D4", "#10B981", "#F59E0B",
-  "#EC4899", "#3B82F6", "#EF4444", "#14B8A6",
-  "#A855F7", "#0EA5E9", "#22C55E", "#F97316",
-  "#E879F9", "#38BDF8", "#4ADE80", "#FB923C",
-  "#C084FC", "#67E8F9", "#6EE7B7", "#FCD34D",
+  "var(--word-cloud-1)", "var(--word-cloud-2)", "var(--word-cloud-3)", "var(--word-cloud-4)",
+  "var(--word-cloud-5)", "var(--word-cloud-6)", "var(--word-cloud-7)", "var(--word-cloud-8)",
+  "var(--word-cloud-9)", "var(--word-cloud-10)",
 ];
 
 interface WordItem {
@@ -177,7 +175,7 @@ export default function WordCloudChart({
 
   if (!topics || Object.keys(topics).length === 0 || placed.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center text-slate-200 gap-2" style={{ height }}>
+      <div className="flex flex-col items-center justify-center gap-2" style={{ height, color: "var(--text-faint)" }}>
         <span className="material-symbols-outlined text-[36px]">cloud</span>
         <p className="text-sm font-light">{tch("noWordData")}</p>
       </div>
@@ -223,7 +221,8 @@ export default function WordCloudChart({
             width={56}
             height={18}
             rx={6}
-            fill="rgba(30,41,59,0.9)"
+            fill="var(--bg-card)"
+            stroke="var(--border)"
           />
           <text
             x={placed[hovered].x}
@@ -231,7 +230,7 @@ export default function WordCloudChart({
             textAnchor="middle"
             dominantBaseline="middle"
             fontSize={10}
-            fill="#fff"
+            fill="var(--text-primary)"
             fontFamily="Outfit, sans-serif"
           >
             {placed[hovered].value}x

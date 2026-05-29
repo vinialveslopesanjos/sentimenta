@@ -5,11 +5,12 @@ interface SectionProps {
   subtitle?: string;
   children: ReactNode;
   action?: ReactNode;
+  className?: string;
 }
 
-export function Section({ title, subtitle, children, action }: SectionProps) {
+export function Section({ title, subtitle, children, action, className = "" }: SectionProps) {
   return (
-    <div className="rounded-2xl p-5 md:p-6" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 1px 8px -2px rgba(0,0,0,0.06)" }}>
+    <div className={`rounded-2xl p-5 md:p-6 ${className}`.trim()} style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 1px 8px -2px rgba(0,0,0,0.06)" }}>
       <div className="flex items-start justify-between mb-5">
         <div>
           <h3
