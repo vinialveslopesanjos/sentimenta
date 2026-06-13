@@ -1,5 +1,3 @@
-import posthog from "posthog-js";
-
 // ---------------------------------------------------------------------------
 // Event types
 // ---------------------------------------------------------------------------
@@ -42,23 +40,14 @@ export function hasConsent(): boolean {
 // ---------------------------------------------------------------------------
 let initialized = false;
 
+type ClarityWindow = Window & {
+  clarity?: (...args: unknown[]) => void;
+};
+
 export function initAnalytics() {
   if (typeof window === "undefined") return;
   if (!hasConsent()) return;
   if (initialized) return;
-
-  const posthogKey = process.env.NEXT_PUBLIC_POSTHOG_KEY;
-  const posthogHost = process.env.NEXT_PUBLIC_POSTHOG_HOST || "https://us.i.posthog.com";
-
-  if (posthogKey) {
-    posthog.init(posthogKey, {
-      api_host: posthogHost,
-      capture_pageview: true,
-      capture_pageleave: true,
-      autocapture: true,
-      persistence: "localStorage+cookie",
-    });
-  }
 
   // Microsoft Clarity — inject script
   const clarityId = process.env.NEXT_PUBLIC_CLARITY_ID;
@@ -77,7 +66,10 @@ export function initAnalytics() {
 // ---------------------------------------------------------------------------
 export function track(event: TrackEvent, properties?: Record<string, unknown>) {
   if (!hasConsent() || !initialized) return;
-  posthog.capture(event, properties);
+  const clarity = (window as ClarityWindow).clarity;
+  if (typeof clarity === "function") {
+    clarity("event", event, properties || {});
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -88,10 +80,12 @@ export function identifyUser(
   traits?: Record<string, unknown>,
 ) {
   if (!hasConsent() || !initialized) return;
-  posthog.identify(userId, traits);
+  const clarity = (window as ClarityWindow).clarity;
+  if (typeof clarity === "function") {
+    clarity("identify", userId, undefined, undefined, traits || {});
+  }
 }
 
 export function resetTracking() {
-  if (!initialized) return;
-  posthog.reset();
+  initialized = false;
 }

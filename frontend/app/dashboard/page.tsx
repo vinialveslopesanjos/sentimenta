@@ -331,8 +331,9 @@ export default function DashboardPage() {
 
   // ── Derived data ──
   const score = summary?.avg_score ?? 0;
-  const scorePercent = (score / 10) * 100;
   const totalComments = summary?.total_analyzed ?? 0;
+  const hasAnalyzedData = totalComments > 0;
+  const scorePercent = hasAnalyzedData ? (score / 10) * 100 : 0;
   const totalPosts = summary?.total_posts ?? 0;
   const connectedProfiles = connections.length;
   const sentDist = summary?.sentiment_distribution;
@@ -343,7 +344,9 @@ export default function DashboardPage() {
   const positivePct = Math.round((positive / totalSentiment) * 100);
   const neutralPct = Math.round((neutral / totalSentiment) * 100);
   const negativePct = 100 - positivePct - neutralPct;
-  const repBadge = getReputationBadge(score, { good: td("goodReputation"), attention: td("attentionNeeded"), critical: td("criticalReputation") });
+  const repBadge = hasAnalyzedData
+    ? getReputationBadge(score, { good: td("goodReputation"), attention: td("attentionNeeded"), critical: td("criticalReputation") })
+    : { variant: "primary" as const, label: td("noDataYet") };
   const timeSinceLabels = { never: tc("never"), now: tc("now"), ago: tc("ago") };
   const heatmapDays: string[] = tch.raw("heatmap.days") as unknown as string[];
 
@@ -461,11 +464,13 @@ export default function DashboardPage() {
   const dominantPlatform = platformStats.length > 0
     ? [...platformStats].sort((a, b) => b.comments - a.comments)[0]
     : null;
-  const sentimentDriver = negativePct >= 35
-    ? td("diagnosticHero.driverNegative", { pct: negativePct })
-    : positivePct >= 50
-      ? td("diagnosticHero.driverPositive", { pct: positivePct })
-      : td("diagnosticHero.driverMixed", { positive: positivePct, negative: negativePct });
+  const sentimentDriver = !hasAnalyzedData
+    ? td("diagnosticHero.emptyDriver")
+    : negativePct >= 35
+      ? td("diagnosticHero.driverNegative", { pct: negativePct })
+      : positivePct >= 50
+        ? td("diagnosticHero.driverPositive", { pct: positivePct })
+        : td("diagnosticHero.driverMixed", { positive: positivePct, negative: negativePct });
   const trendNarrative = trendDelta == null
     ? td("diagnosticHero.trendUnknown")
     : trendDelta > 0.2
@@ -473,11 +478,13 @@ export default function DashboardPage() {
       : trendDelta < -0.2
         ? td("diagnosticHero.trendDown", { delta: Math.abs(trendDelta).toFixed(1) })
         : td("diagnosticHero.trendStable");
-  const diagnosticTitle = score >= 7
-    ? td("diagnosticHero.titleGood")
-    : score >= 4
-      ? td("diagnosticHero.titleAttention")
-      : td("diagnosticHero.titleCritical");
+  const diagnosticTitle = !hasAnalyzedData
+    ? td("diagnosticHero.titleEmpty")
+    : score >= 7
+      ? td("diagnosticHero.titleGood")
+      : score >= 4
+        ? td("diagnosticHero.titleAttention")
+        : td("diagnosticHero.titleCritical");
 
   // Top comments — merge positive and negative
   const allTopComments = [
@@ -592,10 +599,10 @@ export default function DashboardPage() {
               <div className="relative w-28 h-28 shrink-0">
                 <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
                   <circle cx="50" cy="50" r="42" fill="none" stroke="color-mix(in srgb, var(--primary) 16%, var(--bg-card))" strokeWidth="7" />
-                  <circle cx="50" cy="50" r="42" fill="none" stroke={score >= 7 ? t.sentimentPositive : score >= 4 ? t.primary : t.sentimentNegative} strokeWidth="7" strokeLinecap="round" strokeDasharray={`${scorePercent * 2.64} ${264 - scorePercent * 2.64}`} />
+                  <circle cx="50" cy="50" r="42" fill="none" stroke={hasAnalyzedData ? (score >= 7 ? t.sentimentPositive : score >= 4 ? t.primary : t.sentimentNegative) : t.primary} strokeWidth="7" strokeLinecap="round" strokeDasharray={`${scorePercent * 2.64} ${264 - scorePercent * 2.64}`} />
                 </svg>
                 <div className="absolute inset-0 flex flex-col items-center justify-center">
-                  <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 850, color: "var(--text-primary)" }}>{(summary?.total_comments === 0 || connections.length === 0) ? "\u2014" : score.toFixed(1)}</span>
+                  <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "2rem", fontWeight: 850, color: "var(--text-primary)" }}>{!hasAnalyzedData ? "\u2014" : score.toFixed(1)}</span>
                   <span style={{ fontSize: "0.6rem", color: "var(--text-faint)" }}>{td("outOf10")}</span>
                 </div>
               </div>
@@ -911,7 +918,7 @@ export default function DashboardPage() {
                 <CartesianGrid strokeDasharray="3 3" stroke="color-mix(in srgb, var(--accent) 28%, transparent)" vertical={false} />
                 <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
                 <YAxis domain={[0, 100]} ticks={[0, 25, 50, 75, 100]} tickFormatter={(value) => `${value}%`} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={44} />
-                <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} formatter={(value: number, name: string) => [`${value}%`, name]} />
+                <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 4px 16px rgba(0,0,0,0.08)", fontSize: "0.78rem", backgroundColor: t.bgCard }} formatter={(value, name) => [`${Number(value ?? 0)}%`, String(name)]} />
                 <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
                 <Bar dataKey="positivo" name={tc("positive")} fill={t.sentimentPositive} stackId="sentiment" radius={[0, 0, 0, 0]} />
                 <Bar dataKey="neutro" name={tc("neutral")} fill={t.sentimentNeutral} stackId="sentiment" radius={[0, 0, 0, 0]} />

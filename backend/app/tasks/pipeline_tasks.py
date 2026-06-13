@@ -104,7 +104,7 @@ def _do_ingest(db, connection, max_posts: int = 10, max_comments_per_post: int =
 
 
 @celery_app.task(bind=True)
-def task_analyze_connection(self, connection_id: str, user_id: str) -> dict:
+def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str | None = None) -> dict:
     """Analyze-only: run sentiment analysis on existing pending comments (no ingestion)."""
     db = SessionLocal()
     try:
@@ -118,15 +118,17 @@ def task_analyze_connection(self, connection_id: str, user_id: str) -> dict:
         if not connection:
             return {"error": f"Connection {connection_id} not found"}
 
-        # Create pipeline run for tracking
-        run = PipelineRun(
-            user_id=user_uuid,
-            connection_id=conn_uuid,
-            run_type="analyze",
-            status="running",
-        )
+        run = db.get(PipelineRun, uuid.UUID(run_id)) if run_id else None
+        if not run:
+            run = PipelineRun(
+                user_id=user_uuid,
+                connection_id=conn_uuid,
+                run_type="analyze",
+                status="running",
+            )
+            db.add(run)
         run.celery_task_id = self.request.id
-        db.add(run)
+        run.status = "running"
         db.commit()
 
         def step_cb(msg):
@@ -203,7 +205,10 @@ def task_analyze_connection(self, connection_id: str, user_id: str) -> dict:
         run.errors_count = total_errors
         run.status = "completed" if total_errors == 0 else "partial"
         run.ended_at = datetime.now(timezone.utc)
-        step_cb(f"Análise concluída: {total_analyzed} comentários processados")
+        if total_errors == 0:
+            step_cb(f"Análise concluída: {total_analyzed} comentários processados")
+        else:
+            step_cb(f"Análise concluída com {total_errors} erro{'s' if total_errors > 1 else ''}: {total_analyzed} comentários processados")
 
         # Invalidate cache
         try:
@@ -352,7 +357,8 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
             total_errors += stats.get("errors", 0)
             total_cost += stats.get("cost_usd", 0.0)
 
-            generate_post_summary(db, post.id)
+            if analyzed_count > 0:
+                generate_post_summary(db, post.id)
 
             # Inform SSE continuously
             run.comments_analyzed = total_analyzed
@@ -412,7 +418,10 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         run.total_cost_usd = total_cost
         run.status = "completed" if total_errors == 0 else "partial"
         run.ended_at = datetime.now(timezone.utc)
-        _append_step(db, run, "Pipeline concluído ✓")
+        if total_errors == 0:
+            _append_step(db, run, "Pipeline concluído sem erros")
+        else:
+            _append_step(db, run, f"Pipeline concluído com {total_errors} erro{'s' if total_errors > 1 else ''} de análise")
 
         # Invalidate dashboard cache for this user
         try:
@@ -422,26 +431,29 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         except Exception:
             pass
 
-        # Auto-generate health report after pipeline completes
-        try:
-            from app.routers.dashboard import _build_health_report
-            _append_step(db, run, "Gerando diagnóstico de IA...")
-            report = _build_health_report(db, user_uuid)
-            if report and report.get("report_text"):
-                # Cache the report in Redis so dashboard loads it immediately
-                try:
-                    from app.core.cache import redis_client
-                    import json as _json
-                    cache_key = f"health_report:{user_uuid}"
-                    count_key = f"health_report_count:{user_uuid}"
-                    from app.routers.dashboard import _count_analyzed, HEALTH_REPORT_TTL
-                    redis_client.setex(cache_key, HEALTH_REPORT_TTL, _json.dumps(report))
-                    redis_client.setex(count_key, HEALTH_REPORT_TTL, str(_count_analyzed(db, user_uuid)))
-                except Exception as cache_err:
-                    logger.warning("Failed to cache health report: %s", cache_err)
-                _append_step(db, run, "Diagnóstico de IA gerado ✓")
-        except Exception as report_err:
-            logger.warning("Auto health report generation failed: %s", report_err)
+        # Auto-generate health report only when there is analyzed data to summarize.
+        if total_analyzed > 0:
+            try:
+                from app.routers.dashboard import _build_health_report
+                _append_step(db, run, "Gerando diagnóstico de IA...")
+                report = _build_health_report(db, user_uuid)
+                if report and report.get("report_text"):
+                    # Cache the report in Redis so dashboard loads it immediately
+                    try:
+                        from app.core.cache import redis_client
+                        import json as _json
+                        cache_key = f"health_report:{user_uuid}"
+                        count_key = f"health_report_count:{user_uuid}"
+                        from app.routers.dashboard import _count_analyzed, HEALTH_REPORT_TTL
+                        redis_client.setex(cache_key, HEALTH_REPORT_TTL, _json.dumps(report))
+                        redis_client.setex(count_key, HEALTH_REPORT_TTL, str(_count_analyzed(db, user_uuid)))
+                    except Exception as cache_err:
+                        logger.warning("Failed to cache health report: %s", cache_err)
+                    _append_step(db, run, "Diagnóstico de IA gerado")
+            except Exception as report_err:
+                logger.warning("Auto health report generation failed: %s", report_err)
+        else:
+            _append_step(db, run, "Diagnóstico de IA não gerado: nenhum comentário foi analisado")
 
         return {
             "posts_fetched": run.posts_fetched,

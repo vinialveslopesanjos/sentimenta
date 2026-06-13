@@ -1,6 +1,9 @@
 """Tests for connections endpoints."""
 
+import uuid
 from unittest.mock import patch
+
+from app.models.pipeline_run import PipelineRun
 
 
 def test_list_connections_empty(client, auth_headers):
@@ -62,3 +65,24 @@ def test_instagram_auth_url(client, auth_headers):
     data = res.json()
     assert "auth_url" in data
     assert "instagram.com/oauth/authorize" in data["auth_url"]
+
+
+def test_analyze_returns_pipeline_run_id(client, auth_headers, test_connection, db):
+    with patch("app.tasks.pipeline_tasks.task_analyze_connection.delay") as delay:
+        delay.return_value.id = "celery-task-id"
+        res = client.post(
+            f"/api/v1/connections/{test_connection.id}/analyze",
+            headers=auth_headers,
+        )
+
+    assert res.status_code == 200
+    data = res.json()
+    assert data["run_id"]
+    assert data["task_id"] == data["run_id"]
+    assert data["task_id"] != "celery-task-id"
+
+    run = db.get(PipelineRun, uuid.UUID(data["run_id"]))
+    assert run is not None
+    assert run.connection_id == test_connection.id
+    assert run.run_type == "analyze"
+    assert run.celery_task_id == "celery-task-id"

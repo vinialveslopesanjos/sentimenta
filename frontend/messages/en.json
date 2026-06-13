@@ -562,9 +562,11 @@
     "noWordData": "No word data",
     "refreshing": "Refreshing...",
     "diagnosticHero": {
+      "titleEmpty": "Connect and sync a profile to start the read.",
       "titleGood": "Reputation is healthy, with signals worth sustaining.",
       "titleAttention": "Reputation needs attention: there is energy, but sentiment is mixed.",
       "titleCritical": "Reputation is critical and needs an immediate read.",
+      "emptyDriver": "No comments have been analyzed yet. Start a sync to see score, trends and diagnosis.",
       "driverNegative": "{pct}% of comments are negative, so the main risk is the tone of the conversation.",
       "driverPositive": "{pct}% of comments are positive, so the moment favors reinforcing what already works.",
       "driverMixed": "The audience is split: {positive}% positive versus {negative}% negative.",
@@ -900,6 +902,9 @@
     "analysisSettings": "Analysis Settings",
     "analysisSettingsSub": "— posts, comments and period",
     "postsToAnalyze": "POSTS TO ANALYZE",
+    "postsOptions": {
+      "1": "1 post (test)"
+    },
     "commentsPerPost": "COMMENTS PER POST",
     "since": "SINCE",
     "collectionMode": "COLLECTION MODE",
@@ -914,6 +919,7 @@
       "all200": "All (200)"
     },
     "commentsOptions": {
+      "10": "10 (test)",
       "50": "50",
       "200": "200",
       "all": "All"
