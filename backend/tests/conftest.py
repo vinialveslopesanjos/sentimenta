@@ -22,10 +22,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # Override DATABASE_URL before importing app modules
 os.environ["DATABASE_URL"] = "sqlite://"
 os.environ["SECRET_KEY"] = "test-secret-key-for-testing-only"
+os.environ["TOKEN_ENCRYPTION_KEY"] = "test-token-encryption-key-for-ci"
 os.environ["DEBUG"] = "true"
 
 from app.db.session import Base, get_db
 from app.main import app
+from app.middleware.rate_limiter import rate_limiter
 from app.models import (
     User,
     SocialConnection,
@@ -69,9 +71,11 @@ app.dependency_overrides[get_db] = override_get_db
 @pytest.fixture(autouse=True)
 def setup_db():
     """Create all tables before each test and drop after."""
+    rate_limiter._requests.clear()
     Base.metadata.create_all(bind=engine)
     yield
     Base.metadata.drop_all(bind=engine)
+    rate_limiter._requests.clear()
 
 
 @pytest.fixture

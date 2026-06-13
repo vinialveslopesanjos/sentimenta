@@ -562,9 +562,11 @@
     "noWordData": "Sem dados de palavras",
     "refreshing": "Atualizando...",
     "diagnosticHero": {
+      "titleEmpty": "Conecte e sincronize um perfil para começar a leitura.",
       "titleGood": "A reputação está saudável, com sinais para sustentar.",
       "titleAttention": "A reputação pede atenção: há energia, mas o sentimento está misto.",
       "titleCritical": "A reputação está crítica e precisa de leitura imediata.",
+      "emptyDriver": "Ainda não há comentários analisados. Faça uma sincronização para ver score, tendências e diagnóstico.",
       "driverNegative": "{pct}% dos comentários estão negativos, então o risco principal vem do tom da conversa.",
       "driverPositive": "{pct}% dos comentários estão positivos, então o momento favorece reforçar o que já funciona.",
       "driverMixed": "O público está dividido: {positive}% positivo contra {negative}% negativo.",
@@ -900,6 +902,9 @@
     "analysisSettings": "Configurações de Análise",
     "analysisSettingsSub": "— posts, comentários e período",
     "postsToAnalyze": "POSTS PARA ANALISAR",
+    "postsOptions": {
+      "1": "1 post (teste)"
+    },
     "commentsPerPost": "COMENTÁRIOS POR POST",
     "since": "DESDE",
     "collectionMode": "MODO DE COLETA",
@@ -914,6 +919,7 @@
       "all200": "Todos (200)"
     },
     "commentsOptions": {
+      "10": "10 (teste)",
       "50": "50",
       "200": "200",
       "all": "Todos"

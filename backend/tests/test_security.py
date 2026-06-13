@@ -3,6 +3,7 @@
 import os
 os.environ.setdefault("SECRET_KEY", "test-secret")
 os.environ.setdefault("DATABASE_URL", "sqlite://")
+os.environ.setdefault("TOKEN_ENCRYPTION_KEY", "test-token-encryption-key-for-ci")
 
 from app.core.security import (
     hash_password,

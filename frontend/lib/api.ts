@@ -16,6 +16,35 @@ interface FetchOptions extends RequestInit {
   _retried?: boolean;
 }
 
+function formatApiErrorDetail(detail: unknown, fallback: string): string {
+  if (!detail) return fallback;
+  if (typeof detail === "string") return detail;
+
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item && typeof item === "object") {
+          const entry = item as Record<string, unknown>;
+          const msg = entry.msg ?? entry.message ?? entry.error;
+          const loc = Array.isArray(entry.loc) ? entry.loc.filter(Boolean).join(".") : "";
+          if (typeof msg === "string") return loc ? `${loc}: ${msg}` : msg;
+        }
+        return "";
+      })
+      .filter(Boolean);
+    return messages.length > 0 ? messages.join(" ") : fallback;
+  }
+
+  if (typeof detail === "object") {
+    const entry = detail as Record<string, unknown>;
+    const msg = entry.msg ?? entry.message ?? entry.error;
+    if (typeof msg === "string") return msg;
+  }
+
+  return fallback;
+}
+
 async function tryRefreshToken(): Promise<string | null> {
   const { getRefreshToken, setTokens, clearTokens } = await import("./auth");
   const refreshToken = getRefreshToken();
@@ -84,7 +113,7 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
       throw new Error("email_not_verified");
     }
 
-    throw new Error(error.detail || `API error: ${res.status}`);
+    throw new Error(formatApiErrorDetail(error.detail, `API error: ${res.status}`));
   }
 
   if (res.status === 204 || res.headers.get("content-length") === "0") {

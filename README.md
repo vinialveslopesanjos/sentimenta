@@ -1,269 +1,256 @@
 # Sentimenta
 
-**Análise de sentimento e reputação digital para criadores de conteúdo e figuras públicas.**
+Sentimenta e uma plataforma SaaS para leitura de reputacao digital. Ela conecta perfis sociais, coleta comentarios, roda analise de sentimento/emocao com LLM e apresenta sinais acionaveis em um dashboard em tempo real.
 
-Sentimenta é uma plataforma SaaS que conecta perfis do Instagram e YouTube, coleta comentários automaticamente e usa **Gemini 2.5 Flash** para analisar sentimento, emoções, tópicos e sarcasmo — tudo num dashboard em tempo real.
+O foco do produto e transformar conversa publica em decisao: detectar mudancas de tom, entender temas recorrentes, acompanhar risco reputacional e permitir que criadores, figuras publicas e equipes de marca reajam antes que um sinal vire crise.
 
----
+## Status
 
-## Status do Projeto
+O projeto esta em fase de hardening para producao/beta controlado.
 
-### Concluído (em produção na VPS)
+Ja existe base funcional de produto:
 
-**Backend:**
-- API FastAPI com autenticação JWT + Google OAuth
-- Pipeline de ingestão Instagram via XPoz MCP (posts + comentários com polling assíncrono)
-- Parser LLM (Gemini 2.5 Flash) para estruturar dados do XPoz
-- Análise de sentimento por lote: score 0–10, polaridade, intensidade, emoções, tópicos, sarcasmo
-- Dashboard com KPIs, tendências temporais, alertas de reputação e comparativo entre plataformas
-- Celery + Redis para processamento assíncrono em background
-- SSE (Server-Sent Events) para progresso em tempo real no frontend
-- Rate limiter, middleware de auth, cache
-- Planos (Free / Pro / Business) com limites de conexões, posts e comentários
+- API FastAPI com autenticacao JWT, Google OAuth e rate limiting.
+- Pipeline assíncrono com Celery + Redis para ingestao e analise.
+- Persistencia em PostgreSQL via SQLAlchemy/Alembic.
+- Dashboard Next.js com KPIs, tendencias, alertas, comentarios e detalhe por perfil.
+- SSE para acompanhar progresso de pipeline em tempo real.
+- Planos e limites operacionais por usuario.
+- CI no GitHub Actions para type-check, build, audit de dependencias e testes backend.
 
-**Frontend (Next.js 14):**
-- Dashboard principal com gráficos de sentimento, score de reputação e KPIs
-- Página de conexão de perfis (Instagram, YouTube, Twitter)
-- Tela de análise por perfil com histórico de tendências
-- Tela de alertas de reputação
-- Tela de comentários com filtros por sentimento, busca e ordenação
-- SyncButton com barra de progresso em tempo real (SSE + fallback polling)
-- Autenticação completa (login, registro, Google OAuth, logout)
-- Layout responsivo com sidebar, header e navegação mobile
+Este branch concentra correcoes de produtizacao e estabilidade: tracking confiavel de `PipelineRun`, delecao LGPD mais completa, UX neutra para contas sem dados, headers de seguranca no frontend, atualizacao de dependencias criticas e cobertura de testes para os fluxos corrigidos.
 
-**Infra / VPS:**
-- Ubuntu 24.04 LTS em produção (147.93.13.49)
-- Supervisor gerenciando sentimenta-api, sentimenta-celery, sentimenta-web
-- Nginx como proxy reverso (portas 80, 443, 8080)
-- PostgreSQL 16 + Redis em localhost
-- Swap de 2GB configurado (evita OOM killer)
-- SSH keepalive configurado para sessões estáveis
+## Monorepo
 
-**Bugs corrigidos recentemente:**
-- Pipeline de comentários (erro `google-genai` não instalado no venv do Celery)
-- XPoz async: implementado polling de `operationId` para comentários
-- Frontend não comunicava com backend (faltava rewrites no `next.config.js`)
-- CORS: IPs da VPS adicionados ao allowlist
-- FastAPI 307 redirect em rotas sem trailing slash corrigido (`redirect_slashes=False`)
-
----
-
-### Pendente (Roadmap)
-
-**P0 — Crítico para abrir a clientes:**
-- DNS + HTTPS para sentimenta.com.br (Nginx + Let's Encrypt)
-- Stripe: checkout, webhooks, atualização de plano
-- LGPD: deletar conta, exportar dados
-- Onboarding / empty states para novos usuários
-
-**P1 — Importante:**
-- Emails transacionais (Resend) — serviço existe, falta `RESEND_API_KEY`
-- PWA: service worker + manifest para instalação mobile
-- Skeleton loaders em todas as telas
-- Backup automático PostgreSQL (cron + pg_dump)
-- Sentry para monitoramento de erros
-- Ingestão YouTube (yt-dlp integrado, falta testes end-to-end)
-- Ingestão Twitter via XPoz
-
-**P2 — Melhorias:**
-- TikTok integration
-- API pública + webhooks para clientes
-- App React Native (Expo) usando `@sentimenta/api-client` e `@sentimenta/types`
-- Responsividade mobile completa
-
----
-
-## Estrutura do Monorepo
-
-```
+```text
 sentimenta/
-├── backend/              # API FastAPI + Celery (Python 3.12)
-│   ├── app/
-│   │   ├── routers/      # auth, connections, dashboard, pipeline, comments, billing
-│   │   ├── models/       # SQLAlchemy ORM
-│   │   ├── schemas/      # Pydantic v2 schemas
-│   │   ├── services/     # Instagram (XPoz), YouTube, análise LLM, planos
-│   │   ├── tasks/        # Celery: task_ingest, task_analyze, task_full_pipeline
-│   │   └── middleware/   # Rate limiter, auth, cache
-│   └── alembic/          # Migrations do banco
-├── frontend/             # Web App Next.js 14 (TypeScript)
-│   ├── app/              # App Router: dashboard, connect, alerts, login, register
-│   └── components/       # SyncButton, KpiCard, charts, hooks (useSSE)
-├── packages/
-│   ├── types/            # @sentimenta/types — tipos TypeScript compartilhados
-│   └── api-client/       # @sentimenta/api-client — cliente HTTP universal (web + mobile)
-├── scripts/
-│   ├── xpoz_full_ingest.py   # Script de ingestão completa via XPoz
-│   └── setup_vps.sh          # Setup automatizado Ubuntu/VPS
-├── docs/                 # Documentação técnica
-├── docker-compose.yml    # PostgreSQL + Redis (dev local)
-└── package.json          # Monorepo root (npm workspaces)
+├── backend/              # FastAPI, SQLAlchemy, Celery, Redis, Alembic
+├── frontend/             # Web app Next.js 15, React 18, TypeScript
+├── apps/mobile/          # Mobile/PWA Vite React
+├── packages/types/       # Tipos TypeScript compartilhados
+├── packages/api-client/  # Cliente HTTP compartilhado
+├── scripts/              # Scripts operacionais e utilitarios
+├── docs/                 # Documentacao tecnica e produto
+├── .github/workflows/    # CI
+└── package.json          # npm workspaces
 ```
 
----
+## Stack
 
-## Stack Tecnológica
+| Area | Tecnologia |
+| --- | --- |
+| Web | Next.js 15, React 18, TypeScript, TailwindCSS, Recharts 3 |
+| Mobile/PWA | Vite, React 18, React Router 7 |
+| Backend | Python 3.12, FastAPI, SQLAlchemy 2, Pydantic v2 |
+| Jobs | Celery + Redis |
+| Banco | PostgreSQL 16 |
+| IA | Gemini para analise de sentimento, emocao, topicos e sarcasmo |
+| Auth | JWT, refresh token, Google OAuth |
+| Monorepo | npm workspaces, Turborepo |
+| Infra | VPS Ubuntu, Nginx, Supervisor |
 
-| Camada | Tecnologia |
-|---|---|
-| **Web Frontend** | Next.js 14, React 18, TypeScript, TailwindCSS, Framer Motion, Recharts |
-| **Backend API** | Python 3.12, FastAPI, SQLAlchemy 2, Pydantic v2 |
-| **Filas assíncronas** | Celery + Redis 7 |
-| **Banco de dados** | PostgreSQL 16 |
-| **IA / LLM** | Google Gemini 2.5 Flash (análise de sentimento + parser de dados) |
-| **Extração Instagram** | XPoz MCP (API JSON-RPC com polling assíncrono) |
-| **Autenticação** | JWT (access 1h / refresh 30d), Google OAuth 2.0 |
-| **Monorepo** | npm Workspaces + Turborepo |
-| **Infra/Deploy** | VPS Ubuntu 24.04 + Supervisor + Nginx |
+## Fluxo de Analise
 
----
-
-## Infra de Produção (VPS)
-
-```
-sentimenta-api     → uvicorn FastAPI  → porta 8000 (supervisor)
-sentimenta-celery  → Celery worker    → 2 workers (supervisor)
-sentimenta-web     → Next.js          → porta 3000 (supervisor)
-nginx              → proxy reverso    → portas 80, 443, 8080
-postgresql 16      → localhost:5432
-redis              → localhost:6379
-```
-
-**Comandos úteis na VPS:**
-```bash
-supervisorctl status                    # ver status dos serviços
-supervisorctl restart sentimenta-api   # reiniciar API
-supervisorctl restart sentimenta-web   # reiniciar frontend
-tail -f /var/log/sentimenta-api.log    # logs da API
-tail -f /var/log/sentimenta-celery-error.log  # logs do Celery (pipelines)
+```text
+Usuario dispara sync/analyze
+        |
+        v
+Backend cria PipelineRun rastreavel
+        |
+        v
+Celery executa ingestao e/ou analise
+        |
+        v
+Comentarios sao normalizados e analisados em lote
+        |
+        v
+Resultados sao salvos em comment_analysis e agregados por post/perfil
+        |
+        v
+Frontend acompanha progresso por SSE e atualiza dashboard
 ```
 
----
+O endpoint de sync/analyze retorna `run_id`, que tambem e usado pelo frontend para consultar status e abrir stream SSE em `/api/v1/pipeline/runs/{run_id}/stream`.
 
-## Como Funciona o Pipeline de Análise
+## Hardening Recente
 
-```
-Usuário clica "Analisar"
-        │
-        ▼
-POST /api/v1/connections/{id}/sync
-        │
-        ▼
-Celery Task enfileirada (Redis)
-        │
-        ▼
-[Instagram] XPoz MCP
-  → getInstagramPostsByUser (lista de posts)
-  → Gemini parser estrutura resposta
-  → para cada post: getInstagramCommentsByPostId (async + polling)
-  → Gemini parser estrutura comentários
-  → salva posts + comentários no PostgreSQL
-        │
-        ▼
-Batches de 30 comentários + contexto (persona + legenda)
-        │
-        ▼
-Gemini 2.5 Flash → score, polarity, intensity, emotions, topics, sarcasm
-        │
-        ▼
-Salva em comment_analysis + agrega em post_analysis_summary
-        │
-        ▼
-SSE stream atualiza progresso no frontend em tempo real
-```
+### Backend
 
----
+- `analyze` agora cria um `PipelineRun` real antes de enfileirar o job.
+- `task_analyze_connection` aceita `run_id` para evitar runs duplicados.
+- Filtro de execucao ativa compara UUID corretamente.
+- Logs finais distinguem sucesso total de conclusao parcial com erros.
+- Diagnostico automatico nao e gerado quando nenhum comentario foi analisado.
+- Delecao de conta remove tambem creditos, transacoes e usage logs.
+- Testes cobrem `run_id` do analyze e delecao LGPD com registros financeiros/uso.
 
-## Modelo de Dados Principal
+### Frontend
 
-| Tabela | Descrição |
-|---|---|
-| `users` | Usuários (bcrypt + JWT) |
-| `social_connections` | Perfis conectados. Campos: `persona`, `ignore_author_comments`, `followers_count`, `media_count` |
-| `posts` | Publicações coletadas. Campos: `content_text`, `image_context`, `thumbnail_url`, `hashtags` |
-| `comments` | Comentários raw. Campos: `text_clean`, `author_username`, `like_count`, `published_at` |
-| `comment_analysis` | Resultado Gemini: `score_0_10`, `polarity`, `intensity`, `emotions[]`, `topics[]`, `sarcasm` |
-| `post_analysis_summary` | Agregado pré-calculado por post |
-| `pipeline_runs` | Log de execução: status, contadores (posts/comments/analyzed), erros, duração |
+- Next atualizado para 15.5.x.
+- Recharts atualizado para 3.x no web.
+- Dashboard mostra estado neutro quando ainda nao ha comentarios analisados.
+- Tela de conexao permite sync minimo de teste: 1 post e 10 comentarios.
+- Erros de API com `detail` estruturado sao convertidos em mensagens legiveis.
+- `posthog-js` foi removido para reduzir superficie de dependencia vulneravel.
+- Tracking passa a usar Microsoft Clarity quando houver consentimento.
+- Headers de seguranca foram adicionados em modo `Content-Security-Policy-Report-Only`.
 
----
+### CI e Dependencias
 
-## Endpoints Principais da API
+- Workflow CI roda em PRs e pushes relevantes.
+- Web: `npm ci`, `npm run build:packages`, `npm run type-check`, `npm run build:web`, `npm run audit:prod`.
+- Backend: instala `backend/requirements.txt` e roda `python -m pytest`.
+- `react-router` do mobile foi atualizado para remover advisory high de producao.
+- `output/` e tratado como artefato local/gerado e nao deve ser versionado.
 
-| Método | Rota | Descrição |
-|---|---|---|
-| `POST` | `/api/v1/auth/login` | Login JWT |
-| `POST` | `/api/v1/auth/register` | Registro |
-| `GET` | `/api/v1/auth/me` | Dados do usuário logado |
-| `GET` | `/api/v1/connections` | Lista perfis conectados |
-| `GET` | `/api/v1/connections/check-profile` | Verifica perfil Instagram via XPoz |
-| `POST` | `/api/v1/connections/instagram` | Conecta perfil Instagram |
-| `POST` | `/api/v1/connections/youtube` | Conecta canal YouTube |
-| `POST` | `/api/v1/connections/{id}/sync` | Dispara pipeline de análise |
-| `GET` | `/api/v1/pipeline/runs/{id}/stream` | SSE — progresso em tempo real |
-| `GET` | `/api/v1/dashboard/summary` | Resumo geral |
-| `GET` | `/api/v1/dashboard/connection/{id}` | Dashboard por perfil |
-| `GET` | `/api/v1/dashboard/trends` | Tendência temporal |
-| `GET` | `/api/v1/dashboard/alerts` | Alertas de reputação |
-| `GET` | `/api/v1/comments` | Lista comentários com filtros |
+## Seguranca
 
----
+O frontend define headers de seguranca no `next.config.js`:
 
-## Planos
+- `Strict-Transport-Security`
+- `X-Content-Type-Options`
+- `X-Frame-Options`
+- `Referrer-Policy`
+- `Permissions-Policy`
+- `Content-Security-Policy-Report-Only`
 
-| Plano | Conexões | Posts/Sync | Comentários/Post |
-|---|---|---|---|
-| **Free** | 1 | 10 | 100 |
-| **Pro** | 5 | 50 | 500 |
-| **Business** | 20 | 200 | 1000 |
-
-*Implementação Stripe pendente (P0 do roadmap).*
-
----
+A CSP esta em modo report-only de proposito: ela permite observar bloqueios potenciais sem derrubar integracoes de login, analytics ou assets externos em producao.
 
 ## Como Rodar Localmente
 
-### Pré-requisitos
-- PostgreSQL 16 na porta `5432`
-- Redis na porta `6379`
-- Python 3.12+ com `.venv` em `backend/.venv`
-- Node.js 20+
+### Pre-requisitos
 
-### Setup
+- Node.js 22 recomendado para alinhar com o CI.
+- Python 3.12.
+- PostgreSQL 16.
+- Redis.
+
+### Variaveis
 
 ```bash
-# 1. Variáveis de ambiente
 cp .env.example .env
-# Preencher: DATABASE_URL, REDIS_URL, SECRET_KEY, GEMINI_API_KEY, XPOZ_TOKEN
+```
 
-# 2. Backend
+Preencha pelo menos:
+
+- `DATABASE_URL`
+- `REDIS_URL`
+- `SECRET_KEY`
+- `GEMINI_API_KEY`
+- tokens das fontes sociais usadas no ambiente
+
+### Instalar dependencias
+
+```bash
+npm install
+
 cd backend
 python -m venv .venv
 source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
-
-# 3. Frontend + pacotes
-cd ..
-npm install
-
-# 4. Iniciar
-# Terminal 1 — API
-cd backend && uvicorn app.main:app --reload --port 8000
-
-# Terminal 2 — Celery
-cd backend && celery -A app.tasks.celery_app worker --loglevel=info
-
-# Terminal 3 — Frontend
-cd frontend && npm run dev
 ```
 
-Acesse: `http://localhost:3000` | API Docs: `http://localhost:8000/docs`
+### Rodar em desenvolvimento
 
----
+Terminal 1:
 
-## Branches
+```bash
+cd backend
+uvicorn app.main:app --reload --port 8000
+```
 
-| Branch | Uso |
-|---|---|
-| `main` | Estável, produção |
-| `claude/review-branch-updates-jWLB6` | Branch de desenvolvimento atual |
+Terminal 2:
+
+```bash
+cd backend
+celery -A app.tasks.celery_app worker --loglevel=info
+```
+
+Terminal 3:
+
+```bash
+npm run dev:web
+```
+
+Web: `http://localhost:3000`
+
+API docs: `http://localhost:8000/docs`
+
+## Validacao Local
+
+Use estes comandos antes de abrir PR:
+
+```bash
+npm run build:packages
+npm run type-check
+npm run build:web
+npm run build --workspace=@sentimenta/mobile --if-present
+npm run audit:prod
+```
+
+Backend:
+
+```bash
+cd backend
+python -m pytest
+```
+
+Resultado esperado no escopo atual:
+
+- Pacotes compartilhados buildam com `npm run build:packages`.
+- TypeScript passa em todos os workspaces com `type-check`.
+- Build web Next.js passa.
+- Build mobile passa, podendo avisar sobre chunk grande.
+- Audit de producao passa para nivel high; advisories moderados podem permanecer em dependencias upstream.
+- Testes backend passam no diretorio `backend`.
+
+## Deploy
+
+O deploy atual parte da raiz do monorepo:
+
+```bash
+npm install
+npm run build:packages
+cd frontend && npm run build
+cd ..
+npm run build --workspace=@sentimenta/mobile
+```
+
+Na VPS, os processos principais sao:
+
+| Processo | Funcao |
+| --- | --- |
+| `sentimenta-api` | API FastAPI/Uvicorn |
+| `sentimenta-celery` | Worker Celery |
+| `sentimenta-web` | Next.js em modo production |
+| `nginx` | Proxy reverso HTTPS |
+| `postgresql` | Banco de dados |
+| `redis` | Broker/cache |
+
+Comandos uteis:
+
+```bash
+supervisorctl status
+supervisorctl restart sentimenta-api
+supervisorctl restart sentimenta-celery
+supervisorctl restart sentimenta-web
+tail -f /var/log/sentimenta-api.log
+tail -f /var/log/sentimenta-celery-error.log
+```
+
+## PRs e Escopo
+
+Para manter `main` revisavel, separe os tipos de mudanca:
+
+- PR de produto/producao: backend, frontend, CI, dependencias e README.
+- PR de documentacao: auditorias, materiais de produto e guias.
+- PR de marketing/criativo: Remotion, carrosseis, imagens e scripts de renderizacao.
+
+Nao versionar `output/`, caches de navegador, videos renderizados ou artefatos temporarios.
+
+## Pendencias Conhecidas
+
+- Validar CSP em producao antes de trocar de report-only para enforcement.
+- Decidir se o lockfile antigo em `frontend/package-lock.json` deve ser removido em PR separado de limpeza de build/deploy.
+- Revisar advisories moderados de `next/postcss` e `next-auth/uuid` quando houver caminho de upgrade sem downgrade/breaking change.
+- Reparar ambientes locais antigos de `.venv` quando apontarem para caminhos de outro usuario/maquina.

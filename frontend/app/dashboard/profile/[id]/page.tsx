@@ -716,7 +716,7 @@ export default function ProfileDetailPage() {
                 />
                 <Tooltip
                   contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }}
-                  formatter={(value: number, name: string) => [`${value}%`, name]}
+                  formatter={(value, name) => [`${Number(value ?? 0)}%`, String(name)]}
                 />
                 <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
                 <Bar dataKey="positivo" name={tc("positive")} fill={t.sentimentPositive} stackId="sentiment" radius={[0, 0, 0, 0]} />

@@ -589,7 +589,7 @@ def trigger_sync(
 
     # Block if sync already running for this connection
     active_run = db.query(PipelineRun).filter(
-        PipelineRun.connection_id == str(connection_id),
+        PipelineRun.connection_id == connection_id,
         PipelineRun.status == "running",
     ).first()
     if active_run:
@@ -676,7 +676,7 @@ def trigger_analyze(
 
     # Block if sync/analyze already running for this connection
     active_run = db.query(PipelineRun).filter(
-        PipelineRun.connection_id == str(connection_id),
+        PipelineRun.connection_id == connection_id,
         PipelineRun.status == "running",
     ).first()
     if active_run:
@@ -693,12 +693,28 @@ def trigger_analyze(
     if not conn:
         raise HTTPException(status_code=404, detail="Connection not found")
 
+    run = PipelineRun(
+        user_id=current_user.id,
+        connection_id=connection_id,
+        run_type="analyze",
+        status="running",
+    )
+    db.add(run)
+    db.commit()
+
     from app.tasks.pipeline_tasks import task_analyze_connection
 
-    result = task_analyze_connection.delay(str(connection_id), str(current_user.id))
+    result = task_analyze_connection.delay(
+        str(connection_id),
+        str(current_user.id),
+        run_id=str(run.id),
+    )
+    run.celery_task_id = result.id
+    db.commit()
 
     return SyncResponse(
         connection_id=connection_id,
-        task_id=result.id,
+        task_id=str(run.id),
+        run_id=str(run.id),
         message=f"Analysis started for {conn.platform}:{conn.username}",
     )

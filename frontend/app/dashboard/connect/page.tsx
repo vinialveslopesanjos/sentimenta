@@ -405,6 +405,7 @@ export default function ConnectPage() {
                     className="w-full px-3 py-2 rounded-xl transition-all"
                     style={{ fontSize: "0.78rem", border: "1px solid var(--border)", backgroundColor: "var(--bg-subtle)", color: "var(--text-primary)" }}
                   >
+                    <option value={1}>{t("postsOptions.1")}</option>
                     <option value={10}>10 posts</option>
                     <option value={20}>20 posts</option>
                     <option value={50}>50 posts</option>
@@ -414,7 +415,7 @@ export default function ConnectPage() {
                 <div>
                   <p className="mb-2" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>{t("commentsPerPost")}</p>
                   <div className="flex gap-2 flex-wrap">
-                    {[{ label: t("commentsOptions.50"), value: 50 }, { label: t("commentsOptions.200"), value: 200 }, { label: tc("all"), value: 10000 }].map(opt => (
+                    {[{ label: t("commentsOptions.10"), value: 10 }, { label: t("commentsOptions.50"), value: 50 }, { label: t("commentsOptions.200"), value: 200 }, { label: tc("all"), value: 10000 }].map(opt => (
                       <button key={opt.value} onClick={() => updateSyncParams({ ...syncParams, max_comments_per_post: opt.value })} className="px-3 py-2 rounded-xl transition-all" style={{ fontSize: "0.78rem", fontWeight: 500, backgroundColor: syncParams.max_comments_per_post === opt.value ? "var(--primary-bg)" : "var(--bg-subtle)", color: syncParams.max_comments_per_post === opt.value ? "var(--primary)" : "var(--text-muted)", border: syncParams.max_comments_per_post === opt.value ? "1px solid var(--primary)" : "1px solid var(--border)" }}>
                         {opt.label}
                       </button>

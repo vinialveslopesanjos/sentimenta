@@ -1,5 +1,7 @@
 """Tests for authentication endpoints."""
 
+from app.models.credits import CreditBalance, CreditTransaction
+from app.models.demographics import UsageLog
 from app.models.user import User
 from tests.conftest import TestSessionLocal
 
@@ -127,3 +129,62 @@ def test_refresh_invalid_token(client):
         json={"refresh_token": "bad-token"},
     )
     assert res.status_code == 401
+
+
+def test_delete_account_clears_credit_and_usage_records(client):
+    client.post(
+        "/api/v1/auth/register",
+        json={
+            "email": "delete@example.com",
+            "password": "Secret123",
+            "accepted_terms": True,
+        },
+    )
+    _verify_email("delete@example.com")
+    login = client.post(
+        "/api/v1/auth/login",
+        json={"email": "delete@example.com", "password": "Secret123"},
+    )
+    token = login.json()["access_token"]
+
+    db = TestSessionLocal()
+    user = db.query(User).filter(User.email == "delete@example.com").first()
+    balance = CreditBalance(user_id=user.id, plan_credits=200, pack_credits=0)
+    db.add(balance)
+    db.flush()
+    db.add(
+        CreditTransaction(
+            user_id=user.id,
+            balance_id=balance.id,
+            amount=-10,
+            type="usage",
+            balance_after=190,
+            description="QA usage",
+        )
+    )
+    db.add(
+        UsageLog(
+            user_id=user.id,
+            platform="youtube",
+            operation="ingest",
+            comments_count=10,
+            estimated_cost_usd=0.03,
+        )
+    )
+    db.commit()
+    db.close()
+
+    res = client.request(
+        "DELETE",
+        "/api/v1/auth/me",
+        headers={"Authorization": f"Bearer {token}"},
+        json={"confirmation_text": "DELETAR", "password": "Secret123"},
+    )
+    assert res.status_code == 204
+
+    db = TestSessionLocal()
+    assert db.query(User).filter(User.email == "delete@example.com").count() == 0
+    assert db.query(CreditBalance).count() == 0
+    assert db.query(CreditTransaction).count() == 0
+    assert db.query(UsageLog).count() == 0
+    db.close()

@@ -202,7 +202,21 @@ def delete_account(
     # The User model has cascade="all, delete-orphan" on:
     #   - connections (SocialConnection) -> which cascades to posts, comments
     #   - pipeline_runs (PipelineRun)
-    # So deleting the user will cascade to all related data.
+    # Credit and usage tables are not ORM children of User, so clear them
+    # explicitly before deleting the user to keep LGPD deletion reliable.
+    from app.models.credits import CreditBalance, CreditTransaction
+    from app.models.demographics import UsageLog
+
+    db.query(CreditTransaction).filter(CreditTransaction.user_id == current_user.id).delete(
+        synchronize_session=False
+    )
+    db.query(CreditBalance).filter(CreditBalance.user_id == current_user.id).delete(
+        synchronize_session=False
+    )
+    db.query(UsageLog).filter(UsageLog.user_id == current_user.id).delete(
+        synchronize_session=False
+    )
+
     logger.info("Deleting account for user %s (%s)", current_user.id, current_user.email)
     db.delete(current_user)
     db.commit()

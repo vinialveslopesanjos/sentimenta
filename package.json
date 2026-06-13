@@ -14,7 +14,8 @@
         "build:types": "npm run build --workspace=@sentimenta/types",
         "build:api-client": "npm run build --workspace=@sentimenta/api-client",
         "build:packages": "npm run build:types && npm run build:api-client",
-        "type-check": "npm run type-check --workspaces --if-present"
+        "type-check": "npm run type-check --workspaces --if-present",
+        "audit:prod": "npm audit --workspaces --omit=dev --audit-level=high"
     },
     "devDependencies": {
         "turbo": "^2.0.0"
