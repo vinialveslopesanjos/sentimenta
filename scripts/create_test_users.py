@@ -5,7 +5,10 @@ import sys
 import os
 
 sys.path.insert(0, '.')
-os.environ.setdefault('DATABASE_URL', 'postgresql://sentiment:sentiment@localhost:5432/sentiment_db')
+if os.getenv("ALLOW_CREATE_TEST_USERS") != "1":
+    raise SystemExit("Set ALLOW_CREATE_TEST_USERS=1 and DATABASE_URL to run this script.")
+if not os.getenv("DATABASE_URL"):
+    raise SystemExit("DATABASE_URL is required.")
 
 from app.db.session import Base, engine, SessionLocal
 from app.models import user  # noqa - registra models
@@ -36,9 +39,8 @@ USERS = [
 for u in USERS:
     try:
         user_obj = register_user(db, u["email"], u["password"], u["name"])
-        tokens = create_tokens(user_obj)
+        create_tokens(user_obj)
         print(f"[OK] Usuario criado: {u['email']}")
-        print(f"     Access Token: {tokens['access_token'][:50]}...")
     except ValueError as e:
         print(f"[INFO] {u['email']}: {e} (provavelmente ja existe)")
     except Exception as e:
@@ -46,8 +48,3 @@ for u in USERS:
 
 db.close()
 print("\n=== Setup concluido! ===")
-print("\nLogins de teste:")
-for u in USERS:
-    print(f"  Email: {u['email']}")
-    print(f"  Senha: {u['password']}")
-    print()

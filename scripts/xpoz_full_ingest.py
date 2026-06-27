@@ -10,6 +10,7 @@ import json
 import time
 import csv
 import io
+import os
 import requests
 import psycopg2
 import psycopg2.extras
@@ -19,14 +20,19 @@ from datetime import datetime, timezone
 psycopg2.extras.register_uuid()
 
 # ─── CONFIG ──────────────────────────────────────────────────────────────────
-XPOZ_TOKEN   = "K3A5NyyhdkSEc846EUvAlu5tSwziHbbCSTFWRGX7jCPPLR2yT2zpubtrg44wH9w519O1tF4"
+XPOZ_TOKEN   = os.getenv("XPOZ_TOKEN", "")
 XPOZ_BASE    = "https://mcp.xpoz.ai/mcp"
-DB_URL       = "postgresql://sentiment:sentiment@localhost:5432/sentiment_db"
-USERNAME     = "carnelos.lucas"
-EXISTING_USER_ID = uuid.UUID("ebbb0d27-e896-41be-9045-0716137a5278")
+DB_URL       = os.getenv("DATABASE_URL", "")
+USERNAME     = os.getenv("XPOZ_USERNAME", "carnelos.lucas")
+EXISTING_USER_ID = uuid.UUID(os.getenv("XPOZ_USER_ID", "ebbb0d27-e896-41be-9045-0716137a5278"))
 MAX_POLL     = 30
 POLL_SLEEP   = 6
 MAX_COMM     = 50   # comments per post
+
+if not XPOZ_TOKEN:
+    raise RuntimeError("Set XPOZ_TOKEN before running this legacy ingest script.")
+if not DB_URL:
+    raise RuntimeError("Set DATABASE_URL before running this legacy ingest script.")
 
 # ─── XPOZ CLIENT ─────────────────────────────────────────────────────────────
 xpoz_headers = {

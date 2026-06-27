@@ -1,0 +1,122 @@
+name: sentimenta
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-sentimenta}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+      POSTGRES_DB: ${POSTGRES_DB:-sentimenta_db}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-sentimenta} -d ${POSTGRES_DB:-sentimenta_db}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes", "--requirepass", "${REDIS_PASSWORD:?REDIS_PASSWORD is required}"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "redis-cli -a ${REDIS_PASSWORD:?REDIS_PASSWORD is required} ping | grep PONG"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.prod
+    image: sentimenta-api:${SENTIMENTA_IMAGE_TAG:-local}
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sentimenta}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-sentimenta_db}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/1
+      DEBUG: "false"
+    ports:
+      - "127.0.0.1:${API_PORT:-8000}:8000"
+    volumes:
+      - media_output:/app/output
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/health >/dev/null"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+
+  worker:
+    image: sentimenta-api:${SENTIMENTA_IMAGE_TAG:-local}
+    restart: unless-stopped
+    command: ["celery", "-A", "app.tasks.celery_app", "worker", "--loglevel=info", "--concurrency=${CELERY_CONCURRENCY:-2}"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sentimenta}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-sentimenta_db}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/1
+      DEBUG: "false"
+    volumes:
+      - media_output:/app/output
+    depends_on:
+      api:
+        condition: service_healthy
+
+  beat:
+    image: sentimenta-api:${SENTIMENTA_IMAGE_TAG:-local}
+    restart: unless-stopped
+    command: ["celery", "-A", "app.tasks.celery_app", "beat", "--loglevel=info", "--schedule=/tmp/celerybeat-schedule"]
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER:-sentimenta}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-sentimenta_db}
+      REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/1
+      DEBUG: "false"
+    volumes:
+      - media_output:/app/output
+    depends_on:
+      api:
+        condition: service_healthy
+
+  web:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile.prod
+    image: sentimenta-web:${SENTIMENTA_IMAGE_TAG:-local}
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      API_URL: http://api:8000
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.sentimenta.com.br/api/v1}
+      NODE_ENV: production
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:3000/health >/dev/null"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:
+  media_output:
