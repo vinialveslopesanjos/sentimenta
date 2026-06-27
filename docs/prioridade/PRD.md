@@ -81,7 +81,7 @@ SentimentIQ addresses all five challenges by providing:
 
 ## 3. Target Users
 
-> Detailed user personas are documented in [USER_PERSONAS.md](./USER_PERSONAS.md).
+> Detailed user personas are documented in [USER_PERSONAS.md](../produto/USER_PERSONAS.md).
 
 ### Primary Segments
 

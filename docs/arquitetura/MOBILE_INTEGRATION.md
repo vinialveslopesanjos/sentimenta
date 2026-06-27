@@ -128,7 +128,7 @@ npm run build:packages
 
 ```powershell
 # 1. Backend rodando localmente
-# (já documentado em PRODUCTION_GUIDE.md)
+# (já documentado em ../prioridade/PRODUCTION_GUIDE.md)
 
 # 2. Rodar o app Expo
 cd apps/mobile

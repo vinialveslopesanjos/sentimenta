@@ -43,6 +43,8 @@ null
 
 # Build artifacts
 frontend/tsconfig.tsbuildinfo
+e2e-results/
+playwright-report/
 
 # Downloaded assets / design scratch
 stitch_downloads/

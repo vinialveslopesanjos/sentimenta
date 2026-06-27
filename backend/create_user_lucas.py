@@ -1,9 +1,19 @@
 import uuid
+import os
 import psycopg2
 from datetime import datetime, timezone
 from app.core.security import hash_password
 
-DB_URL = "postgresql://sentiment:sentiment@localhost:5432/sentiment_db"
+if os.getenv("ALLOW_LEGACY_ADMIN_SCRIPT") != "1":
+    raise SystemExit("Legacy script disabled. Set ALLOW_LEGACY_ADMIN_SCRIPT=1, DATABASE_URL, TARGET_EMAIL, TARGET_PASSWORD, and TARGET_USERNAME.")
+
+DB_URL = os.getenv("DATABASE_URL")
+TARGET_EMAIL = os.getenv("TARGET_EMAIL")
+TARGET_PASSWORD = os.getenv("TARGET_PASSWORD")
+TARGET_USERNAME = os.getenv("TARGET_USERNAME")
+
+if not all([DB_URL, TARGET_EMAIL, TARGET_PASSWORD, TARGET_USERNAME]):
+    raise SystemExit("DATABASE_URL, TARGET_EMAIL, TARGET_PASSWORD, and TARGET_USERNAME are required.")
 
 def main():
     conn = psycopg2.connect(DB_URL)
@@ -11,8 +21,8 @@ def main():
 
     # 1. Create the new user
     user_id = uuid.uuid4()
-    email = "admin_lucas@sentimenta.com"
-    password = "1234"
+    email = TARGET_EMAIL
+    password = TARGET_PASSWORD
     hashed_password = hash_password(password)
     now = datetime.now(timezone.utc)
 
@@ -31,7 +41,7 @@ def main():
         """, (str(user_id), email, hashed_password, "Admin Lucas", "pro", now, now))
     
     # 2. Transfer the connection
-    username = "carnelos.lucas"
+    username = TARGET_USERNAME
     cur.execute("SELECT id, user_id FROM social_connections WHERE username=%s", (username,))
     conn_row = cur.fetchone()
 

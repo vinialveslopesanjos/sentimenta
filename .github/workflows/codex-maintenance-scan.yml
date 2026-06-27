@@ -1,0 +1,87 @@
+name: Codex maintenance scan
+
+on:
+  schedule:
+    # 09:00 and 18:00 America/Sao_Paulo while BRT is UTC-3.
+    - cron: "0 12,21 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: codex-maintenance-scan
+  cancel-in-progress: false
+
+jobs:
+  scan:
+    name: Scheduled read-only scan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Run Codex scan
+        id: run_codex
+        uses: openai/codex-action@v1
+        with:
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+          prompt-file: .github/codex/prompts/sentimenta-autonomous-maintainer.md
+          output-file: codex-maintenance-report.md
+          sandbox: read-only
+          safety-strategy: drop-sudo
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: codex-maintenance-report
+          path: codex-maintenance-report.md
+          retention-days: 30
+
+      - name: Append to maintenance inbox issue
+        if: steps.run_codex.outputs.final-message != ''
+        uses: actions/github-script@v7
+        env:
+          CODEX_FINAL_MESSAGE: ${{ steps.run_codex.outputs.final-message }}
+        with:
+          github-token: ${{ github.token }}
+          script: |
+            const title = "Codex Maintenance Inbox";
+            const { owner, repo } = context.repo;
+            const issues = await github.rest.issues.listForRepo({
+              owner,
+              repo,
+              state: "open",
+              per_page: 20,
+            });
+            let issue = issues.data.find((item) => item.title === title && !item.pull_request);
+            if (!issue) {
+              issue = (await github.rest.issues.create({
+                owner,
+                repo,
+                title,
+                body: "Scheduled Codex maintenance scans are appended here. Convert actionable findings into focused issues or PRs after review.",
+              })).data;
+              try {
+                await github.rest.issues.addLabels({
+                  owner,
+                  repo,
+                  issue_number: issue.number,
+                  labels: ["codex-maintenance"],
+                });
+              } catch (error) {
+                core.warning(`Could not add codex-maintenance label: ${error.message}`);
+              }
+            }
+            const timestamp = new Date().toISOString();
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number: issue.number,
+              body: `## Scheduled scan: ${timestamp}\n\n${process.env.CODEX_FINAL_MESSAGE}`,
+            });
