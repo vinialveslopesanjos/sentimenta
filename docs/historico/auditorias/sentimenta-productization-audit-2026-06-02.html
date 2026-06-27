@@ -1,0 +1,250 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sentimenta - Auditoria de Produtização</title>
+  <style>
+    :root {
+      --ink: #172033;
+      --muted: #667085;
+      --line: #dfe5ef;
+      --paper: #f6f8fb;
+      --panel: #ffffff;
+      --primary: #3867f4;
+      --primary-soft: #e8eeff;
+      --ok: #147a52;
+      --ok-soft: #e7f6ef;
+      --warn: #a15c00;
+      --warn-soft: #fff4df;
+      --bad: #b42318;
+      --bad-soft: #ffebe9;
+      --dark: #101828;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--ink);
+      background: var(--paper);
+      line-height: 1.55;
+    }
+    .hero {
+      background:
+        linear-gradient(135deg, rgba(56,103,244,.12), rgba(20,122,82,.08)),
+        linear-gradient(180deg, #ffffff, #eef3ff);
+      border-bottom: 1px solid var(--line);
+    }
+    .wrap { width: min(1180px, calc(100% - 40px)); margin: 0 auto; }
+    .hero-inner { padding: 48px 0 34px; display: grid; grid-template-columns: 1.3fr .7fr; gap: 28px; align-items: end; }
+    .eyebrow { color: var(--primary); font-weight: 800; letter-spacing: .08em; text-transform: uppercase; font-size: 12px; margin: 0 0 8px; }
+    h1 { font-size: clamp(32px, 4.8vw, 62px); line-height: .96; margin: 0; letter-spacing: -0.03em; color: var(--dark); }
+    .lead { max-width: 760px; color: var(--muted); font-size: 18px; margin: 18px 0 0; }
+    .verdict {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 14px;
+      padding: 20px;
+      box-shadow: 0 18px 45px rgba(16,24,40,.08);
+    }
+    .verdict strong { display: block; font-size: 13px; color: var(--muted); text-transform: uppercase; letter-spacing: .07em; margin-bottom: 6px; }
+    .verdict .big { font-size: 28px; line-height: 1.05; color: var(--bad); font-weight: 850; letter-spacing: -0.02em; }
+    .meta { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 20px; }
+    .pill { border: 1px solid var(--line); background: rgba(255,255,255,.72); border-radius: 999px; padding: 7px 11px; color: var(--muted); font-size: 13px; font-weight: 650; }
+    section { padding: 30px 0; }
+    h2 { margin: 0 0 16px; color: var(--dark); font-size: 24px; letter-spacing: -0.02em; }
+    h3 { margin: 0 0 8px; color: var(--dark); font-size: 17px; }
+    .grid { display: grid; gap: 14px; }
+    .score-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 18px;
+      box-shadow: 0 8px 24px rgba(16,24,40,.045);
+    }
+    .score { font-size: 28px; font-weight: 850; color: var(--dark); letter-spacing: -0.03em; }
+    .label { color: var(--muted); font-size: 13px; margin-top: 4px; }
+    .bar { height: 8px; background: #edf1f7; border-radius: 999px; margin-top: 14px; overflow: hidden; }
+    .bar span { display: block; height: 100%; border-radius: inherit; }
+    .ok span { background: var(--ok); }
+    .warn span { background: var(--warn); }
+    .bad span { background: var(--bad); }
+    .table { width: 100%; border-collapse: collapse; overflow: hidden; border-radius: 12px; background: var(--panel); border: 1px solid var(--line); }
+    .table th, .table td { text-align: left; padding: 13px 14px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: 14px; }
+    .table th { background: #f9fbff; color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: .07em; }
+    .table tr:last-child td { border-bottom: 0; }
+    .chip { display: inline-flex; align-items: center; border-radius: 999px; padding: 3px 8px; font-size: 12px; font-weight: 800; white-space: nowrap; }
+    .chip.ok { color: var(--ok); background: var(--ok-soft); }
+    .chip.warn { color: var(--warn); background: var(--warn-soft); }
+    .chip.bad { color: var(--bad); background: var(--bad-soft); }
+    .chip.info { color: var(--primary); background: var(--primary-soft); }
+    .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .flow { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; align-items: stretch; }
+    .step {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: 12px;
+      padding: 14px;
+      min-height: 120px;
+      position: relative;
+    }
+    .step:after {
+      content: "";
+      position: absolute;
+      top: 50%;
+      right: -11px;
+      width: 12px;
+      height: 1px;
+      background: var(--line);
+    }
+    .step:last-child:after { display: none; }
+    .step small { display: block; color: var(--primary); font-weight: 850; margin-bottom: 8px; }
+    .timeline { display: grid; gap: 10px; }
+    .timeline-item { display: grid; grid-template-columns: 90px 1fr; gap: 14px; }
+    .day { color: var(--primary); font-weight: 850; }
+    .callout {
+      border-left: 4px solid var(--bad);
+      background: #fff;
+      border-radius: 10px;
+      padding: 16px 18px;
+      box-shadow: 0 8px 24px rgba(16,24,40,.045);
+    }
+    .muted { color: var(--muted); }
+    code { background: #eef2f8; border-radius: 6px; padding: 2px 6px; font-size: .92em; }
+    footer { padding: 28px 0 44px; color: var(--muted); font-size: 13px; }
+    @media (max-width: 900px) {
+      .hero-inner, .cols { grid-template-columns: 1fr; }
+      .score-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      .flow { grid-template-columns: 1fr; }
+      .step:after { display: none; }
+    }
+    @media (max-width: 560px) {
+      .wrap { width: min(100% - 24px, 1180px); }
+      .score-grid { grid-template-columns: 1fr; }
+      .table { display: block; overflow-x: auto; }
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <div class="wrap hero-inner">
+      <div>
+        <p class="eyebrow">Auditoria de produtização - 2026-06-02</p>
+        <h1>Sentimenta está funcional, mas ainda não está pronto para escala aberta.</h1>
+        <p class="lead">A base do SaaS é real: app, API, pipeline, logs, créditos e infraestrutura estão de pé. O risco está na maturidade operacional: segredos, deploy, LLM, Instagram, PostgreSQL e runbooks ainda precisam fechar antes de uma rodada de investimento.</p>
+        <div class="meta">
+          <span class="pill">Branch: codex/productization-audit-hardening</span>
+          <span class="pill">VPS: Hostinger</span>
+          <span class="pill">QA real em produção</span>
+        </div>
+      </div>
+      <div class="verdict">
+        <strong>Veredito</strong>
+        <div class="big">Beta controlado, sim. Escala aberta, ainda não.</div>
+        <p class="muted">Depois dos P0, o produto fica muito mais apresentável para diligence técnica.</p>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section>
+      <h2>Scorecard</h2>
+      <div class="grid score-grid">
+        <div class="card bad"><div class="score">3/10</div><div class="label">Segredos</div><div class="bar"><span style="width:30%"></span></div></div>
+        <div class="card warn"><div class="score">6/10</div><div class="label">VPS e rede</div><div class="bar"><span style="width:60%"></span></div></div>
+        <div class="card warn"><div class="score">5/10</div><div class="label">Git e deploy</div><div class="bar"><span style="width:50%"></span></div></div>
+        <div class="card warn"><div class="score">6/10</div><div class="label">UX/onboarding</div><div class="bar"><span style="width:60%"></span></div></div>
+        <div class="card warn"><div class="score">6/10</div><div class="label">Backend/pipeline</div><div class="bar"><span style="width:60%"></span></div></div>
+        <div class="card warn"><div class="score">6/10</div><div class="label">Banco/backups</div><div class="bar"><span style="width:60%"></span></div></div>
+        <div class="card ok"><div class="score">8/10</div><div class="label">CI/dependências</div><div class="bar"><span style="width:80%"></span></div></div>
+        <div class="card warn"><div class="score">6/10</div><div class="label">Observabilidade</div><div class="bar"><span style="width:60%"></span></div></div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Matriz de risco</h2>
+      <table class="table">
+        <thead><tr><th>Item</th><th>Risco</th><th>Status</th><th>Leitura</th></tr></thead>
+        <tbody>
+          <tr><td>Rotação de segredos</td><td>Crítico</td><td><span class="chip bad">Pendente</span></td><td>Segredos reais foram encontrados no ambiente de produção. Rotacionar tudo antes de diligence.</td></tr>
+          <tr><td>LLM em produção</td><td>Crítico</td><td><span class="chip bad">Pendente</span></td><td>QA terminou partial com erro de análise. Sem isso, o core do produto falha.</td></tr>
+          <tr><td>Instagram</td><td>Crítico</td><td><span class="chip bad">Pendente</span></td><td>Perfis públicos conhecidos falharam na verificação/conexão.</td></tr>
+          <tr><td>Firewall e headers</td><td>Alto</td><td><span class="chip ok">Corrigido</span></td><td>UFW ativo; headers HTTPS aplicados e X-Powered-By ocultado.</td></tr>
+          <tr><td>PostgreSQL</td><td>Alto</td><td><span class="chip warn">Parcial</span></td><td>Firewall limita acesso, mas Postgres ainda escuta em todas as interfaces.</td></tr>
+          <tr><td>Deploy/Git</td><td>Alto</td><td><span class="chip warn">Parcial</span></td><td>Remote sem token, mas produção está em outro branch e worktree sujo.</td></tr>
+          <tr><td>Conta nova e logs</td><td>Médio</td><td><span class="chip info">Corrigido local</span></td><td>Empty state, sync mínimo e logs parciais foram ajustados no branch local.</td></tr>
+          <tr><td>Backups</td><td>Médio</td><td><span class="chip warn">Parcial</span></td><td>Permissões corrigidas; falta offsite e restore drill.</td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Fluxo auditado</h2>
+      <div class="flow">
+        <div class="step"><small>1. Cadastro</small><h3>Funciona</h3><p class="muted">Usuário descartável criado e verificado em produção.</p></div>
+        <div class="step"><small>2. Onboarding</small><h3>Funciona</h3><p class="muted">Modal aparece e coleta dados básicos.</p></div>
+        <div class="step"><small>3. Conexão</small><h3>Falha no Instagram</h3><p class="muted">YouTube funcionou; Instagram precisa correção P0.</p></div>
+        <div class="step"><small>4. Sync</small><h3>Rastreável</h3><p class="muted">Run aparece nos logs; UI local agora permite teste pequeno.</p></div>
+        <div class="step"><small>5. Análise</small><h3>Parcial</h3><p class="muted">Coleta ocorreu, mas LLM falhou com erros de análise.</p></div>
+      </div>
+    </section>
+
+    <section class="cols">
+      <div class="card">
+        <h2>O que foi resolvido</h2>
+        <p><span class="chip ok">Infra</span> UFW ativo, headers Nginx, remote Git sem token e backup com permissão restrita.</p>
+        <p><span class="chip ok">Código</span> CI, dependências, run tracking, account deletion, rate limiter em testes e Next 15.</p>
+        <p><span class="chip ok">UX</span> Erros de API legíveis, dashboard vazio neutro, sync mínimo e logs parciais mais honestos.</p>
+      </div>
+      <div class="card">
+        <h2>O que ainda bloqueia</h2>
+        <p><span class="chip bad">P0</span> Rotacionar segredos e corrigir LLM/Instagram.</p>
+        <p><span class="chip bad">P0</span> Deploy limpo deste branch depois de reconciliar a VPS.</p>
+        <p><span class="chip warn">P1</span> Serviço não-root, Postgres restrito, backup offsite e alertas.</p>
+      </div>
+    </section>
+
+    <section>
+      <h2>Evidências</h2>
+      <table class="table">
+        <thead><tr><th>Checagem</th><th>Resultado</th></tr></thead>
+        <tbody>
+          <tr><td><code>npm run type-check</code></td><td><span class="chip ok">Passou</span></td></tr>
+          <tr><td><code>npm run build:web</code></td><td><span class="chip ok">Passou</span> com aviso de lockfile duplicado.</td></tr>
+          <tr><td><code>npm run build --workspace=@sentimenta/mobile</code></td><td><span class="chip ok">Passou</span> com aviso de chunk grande.</td></tr>
+          <tr><td><code>npm run audit:prod</code></td><td><span class="chip ok">Sem high/critical</span>; restam moderadas.</td></tr>
+          <tr><td><code>python -m pytest -q</code></td><td><span class="chip ok">46 testes passaram</span></td></tr>
+          <tr><td><code>api.sentimenta.com.br/health</code></td><td><span class="chip ok">OK</span></td></tr>
+          <tr><td><code>nginx -t</code></td><td><span class="chip ok">Configuração válida</span></td></tr>
+          <tr><td>Supervisor</td><td><span class="chip ok">API, web, celery, beat e panel rodando</span></td></tr>
+        </tbody>
+      </table>
+    </section>
+
+    <section>
+      <h2>Plano de 7 dias</h2>
+      <div class="timeline">
+        <div class="timeline-item"><div class="day">Dia 1</div><div>Rotacionar segredos, corrigir LLM e reexecutar QA mínimo até status completed.</div></div>
+        <div class="timeline-item"><div class="day">Dia 2</div><div>Corrigir Instagram public profile/OAuth e adicionar teste de integração.</div></div>
+        <div class="timeline-item"><div class="day">Dia 3</div><div>Reconciliar VPS, deploy limpo e proteger branch com CI obrigatório.</div></div>
+        <div class="timeline-item"><div class="day">Dia 4</div><div>Migrar serviços para usuário não-root e apertar PostgreSQL.</div></div>
+        <div class="timeline-item"><div class="day">Dia 5</div><div>Backups offsite, restore drill e alertas operacionais.</div></div>
+        <div class="timeline-item"><div class="day">Dia 6</div><div>QA completo com usuário externo e fluxo Instagram real.</div></div>
+        <div class="timeline-item"><div class="day">Dia 7</div><div>Checklist de investidor e beta controlado com poucos clientes.</div></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="callout">
+        <h2>Conclusão</h2>
+        <p>O Sentimenta tem produto, mas ainda precisa de disciplina operacional para virar SaaS escalável. A maior parte das correções é objetiva e foi iniciada neste branch. O caminho para ficar apresentável é claro: segredos rotacionados, LLM e Instagram funcionando, deploy limpo, serviço sem root, banco fechado e backup testado.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap">
+    Relatório gerado por Codex para o projeto Sentimenta. Nenhum valor de segredo foi incluído neste documento.
+  </footer>
+</body>
+</html>

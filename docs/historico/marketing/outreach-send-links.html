@@ -1,0 +1,243 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sentimenta - Envio de Prospects</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 32px; color: #172124; background: #f7f9fa; }
+    h1 { margin-bottom: 4px; }
+    p { color: #4b5c61; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; margin-top: 24px; }
+    .card { background: #fff; border: 1px solid #dce4e7; border-radius: 8px; padding: 16px; }
+    .card h2 { font-size: 18px; margin: 0 0 8px; }
+    .meta { font-size: 13px; color: #5b6b70; margin-bottom: 12px; }
+    .actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+    a, button { background: #0e757f; color: #fff; border: 0; border-radius: 6px; padding: 9px 11px; text-decoration: none; font-size: 14px; cursor: pointer; }
+    a.secondary { background: #334155; }
+    textarea { width: 100%; min-height: 180px; border: 1px solid #cfd9dd; border-radius: 6px; padding: 10px; font-family: Arial, sans-serif; font-size: 14px; box-sizing: border-box; }
+  </style>
+</head>
+<body>
+  <h1>Sentimenta - envio manual de prospects</h1>
+  <p>Abra este arquivo no navegador. Use "Copiar mensagem" e depois "Enviar email" ou "WhatsApp". Nao envie tudo de uma vez: comece pelos 5 primeiros.</p>
+
+  <div class="grid" id="cards"></div>
+
+  <script>
+    const prospects = [
+      {
+        name: "Eleve Midia",
+        email: "contato@elevemidia.com.br",
+        phone: "551932446388",
+        site: "https://elevemidia.com.br/",
+        subject: "Diagnostico gratuito dos comentarios dos clientes da Eleve Midia",
+        message: `Oi, equipe Eleve Midia.
+
+Vi que voces atuam em Campinas desde 2017, com social media, trafego pago, videos e mais de 400 clientes.
+
+Estou abrindo os primeiros acessos do Sentimenta, uma ferramenta brasileira que analisa comentarios de Instagram/YouTube com IA e transforma isso em score de sentimento, emocoes e temas recorrentes.
+
+Para uma agencia com tantos clientes, isso pode virar uma camada simples de relatorio: mostrar como a audiencia reagiu, alem de alcance e curtidas.
+
+Posso fazer um diagnostico gratuito de 1 perfil/post publico e mandar 3 insights praticos?
+
+Se nao fizer sentido, me avisa que nao retorno nesse assunto.
+
+Abs,
+Vinicius
+Mazy Labs / Sentimenta`
+      },
+      {
+        name: "EA Midia Digital",
+        email: "contato@eamidiadigital.com.br",
+        phone: "5519996551961",
+        instagram: "https://www.instagram.com/eamidiadigital/",
+        site: "https://eamidiadigital.com.br/",
+        subject: "Diagnostico gratuito dos comentarios dos clientes da EA Midia",
+        message: `Oi, equipe EA Midia.
+
+Vi que voces trabalham com marketing digital, SEO, branding, performance e gestao de redes sociais em Campinas.
+
+Estou abrindo os primeiros acessos do Sentimenta, uma ferramenta brasileira que analisa comentarios de Instagram/YouTube com IA e mostra sentimento, emocoes, temas de critica e risco reputacional.
+
+Como voces falam em estrategias personalizadas, acho que a leitura de comentarios pode virar um insumo bom para ajustar campanhas e conteudo dos clientes.
+
+Posso fazer uma amostra gratuita com 1 perfil/post publico e mandar 3 insights?
+
+Se nao fizer sentido, me avisa que nao retorno nesse assunto.
+
+Abs,
+Vinicius
+Mazy Labs / Sentimenta`
+      },
+      {
+        name: "Arnoldi Digital",
+        email: "contato@arnoldi.com.br",
+        phone: "5519981867736",
+        site: "https://arnoldi.com.br/",
+        subject: "Diagnostico gratuito dos comentarios dos clientes da Arnoldi",
+        message: `Oi, equipe Arnoldi.
+
+Vi que voces trabalham com gestao de redes sociais, trafego pago, sites e sistemas para pequenas e medias empresas em Campinas.
+
+Estou abrindo os primeiros acessos do Sentimenta, uma ferramenta brasileira que analisa comentarios de Instagram/YouTube com IA e mostra sentimento, emocoes, temas de critica e risco reputacional.
+
+Para clientes de redes sociais, isso pode virar um relatorio simples de percepcao: como a audiencia reagiu nos comentarios, alem de alcance e curtidas.
+
+Posso fazer um diagnostico gratuito de 1 perfil/post publico e mandar 3 insights praticos?
+
+Se nao fizer sentido, me avisa que nao retorno nesse assunto.
+
+Abs,
+Vinicius
+Mazy Labs / Sentimenta`
+      },
+      {
+        name: "Tanda Interativa",
+        email: "atendimento@tanda.com.br",
+        phone: "551933055797",
+        site: "https://www.tanda.com.br/",
+        subject: "Diagnostico gratuito dos comentarios dos clientes da Tanda",
+        message: `Oi, equipe Tanda.
+
+Vi que voces atuam como agencia digital em Campinas e trabalham com redes sociais para clientes.
+
+Estou abrindo os primeiros acessos do Sentimenta, uma ferramenta brasileira que analisa comentarios de Instagram/YouTube com IA e transforma isso em score de sentimento, emocoes, temas de critica e risco reputacional.
+
+Para agencias, o uso e direto: entregar uma camada de relatorio mostrando como a audiencia reagiu, nao so quanto engajou.
+
+Posso fazer uma amostra gratuita com 1 perfil/post publico e mandar 3 insights?
+
+Se nao fizer sentido, me avisa que nao retorno nesse assunto.
+
+Abs,
+Vinicius
+Mazy Labs / Sentimenta`
+      },
+      {
+        name: "Attractive Agencia",
+        email: "contato@attractiveagencia.com.br",
+        phone: "5519982353350",
+        site: "https://attractiveagencia.com.br/",
+        subject: "Diagnostico gratuito dos comentarios dos clientes da Attractive",
+        message: `Oi, equipe Attractive.
+
+Vi que voces oferecem monitoramento de midias, redes sociais e marketing digital em Campinas, inclusive com a proposta de entender o que o publico fala sobre a marca.
+
+Estou abrindo os primeiros acessos do Sentimenta, uma ferramenta brasileira que analisa comentarios de Instagram/YouTube com IA e mostra sentimento, emocoes, temas de critica e risco reputacional.
+
+Parece um encaixe natural com o trabalho de monitoramento de voces: sair de comentarios soltos para um relatorio claro de percepcao da audiencia.
+
+Posso fazer uma amostra gratuita com 1 perfil/post publico e mandar 3 insights?
+
+Se nao fizer sentido, me avisa que nao retorno nesse assunto.
+
+Abs,
+Vinicius
+Mazy Labs / Sentimenta`
+      },
+      {
+        name: "Nicho Digital",
+        email: "contato@nichodigital.com.br",
+        phone: "5519971595254",
+        site: "https://www.nichodigital.com.br/contato-agencia-de-marketing-digital/",
+        subject: "Diagnostico gratuito dos comentarios dos clientes da Nicho Digital",
+        message: `Oi, equipe Nicho Digital.
+
+Vi que voces atuam em Campinas com marketing digital orientado a dados e oferecem diagnostico gratuito.
+
+Estou abrindo os primeiros acessos do Sentimenta, uma ferramenta brasileira que analisa comentarios de Instagram/YouTube com IA e mostra sentimento, emocoes, temas de critica e risco reputacional.
+
+Acho que combina com uma abordagem consultiva: alem de performance e dados de campanha, mostrar como a audiencia realmente reagiu nos comentarios.
+
+Posso fazer um diagnostico gratuito de 1 perfil/post publico e mandar 3 insights praticos?
+
+Se nao fizer sentido, me avisa que nao retorno nesse assunto.
+
+Abs,
+Vinicius
+Mazy Labs / Sentimenta`
+      },
+      {
+        name: "4Tune Agencia Digital",
+        email: "contato@4tuneagencia.digital",
+        phone: "5519989633011",
+        site: "https://4tuneagencia.digital/",
+        subject: "Diagnostico gratuito dos comentarios dos clientes da 4Tune",
+        message: `Oi, equipe 4Tune.
+
+Vi que voces trabalham com gestao de redes sociais, Facebook/Instagram Ads, criacao de artes e automacao para Instagram.
+
+Estou abrindo os primeiros acessos do Sentimenta, uma ferramenta brasileira que analisa comentarios de Instagram/YouTube com IA e mostra sentimento, emocoes e temas recorrentes.
+
+Para clientes de social media, isso pode virar um relatorio extra simples: o que a audiencia esta elogiando, criticando ou pedindo nos comentarios.
+
+Posso fazer uma amostra gratuita com 1 perfil/post publico e mandar 3 insights?
+
+Se nao fizer sentido, me avisa que nao retorno nesse assunto.
+
+Abs,
+Vinicius
+Mazy Labs / Sentimenta`
+      },
+      {
+        name: "V2BMKT",
+        email: "contato@v2bmkt.com.br",
+        phone: "5511921884828",
+        site: "https://www.v2bmkt.com.br/contato/",
+        subject: "Diagnostico gratuito dos comentarios dos clientes da V2BMKT",
+        message: `Oi, equipe V2BMKT.
+
+Vi que voces atuam com marketing 360, gestao de redes sociais e servicos de IA.
+
+Estou abrindo os primeiros acessos do Sentimenta, uma ferramenta brasileira que analisa comentarios de Instagram/YouTube com IA e transforma isso em score de sentimento, emocoes, temas de critica e risco reputacional.
+
+Como voces ja trabalham com IA e redes sociais, pensei que o Sentimenta pode ser uma camada nova de relatorio para clientes: percepcao da audiencia, nao so engajamento.
+
+Posso fazer uma amostra gratuita com 1 perfil/post publico e mandar 3 insights praticos?
+
+Se nao fizer sentido, me avisa que nao retorno nesse assunto.
+
+Abs,
+Vinicius
+Mazy Labs / Sentimenta`
+      }
+    ];
+
+    function enc(value) {
+      return encodeURIComponent(value);
+    }
+
+    function render() {
+      const root = document.getElementById("cards");
+      root.innerHTML = prospects.map((p, index) => {
+        const mailto = p.email ? `mailto:${p.email}?subject=${enc(p.subject)}&body=${enc(p.message)}` : "";
+        const waText = `Oi, equipe ${p.name}. Vi o trabalho de voces e queria oferecer um diagnostico gratuito dos comentarios de 1 perfil/post publico com o Sentimenta. Posso mandar mais detalhes por aqui?`;
+        const wa = p.phone ? `https://wa.me/${p.phone}?text=${enc(waText)}` : "";
+        return `
+          <section class="card">
+            <h2>${index + 1}. ${p.name}</h2>
+            <div class="meta">${p.email || "Sem email"} ${p.phone ? " | WhatsApp: +" + p.phone : ""}</div>
+            <div class="actions">
+              ${mailto ? `<a href="${mailto}">Enviar email</a>` : ""}
+              ${wa ? `<a class="secondary" href="${wa}" target="_blank" rel="noreferrer">WhatsApp</a>` : ""}
+              ${p.instagram ? `<a class="secondary" href="${p.instagram}" target="_blank" rel="noreferrer">Instagram</a>` : ""}
+              <a class="secondary" href="${p.site}" target="_blank" rel="noreferrer">Site</a>
+              <button type="button" onclick="copyMessage(${index})">Copiar mensagem</button>
+            </div>
+            <textarea readonly>${p.message}</textarea>
+          </section>
+        `;
+      }).join("");
+    }
+
+    async function copyMessage(index) {
+      await navigator.clipboard.writeText(prospects[index].message);
+      alert("Mensagem copiada: " + prospects[index].name);
+    }
+
+    render();
+  </script>
+</body>
+</html>

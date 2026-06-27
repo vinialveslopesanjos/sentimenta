@@ -61,9 +61,9 @@ Você é o Product Manager líder. Orquestra todos os agentes, define prioridade
 5. **GATE DE INOVAÇÃO**: Receber documento do Research Agent, avaliar criticamente cada ideia e apresentar TOP 3 ao stakeholder para aprovação
 
 ### Entregáveis
-- `docs/PRD.md` - Requisitos do produto
+- `docs/prioridade/PRD.md` - Requisitos do produto
 - `docs/USER_STORIES.md` - Histórias de usuário
-- `docs/ROADMAP.md` - Roadmap priorizado
+- `docs/prioridade/ROADMAP.md` - Roadmap priorizado
 - `docs/DECISION_LOG.md` - Registro de decisões (aprovadas e rejeitadas)
 
 ### Processo de Gate de Inovação
@@ -98,10 +98,10 @@ Mapear a jornada do usuário, entender comportamentos e criar arquitetura de inf
 6. Definir information architecture (navegação, hierarquia)
 
 ### Entregáveis
-- `docs/USER_PERSONAS.md` - Personas detalhadas
-- `docs/USER_JOURNEY.md` - Mapa de jornada
-- `docs/COMPETITIVE_ANALYSIS.md` - Análise de concorrentes
-- `docs/INFORMATION_ARCHITECTURE.md` - Estrutura de navegação
+- `docs/produto/USER_PERSONAS.md` - Personas detalhadas
+- `docs/produto/USER_JOURNEY.md` - Mapa de jornada
+- `docs/produto/COMPETITIVE_ANALYSIS.md` - Análise de concorrentes
+- `docs/arquitetura/INFORMATION_ARCHITECTURE.md` - Estrutura de navegação
 - `design/wireframes/` - Wireframes (pode ser descrição textual detalhada)
 
 ### Perguntas a Responder
