@@ -1,10 +1,11 @@
 import type { MetadataRoute } from "next";
-import { blogPosts } from "@/lib/blog";
+import { fetchPublishedBlogPosts } from "@/lib/blog";
 import { campaignPages } from "@/lib/campaigns";
 
 const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://sentimenta.com.br";
 
-export default function sitemap(): MetadataRoute.Sitemap {
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const blogPosts = await fetchPublishedBlogPosts();
   const staticRoutes: MetadataRoute.Sitemap = ["", "/blog", "/diagnostico", "/privacidade", "/termos", "/suporte"].map(
     (path) => ({
       url: `${siteUrl}${path}`,
@@ -16,7 +17,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
 
   const blogRoutes: MetadataRoute.Sitemap = blogPosts.map((post) => ({
     url: `${siteUrl}/blog/${post.slug}`,
-    lastModified: new Date(`${post.updatedAt}T00:00:00`),
+    lastModified: new Date(post.updatedAt),
     changeFrequency: "monthly",
     priority: 0.8,
   }));

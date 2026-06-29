@@ -8,6 +8,8 @@ import type {
   HealthReport,
   CommentListResponse,
 } from "./types";
+import type { BlogCategory, BlogPersona, BlogPost } from "./blog";
+import { normalizeBlogPost } from "./blog";
 
 const API_URL = "/api/v1";
 
@@ -732,5 +734,66 @@ export const commentsApi = {
       `/comments${qs ? `?${qs}` : ""}`,
       { token }
     );
+  },
+};
+
+type ApiBlogPost = Parameters<typeof normalizeBlogPost>[0];
+
+export type BlogPostInput = {
+  slug: string;
+  title: string;
+  excerpt: string;
+  body_markdown: string;
+  category: BlogCategory;
+  persona: BlogPersona;
+  tags: string[];
+  cover_image_url: string;
+  cover_image_alt: string;
+  seo_title?: string | null;
+  seo_description?: string | null;
+  cta_label: string;
+  cta_href: string;
+  read_time_minutes: number;
+};
+
+export const blogAdminApi = {
+  list: async (token: string, status?: string) => {
+    const qs = status ? `?status=${encodeURIComponent(status)}` : "";
+    const data = await apiFetch<{ posts: ApiBlogPost[] }>(`/admin/blog/posts${qs}`, { token });
+    return data.posts.map(normalizeBlogPost);
+  },
+
+  create: async (token: string, payload: BlogPostInput): Promise<BlogPost> => {
+    const post = await apiFetch<ApiBlogPost>("/admin/blog/posts", {
+      method: "POST",
+      token,
+      body: JSON.stringify(payload),
+    });
+    return normalizeBlogPost(post);
+  },
+
+  update: async (token: string, postId: string, payload: Partial<BlogPostInput>): Promise<BlogPost> => {
+    const post = await apiFetch<ApiBlogPost>(`/admin/blog/posts/${postId}`, {
+      method: "PATCH",
+      token,
+      body: JSON.stringify(payload),
+    });
+    return normalizeBlogPost(post);
+  },
+
+  publish: async (token: string, postId: string): Promise<BlogPost> => {
+    const post = await apiFetch<ApiBlogPost>(`/admin/blog/posts/${postId}/publish`, {
+      method: "POST",
+      token,
+    });
+    return normalizeBlogPost(post);
+  },
+
+  unpublish: async (token: string, postId: string): Promise<BlogPost> => {
+    const post = await apiFetch<ApiBlogPost>(`/admin/blog/posts/${postId}/unpublish`, {
+      method: "POST",
+      token,
+    });
+    return normalizeBlogPost(post);
   },
 };

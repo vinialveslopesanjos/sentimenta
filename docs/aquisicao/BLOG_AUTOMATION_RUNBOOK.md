@@ -6,36 +6,44 @@ Objetivo: manter um fluxo semanal de conteudo que alimente SEO, Instagram, Googl
 
 ## Resposta direta: precisa de commit para postar?
 
-Hoje, sim, se o post mora no repositorio.
+Nao para posts novos.
 
-O blog agora usa dados estruturados em:
+O blog agora le posts publicados da API:
 
 ```text
-frontend/lib/blog.ts
-frontend/app/blog/page.tsx
-frontend/app/blog/[slug]/page.tsx
+GET /api/v1/blog/posts
+GET /api/v1/blog/posts/{slug}
 ```
 
-Adicionar um artigo em `frontend/lib/blog.ts` exige commit e deploy/build.
+O conteudo editavel mora na tabela `blog_posts`. A tela admin em
+`/dashboard/admin/blog` permite criar rascunho, editar, publicar e despublicar
+sem commit. O arquivo `frontend/lib/blog.ts` permanece apenas como fallback caso
+a API esteja fora do ar.
 
 ## Como postar sem mexer no repositorio
 
-Para publicar sem commit, o conteudo precisa morar fora do build do Next.js. Opcoes:
+Fluxo recomendado:
 
-1. CMS headless
-   - Exemplos: Sanity, Contentful, Strapi, Directus.
-   - Melhor quando voce quer editor visual, rascunho e publicacao sem Git.
+1. Acessar `/dashboard/admin/blog` com uma conta `admin`.
+2. Criar um novo rascunho.
+3. Preencher titulo, slug, resumo, categoria, persona, tags, capa, CTA e corpo em Markdown.
+4. Salvar.
+5. Revisar o preview.
+6. Publicar.
 
-2. Banco de dados do proprio Sentimenta
-   - Criar tabela `blog_posts`.
-   - Criar tela admin para cadastrar artigo.
-   - Melhor quando voce quer controlar tudo no produto.
+O post publicado aparece em `/blog` e `/blog/{slug}` em runtime.
 
-3. Markdown em storage
-   - Exemplo: arquivos em S3/R2 lidos em runtime.
-   - Mais simples que CMS, menos confortavel para editar.
+## Criar rascunho a partir do brief
 
-Recomendacao atual: comecar com arquivo no repo por 2 a 4 semanas. Quando ficar claro que o blog sera recorrente, migrar para CMS ou tabela.
+O workflow semanal gera um JSON com `adminPayload`. Para criar rascunho via API:
+
+```powershell
+node scripts/generate-blog-brief.mjs --weekly --out output/blog-briefs/weekly-blog-brief.json
+$env:SENTIMENTA_ADMIN_TOKEN="token-admin"
+node scripts/create-blog-draft.mjs --input output/blog-briefs/weekly-blog-brief.json --api http://127.0.0.1:8000
+```
+
+Esse script cria rascunho. Ele nao publica.
 
 ## Fluxo semanal recomendado
 
@@ -102,7 +110,7 @@ O campo `heroImage` em `frontend/lib/blog.ts` aponta para esses assets.
 
 Publicar e distribuir:
 
-- Blog.
+- Blog via `/dashboard/admin/blog`.
 - LinkedIn pessoal.
 - Instagram carrossel.
 - 5 mensagens manuais para agencias.
