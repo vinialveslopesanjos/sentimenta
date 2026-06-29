@@ -68,6 +68,8 @@ output/media_cache/
 
 # Backups & artifacts
 backups/
+artifacts/
+apps/sentimenta-logo-motion/
 redesign/
 tests/
 .understand-anything/

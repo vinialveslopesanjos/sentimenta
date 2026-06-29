@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.routers import auth, connections, posts, dashboard, pipeline, comments, billing, support, demographics
+from app.routers import auth, connections, posts, dashboard, pipeline, comments, billing, support, demographics, leads
 
 logger = logging.getLogger(__name__)
 
@@ -57,6 +57,7 @@ app.include_router(comments.router, prefix=settings.API_PREFIX)
 app.include_router(billing.router, prefix=settings.API_PREFIX)
 app.include_router(support.router, prefix=settings.API_PREFIX)
 app.include_router(demographics.router, prefix=settings.API_PREFIX)
+app.include_router(leads.router, prefix=settings.API_PREFIX)
 
 
 @app.get("/health")

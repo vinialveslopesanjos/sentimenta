@@ -40,6 +40,13 @@ import type {
   CommentWithAnalysis, PostSummary,
 } from "@/lib/types";
 
+const CHART_MARGIN = { top: 8, right: 4, bottom: 0, left: 0 };
+const COMPACT_X_AXIS = {
+  padding: { left: 0, right: 0 },
+  interval: "preserveStartEnd" as const,
+  minTickGap: 8,
+};
+
 // ─── helpers ───────────────────────────────
 
 function formatNumber(n: number): string {
@@ -60,7 +67,8 @@ function formatDate(iso: string | null): string {
 }
 
 function shortDate(iso: string): string {
-  const d = new Date(iso);
+  const [year, month, day] = iso.slice(0, 10).split("-").map(Number);
+  const d = new Date(year, (month || 1) - 1, day || 1);
   return `${String(d.getDate()).padStart(2, "0")}/${String(d.getMonth() + 1).padStart(2, "0")}/${String(d.getFullYear()).slice(-2)}`;
 }
 
@@ -408,12 +416,15 @@ export default function ProfileDetailPage() {
 
   const scoreTemporalData = useMemo(() => {
     if (!trends?.data_points) return [];
-    return trends.data_points
-      .filter((dp) => dp.avg_score !== null)
-      .map((dp) => ({
+    return trends.data_points.reduce<Array<{ date: string; score: number }>>((points, dp) => {
+      if (typeof dp.avg_score === "number" && Number.isFinite(dp.avg_score)) {
+        points.push({
         date: shortDate(dp.period),
-        score: dp.avg_score ?? 0,
-      }));
+        score: dp.avg_score,
+        });
+      }
+      return points;
+    }, []);
   }, [trends]);
 
   const sentimentTemporalData = useMemo(() => {
@@ -677,9 +688,9 @@ export default function ProfileDetailPage() {
       case "Volume":
         return (
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={volumeData}>
+            <BarChart data={volumeData} margin={CHART_MARGIN}>
               <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="date" {...COMPACT_X_AXIS} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: `0 4px 16px ${t.primary}15`, fontSize: "0.78rem", backgroundColor: t.bgCard }} />
               <Bar dataKey="volume" fill={t.primary} radius={[4, 4, 0, 0]} />
@@ -689,9 +700,9 @@ export default function ProfileDetailPage() {
       case "Score":
         return (
           <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={scoreTemporalData}>
+            <AreaChart data={scoreTemporalData} margin={CHART_MARGIN}>
               <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="date" {...COMPACT_X_AXIS} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
               <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
               <Area type="monotone" dataKey="score" stroke={t.primary} fill={t.primary} fillOpacity={0.1} strokeWidth={2.5} dot={{ r: 3, fill: t.primary, strokeWidth: 0 }} />
@@ -702,9 +713,9 @@ export default function ProfileDetailPage() {
         if (sentimentTemporalMode === "stacked100") {
           return (
             <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={sentimentTemporalPctData} barGap={2}>
+              <BarChart data={sentimentTemporalPctData} barGap={2} margin={CHART_MARGIN}>
                 <CartesianGrid strokeDasharray="3 3" stroke="color-mix(in srgb, var(--accent) 28%, transparent)" vertical={false} />
-                <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+                <XAxis dataKey="date" {...COMPACT_X_AXIS} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
                 <YAxis
                   domain={[0, 100]}
                   ticks={[0, 25, 50, 75, 100]}
@@ -728,9 +739,9 @@ export default function ProfileDetailPage() {
         }
         return (
           <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={sentimentTemporalData} barGap={4}>
+            <BarChart data={sentimentTemporalData} barGap={4} margin={CHART_MARGIN}>
               <CartesianGrid strokeDasharray="3 3" stroke="color-mix(in srgb, var(--accent) 28%, transparent)" vertical={false} />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="date" {...COMPACT_X_AXIS} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
               <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
@@ -743,9 +754,9 @@ export default function ProfileDetailPage() {
       case "Emocoes":
         return (
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={emotionTemporalData}>
+            <BarChart data={emotionTemporalData} margin={CHART_MARGIN}>
               <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="date" {...COMPACT_X_AXIS} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
               <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
@@ -758,9 +769,9 @@ export default function ProfileDetailPage() {
       case "Topicos":
         return (
           <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={topicTemporalData}>
+            <BarChart data={topicTemporalData} margin={CHART_MARGIN}>
               <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
-              <XAxis dataKey="date" tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="date" {...COMPACT_X_AXIS} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
               <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
               <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />

@@ -131,10 +131,15 @@ def _build_dashboard_summary(user_id: str, db: Session) -> dict:
         Comment.connection_id.in_(conn_ids)
     ).scalar() or 0
 
-    total_analyzed = db.query(func.count(Comment.id)).filter(
-        Comment.connection_id.in_(conn_ids),
-        Comment.status == "processed",
-    ).scalar() or 0
+    latest_analysis = _latest_analysis_subquery()
+
+    total_analyzed = (
+        db.query(func.count(latest_analysis.c.id))
+        .join(Comment, Comment.id == latest_analysis.c.comment_id)
+        .filter(Comment.connection_id.in_(conn_ids))
+        .scalar()
+        or 0
+    )
 
     post_counts = {
         row[0]: row[1]
@@ -145,12 +150,15 @@ def _build_dashboard_summary(user_id: str, db: Session) -> dict:
 
     analyzed_counts = {
         row[0]: row[1]
-        for row in db.query(Comment.connection_id, func.count(Comment.id))
-        .filter(Comment.connection_id.in_(conn_ids), Comment.status == "processed")
-        .group_by(Comment.connection_id).all()
+        for row in (
+            db.query(Comment.connection_id, func.count(latest_analysis.c.id))
+            .join(latest_analysis, latest_analysis.c.comment_id == Comment.id)
+            .filter(Comment.connection_id.in_(conn_ids))
+            .group_by(Comment.connection_id)
+            .all()
+        )
     }
 
-    latest_analysis = _latest_analysis_subquery()
     avg_stats = (
         db.query(
             func.avg(latest_analysis.c.score_0_10),

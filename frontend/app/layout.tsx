@@ -7,7 +7,10 @@ import CookieBanner from "@/components/CookieBanner";
 import AnalyticsProvider from "@/app/providers";
 import "./globals.css";
 
+const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://sentimenta.com.br";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
   title: "Sentimenta",
   description: "Análise de sentimento para redes sociais com IA",
 };

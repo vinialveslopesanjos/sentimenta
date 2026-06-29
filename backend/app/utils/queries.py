@@ -6,10 +6,13 @@ from app.models.analysis import CommentAnalysis
 
 
 def latest_analysis_subquery():
-    """Return a subquery that picks the most recent analysis per comment.
+    """Return a subquery that picks the most recent valid analysis per comment.
 
     The subquery exposes: id, comment_id, score_0_10, polarity, intensity,
     emotions, topics, sarcasm, summary_pt, confidence, analyzed_at.
+
+    Error rows are kept in comment_analysis for audit/debugging, but user-facing
+    analytics must be based only on rows with a real score.
     """
     ranked = (
         select(
@@ -33,7 +36,9 @@ def latest_analysis_subquery():
                 ),
             )
             .label("rn"),
-        ).subquery()
+        )
+        .where(CommentAnalysis.score_0_10.isnot(None))
+        .subquery()
     )
     return (
         select(

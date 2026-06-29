@@ -68,7 +68,7 @@ class Settings(BaseSettings):
 
     # LLM (OpenRouter — OpenAI-compatible)
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
-    LLM_MODEL: str = os.getenv("LLM_MODEL", "google/gemini-2.0-flash-001")
+    LLM_MODEL: str = os.getenv("LLM_MODEL", "google/gemini-2.5-flash")
     LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1")
 
     # LLM daily cost limit per user (USD)
