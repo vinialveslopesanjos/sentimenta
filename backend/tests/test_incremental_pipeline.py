@@ -247,3 +247,241 @@ def test_analyze_post_comments_skips_existing_analysis(db, test_connection, monk
         .count()
     )
     assert analyses_for_existing == 1
+
+
+def test_analyze_post_comments_retries_existing_error_analysis(db, test_connection, monkeypatch):
+    test_connection.ignore_author_comments = False
+    db.commit()
+
+    post = Post(
+        id=uuid.uuid4(),
+        connection_id=test_connection.id,
+        platform="youtube",
+        platform_post_id="video_error_retry",
+        post_type="video",
+        content_text="Video with enough context",
+        content_clean="video with enough context",
+        like_count=0,
+        comment_count=1,
+        published_at=datetime.now(timezone.utc),
+    )
+    db.add(post)
+    db.flush()
+
+    comment = Comment(
+        id=uuid.uuid4(),
+        post_id=post.id,
+        connection_id=test_connection.id,
+        platform="youtube",
+        platform_comment_id="retry-1",
+        text_original="comentario que falhou antes",
+        text_clean="comentario que falhou antes",
+        status="pending",
+    )
+    db.add(comment)
+    db.flush()
+
+    existing_error = CommentAnalysis(
+        comment_id=comment.id,
+        model=settings.LLM_MODEL,
+        prompt_version="v1",
+        score_0_10=None,
+        summary_pt="Erro na analise anterior",
+        confidence=0.0,
+    )
+    db.add(existing_error)
+    db.commit()
+
+    captured_comment_ids = []
+
+    class DummyLLM:
+        def __init__(self):
+            pass
+
+        def analyze_comments(self, comments_payload, prompt_version, context=None):
+            for item in comments_payload:
+                captured_comment_ids.append(item["comment_id"])
+                yield {
+                    "comment_id": item["comment_id"],
+                    "model": settings.LLM_MODEL,
+                    "prompt_version": "v1",
+                    "score_0_10": 7.0,
+                    "polarity": 0.4,
+                    "intensity": 0.6,
+                    "emotions": ["alegria"],
+                    "topics": ["conteudo"],
+                    "sarcasm": False,
+                    "summary_pt": "comentario recuperado",
+                    "confidence": 0.9,
+                }
+
+    monkeypatch.setattr(analysis_service, "LLMClient", DummyLLM)
+
+    stats = analysis_service.analyze_post_comments(
+        db,
+        post.id,
+        batch_size=10,
+        prompt_version="v1",
+    )
+
+    assert stats["analyzed"] == 1
+    assert stats["errors"] == 0
+    assert stats["llm_calls"] == 1
+    assert captured_comment_ids == [str(comment.id)]
+
+    db.refresh(comment)
+    db.refresh(existing_error)
+    assert comment.status == "processed"
+    assert comment.last_error is None
+    assert existing_error.score_0_10 == 7.0
+    assert existing_error.summary_pt == "comentario recuperado"
+
+
+def test_analyze_post_comments_does_not_count_llm_error_as_analyzed(db, test_connection, monkeypatch):
+    test_connection.ignore_author_comments = False
+    db.commit()
+
+    post = Post(
+        id=uuid.uuid4(),
+        connection_id=test_connection.id,
+        platform="youtube",
+        platform_post_id="video_llm_error",
+        post_type="video",
+        content_text="Video with enough context",
+        content_clean="video with enough context",
+        like_count=0,
+        comment_count=1,
+        published_at=datetime.now(timezone.utc),
+    )
+    db.add(post)
+    db.flush()
+
+    comment = Comment(
+        id=uuid.uuid4(),
+        post_id=post.id,
+        connection_id=test_connection.id,
+        platform="youtube",
+        platform_comment_id="error-1",
+        text_original="comentario que vai falhar",
+        text_clean="comentario que vai falhar",
+        status="pending",
+    )
+    db.add(comment)
+    db.commit()
+
+    class DummyLLM:
+        def __init__(self):
+            pass
+
+        def analyze_comments(self, comments_payload, prompt_version, context=None):
+            for item in comments_payload:
+                yield {
+                    "comment_id": item["comment_id"],
+                    "model": settings.LLM_MODEL,
+                    "prompt_version": "v1",
+                    "score_0_10": None,
+                    "polarity": None,
+                    "intensity": None,
+                    "emotions": [],
+                    "topics": [],
+                    "sarcasm": False,
+                    "summary_pt": "Erro na analise",
+                    "confidence": 0.0,
+                }
+
+    monkeypatch.setattr(analysis_service, "LLMClient", DummyLLM)
+
+    stats = analysis_service.analyze_post_comments(
+        db,
+        post.id,
+        batch_size=10,
+        prompt_version="v1",
+    )
+
+    assert stats["attempted"] == 1
+    assert stats["analyzed"] == 0
+    assert stats["errors"] == 1
+
+    db.refresh(comment)
+    assert comment.status == "error"
+    assert comment.last_error == "Erro na analise"
+
+
+def test_generate_post_summary_counts_only_valid_analyses(db, test_connection):
+    test_connection.ignore_author_comments = False
+    db.commit()
+
+    post = Post(
+        id=uuid.uuid4(),
+        connection_id=test_connection.id,
+        platform="youtube",
+        platform_post_id="video_summary_valid_only",
+        post_type="video",
+        content_text="Video with enough context",
+        content_clean="video with enough context",
+        like_count=0,
+        comment_count=2,
+        published_at=datetime.now(timezone.utc),
+    )
+    db.add(post)
+    db.flush()
+
+    valid_comment = Comment(
+        id=uuid.uuid4(),
+        post_id=post.id,
+        connection_id=test_connection.id,
+        platform="youtube",
+        platform_comment_id="valid-1",
+        text_original="comentario valido",
+        text_clean="comentario valido",
+        status="processed",
+    )
+    invalid_comment = Comment(
+        id=uuid.uuid4(),
+        post_id=post.id,
+        connection_id=test_connection.id,
+        platform="youtube",
+        platform_comment_id="invalid-1",
+        text_original="comentario com erro",
+        text_clean="comentario com erro",
+        status="error",
+    )
+    db.add_all([valid_comment, invalid_comment])
+    db.flush()
+
+    db.add(
+        CommentAnalysis(
+            comment_id=valid_comment.id,
+            model=settings.LLM_MODEL,
+            prompt_version="v1",
+            score_0_10=8.0,
+            polarity=0.7,
+            intensity=0.8,
+            emotions=["alegria"],
+            topics=["conteudo"],
+            confidence=0.9,
+        )
+    )
+    db.add(
+        CommentAnalysis(
+            comment_id=invalid_comment.id,
+            model=settings.LLM_MODEL,
+            prompt_version="v1",
+            score_0_10=None,
+            summary_pt="Erro na analise",
+            confidence=0.0,
+        )
+    )
+    db.commit()
+
+    summary = analysis_service.generate_post_summary(db, post.id, prompt_version="v1")
+
+    assert summary is not None
+    assert summary.total_comments == 2
+    assert summary.total_analyzed == 1
+    assert summary.avg_score == 8.0
+    assert summary.sentiment_distribution == {
+        "negative": 0,
+        "neutral": 0,
+        "positive": 1,
+    }

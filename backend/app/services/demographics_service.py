@@ -144,24 +144,38 @@ def _record_run_cost(actor_id: str) -> float:
 # Function 1: Extract new usernames
 # =========================================================================
 
-def extract_new_usernames(db: Session, connection_id: uuid.UUID, platform: str = "instagram") -> list[str]:
+def extract_new_usernames(
+    db: Session,
+    connection_id: uuid.UUID,
+    platform: str = "instagram",
+    limit: int | None = None,
+) -> list[str]:
     """Extrai usernames de comentaristas que ainda nao tem perfil scraped.
 
     Busca author_username dos comentarios da connection e filtra os que
-    ja existem em commenter_profiles para a mesma plataforma.
+    ja existem em commenter_profiles para a mesma plataforma. Quando um limite
+    e informado, prioriza comentaristas vistos mais recentemente.
     """
-    # Get all unique non-null usernames from comments for this connection
+    username_expr = func.lower(Comment.author_username)
+    last_seen_expr = func.max(Comment.published_at)
+
+    # Get unique non-null usernames from comments for this connection, newest first.
     comment_usernames = (
-        db.query(func.distinct(Comment.author_username))
+        db.query(
+            username_expr.label("username"),
+            last_seen_expr.label("last_seen"),
+        )
         .join(Post, Post.id == Comment.post_id)
         .filter(
             Post.connection_id == connection_id,
             Comment.author_username.isnot(None),
             Comment.author_username != "",
         )
+        .group_by(username_expr)
+        .order_by(last_seen_expr.desc().nullslast())
         .all()
     )
-    all_usernames = {row[0].lower() for row in comment_usernames if row[0]}
+    all_usernames = [row.username for row in comment_usernames if row.username]
 
     if not all_usernames:
         logger.info("Demographics: nenhum username encontrado para connection %s", connection_id)
@@ -178,10 +192,14 @@ def extract_new_usernames(db: Session, connection_id: uuid.UUID, platform: str =
     )
     existing_set = {row[0] for row in existing}
 
-    new_usernames = list(all_usernames - existing_set)
+    new_usernames = [username for username in all_usernames if username not in existing_set]
+    total_new = len(new_usernames)
+    if limit is not None:
+        new_usernames = new_usernames[:max(limit, 0)]
+
     logger.info(
-        "Demographics: %d novos usernames (de %d total) para connection %s",
-        len(new_usernames), len(all_usernames), connection_id,
+        "Demographics: %d novos usernames selecionados (de %d novos, %d total) para connection %s",
+        len(new_usernames), total_new, len(all_usernames), connection_id,
     )
     return new_usernames
 
@@ -198,7 +216,7 @@ def _scrape_profile_batch(usernames: list[str], token: str) -> list[dict]:
 
     run_url = f"{APIFY_BASE_URL}/acts/{SCRAPER_ACTOR}/run-sync-get-dataset-items"
     payload = {
-        "usernames": usernames,
+        "directUrls": [f"https://www.instagram.com/{username}/" for username in usernames],
         "resultsType": "details",
         "resultsLimit": len(usernames),
     }
@@ -1030,13 +1048,14 @@ def run_demographics_pipeline(
     connection_id: uuid.UUID,
     enabled: bool = False,
     platform: str = "instagram",
+    max_usernames: int | None = None,
 ) -> dict:
     """Executa o pipeline completo de enriquecimento demografico (Stage 3).
 
     Desabilitado por padrao (feature flag). Para ativar, passe enabled=True.
 
     Etapas:
-        1. Extrai usernames novos dos comentarios
+        1. Extrai usernames novos dos comentarios (opcionalmente limitado por recencia)
         2. Scrape de perfis via Apify (3 workers, batches de 500)
         3. Salva perfis no banco
         4. Extrai sinais de localizacao (geotags, bio, DDD)
@@ -1060,7 +1079,12 @@ def run_demographics_pipeline(
     # 1. Extract new usernames
     stage_start = datetime.now(timezone.utc)
     try:
-        new_usernames = extract_new_usernames(db, connection_id, platform=platform)
+        new_usernames = extract_new_usernames(
+            db,
+            connection_id,
+            platform=platform,
+            limit=max_usernames,
+        )
     except Exception as exc:
         logger.error("[DEMO Stage 1] FALHA ao extrair usernames: %s", exc)
         return {"error": f"extract_usernames: {exc}", "stage": 1}
@@ -1079,6 +1103,7 @@ def run_demographics_pipeline(
             "skipped": False,
             "new_usernames": 0,
             "profiles_scraped": 0,
+            "profiles_enriched": 0,
             "enrichments_saved": 0,
             "aggregated": aggregated,
             "duration_s": round(duration, 1),
@@ -1215,6 +1240,7 @@ def run_demographics_pipeline(
         "skipped": False,
         "new_usernames": len(new_usernames),
         "profiles_scraped": len(saved_profiles),
+        "profiles_enriched": enrichments_count,
         "profiles_with_bio": has_bio_count,
         "profiles_with_location": has_location_count,
         "enrichments_saved": enrichments_count,

@@ -91,6 +91,36 @@ def test_dashboard_summary_does_not_invent_scores_for_unprocessed_comments(clien
     assert data["topics_frequency"] is None
 
 
+def test_dashboard_summary_ignores_invalid_analysis_rows(client, auth_headers, db, test_comments):
+    comment = test_comments[0]
+    comment.status = "processed"
+    db.add(
+        CommentAnalysis(
+            comment_id=comment.id,
+            model="test-model",
+            prompt_version="v1",
+            score_0_10=None,
+            polarity=None,
+            intensity=None,
+            emotions=[],
+            topics=[],
+            sarcasm=False,
+            confidence=0.0,
+            summary_pt="Erro na analise",
+        )
+    )
+    db.commit()
+
+    res = client.get("/api/v1/dashboard/summary", headers=auth_headers)
+    assert res.status_code == 200
+    data = res.json()
+
+    assert data["total_comments"] == 5
+    assert data["total_analyzed"] == 0
+    assert data["avg_score"] is None
+    assert data["sentiment_distribution"] is None
+
+
 def test_stale_running_pipeline_runs_are_reconciled(db, test_user, test_connection):
     user, _ = test_user
     run = PipelineRun(

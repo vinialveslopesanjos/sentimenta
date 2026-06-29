@@ -8,6 +8,7 @@ from app.models.follower_snapshot import FollowerSnapshot
 from app.models.demographics import CommenterProfile, UserEnrichment, UsageLog
 from app.models.credits import CreditBalance, CreditTransaction
 from app.models.stripe_event import StripeEvent
+from app.models.diagnostic_lead import DiagnosticLead
 
 __all__ = [
     "User",
@@ -24,4 +25,5 @@ __all__ = [
     "CreditBalance",
     "CreditTransaction",
     "StripeEvent",
+    "DiagnosticLead",
 ]

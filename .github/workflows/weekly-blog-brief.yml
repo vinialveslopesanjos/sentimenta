@@ -1,0 +1,39 @@
+name: Weekly blog brief
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 12 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  generate:
+    name: Generate weekly blog brief
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Generate brief
+        run: node scripts/generate-blog-brief.mjs --weekly --out output/blog-briefs/weekly-blog-brief.json
+
+      - name: Add summary
+        run: |
+          echo "## Weekly Sentimenta blog brief" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat output/blog-briefs/weekly-blog-brief.json >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload brief artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: weekly-blog-brief
+          path: output/blog-briefs/weekly-blog-brief.json

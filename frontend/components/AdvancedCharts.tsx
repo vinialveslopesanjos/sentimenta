@@ -10,6 +10,13 @@ import { getScoreStyle } from "./ds/tokens";
 import { useTheme } from "./ThemeContext";
 import { AlertTriangle, TrendingDown, TrendingUp, User, Shield, Flame, Zap, MessageCircle, ChevronDown } from "lucide-react";
 
+const CHART_MARGIN = { top: 8, right: 4, bottom: 0, left: 0 };
+const COMPACT_X_AXIS = {
+  padding: { left: 0, right: 0 },
+  interval: "preserveStartEnd" as const,
+  minTickGap: 8,
+};
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // #1 — GAP ANALYSIS (Scatter Quadrant 2x2)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -301,9 +308,9 @@ export function PostLifecycle({ posts, platformLabel }: { posts: LifecyclePost[]
         "{post.title}"
       </p>
       <ResponsiveContainer key={`lifecycle-${selectedPost}`} width="100%" height={260}>
-        <ComposedChart id={`lifecycle-line-${platformLabel}-${selectedPost}`} data={post.data}>
+        <ComposedChart id={`lifecycle-line-${platformLabel}-${selectedPost}`} data={post.data} margin={CHART_MARGIN}>
           <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
-          <XAxis dataKey="time" tick={{ fontSize: 9, fill: t.textFaint }} axisLine={false} tickLine={false} />
+          <XAxis dataKey="time" {...COMPACT_X_AXIS} tick={{ fontSize: 9, fill: t.textFaint }} axisLine={false} tickLine={false} />
           <YAxis domain={[0, 10]} tick={{ fontSize: 9, fill: t.textFaint }} axisLine={false} tickLine={false}
             label={{ value: "Score", angle: -90, position: "insideLeft", offset: 10, style: { fontSize: 9, fill: t.textMuted } }}
           />

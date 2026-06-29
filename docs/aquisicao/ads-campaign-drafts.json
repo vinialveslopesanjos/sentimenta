@@ -1,0 +1,129 @@
+{
+  "generated_at": "2026-06-29",
+  "principle": "Campanhas em rascunho para revisao humana. Nao publicar sem tracking ativo, limite de verba e checagem das landing pages.",
+  "landing_pages": [
+    {
+      "persona": "agencias",
+      "url": "/campanhas/agencias",
+      "primary_offer": "Diagnostico gratuito de 1 perfil ou post publico para entregar 3 insights praticos ao cliente."
+    },
+    {
+      "persona": "social-media",
+      "url": "/campanhas/social-media",
+      "primary_offer": "Analise de comentarios para encontrar sentimento, emocoes, temas e prioridades de resposta."
+    }
+  ],
+  "google_search": [
+    {
+      "campaign": "search_agencias_relatorio_sentimento",
+      "daily_budget_brl": 30,
+      "landing_url": "/campanhas/agencias?utm_source=google&utm_medium=cpc&utm_campaign=search_agencias_relatorio_sentimento",
+      "keywords_phrase_match": [
+        "relatorio social media cliente",
+        "analise de sentimento instagram",
+        "monitoramento de reputacao digital",
+        "ferramenta social listening brasil",
+        "analisar comentarios instagram"
+      ],
+      "negative_keywords": [
+        "gratis download",
+        "curso",
+        "vaga",
+        "emprego",
+        "pdf pronto"
+      ],
+      "headlines": [
+        "Relatorio alem de curtidas",
+        "Analise comentarios com IA",
+        "Sentimento para agencias",
+        "Mostre percepcao do cliente",
+        "Diagnostico gratuito"
+      ],
+      "descriptions": [
+        "Transforme comentarios de Instagram e YouTube em score, emocoes e temas para relatorios de cliente.",
+        "Veja como a audiencia reagiu de verdade. Teste um diagnostico gratuito com perfil ou post publico.",
+        "Uma camada de reputacao e sentimento para agencias que ja entregam social media e trafego pago."
+      ]
+    },
+    {
+      "campaign": "search_social_media_comentarios",
+      "daily_budget_brl": 25,
+      "landing_url": "/campanhas/social-media?utm_source=google&utm_medium=cpc&utm_campaign=search_social_media_comentarios",
+      "keywords_phrase_match": [
+        "comentarios negativos instagram",
+        "como analisar comentarios instagram",
+        "sentimento comentarios instagram",
+        "ferramenta para social media",
+        "monitorar comentarios instagram"
+      ],
+      "negative_keywords": [
+        "frases",
+        "copiar e colar",
+        "comprar comentarios",
+        "bot",
+        "seguidores"
+      ],
+      "headlines": [
+        "Entenda seus comentarios",
+        "Pare de analisar no olho",
+        "Sentimento no Instagram",
+        "Priorize respostas",
+        "Teste com um perfil"
+      ],
+      "descriptions": [
+        "Veja sentimento, emocoes e temas dos comentarios sem ler tudo manualmente.",
+        "Detecte critica recorrente e risco de reputacao antes que vire problema maior.",
+        "Ideal para social medias que precisam transformar comentario em decisao pratica."
+      ]
+    }
+  ],
+  "meta_ads": [
+    {
+      "campaign": "meta_agencias_alem_de_curtidas",
+      "daily_budget_brl": 30,
+      "landing_url": "/campanhas/agencias?utm_source=meta&utm_medium=paid_social&utm_campaign=meta_agencias_alem_de_curtidas",
+      "audience_hints": [
+        "social media",
+        "marketing digital",
+        "agencias de marketing",
+        "trafego pago",
+        "Meta Business Suite",
+        "Canva"
+      ],
+      "primary_texts": [
+        "Seu relatorio mostra alcance e curtidas. Mas mostra como a audiencia reagiu nos comentarios?",
+        "Clientes querem saber se a campanha foi bem recebida. O Sentimenta transforma comentarios em sentimento, emocoes e temas.",
+        "Agencias podem entregar uma camada nova de relatorio: percepcao real da audiencia, nao so numeros de engajamento."
+      ],
+      "headlines": [
+        "Relatorio alem de curtidas",
+        "Sentimento para agencias",
+        "Diagnostico gratuito"
+      ],
+      "creative_prompt": "Pastel vector ad creative for a Brazilian SaaS that helps digital agencies turn Instagram and YouTube comments into client-ready sentiment reports. Show a clean dashboard and report sheets, no readable text, no logos, teal rose amber palette."
+    },
+    {
+      "campaign": "meta_social_media_comentarios",
+      "daily_budget_brl": 25,
+      "landing_url": "/campanhas/social-media?utm_source=meta&utm_medium=paid_social&utm_campaign=meta_social_media_comentarios",
+      "audience_hints": [
+        "social media manager",
+        "gestor de comunidade",
+        "marketing de conteudo",
+        "Instagram for Business",
+        "criadores de conteudo"
+      ],
+      "primary_texts": [
+        "Ler comentario por comentario nao escala. Veja sentimento, emocoes e temas em poucos minutos.",
+        "Um post pode performar bem e ainda esconder critica recorrente. O Sentimenta mostra o clima real dos comentarios.",
+        "Priorize respostas e entenda a audiencia sem depender de achismo."
+      ],
+      "headlines": [
+        "Entenda seus comentarios",
+        "Menos achismo no social",
+        "Teste com um perfil"
+      ],
+      "creative_prompt": "Pastel vector ad creative for social media managers analyzing Instagram comments. Show comment bubbles flowing into a simple sentiment dashboard, no readable text, no logos, teal rose amber palette."
+    }
+  ]
+}

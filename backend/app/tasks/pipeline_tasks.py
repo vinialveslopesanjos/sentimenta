@@ -20,6 +20,8 @@ from app.models.follower_snapshot import FollowerSnapshot
 
 logger = logging.getLogger(__name__)
 
+DEMOGRAPHICS_MAX_PROFILES_PER_RUN = 1000
+
 
 def _mark_stale_running_runs(db, max_age_hours: int = 6) -> int:
     cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
@@ -373,9 +375,10 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
             demo_result = run_demographics_pipeline(
                 db, conn_uuid, enabled=True,
                 platform=connection.platform or "instagram",
+                max_usernames=DEMOGRAPHICS_MAX_PROFILES_PER_RUN,
             )
             if not demo_result.get("skipped"):
-                profiles_enriched = demo_result.get("profiles_enriched", 0)
+                profiles_enriched = demo_result.get("profiles_enriched", demo_result.get("enrichments_saved", 0))
                 _append_step(db, run, f"Demographics: {profiles_enriched} perfis enriquecidos")
                 # Consume credits for demographics (5 credits per profile — ADR-011)
                 if profiles_enriched > 0:
@@ -677,11 +680,12 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                             demo_result = run_demographics_pipeline(
                                 db, conn.id, enabled=True,
                                 platform=conn.platform or "instagram",
+                                max_usernames=DEMOGRAPHICS_MAX_PROFILES_PER_RUN,
                             )
                             if demo_result.get("skipped"):
                                 _append_step(db, run, "Demographics: desativado")
                             else:
-                                profiles_enriched = demo_result.get("profiles_enriched", 0)
+                                profiles_enriched = demo_result.get("profiles_enriched", demo_result.get("enrichments_saved", 0))
                                 _append_step(db, run, f"Demographics: {profiles_enriched} perfis enriquecidos")
                                 # Consume credits for demographics (5 credits per profile — ADR-011)
                                 if profiles_enriched > 0:

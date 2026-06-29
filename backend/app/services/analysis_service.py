@@ -56,12 +56,18 @@ def _analysis_exists_expression(
     db: Session,
     prompt_version: str,
 ):
+    """Return whether a comment already has a usable analysis.
+
+    Error rows are preserved for audit, but they must not make the pipeline
+    skip a comment forever. A user-visible analysis requires score_0_10.
+    """
     return (
         db.query(CommentAnalysis.id)
         .filter(
             CommentAnalysis.comment_id == Comment.id,
             CommentAnalysis.model == settings.LLM_MODEL,
             CommentAnalysis.prompt_version == prompt_version,
+            CommentAnalysis.score_0_10.isnot(None),
         )
         .exists()
     )
@@ -92,7 +98,7 @@ def analyze_post_comments(
 
     post = db.get(Post, post_id)
     if not post:
-        return {"analyzed": 0, "errors": 0, "llm_calls": 0}
+        return {"attempted": 0, "analyzed": 0, "errors": 0, "llm_calls": 0}
 
     connection = db.get(SocialConnection, post.connection_id)
     ignore_author = connection.ignore_author_comments if connection else False
@@ -109,7 +115,7 @@ def analyze_post_comments(
                 "User %s hit daily LLM limit ($%.2f/$%.2f)",
                 email, spent_today, daily_limit,
             )
-            return {"analyzed": 0, "errors": 0, "llm_calls": 0, "skipped_reason": "daily_limit"}
+            return {"attempted": 0, "analyzed": 0, "errors": 0, "llm_calls": 0, "skipped_reason": "daily_limit"}
 
     pending_query = (
         db.query(Comment)
@@ -129,11 +135,11 @@ def analyze_post_comments(
 
     if not pending:
         db.commit()
-        return {"analyzed": 0, "errors": 0, "llm_calls": 0}
+        return {"attempted": 0, "analyzed": 0, "errors": 0, "llm_calls": 0}
 
     llm = LLMClient()
 
-    stats = {"analyzed": 0, "errors": 0, "llm_calls": 0}
+    stats = {"attempted": 0, "analyzed": 0, "errors": 0, "llm_calls": 0}
 
     post_context = {}
     persona_text = None
@@ -226,7 +232,14 @@ def analyze_post_comments(
             ))
             stats["llm_calls"] += 1
 
+            seen_result_ids: set[str] = set()
             for result in results:
+                result_comment_id = result["comment_id"]
+                if result_comment_id in seen_result_ids:
+                    logger.warning("Ignoring duplicate LLM result for comment %s", result_comment_id)
+                    continue
+                seen_result_ids.add(result_comment_id)
+
                 comment_uuid = uuid.UUID(result["comment_id"])
                 confidence = result.get("confidence")
                 # A real analysis always has a score; error results have score=None
@@ -273,15 +286,18 @@ def analyze_post_comments(
                         (result.get("summary_pt") or "")[:200] if is_error else None
                     )
 
-                stats["analyzed"] += 1
+                stats["attempted"] += 1
                 if is_error:
                     stats["errors"] += 1
+                else:
+                    stats["analyzed"] += 1
 
         except Exception as exc:
             logger.error("Batch %d failed: %s", batch_num, exc)
             for comment in batch:
                 comment.status = "error"
                 comment.last_error = str(exc)[:200]
+            stats["attempted"] += len(batch)
             stats["errors"] += len(batch)
 
     db.commit()
@@ -305,6 +321,7 @@ def generate_post_summary(
             Comment.post_id == post_id,
             CommentAnalysis.model == settings.LLM_MODEL,
             CommentAnalysis.prompt_version == prompt_version,
+            CommentAnalysis.score_0_10.isnot(None),
         )
     )
     
@@ -383,7 +400,7 @@ def generate_post_summary(
         db.add(summary)
 
     summary.total_comments = total_comments
-    summary.total_analyzed = len(analyses)
+    summary.total_analyzed = len(scores)
     summary.avg_score = round(avg_score, 2) if avg_score is not None else None
     summary.avg_polarity = round(avg_polarity, 2) if avg_polarity is not None else None
     summary.avg_intensity = round(avg_intensity, 2) if avg_intensity is not None else None
