@@ -16,6 +16,7 @@ import {
   LogOut,
   Menu,
   X,
+  FileText,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Logo } from "./ds/Logo";
@@ -61,14 +62,19 @@ export default function SidebarNew() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [connections, setConnections] = useState<SubItem[]>([]);
   const [creditData, setCreditData] = useState<{ total: number; planAllocation: number; planCredits: number } | null>(null);
+  const [userPlan, setUserPlan] = useState("free");
   const router = useRouter();
   const pathname = usePathname();
 
   const navItems = navItemDefs.map(d => ({ ...d, label: tn(d.labelKey) }));
+  if (userPlan === "admin") {
+    navItems.push({ icon: FileText, labelKey: "account", path: "/dashboard/admin/blog", label: "Blog" });
+  }
 
   useEffect(() => {
     const token = getToken();
     if (!token) return;
+    authApi.me(token).then((user) => setUserPlan(user.plan || "free")).catch(() => {});
     connectionsApi.list(token).then((conns) => {
       const items: SubItem[] = conns.map((c) => ({
         label: `@${c.username}`,

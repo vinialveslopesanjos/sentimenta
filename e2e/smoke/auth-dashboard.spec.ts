@@ -43,14 +43,12 @@ test.describe("Auth and dashboard smoke", () => {
   });
 
   test("protected dashboard can render with seeded token", async ({ page, request }) => {
-    const token = await login(request);
+    await login(request);
     await page.goto("/login");
-    await page.evaluate((value) => {
-      localStorage.setItem("sentiment_access_token", value);
-    }, token);
-    await page.goto("/dashboard");
-    await page.waitForLoadState("networkidle");
-    expect(page.url()).toContain("/dashboard");
+    await page.locator("input[type='email']").first().fill(email);
+    await page.locator("input[type='password']").first().fill(password);
+    await page.getByRole("button", { name: /Sign in|Entrar/i }).click();
+    await page.waitForURL("**/dashboard");
     await expect(page.locator("body")).toContainText(/Sentimenta|Dashboard|Reput/i);
   });
 });

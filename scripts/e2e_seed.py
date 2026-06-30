@@ -24,10 +24,12 @@ from sqlalchemy.ext.compiler import compiles  # noqa: E402
 
 from app.core.security import hash_password  # noqa: E402
 from app.db.session import Base, SessionLocal, engine  # noqa: E402
-from app.models import Comment, CommentAnalysis, Post, PostAnalysisSummary, SocialConnection, User  # noqa: E402
+from app.models import BlogPost, Comment, CommentAnalysis, Post, PostAnalysisSummary, SocialConnection, User  # noqa: E402
 
 E2E_EMAIL = os.getenv("E2E_EMAIL", "e2e-seed@example.com")
 E2E_PASSWORD = os.getenv("E2E_PASSWORD", "SeedPassword123!")
+E2E_ADMIN_EMAIL = os.getenv("E2E_ADMIN_EMAIL", "e2e-admin@example.com")
+E2E_ADMIN_PASSWORD = os.getenv("E2E_ADMIN_PASSWORD", "AdminPassword123!")
 
 
 @compiles(JSONB, "sqlite")
@@ -58,6 +60,26 @@ def main() -> None:
             db.add(user)
             db.commit()
             db.refresh(user)
+
+        admin_user = db.query(User).filter(User.email == E2E_ADMIN_EMAIL).first()
+        if not admin_user:
+            admin_user = User(
+                id=uuid.uuid4(),
+                email=E2E_ADMIN_EMAIL,
+                password_hash=hash_password(E2E_ADMIN_PASSWORD),
+                name="E2E Admin User",
+                plan="admin",
+                email_verified=True,
+                onboarding_data={
+                    "profile_type": "agencia",
+                    "main_goal": "conteudo",
+                    "description": "Admin deterministico para validar editor de blog.",
+                    "completed_at": datetime.now(timezone.utc).isoformat(),
+                },
+            )
+            db.add(admin_user)
+            db.commit()
+            db.refresh(admin_user)
 
         conn = (
             db.query(SocialConnection)
@@ -173,6 +195,39 @@ def main() -> None:
         summary.emotions_distribution = {"joy": 1, "neutral": 1, "anger": 1}
         summary.topics_frequency = {"produto": 1, "contexto": 1, "qualidade": 1}
         summary.sentiment_distribution = {"positive": 1, "neutral": 1, "negative": 1}
+
+        blog_post = (
+            db.query(BlogPost)
+            .filter(BlogPost.slug == "como-saber-se-os-comentarios-do-instagram-estao-virando-risco")
+            .first()
+        )
+        if not blog_post:
+            db.add(
+                BlogPost(
+                    id=uuid.uuid4(),
+                    slug="como-saber-se-os-comentarios-do-instagram-estao-virando-risco",
+                    title="Como saber se os comentarios do Instagram estao virando risco",
+                    excerpt="Um guia direto para identificar sinais de crise antes de depender apenas de curtidas.",
+                    body_markdown="\n\n".join(
+                        [
+                            "Curtidas e alcance dizem se um post circulou. Comentarios dizem como ele foi recebido.",
+                            "O primeiro sinal costuma ser mudanca de tom, nao volume.",
+                            "O Sentimenta transforma comentarios em score, temas, emocoes e sinais de risco rastreaveis.",
+                        ]
+                    ),
+                    status="published",
+                    category="Gestao de Reputacao",
+                    persona="social-media",
+                    tags=["instagram", "crise", "reputacao"],
+                    cover_image_url="/blog/risco-comentarios-instagram.png",
+                    cover_image_alt="Capa editorial sobre comentarios e risco reputacional",
+                    cta_label="Fazer um diagnostico gratuito",
+                    cta_href="/diagnostico?utm_source=blog&utm_medium=organic&utm_campaign=e2e",
+                    read_time_minutes=5,
+                    author_name="Sentimenta",
+                    published_at=datetime.now(timezone.utc),
+                )
+            )
         db.commit()
     finally:
         db.close()

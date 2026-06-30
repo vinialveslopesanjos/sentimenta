@@ -9,6 +9,7 @@ from app.models.demographics import CommenterProfile, UserEnrichment, UsageLog
 from app.models.credits import CreditBalance, CreditTransaction
 from app.models.stripe_event import StripeEvent
 from app.models.diagnostic_lead import DiagnosticLead
+from app.models.blog_post import BlogPost
 
 __all__ = [
     "User",
@@ -26,4 +27,5 @@ __all__ = [
     "CreditTransaction",
     "StripeEvent",
     "DiagnosticLead",
+    "BlogPost",
 ]
