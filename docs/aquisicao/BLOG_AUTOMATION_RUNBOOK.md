@@ -4,6 +4,10 @@ Data: 2026-06-28
 
 Objetivo: manter um fluxo semanal de conteudo que alimente SEO, Instagram, Google Ads e Meta Ads sem depender de improviso.
 
+Para evoluir este fluxo para um agente diario com pesquisa de tendencias,
+geracao de imagem, QA e publicacao controlada, veja
+`docs/aquisicao/AUTONOMOUS_BLOG_SEO_AGENT.md`.
+
 ## Resposta direta: precisa de commit para postar?
 
 Nao para posts novos.
