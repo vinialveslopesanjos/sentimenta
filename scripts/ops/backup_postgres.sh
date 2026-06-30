@@ -3,6 +3,8 @@ set -euo pipefail
 
 BACKUP_DIR="${BACKUP_DIR:-/opt/sentimenta/backups}"
 RETENTION_DAYS="${RETENTION_DAYS:-14}"
+BACKUP_METHOD="${BACKUP_METHOD:-host}"
+COMPOSE_FILE="${COMPOSE_FILE:-compose.prod.yml}"
 POSTGRES_HOST="${POSTGRES_HOST:-localhost}"
 POSTGRES_PORT="${POSTGRES_PORT:-5432}"
 POSTGRES_DB="${POSTGRES_DB:-sentimenta_db}"
@@ -15,15 +17,21 @@ chmod 700 "$BACKUP_DIR"
 timestamp="$(date -u +%Y-%m-%d_%H%M%S)"
 outfile="$BACKUP_DIR/${POSTGRES_DB}_${timestamp}.sql.gz"
 
-pg_dump \
-  --host "$POSTGRES_HOST" \
-  --port "$POSTGRES_PORT" \
-  --username "$POSTGRES_USER" \
-  --dbname "$POSTGRES_DB" \
-  --format plain \
-  --no-owner \
-  --no-acl \
-  | gzip -9 > "$outfile"
+if [ "$BACKUP_METHOD" = "compose" ]; then
+  docker compose -f "$COMPOSE_FILE" exec -T postgres sh -lc \
+    'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" --format plain --no-owner --no-acl' \
+    | gzip -9 > "$outfile"
+else
+  pg_dump \
+    --host "$POSTGRES_HOST" \
+    --port "$POSTGRES_PORT" \
+    --username "$POSTGRES_USER" \
+    --dbname "$POSTGRES_DB" \
+    --format plain \
+    --no-owner \
+    --no-acl \
+    | gzip -9 > "$outfile"
+fi
 
 chmod 600 "$outfile"
 

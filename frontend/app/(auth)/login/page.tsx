@@ -7,7 +7,7 @@ import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { authApi } from "@/lib/api";
 import { getToken, setTokens } from "@/lib/auth";
-import { getAttribution, track } from "@/lib/tracking";
+import { getAttribution, track, trackCompletedSignup } from "@/lib/tracking";
 import { Logo } from "@/components/ds/Logo";
 import { Button } from "@/components/ds/Button";
 
@@ -84,7 +84,7 @@ function LoginPageInner() {
 
       setTokens(res.access_token, res.refresh_token);
       if (mode === "register") {
-        track("register_success", { attribution });
+        await trackCompletedSignup({ attribution });
         setSuccess(t("accountCreated"));
         router.replace("/verify-email");
       } else {

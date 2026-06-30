@@ -28,6 +28,11 @@ export type TrackEvent =
   | "credits_depleted"
   | "plan_upgraded";
 
+type GoogleWindow = Window & {
+  dataLayer?: unknown[];
+  gtag?: (...args: unknown[]) => void;
+};
+
 // ---------------------------------------------------------------------------
 // Consent helpers
 // ---------------------------------------------------------------------------
@@ -106,6 +111,41 @@ type ClarityWindow = Window & {
   clarity?: (...args: unknown[]) => void;
 };
 
+function googleTagId() {
+  return process.env.NEXT_PUBLIC_GOOGLE_TAG_ID || "";
+}
+
+function signupConversionLabel() {
+  return process.env.NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_CONVERSION_LABEL || "";
+}
+
+function signupConversionSendTo() {
+  const tagId = googleTagId();
+  const label = signupConversionLabel();
+  if (!tagId || !label) return "";
+  return `${tagId}/${label}`;
+}
+
+function ensureGoogleTag() {
+  const tagId = googleTagId();
+  if (!tagId || document.getElementById("google-tag-script")) return;
+
+  const googleWindow = window as GoogleWindow;
+  googleWindow.dataLayer = googleWindow.dataLayer || [];
+  googleWindow.gtag = googleWindow.gtag || function gtagShim(...args: unknown[]) {
+    googleWindow.dataLayer?.push(args);
+  };
+
+  googleWindow.gtag("js", new Date());
+  googleWindow.gtag("config", tagId);
+
+  const script = document.createElement("script");
+  script.id = "google-tag-script";
+  script.async = true;
+  script.src = `https://www.googletagmanager.com/gtag/js?id=${encodeURIComponent(tagId)}`;
+  document.head.appendChild(script);
+}
+
 export function initAnalytics() {
   if (typeof window === "undefined") return;
   if (!hasConsent()) return;
@@ -119,6 +159,8 @@ export function initAnalytics() {
     script.innerHTML = `(function(c,l,a,r,i,t,y){c[a]=c[a]||function(){(c[a].q=c[a].q||[]).push(arguments)};t=l.createElement(r);t.async=1;t.src="https://www.clarity.ms/tag/"+i;y=l.getElementsByTagName(r)[0];y.parentNode.insertBefore(t,y);})(window,document,"clarity","script","${clarityId}");`;
     document.head.appendChild(script);
   }
+
+  ensureGoogleTag();
 
   initialized = true;
   const attribution = captureAttribution();
@@ -136,6 +178,35 @@ export function track(event: TrackEvent, properties?: Record<string, unknown>) {
   if (typeof clarity === "function") {
     clarity("event", event, properties || {});
   }
+}
+
+export function trackGoogleAdsSignupConversion(properties?: Record<string, unknown>): Promise<void> {
+  if (!hasConsent() || !initialized || typeof window === "undefined") return Promise.resolve();
+
+  ensureGoogleTag();
+
+  const sendTo = signupConversionSendTo();
+  const gtag = (window as GoogleWindow).gtag;
+  if (!sendTo || typeof gtag !== "function") return Promise.resolve();
+
+  return new Promise((resolve) => {
+    const timeout = window.setTimeout(resolve, 500);
+    gtag("event", "conversion", {
+      send_to: sendTo,
+      event_category: "signup",
+      event_label: "completed_registration",
+      ...properties,
+      event_callback: () => {
+        window.clearTimeout(timeout);
+        resolve();
+      },
+    });
+  });
+}
+
+export async function trackCompletedSignup(properties?: Record<string, unknown>) {
+  track("register_success", properties);
+  await trackGoogleAdsSignupConversion();
 }
 
 // ---------------------------------------------------------------------------

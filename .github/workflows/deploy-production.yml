@@ -1,0 +1,63 @@
+name: Deploy production
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to VPS
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure SSH
+        env:
+          VPS_SSH_PRIVATE_KEY: ${{ secrets.VPS_SSH_PRIVATE_KEY }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+        run: |
+          test -n "$VPS_SSH_PRIVATE_KEY"
+          test -n "$VPS_HOST"
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$VPS_SSH_PRIVATE_KEY" > ~/.ssh/sentimenta_vps
+          chmod 600 ~/.ssh/sentimenta_vps
+          ssh-keyscan -p "${VPS_PORT:-2222}" "$VPS_HOST" >> ~/.ssh/known_hosts
+
+      - name: Deploy on VPS
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_PORT: ${{ secrets.VPS_PORT }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          PROD_APP_DIR: ${{ secrets.PROD_APP_DIR }}
+        run: |
+          remote_app_dir="${PROD_APP_DIR:-/opt/sentimenta-main-deploy}"
+          ssh -i ~/.ssh/sentimenta_vps -p "${VPS_PORT:-2222}" "${VPS_USER:-root}@${VPS_HOST}" "PROD_APP_DIR='$remote_app_dir' bash -s" <<'EOF'
+          set -euo pipefail
+
+          APP_DIR="${PROD_APP_DIR:-/opt/sentimenta-main-deploy}"
+          cd "$APP_DIR"
+
+          git fetch origin main
+          git clean -fd -e .env -e backups/ -e output/
+          git checkout -B production-main origin/main
+          git reset --hard origin/main
+          git clean -fd -e .env -e backups/ -e output/
+
+          tag="$(git rev-parse --short HEAD)"
+          APP_DIR="$APP_DIR" SENTIMENTA_IMAGE_TAG="$tag" bash scripts/ops/deploy_compose.sh
+          EOF
+
+      - name: Validate public endpoints
+        env:
+          SITE_URL: ${{ vars.SITE_URL }}
+        run: |
+          site_url="${SITE_URL:-https://sentimenta.com.br}"
+          curl -fsS "$site_url/blog" >/dev/null
+          curl -fsS "$site_url/api/v1/blog/settings" >/dev/null

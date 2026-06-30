@@ -97,6 +97,11 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile.prod
+      args:
+        API_URL: http://api:8000
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.sentimenta.com.br/api/v1}
+        NEXT_PUBLIC_GOOGLE_TAG_ID: ${NEXT_PUBLIC_GOOGLE_TAG_ID:-}
+        NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_CONVERSION_LABEL: ${NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_CONVERSION_LABEL:-}
     image: sentimenta-web:${SENTIMENTA_IMAGE_TAG:-local}
     restart: unless-stopped
     env_file:
@@ -104,6 +109,8 @@ services:
     environment:
       API_URL: http://api:8000
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-https://api.sentimenta.com.br/api/v1}
+      NEXT_PUBLIC_GOOGLE_TAG_ID: ${NEXT_PUBLIC_GOOGLE_TAG_ID:-}
+      NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_CONVERSION_LABEL: ${NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_CONVERSION_LABEL:-}
       NODE_ENV: production
     ports:
       - "127.0.0.1:${WEB_PORT:-3000}:3000"

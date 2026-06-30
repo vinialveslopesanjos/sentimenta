@@ -18,6 +18,10 @@ need, or operational ownership for cluster upgrades and backups.
 
 ## Deployment
 
+Default path: use GitHub Actions. See
+[`DEPLOY_E_CONVERSOES_SIMPLES.md`](DEPLOY_E_CONVERSOES_SIMPLES.md) for the
+simple operator guide.
+
 1. Confirm the branch is clean and reviewed:
 
    ```bash
@@ -29,7 +33,7 @@ need, or operational ownership for cluster upgrades and backups.
 3. Run:
 
    ```bash
-   APP_DIR=/opt/sentimenta bash /opt/sentimenta/scripts/ops/deploy_compose.sh
+   APP_DIR=/opt/sentimenta-main-deploy bash /opt/sentimenta-main-deploy/scripts/ops/deploy_compose.sh
    ```
 
 4. Check:
