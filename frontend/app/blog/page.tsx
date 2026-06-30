@@ -1,9 +1,9 @@
 import { BlogIndexClient } from "@/components/blog/BlogIndexClient";
-import { fetchPublishedBlogPosts } from "@/lib/blog";
+import { fetchBlogSettings, fetchPublishedBlogPosts } from "@/lib/blog";
 
 export const dynamic = "force-dynamic";
 
 export default async function BlogPage() {
-  const posts = await fetchPublishedBlogPosts();
-  return <BlogIndexClient posts={posts} />;
+  const [posts, settings] = await Promise.all([fetchPublishedBlogPosts(), fetchBlogSettings()]);
+  return <BlogIndexClient posts={posts} settings={settings} />;
 }

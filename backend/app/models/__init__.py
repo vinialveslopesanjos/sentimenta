@@ -10,6 +10,7 @@ from app.models.credits import CreditBalance, CreditTransaction
 from app.models.stripe_event import StripeEvent
 from app.models.diagnostic_lead import DiagnosticLead
 from app.models.blog_post import BlogPost
+from app.models.blog_settings import BlogSettings
 
 __all__ = [
     "User",
@@ -28,4 +29,5 @@ __all__ = [
     "StripeEvent",
     "DiagnosticLead",
     "BlogPost",
+    "BlogSettings",
 ]

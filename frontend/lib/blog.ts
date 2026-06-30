@@ -1,4 +1,4 @@
-export type BlogCategory = "Analise de Sentimento" | "Gestao de Reputacao" | "Aquisicao e Ads";
+export type BlogCategory = string;
 export type BlogPersona = "agencias" | "social-media" | "criadores" | "fundadores";
 export type BlogStatus = "draft" | "published";
 
@@ -27,6 +27,30 @@ export type BlogPost = {
   updatedAt: string;
 };
 
+export type BlogSettings = {
+  navPricingLabel: string;
+  navCtaLabel: string;
+  navCtaHref: string;
+  heroEyebrow: string;
+  heroTitle: string;
+  heroDescription: string;
+  searchPlaceholder: string;
+  heroCtaLabel: string;
+  heroCtaHref: string;
+  sidebarTitle: string;
+  sidebarDescription: string;
+  sidebarCtaLabel: string;
+  sidebarCtaHref: string;
+  allCategoryLabel: string;
+  categories: string[];
+  emptyStateText: string;
+  articleNavCtaLabel: string;
+  articleNavCtaHref: string;
+  articleCtaTitle: string;
+  articleCtaDescription: string;
+  updatedAt?: string | null;
+};
+
 type ApiBlogPost = {
   id: string;
   slug: string;
@@ -49,35 +73,79 @@ type ApiBlogPost = {
   updated_at: string;
 };
 
-export const blogCategories = [
-  "Todos",
-  "Analise de Sentimento",
-  "Gestao de Reputacao",
-  "Aquisicao e Ads",
-] as const;
+export type ApiBlogSettings = {
+  nav_pricing_label: string;
+  nav_cta_label: string;
+  nav_cta_href: string;
+  hero_eyebrow: string;
+  hero_title: string;
+  hero_description: string;
+  search_placeholder: string;
+  hero_cta_label: string;
+  hero_cta_href: string;
+  sidebar_title: string;
+  sidebar_description: string;
+  sidebar_cta_label: string;
+  sidebar_cta_href: string;
+  all_category_label: string;
+  categories: string[];
+  empty_state_text: string;
+  article_nav_cta_label: string;
+  article_nav_cta_href: string;
+  article_cta_title: string;
+  article_cta_description: string;
+  updated_at?: string | null;
+};
+
+export const fallbackBlogSettings: BlogSettings = {
+  navPricingLabel: "Preços",
+  navCtaLabel: "Comece grátis",
+  navCtaHref: "/login?utm_source=blog&utm_medium=nav&utm_campaign=start-free",
+  heroEyebrow: "Conteúdo para transformar comentários em decisão",
+  heroTitle: "Reputação digital sem ler comentário por comentário",
+  heroDescription:
+    "Guias curtos para social medias, agências e fundadores entenderem sentimento, temas e sinais de crise antes que a conversa vire ruído.",
+  searchPlaceholder: "Buscar por dor, canal ou assunto",
+  heroCtaLabel: "Diagnóstico gratuito",
+  heroCtaHref: "/diagnostico?utm_source=blog&utm_medium=hero&utm_campaign=diagnostico",
+  sidebarTitle: "Veja isso com comentários reais",
+  sidebarDescription:
+    "Conecte um perfil público e veja sentimento, emoções, temas e sinais de crise em poucos minutos.",
+  sidebarCtaLabel: "Testar com um perfil",
+  sidebarCtaHref: "/diagnostico?utm_source=blog&utm_medium=sidebar&utm_campaign=diagnostico",
+  allCategoryLabel: "Todos",
+  categories: ["Análise de Sentimento", "Gestão de Reputação"],
+  emptyStateText: "Nenhum artigo encontrado para essa busca.",
+  articleNavCtaLabel: "Comece grátis",
+  articleNavCtaHref: "/login?utm_source=blog&utm_medium=article_nav&utm_campaign=start-free",
+  articleCtaTitle: "Quer ver isso com comentários reais?",
+  articleCtaDescription:
+    "O caminho mais rápido é analisar um perfil ou post público e transformar comentários em score, temas, emoções e riscos claros.",
+  updatedAt: null,
+};
 
 export const fallbackBlogPosts: BlogPost[] = [
   {
     slug: "como-saber-se-os-comentarios-do-instagram-estao-virando-risco",
-    title: "Como saber se os comentarios do Instagram estao virando risco",
+    title: "Como saber se os comentários do Instagram estão virando risco",
     excerpt:
-      "Um guia direto para social medias e agencias identificarem sinais de crise antes de depender apenas de curtidas, alcance ou intuicao.",
+      "Um guia direto para social medias e agências identificarem sinais de crise antes de depender apenas de curtidas, alcance ou intuição.",
     bodyMarkdown: [
-      "Curtidas e alcance dizem se um post circulou. Comentarios dizem como ele foi recebido. O problema e que a maioria das equipes so percebe uma crise quando os comentarios negativos ja viraram print, DM ou reuniao urgente.",
-      "O primeiro sinal costuma ser mudanca de tom, nao volume. Um post pode ter poucas respostas e mesmo assim carregar irritacao, ironia ou duvida publica. Por isso, olhar apenas quantidade de comentarios e insuficiente.",
-      "Na pratica, vale acompanhar tres coisas: queda no score medio de sentimento, crescimento de emocoes como raiva ou medo, e repeticao de temas de critica. Quando os tres aparecem juntos, o post merece resposta rapida.",
-      "Para agencias, esse tipo de leitura vira uma entrega clara para o cliente: nao e so dizer que o post performou, mas explicar se a audiencia ficou mais confiante, confusa, irritada ou engajada.",
-      "O Sentimenta foi pensado para esse trabalho: conectar um perfil, coletar comentarios, analisar sentimento e mostrar onde esta o risco sem a equipe precisar ler centenas de mensagens manualmente.",
+      "Curtidas e alcance mostram se um post circulou. **Os comentários mostram como ele foi recebido.** É ali que aparecem dúvidas, ironias, críticas recorrentes e sinais de desgaste.",
+      "O primeiro sinal de risco costuma ser **mudança de tom**, não volume. Um post pode ter poucos comentários e ainda assim carregar irritação, desconfiança ou medo.",
+      "Na prática, vale acompanhar três sinais: **queda no score médio de sentimento**, crescimento de emoções como raiva ou medo e repetição de temas de crítica.",
+      "Para agências e social medias, essa leitura vira uma entrega clara: explicar **se a audiência ficou mais confiante, confusa, irritada ou engajada**.",
+      "O Sentimenta foi pensado para mostrar onde está o risco **sem a equipe precisar ler centenas de mensagens manualmente**.",
     ].join("\n\n"),
     status: "published",
-    category: "Gestao de Reputacao",
+    category: "Gestão de Reputação",
     persona: "social-media",
     coverImageUrl: "/blog/risco-comentarios-instagram.png",
     coverImageAlt:
-      "Ilustracao editorial de um painel de comentarios com sinais de alerta e sentimento",
-    tags: ["instagram", "crise", "reputacao", "comentarios"],
+      "Ilustração editorial de um painel de comentários com sinais de alerta e sentimento",
+    tags: ["instagram", "crise", "reputação", "comentários"],
     cta: {
-      label: "Fazer um diagnostico gratuito",
+      label: "Fazer um diagnóstico gratuito",
       href: "/diagnostico?utm_source=blog&utm_medium=organic&utm_campaign=risk-comments",
     },
     readTimeMinutes: 5,
@@ -88,23 +156,23 @@ export const fallbackBlogPosts: BlogPost[] = [
   },
   {
     slug: "relatorio-para-cliente-alem-de-curtidas-e-alcance",
-    title: "Relatorio para cliente alem de curtidas e alcance",
+    title: "Relatório para cliente além de curtidas e alcance",
     excerpt:
-      "Como transformar comentarios em uma camada nova de relatorio para social media, atendimento e reputacao.",
+      "Como transformar comentários em uma camada nova de relatório para social media, atendimento e reputação.",
     bodyMarkdown: [
-      "Muitos relatorios de social media param em alcance, impressoes, curtidas e seguidores. Esses numeros sao uteis, mas nao respondem uma pergunta que clientes fazem cada vez mais: as pessoas gostaram mesmo?",
-      "Comentarios permitem mostrar percepcao. Uma campanha pode ter alto alcance e ainda gerar desconfianca. Outra pode ter menos volume, mas revelar desejo de compra, elogios especificos e temas que merecem virar conteudo.",
-      "Um bom relatorio de sentimento deve trazer poucos blocos: score geral, principais emocoes, temas positivos, temas negativos, comentarios que merecem resposta e recomendacao de proxima acao.",
-      "A entrega fica mais forte quando a agencia mostra exemplos rastreaveis. O cliente precisa conseguir clicar ou reconhecer de onde saiu cada insight. Isso evita o risco de parecer texto inventado por IA.",
-      "A oportunidade comercial para agencias e simples: vender inteligencia de audiencia como uma camada premium de relatorio, sem transformar a equipe em analista manual de comentarios.",
+      "Muitos relatórios de social media param em alcance, impressões, curtidas e seguidores. Esses números são úteis, mas não respondem à pergunta: **as pessoas gostaram mesmo?**",
+      "Comentários mostram percepção. Uma campanha pode ter alto alcance e ainda gerar desconfiança; outra pode revelar desejo de compra e temas que merecem virar conteúdo.",
+      "Um bom relatório de sentimento deve trazer **score geral, principais emoções, temas positivos, temas negativos e comentários que merecem resposta**.",
+      "A entrega fica mais forte quando a agência mostra exemplos rastreáveis. Isso evita o risco de parecer texto inventado por IA.",
+      "A oportunidade comercial é vender **inteligência de audiência** como uma camada premium de relatório.",
     ].join("\n\n"),
     status: "published",
-    category: "Analise de Sentimento",
+    category: "Análise de Sentimento",
     persona: "agencias",
     coverImageUrl: "/blog/relatorio-cliente-sentimento.png",
     coverImageAlt:
-      "Ilustracao editorial de relatorio de social media com comentarios classificados por sentimento",
-    tags: ["agencias", "relatorios", "social-media", "clientes"],
+      "Ilustração editorial de relatório de social media com comentários classificados por sentimento",
+    tags: ["agências", "relatórios", "social-media", "clientes"],
     cta: {
       label: "Ver como ficaria para um cliente",
       href: "/diagnostico?utm_source=blog&utm_medium=organic&utm_campaign=agency-report",
@@ -113,35 +181,6 @@ export const fallbackBlogPosts: BlogPost[] = [
     authorName: "Sentimenta",
     publishedAt: "2026-06-21T00:00:00Z",
     createdAt: "2026-06-21T00:00:00Z",
-    updatedAt: "2026-06-28T00:00:00Z",
-  },
-  {
-    slug: "google-ads-meta-ads-e-conteudo-para-um-saas-pequeno",
-    title: "Google Ads, Meta Ads e conteudo para um SaaS pequeno",
-    excerpt:
-      "Um plano enxuto para validar demanda antes de gastar pesado com trafego pago.",
-    bodyMarkdown: [
-      "Para um SaaS pequeno, o erro comum e comecar pelo Ads Manager antes de clarear oferta, publico e evento de conversao. Trafego pago acelera aprendizado, mas tambem acelera desperdicio quando a pagina nao convence.",
-      "A ordem mais segura e: criar uma oferta especifica, publicar uma pagina que explica essa oferta, medir cliques e cadastros, e so depois ligar campanhas com orcamento pequeno.",
-      "Google Ads funciona melhor para demanda existente: pessoas procurando analise de sentimento, monitoramento de reputacao ou relatorio de comentarios. Meta Ads funciona melhor para provocar a dor com criativos visuais.",
-      "Conteudo semanal ajuda porque cria paginas que podem rankear, abastece anuncios com argumentos reais e reduz dependencia de uma unica landing page. Mas o conteudo precisa ser util, nao enchimento para SEO.",
-      "O fluxo ideal combina os tres: blog para educar, Google para capturar intencao e Meta para testar criativos e dores. Tudo com UTM e eventos de conversao desde o primeiro dia.",
-    ].join("\n\n"),
-    status: "published",
-    category: "Aquisicao e Ads",
-    persona: "fundadores",
-    coverImageUrl: "/blog/aquisicao-google-meta-saas.png",
-    coverImageAlt:
-      "Ilustracao editorial de funil de aquisicao com blog, anuncios e landing page",
-    tags: ["google-ads", "meta-ads", "saas", "aquisicao"],
-    cta: {
-      label: "Comecar pelo diagnostico",
-      href: "/diagnostico?utm_source=blog&utm_medium=organic&utm_campaign=ads-saas",
-    },
-    readTimeMinutes: 7,
-    authorName: "Sentimenta",
-    publishedAt: "2026-06-14T00:00:00Z",
-    createdAt: "2026-06-14T00:00:00Z",
     updatedAt: "2026-06-28T00:00:00Z",
   },
 ];
@@ -175,6 +214,48 @@ export function normalizeBlogPost(post: ApiBlogPost): BlogPost {
     createdAt: post.created_at,
     updatedAt: post.updated_at,
   };
+}
+
+export function normalizeBlogSettings(settings: ApiBlogSettings): BlogSettings {
+  return {
+    navPricingLabel: settings.nav_pricing_label,
+    navCtaLabel: settings.nav_cta_label,
+    navCtaHref: settings.nav_cta_href,
+    heroEyebrow: settings.hero_eyebrow,
+    heroTitle: settings.hero_title,
+    heroDescription: settings.hero_description,
+    searchPlaceholder: settings.search_placeholder,
+    heroCtaLabel: settings.hero_cta_label,
+    heroCtaHref: settings.hero_cta_href,
+    sidebarTitle: settings.sidebar_title,
+    sidebarDescription: settings.sidebar_description,
+    sidebarCtaLabel: settings.sidebar_cta_label,
+    sidebarCtaHref: settings.sidebar_cta_href,
+    allCategoryLabel: settings.all_category_label,
+    categories: settings.categories?.filter(Boolean) || fallbackBlogSettings.categories,
+    emptyStateText: settings.empty_state_text,
+    articleNavCtaLabel: settings.article_nav_cta_label,
+    articleNavCtaHref: settings.article_nav_cta_href,
+    articleCtaTitle: settings.article_cta_title,
+    articleCtaDescription: settings.article_cta_description,
+    updatedAt: settings.updated_at,
+  };
+}
+
+export function getBlogCategories(settings: BlogSettings = fallbackBlogSettings) {
+  return [settings.allCategoryLabel, ...settings.categories].filter(
+    (category, index, categories) => category && categories.indexOf(category) === index,
+  );
+}
+
+export async function fetchBlogSettings(): Promise<BlogSettings> {
+  try {
+    const response = await fetch(`${apiBase()}/api/v1/blog/settings`, { cache: "no-store" });
+    if (!response.ok) return fallbackBlogSettings;
+    return normalizeBlogSettings((await response.json()) as ApiBlogSettings);
+  } catch {
+    return fallbackBlogSettings;
+  }
 }
 
 export async function fetchPublishedBlogPosts(): Promise<BlogPost[]> {

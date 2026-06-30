@@ -6,7 +6,7 @@ import { Calendar, ChevronLeft, Clock } from "lucide-react";
 import { BlogCover } from "@/components/blog/BlogCover";
 import { Button } from "@/components/ds/Button";
 import { Logo } from "@/components/ds/Logo";
-import { fetchPublishedBlogPost, formatBlogDate } from "@/lib/blog";
+import { fetchBlogSettings, fetchPublishedBlogPost, formatBlogDate } from "@/lib/blog";
 
 type BlogPostPageProps = {
   params: Promise<{ slug: string }>;
@@ -39,7 +39,7 @@ export async function generateMetadata({ params }: BlogPostPageProps): Promise<M
 
 export default async function BlogPostPage({ params }: BlogPostPageProps) {
   const { slug } = await params;
-  const post = await fetchPublishedBlogPost(slug);
+  const [post, settings] = await Promise.all([fetchPublishedBlogPost(slug), fetchBlogSettings()]);
   if (!post) notFound();
 
   const jsonLd = {
@@ -78,8 +78,8 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
             <Link href="/blog" className="hidden text-sm md:inline" style={{ color: "var(--text-muted)" }}>
               Blog
             </Link>
-            <Link href="/login?utm_source=blog&utm_medium=article_nav&utm_campaign=start-free">
-              <Button size="sm">Comece gratis</Button>
+            <Link href={settings.articleNavCtaHref}>
+              <Button size="sm">{settings.articleNavCtaLabel}</Button>
             </Link>
           </div>
         </div>
@@ -113,14 +113,11 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
         </div>
 
         <h1
-          className="max-w-[820px]"
+          className="max-w-[820px] text-4xl font-extrabold leading-[1.05] md:text-6xl"
           style={{
             color: "var(--text-primary)",
             fontFamily: "'Outfit', sans-serif",
-            fontSize: "clamp(2.1rem, 5vw, 3.7rem)",
-            fontWeight: 800,
             letterSpacing: "0",
-            lineHeight: 1.04,
           }}
         >
           {post.title}
@@ -157,11 +154,10 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
           style={{ borderColor: "var(--border)", backgroundColor: "var(--bg-subtle)" }}
         >
           <h2 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
-            Quer ver isso com comentarios reais?
+            {settings.articleCtaTitle}
           </h2>
           <p className="mt-2 leading-7" style={{ color: "var(--text-muted)" }}>
-            O caminho mais rapido e analisar um perfil ou post publico e transformar comentarios
-            em score, temas, emocoes e riscos claros.
+            {settings.articleCtaDescription}
           </p>
           <Link href={post.cta.href} className="mt-5 inline-flex">
             <Button>{post.cta.label}</Button>
