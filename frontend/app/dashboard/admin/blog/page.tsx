@@ -165,6 +165,17 @@ export default function AdminBlogPage() {
     [posts, selectedId],
   );
   const blogCategoryOptions = useMemo(() => parseCategories(settingsForm.categories_text), [settingsForm.categories_text]);
+  const bodyLength = form.body_markdown.trim().length;
+  const canPublish =
+    form.slug.trim().length >= 3 &&
+    form.title.trim().length >= 3 &&
+    form.excerpt.trim().length >= 20 &&
+    bodyLength >= 80 &&
+    form.category.trim().length >= 2 &&
+    form.cover_image_url.trim().length >= 1 &&
+    form.cover_image_alt.trim().length >= 5 &&
+    form.cta_label.trim().length >= 2 &&
+    form.cta_href.trim().length >= 1;
 
   useEffect(() => {
     const currentToken = getToken();
@@ -174,11 +185,10 @@ export default function AdminBlogPage() {
     }
 
     setToken(currentToken);
-    Promise.all([authApi.me(currentToken), blogAdminApi.list(currentToken), blogAdminApi.getSettings(currentToken)])
-      .then(([user, loadedPosts, loadedSettings]) => {
+    Promise.all([authApi.me(currentToken), blogAdminApi.list(currentToken)])
+      .then(([user, loadedPosts]) => {
         setIsAdmin(user.plan === "admin");
         setPosts(loadedPosts);
-        setSettingsForm(settingsToForm(loadedSettings));
         const first = loadedPosts[0];
         if (first) {
           setSelectedId(first.id || null);
@@ -224,20 +234,26 @@ export default function AdminBlogPage() {
     });
   };
 
+  const savePost = async () => {
+    if (!token) return;
+    const payload = { ...form, tags: parseTags(tagsText) };
+    const saved = selectedId
+      ? await blogAdminApi.update(token, selectedId, payload)
+      : await blogAdminApi.create(token, payload);
+    upsertPostInList(saved);
+    setSelectedId(saved.id || null);
+    setForm(postToForm(saved));
+    setTagsText(saved.tags.join(", "));
+    return saved;
+  };
+
   const save = async () => {
     if (!token) return;
     setSaving(true);
     setMessage(null);
     setError(null);
-    const payload = { ...form, tags: parseTags(tagsText) };
     try {
-      const saved = selectedId
-        ? await blogAdminApi.update(token, selectedId, payload)
-        : await blogAdminApi.create(token, payload);
-      upsertPostInList(saved);
-      setSelectedId(saved.id || null);
-      setForm(postToForm(saved));
-      setTagsText(saved.tags.join(", "));
+      await savePost();
       setMessage("Rascunho salvo.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível salvar.");
@@ -263,14 +279,19 @@ export default function AdminBlogPage() {
   };
 
   const publish = async () => {
-    if (!token || !selectedId) return;
+    if (!token) return;
     setSaving(true);
+    setMessage(null);
     setError(null);
     try {
-      const published = await blogAdminApi.publish(token, selectedId);
+      const saved = await savePost();
+      if (!saved?.id) throw new Error("Salve o rascunho antes de publicar.");
+      const published = await blogAdminApi.publish(token, saved.id);
       upsertPostInList(published);
+      setSelectedId(published.id || null);
       setForm(postToForm(published));
-      setMessage("Post publicado. Ele já pode aparecer no blog público.");
+      setTagsText(published.tags.join(", "));
+      setMessage("Post salvo e publicado. Ele já pode aparecer no blog público.");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Não foi possível publicar.");
     } finally {
@@ -327,8 +348,8 @@ export default function AdminBlogPage() {
             Editor do blog
           </h1>
           <p className="mt-2 max-w-[760px]" style={{ color: "var(--text-muted)" }}>
-            Ajuste textos da página, crie rascunhos e publique artigos sem commit. O blog público
-            lê essas configurações direto da API.
+            Crie rascunhos, revise o conteúdo e publique artigos sem commit. Esta tela é só para
+            gerenciar matérias do blog.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -353,7 +374,7 @@ export default function AdminBlogPage() {
         </div>
       )}
 
-      <section className="rounded-lg border p-5" style={{ borderColor: "var(--border)", backgroundColor: "var(--bg-card)" }}>
+      <section className="hidden rounded-lg border p-5" style={{ borderColor: "var(--border)", backgroundColor: "var(--bg-card)" }}>
         <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-start gap-3">
             <Settings2 className="mt-1 h-5 w-5" style={{ color: "var(--primary)" }} />
@@ -804,16 +825,19 @@ export default function AdminBlogPage() {
                   className="resize-y rounded-lg border bg-transparent px-3 py-2.5 text-sm leading-6 outline-none"
                   style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
                 />
+                <span className="text-xs" style={{ color: bodyLength < 80 ? "var(--sentiment-negative)" : "var(--text-muted)" }}>
+                  {bodyLength}/80 caracteres mínimos para salvar e publicar.
+                </span>
               </label>
 
               <div className="flex flex-wrap gap-2">
                 <Button onClick={save} disabled={saving} icon={saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}>
                   Salvar
                 </Button>
-                <Button variant="secondary" onClick={publish} disabled={saving || !selectedId} icon={<Globe2 className="h-4 w-4" />}>
-                  Publicar
+                <Button variant="secondary" onClick={publish} disabled={saving || !canPublish || selectedPost?.status === "published"} icon={<Globe2 className="h-4 w-4" />}>
+                  {selectedId ? "Salvar e publicar" : "Criar e publicar"}
                 </Button>
-                <Button variant="outline" onClick={unpublish} disabled={saving || !selectedId}>
+                <Button variant="outline" onClick={unpublish} disabled={saving || !selectedId || selectedPost?.status !== "published"}>
                   Voltar para rascunho
                 </Button>
                 {selectedPost?.status === "published" && (
