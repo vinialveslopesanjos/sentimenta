@@ -31,7 +31,23 @@ docker compose -f "$COMPOSE_FILE" run --rm api alembic upgrade head
 docker compose -f "$COMPOSE_FILE" up -d --remove-orphans
 docker compose -f "$COMPOSE_FILE" ps
 
-curl -fsS http://127.0.0.1:${API_PORT:-8000}/health >/dev/null
-curl -fsS http://127.0.0.1:${WEB_PORT:-3000}/blog >/dev/null
+wait_for_url() {
+  local name="$1"
+  local url="$2"
+  local attempts="${3:-30}"
+
+  for _ in $(seq 1 "$attempts"); do
+    if curl -fsS "$url" >/dev/null; then
+      return 0
+    fi
+    sleep 2
+  done
+
+  echo "$name did not become ready: $url"
+  return 1
+}
+
+wait_for_url "API" "http://127.0.0.1:${API_PORT:-8000}/health"
+wait_for_url "Web" "http://127.0.0.1:${WEB_PORT:-3000}/blog"
 
 echo "Deploy complete for tag $SENTIMENTA_IMAGE_TAG"
