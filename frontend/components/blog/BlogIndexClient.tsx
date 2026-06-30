@@ -6,21 +6,23 @@ import { Calendar, ChevronRight, Clock, Search, Sparkles, Tags } from "lucide-re
 import { Button } from "@/components/ds/Button";
 import { Logo } from "@/components/ds/Logo";
 import { BlogCover } from "@/components/blog/BlogCover";
-import { blogCategories, formatBlogDate, getFeaturedPost, type BlogPost } from "@/lib/blog";
+import { formatBlogDate, getBlogCategories, getFeaturedPost, type BlogPost, type BlogSettings } from "@/lib/blog";
 
 type BlogIndexClientProps = {
   posts: BlogPost[];
+  settings: BlogSettings;
 };
 
-export function BlogIndexClient({ posts }: BlogIndexClientProps) {
+export function BlogIndexClient({ posts, settings }: BlogIndexClientProps) {
   const [search, setSearch] = useState("");
-  const [category, setCategory] = useState<(typeof blogCategories)[number]>("Todos");
+  const [category, setCategory] = useState(settings.allCategoryLabel);
   const featuredPost = getFeaturedPost(posts);
+  const blogCategories = useMemo(() => getBlogCategories(settings), [settings]);
 
   const filteredPosts = useMemo(() => {
     const term = search.trim().toLowerCase();
     return posts.filter((post) => {
-      const matchesCategory = category === "Todos" || post.category === category;
+      const matchesCategory = category === settings.allCategoryLabel || post.category === category;
       const matchesSearch =
         !term ||
         post.title.toLowerCase().includes(term) ||
@@ -28,7 +30,7 @@ export function BlogIndexClient({ posts }: BlogIndexClientProps) {
         post.tags.some((tag) => tag.toLowerCase().includes(term));
       return matchesCategory && matchesSearch;
     });
-  }, [category, posts, search]);
+  }, [category, posts, search, settings.allCategoryLabel]);
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: "var(--bg-page)", fontFamily: "'Inter', sans-serif" }}>
@@ -49,15 +51,15 @@ export function BlogIndexClient({ posts }: BlogIndexClientProps) {
                 Como funciona
               </Link>
               <Link href="/#preco" className="text-sm" style={{ color: "var(--text-muted)" }}>
-                Precos
+                {settings.navPricingLabel}
               </Link>
               <span className="text-sm font-semibold" style={{ color: "var(--primary)" }}>
                 Blog
               </span>
             </div>
           </div>
-          <Link href="/login?utm_source=blog&utm_medium=nav&utm_campaign=start-free">
-            <Button size="sm">Comece gratis</Button>
+          <Link href={settings.navCtaHref}>
+            <Button size="sm">{settings.navCtaLabel}</Button>
           </Link>
         </div>
       </nav>
@@ -70,24 +72,20 @@ export function BlogIndexClient({ posts }: BlogIndexClientProps) {
               style={{ color: "var(--primary)", backgroundColor: "var(--primary-bg)" }}
             >
               <Sparkles className="h-3.5 w-3.5" />
-              Conteudo para transformar comentarios em decisao
+              {settings.heroEyebrow}
             </span>
             <h1
-              className="max-w-[760px]"
+              className="max-w-[760px] text-4xl font-extrabold leading-[1.04] md:text-6xl"
               style={{
                 fontFamily: "'Outfit', sans-serif",
-                fontSize: "clamp(2.1rem, 5vw, 4.2rem)",
-                fontWeight: 800,
                 color: "var(--text-primary)",
                 letterSpacing: "0",
-                lineHeight: 1.02,
               }}
             >
-              Reputacao digital sem ler comentario por comentario
+              {settings.heroTitle}
             </h1>
             <p className="mt-5 max-w-[640px] leading-7" style={{ color: "var(--text-muted)" }}>
-              Guias curtos para social medias, agencias e fundadores entenderem sentimento,
-              temas e sinais de crise antes que a conversa vire ruído.
+              {settings.heroDescription}
             </p>
           </div>
 
@@ -106,13 +104,13 @@ export function BlogIndexClient({ posts }: BlogIndexClientProps) {
                   type="text"
                   value={search}
                   onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Buscar por dor, canal ou assunto"
+                  placeholder={settings.searchPlaceholder}
                   className="min-w-0 flex-1 bg-transparent text-sm focus:outline-none"
                   style={{ color: "var(--text-primary)" }}
                 />
               </div>
-              <Link href="/diagnostico?utm_source=blog&utm_medium=hero&utm_campaign=diagnostico">
-                <Button>Diagnostico gratuito</Button>
+              <Link href={settings.heroCtaHref}>
+                <Button>{settings.heroCtaLabel}</Button>
               </Link>
             </div>
           </div>
@@ -166,14 +164,13 @@ export function BlogIndexClient({ posts }: BlogIndexClientProps) {
               style={{ borderColor: "var(--border)", backgroundColor: "var(--bg-subtle)" }}
             >
               <h2 className="text-xl font-bold" style={{ color: "var(--text-primary)" }}>
-                O blog agora e vivo
+                {settings.sidebarTitle}
               </h2>
               <p className="mt-3 leading-7" style={{ color: "var(--text-muted)" }}>
-                Novos artigos podem entrar pelo painel admin, sem commit. A ideia e testar dores,
-                CTAs e angulos de campanha com rapidez, mantendo rastreabilidade.
+                {settings.sidebarDescription}
               </p>
-              <Link href="/diagnostico?utm_source=blog&utm_medium=sidebar&utm_campaign=diagnostico" className="mt-5 inline-flex">
-                <Button>Testar com um perfil</Button>
+              <Link href={settings.sidebarCtaHref} className="mt-5 inline-flex">
+                <Button>{settings.sidebarCtaLabel}</Button>
               </Link>
             </aside>
           </section>
@@ -246,7 +243,7 @@ export function BlogIndexClient({ posts }: BlogIndexClientProps) {
               className="rounded-lg border p-8 text-center"
               style={{ borderColor: "var(--border)", backgroundColor: "var(--bg-subtle)", color: "var(--text-muted)" }}
             >
-              Nenhum artigo encontrado para essa busca.
+              {settings.emptyStateText}
             </div>
           )}
         </section>

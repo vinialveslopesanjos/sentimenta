@@ -8,8 +8,8 @@ import type {
   HealthReport,
   CommentListResponse,
 } from "./types";
-import type { BlogCategory, BlogPersona, BlogPost } from "./blog";
-import { normalizeBlogPost } from "./blog";
+import type { ApiBlogSettings, BlogCategory, BlogPersona, BlogPost, BlogSettings } from "./blog";
+import { normalizeBlogPost, normalizeBlogSettings } from "./blog";
 
 const API_URL = "/api/v1";
 
@@ -738,6 +738,7 @@ export const commentsApi = {
 };
 
 type ApiBlogPost = Parameters<typeof normalizeBlogPost>[0];
+type ApiBlogSettingsResponse = Parameters<typeof normalizeBlogSettings>[0];
 
 export type BlogPostInput = {
   slug: string;
@@ -756,7 +757,44 @@ export type BlogPostInput = {
   read_time_minutes: number;
 };
 
+export type BlogSettingsInput = Partial<{
+  nav_pricing_label: string;
+  nav_cta_label: string;
+  nav_cta_href: string;
+  hero_eyebrow: string;
+  hero_title: string;
+  hero_description: string;
+  search_placeholder: string;
+  hero_cta_label: string;
+  hero_cta_href: string;
+  sidebar_title: string;
+  sidebar_description: string;
+  sidebar_cta_label: string;
+  sidebar_cta_href: string;
+  all_category_label: string;
+  categories: string[];
+  empty_state_text: string;
+  article_nav_cta_label: string;
+  article_nav_cta_href: string;
+  article_cta_title: string;
+  article_cta_description: string;
+}>;
+
 export const blogAdminApi = {
+  getSettings: async (token: string): Promise<BlogSettings> => {
+    const settings = await apiFetch<ApiBlogSettingsResponse>("/admin/blog/settings", { token });
+    return normalizeBlogSettings(settings);
+  },
+
+  updateSettings: async (token: string, payload: BlogSettingsInput): Promise<BlogSettings> => {
+    const settings = await apiFetch<ApiBlogSettings>("/admin/blog/settings", {
+      method: "PATCH",
+      token,
+      body: JSON.stringify(payload),
+    });
+    return normalizeBlogSettings(settings);
+  },
+
   list: async (token: string, status?: string) => {
     const qs = status ? `?status=${encodeURIComponent(status)}` : "";
     const data = await apiFetch<{ posts: ApiBlogPost[] }>(`/admin/blog/posts${qs}`, { token });

@@ -27,14 +27,14 @@ def _payload(slug="post-de-teste"):
         "title": "Post de teste para o blog",
         "excerpt": "Um resumo claro com tamanho suficiente para validar a criacao do post.",
         "body_markdown": "## Um titulo\n\nEste texto tem corpo suficiente para validar o markdown do artigo no blog.",
-        "category": "Analise de Sentimento",
+        "category": "Análise de Sentimento",
         "persona": "agencias",
         "tags": ["Agencias", "relatorios", "agencias"],
         "cover_image_url": "/blog/relatorio-cliente-sentimento.png",
         "cover_image_alt": "Capa ilustrada do post de teste",
         "seo_title": "SEO do post de teste",
         "seo_description": "Descricao SEO do post de teste.",
-        "cta_label": "Fazer diagnostico",
+        "cta_label": "Fazer diagnóstico",
         "cta_href": "/diagnostico?utm_source=blog",
         "read_time_minutes": 4,
     }
@@ -68,6 +68,44 @@ def test_admin_can_create_publish_and_public_can_read(client, db):
 
 def test_non_admin_cannot_create_blog_post(client, auth_headers):
     res = client.post("/api/v1/admin/blog/posts", json=_payload(), headers=auth_headers)
+    assert res.status_code == 403
+    assert res.json()["detail"] == "admin_required"
+
+
+def test_public_blog_settings_default_and_admin_update(client, db):
+    public_default = client.get("/api/v1/blog/settings")
+    assert public_default.status_code == 200
+    assert public_default.json()["hero_title"] == "Reputação digital sem ler comentário por comentário"
+    assert public_default.json()["categories"] == ["Análise de Sentimento", "Gestão de Reputação"]
+
+    headers = _admin_headers(db)
+    updated = client.patch(
+        "/api/v1/admin/blog/settings",
+        json={
+            "hero_title": "Comentários viram diagnóstico de reputação",
+            "hero_description": "Uma frase com tamanho suficiente para validar a atualização pública do blog.",
+            "hero_cta_label": "Analisar meu perfil",
+            "categories": ["Análise de Sentimento", "Gestão de Reputação", "Análise de Sentimento", "  "],
+            "article_cta_title": "Quer ver seus comentários por dentro?",
+            "article_cta_description": "Conecte um perfil público e veja temas, emoções e risco reputacional em poucos minutos.",
+        },
+        headers=headers,
+    )
+    assert updated.status_code == 200
+    assert updated.json()["hero_title"] == "Comentários viram diagnóstico de reputação"
+    assert updated.json()["categories"] == ["Análise de Sentimento", "Gestão de Reputação"]
+
+    public_updated = client.get("/api/v1/blog/settings")
+    assert public_updated.status_code == 200
+    assert public_updated.json()["hero_cta_label"] == "Analisar meu perfil"
+
+
+def test_non_admin_cannot_update_blog_settings(client, auth_headers):
+    res = client.patch(
+        "/api/v1/admin/blog/settings",
+        json={"hero_title": "Tentativa de edição"},
+        headers=auth_headers,
+    )
     assert res.status_code == 403
     assert res.json()["detail"] == "admin_required"
 

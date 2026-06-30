@@ -3,27 +3,50 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import ReactMarkdown from "react-markdown";
-import { AlertCircle, CheckCircle2, Eye, FileText, Globe2, Loader2, Plus, Save } from "lucide-react";
+import { AlertCircle, CheckCircle2, Eye, FileText, Globe2, Loader2, Plus, Save, Settings2 } from "lucide-react";
 import { Button } from "@/components/ds/Button";
-import { authApi, blogAdminApi, type BlogPostInput } from "@/lib/api";
+import { authApi, blogAdminApi, type BlogPostInput, type BlogSettingsInput } from "@/lib/api";
 import { getToken } from "@/lib/auth";
-import { formatBlogDate, type BlogPost } from "@/lib/blog";
+import { fallbackBlogSettings, formatBlogDate, type BlogPost, type BlogSettings } from "@/lib/blog";
 
 const emptyForm: BlogPostInput = {
   slug: "",
   title: "",
   excerpt: "",
   body_markdown: "",
-  category: "Analise de Sentimento",
+  category: "Análise de Sentimento",
   persona: "agencias",
   tags: [],
   cover_image_url: "/blog/relatorio-cliente-sentimento.png",
   cover_image_alt: "Capa editorial do artigo do Sentimenta",
   seo_title: "",
   seo_description: "",
-  cta_label: "Fazer diagnostico gratuito",
+  cta_label: "Fazer diagnóstico gratuito",
   cta_href: "/diagnostico?utm_source=blog&utm_medium=organic",
   read_time_minutes: 5,
+};
+
+type BlogSettingsForm = {
+  nav_pricing_label: string;
+  nav_cta_label: string;
+  nav_cta_href: string;
+  hero_eyebrow: string;
+  hero_title: string;
+  hero_description: string;
+  search_placeholder: string;
+  hero_cta_label: string;
+  hero_cta_href: string;
+  sidebar_title: string;
+  sidebar_description: string;
+  sidebar_cta_label: string;
+  sidebar_cta_href: string;
+  all_category_label: string;
+  categories_text: string;
+  empty_state_text: string;
+  article_nav_cta_label: string;
+  article_nav_cta_href: string;
+  article_cta_title: string;
+  article_cta_description: string;
 };
 
 function slugify(value: string) {
@@ -64,22 +87,84 @@ function parseTags(value: string) {
     .slice(0, 12);
 }
 
+function parseCategories(value: string) {
+  return value
+    .split(",")
+    .map((category) => category.trim())
+    .filter(Boolean)
+    .filter((category, index, categories) => categories.indexOf(category) === index)
+    .slice(0, 12);
+}
+
+function settingsToForm(settings: BlogSettings): BlogSettingsForm {
+  return {
+    nav_pricing_label: settings.navPricingLabel,
+    nav_cta_label: settings.navCtaLabel,
+    nav_cta_href: settings.navCtaHref,
+    hero_eyebrow: settings.heroEyebrow,
+    hero_title: settings.heroTitle,
+    hero_description: settings.heroDescription,
+    search_placeholder: settings.searchPlaceholder,
+    hero_cta_label: settings.heroCtaLabel,
+    hero_cta_href: settings.heroCtaHref,
+    sidebar_title: settings.sidebarTitle,
+    sidebar_description: settings.sidebarDescription,
+    sidebar_cta_label: settings.sidebarCtaLabel,
+    sidebar_cta_href: settings.sidebarCtaHref,
+    all_category_label: settings.allCategoryLabel,
+    categories_text: settings.categories.join(", "),
+    empty_state_text: settings.emptyStateText,
+    article_nav_cta_label: settings.articleNavCtaLabel,
+    article_nav_cta_href: settings.articleNavCtaHref,
+    article_cta_title: settings.articleCtaTitle,
+    article_cta_description: settings.articleCtaDescription,
+  };
+}
+
+function settingsFormToPayload(form: BlogSettingsForm): BlogSettingsInput {
+  return {
+    nav_pricing_label: form.nav_pricing_label,
+    nav_cta_label: form.nav_cta_label,
+    nav_cta_href: form.nav_cta_href,
+    hero_eyebrow: form.hero_eyebrow,
+    hero_title: form.hero_title,
+    hero_description: form.hero_description,
+    search_placeholder: form.search_placeholder,
+    hero_cta_label: form.hero_cta_label,
+    hero_cta_href: form.hero_cta_href,
+    sidebar_title: form.sidebar_title,
+    sidebar_description: form.sidebar_description,
+    sidebar_cta_label: form.sidebar_cta_label,
+    sidebar_cta_href: form.sidebar_cta_href,
+    all_category_label: form.all_category_label,
+    categories: parseCategories(form.categories_text),
+    empty_state_text: form.empty_state_text,
+    article_nav_cta_label: form.article_nav_cta_label,
+    article_nav_cta_href: form.article_nav_cta_href,
+    article_cta_title: form.article_cta_title,
+    article_cta_description: form.article_cta_description,
+  };
+}
+
 export default function AdminBlogPage() {
   const [token, setToken] = useState<string | null>(null);
   const [isAdmin, setIsAdmin] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [savingSettings, setSavingSettings] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [posts, setPosts] = useState<BlogPost[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [form, setForm] = useState<BlogPostInput>(emptyForm);
+  const [settingsForm, setSettingsForm] = useState<BlogSettingsForm>(() => settingsToForm(fallbackBlogSettings));
   const [tagsText, setTagsText] = useState("");
 
   const selectedPost = useMemo(
     () => posts.find((post) => post.id === selectedId) || null,
     [posts, selectedId],
   );
+  const blogCategoryOptions = useMemo(() => parseCategories(settingsForm.categories_text), [settingsForm.categories_text]);
 
   useEffect(() => {
     const currentToken = getToken();
@@ -89,10 +174,11 @@ export default function AdminBlogPage() {
     }
 
     setToken(currentToken);
-    Promise.all([authApi.me(currentToken), blogAdminApi.list(currentToken)])
-      .then(([user, loadedPosts]) => {
+    Promise.all([authApi.me(currentToken), blogAdminApi.list(currentToken), blogAdminApi.getSettings(currentToken)])
+      .then(([user, loadedPosts, loadedSettings]) => {
         setIsAdmin(user.plan === "admin");
         setPosts(loadedPosts);
+        setSettingsForm(settingsToForm(loadedSettings));
         const first = loadedPosts[0];
         if (first) {
           setSelectedId(first.id || null);
@@ -101,13 +187,17 @@ export default function AdminBlogPage() {
         }
       })
       .catch((err) => {
-        setError(err instanceof Error ? err.message : "Nao foi possivel carregar o editor.");
+        setError(err instanceof Error ? err.message : "Não foi possível carregar o editor.");
       })
       .finally(() => setLoading(false));
   }, []);
 
   const update = <K extends keyof BlogPostInput>(field: K, value: BlogPostInput[K]) => {
     setForm((current) => ({ ...current, [field]: value }));
+  };
+
+  const updateSettings = <K extends keyof BlogSettingsForm>(field: K, value: BlogSettingsForm[K]) => {
+    setSettingsForm((current) => ({ ...current, [field]: value }));
   };
 
   const selectPost = (post: BlogPost) => {
@@ -120,7 +210,7 @@ export default function AdminBlogPage() {
 
   const startNew = () => {
     setSelectedId(null);
-    setForm(emptyForm);
+    setForm({ ...emptyForm, category: blogCategoryOptions[0] || emptyForm.category });
     setTagsText("");
     setMessage("Novo rascunho iniciado.");
     setError(null);
@@ -150,9 +240,25 @@ export default function AdminBlogPage() {
       setTagsText(saved.tags.join(", "));
       setMessage("Rascunho salvo.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nao foi possivel salvar.");
+      setError(err instanceof Error ? err.message : "Não foi possível salvar.");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const saveSettings = async () => {
+    if (!token) return;
+    setSavingSettings(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const saved = await blogAdminApi.updateSettings(token, settingsFormToPayload(settingsForm));
+      setSettingsForm(settingsToForm(saved));
+      setMessage("Textos e categorias do blog salvos. A página pública já lê essas configurações.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Não foi possível salvar as configurações do blog.");
+    } finally {
+      setSavingSettings(false);
     }
   };
 
@@ -164,9 +270,9 @@ export default function AdminBlogPage() {
       const published = await blogAdminApi.publish(token, selectedId);
       upsertPostInList(published);
       setForm(postToForm(published));
-      setMessage("Post publicado. Ele ja pode aparecer no blog publico.");
+      setMessage("Post publicado. Ele já pode aparecer no blog público.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nao foi possivel publicar.");
+      setError(err instanceof Error ? err.message : "Não foi possível publicar.");
     } finally {
       setSaving(false);
     }
@@ -182,7 +288,7 @@ export default function AdminBlogPage() {
       setForm(postToForm(draft));
       setMessage("Post voltou para rascunho.");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nao foi possivel despublicar.");
+      setError(err instanceof Error ? err.message : "Não foi possível despublicar.");
     } finally {
       setSaving(false);
     }
@@ -203,8 +309,8 @@ export default function AdminBlogPage() {
         <h1 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
           Acesso restrito
         </h1>
-        <p className="mt-2 max-w-[620px]" style={{ color: "var(--text-muted)" }}>
-          O editor do blog esta disponivel apenas para contas admin.
+          <p className="mt-2 max-w-[620px]" style={{ color: "var(--text-muted)" }}>
+          O editor do blog está disponível apenas para contas admin.
         </p>
       </div>
     );
@@ -215,14 +321,14 @@ export default function AdminBlogPage() {
       <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
         <div>
           <span className="text-sm font-semibold" style={{ color: "var(--primary)" }}>
-            Conteudo e aquisicao
+            Conteúdo e aquisição
           </span>
           <h1 className="mt-1 text-3xl font-bold" style={{ color: "var(--text-primary)" }}>
             Editor do blog
           </h1>
           <p className="mt-2 max-w-[760px]" style={{ color: "var(--text-muted)" }}>
-            Crie rascunhos, revise a copy e publique artigos sem commit. Use este fluxo para testar
-            pautas de SEO, ads e diagnostico gratuito com velocidade.
+            Ajuste textos da página, crie rascunhos e publique artigos sem commit. O blog público
+            lê essas configurações direto da API.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -246,6 +352,235 @@ export default function AdminBlogPage() {
           {error || message}
         </div>
       )}
+
+      <section className="rounded-lg border p-5" style={{ borderColor: "var(--border)", backgroundColor: "var(--bg-card)" }}>
+        <div className="mb-5 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-start gap-3">
+            <Settings2 className="mt-1 h-5 w-5" style={{ color: "var(--primary)" }} />
+            <div>
+              <h2 className="font-semibold" style={{ color: "var(--text-primary)" }}>
+                Textos da página
+              </h2>
+              <p className="mt-1 text-sm" style={{ color: "var(--text-muted)" }}>
+                Hero, busca, categorias, navegação e CTA final do artigo.
+              </p>
+            </div>
+          </div>
+          <Button
+            onClick={saveSettings}
+            disabled={savingSettings}
+            icon={savingSettings ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          >
+            Salvar textos
+          </Button>
+        </div>
+
+        <div className="grid gap-4 lg:grid-cols-2">
+          <label className="grid gap-1.5">
+            <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Chamada acima do título</span>
+            <input
+              value={settingsForm.hero_eyebrow}
+              onChange={(event) => updateSettings("hero_eyebrow", event.target.value)}
+              className="rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
+              style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+            />
+          </label>
+          <label className="grid gap-1.5">
+            <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Título principal</span>
+            <input
+              value={settingsForm.hero_title}
+              onChange={(event) => updateSettings("hero_title", event.target.value)}
+              className="rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
+              style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+            />
+          </label>
+          <label className="grid gap-1.5 lg:col-span-2">
+            <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Subtítulo</span>
+            <textarea
+              value={settingsForm.hero_description}
+              onChange={(event) => updateSettings("hero_description", event.target.value)}
+              rows={3}
+              className="resize-y rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
+              style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+            />
+          </label>
+
+          <div className="grid gap-4 md:grid-cols-2 lg:col-span-2">
+            <label className="grid gap-1.5">
+              <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>CTA do hero</span>
+              <input
+                value={settingsForm.hero_cta_label}
+                onChange={(event) => updateSettings("hero_cta_label", event.target.value)}
+                className="rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
+                style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+              />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Link do CTA do hero</span>
+              <input
+                value={settingsForm.hero_cta_href}
+                onChange={(event) => updateSettings("hero_cta_href", event.target.value)}
+                className="rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
+                style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+              />
+            </label>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3 lg:col-span-2">
+            <label className="grid gap-1.5">
+              <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Placeholder da busca</span>
+              <input
+                value={settingsForm.search_placeholder}
+                onChange={(event) => updateSettings("search_placeholder", event.target.value)}
+                className="rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
+                style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+              />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Filtro geral</span>
+              <input
+                value={settingsForm.all_category_label}
+                onChange={(event) => updateSettings("all_category_label", event.target.value)}
+                className="rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
+                style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+              />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Categorias</span>
+              <input
+                value={settingsForm.categories_text}
+                onChange={(event) => updateSettings("categories_text", event.target.value)}
+                className="rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
+                style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+              />
+            </label>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 lg:col-span-2">
+            <label className="grid gap-1.5">
+              <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Título da lateral</span>
+              <input
+                value={settingsForm.sidebar_title}
+                onChange={(event) => updateSettings("sidebar_title", event.target.value)}
+                className="rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
+                style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+              />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Texto quando não há resultado</span>
+              <input
+                value={settingsForm.empty_state_text}
+                onChange={(event) => updateSettings("empty_state_text", event.target.value)}
+                className="rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
+                style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+              />
+            </label>
+          </div>
+
+          <label className="grid gap-1.5 lg:col-span-2">
+            <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Descrição da lateral</span>
+            <textarea
+              value={settingsForm.sidebar_description}
+              onChange={(event) => updateSettings("sidebar_description", event.target.value)}
+              rows={3}
+              className="resize-y rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
+              style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+            />
+          </label>
+
+          <div className="grid gap-4 md:grid-cols-2 lg:col-span-2">
+            <label className="grid gap-1.5">
+              <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>CTA da lateral</span>
+              <input
+                value={settingsForm.sidebar_cta_label}
+                onChange={(event) => updateSettings("sidebar_cta_label", event.target.value)}
+                className="rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
+                style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+              />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Link do CTA da lateral</span>
+              <input
+                value={settingsForm.sidebar_cta_href}
+                onChange={(event) => updateSettings("sidebar_cta_href", event.target.value)}
+                className="rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
+                style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+              />
+            </label>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-3 lg:col-span-2">
+            <label className="grid gap-1.5">
+              <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Link de preços</span>
+              <input
+                value={settingsForm.nav_pricing_label}
+                onChange={(event) => updateSettings("nav_pricing_label", event.target.value)}
+                className="rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
+                style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+              />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>CTA da navegação</span>
+              <input
+                value={settingsForm.nav_cta_label}
+                onChange={(event) => updateSettings("nav_cta_label", event.target.value)}
+                className="rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
+                style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+              />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Link do CTA da navegação</span>
+              <input
+                value={settingsForm.nav_cta_href}
+                onChange={(event) => updateSettings("nav_cta_href", event.target.value)}
+                className="rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
+                style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+              />
+            </label>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 lg:col-span-2">
+            <label className="grid gap-1.5">
+              <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>CTA do topo do artigo</span>
+              <input
+                value={settingsForm.article_nav_cta_label}
+                onChange={(event) => updateSettings("article_nav_cta_label", event.target.value)}
+                className="rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
+                style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+              />
+            </label>
+            <label className="grid gap-1.5">
+              <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Link do CTA do topo do artigo</span>
+              <input
+                value={settingsForm.article_nav_cta_href}
+                onChange={(event) => updateSettings("article_nav_cta_href", event.target.value)}
+                className="rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
+                style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+              />
+            </label>
+          </div>
+
+          <label className="grid gap-1.5">
+            <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Título do CTA final</span>
+            <input
+              value={settingsForm.article_cta_title}
+              onChange={(event) => updateSettings("article_cta_title", event.target.value)}
+              className="rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
+              style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+            />
+          </label>
+          <label className="grid gap-1.5">
+            <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Descrição do CTA final</span>
+            <textarea
+              value={settingsForm.article_cta_description}
+              onChange={(event) => updateSettings("article_cta_description", event.target.value)}
+              rows={3}
+              className="resize-y rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
+              style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
+            />
+          </label>
+        </div>
+      </section>
 
       <div className="grid gap-6 xl:grid-cols-[360px_1fr]">
         <aside className="rounded-lg border p-4" style={{ borderColor: "var(--border)", backgroundColor: "var(--bg-card)" }}>
@@ -310,7 +645,7 @@ export default function AdminBlogPage() {
 
             <div className="grid gap-4">
               <label className="grid gap-1.5">
-                <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Titulo</span>
+                <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Título</span>
                 <input
                   value={form.title}
                   onChange={(event) => {
@@ -346,16 +681,18 @@ export default function AdminBlogPage() {
               <div className="grid gap-4 md:grid-cols-3">
                 <label className="grid gap-1.5">
                   <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Categoria</span>
-                  <select
+                  <input
+                    list="blog-category-options"
                     value={form.category}
-                    onChange={(event) => update("category", event.target.value as BlogPostInput["category"])}
+                    onChange={(event) => update("category", event.target.value)}
                     className="rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
                     style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
-                  >
-                    <option>Analise de Sentimento</option>
-                    <option>Gestao de Reputacao</option>
-                    <option>Aquisicao e Ads</option>
-                  </select>
+                  />
+                  <datalist id="blog-category-options">
+                    {blogCategoryOptions.map((categoryOption) => (
+                      <option key={categoryOption} value={categoryOption} />
+                    ))}
+                  </datalist>
                 </label>
                 <label className="grid gap-1.5">
                   <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Persona</span>
@@ -386,7 +723,7 @@ export default function AdminBlogPage() {
               </div>
 
               <label className="grid gap-1.5">
-                <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Tags, separadas por virgula</span>
+                <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Tags, separadas por vírgula</span>
                 <input
                   value={tagsText}
                   onChange={(event) => setTagsText(event.target.value)}
@@ -510,7 +847,7 @@ export default function AdminBlogPage() {
                 {form.category}
               </span>
               <h3 className="mt-4 text-2xl font-bold leading-tight" style={{ color: "var(--text-primary)" }}>
-                {form.title || "Titulo do artigo"}
+                {form.title || "Título do artigo"}
               </h3>
               <p className="mt-3 leading-7" style={{ color: "var(--text-muted)" }}>
                 {form.excerpt || "Resumo do artigo aparece aqui antes de publicar."}

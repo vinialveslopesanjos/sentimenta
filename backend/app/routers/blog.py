@@ -10,8 +10,17 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_user
 from app.db.session import get_db
 from app.models.blog_post import BlogPost
+from app.models.blog_settings import BlogSettings
 from app.models.user import User
-from app.schemas.blog import BlogPostCreate, BlogPostListResponse, BlogPostResponse, BlogPostUpdate
+from app.schemas.blog import (
+    DEFAULT_BLOG_SETTINGS,
+    BlogPostCreate,
+    BlogPostListResponse,
+    BlogPostResponse,
+    BlogPostUpdate,
+    BlogSettingsResponse,
+    BlogSettingsUpdate,
+)
 
 public_router = APIRouter(prefix="/blog", tags=["blog"])
 admin_router = APIRouter(prefix="/admin/blog", tags=["admin-blog"])
@@ -39,6 +48,49 @@ def _serialize(post: BlogPost) -> BlogPostResponse:
         created_at=post.created_at,
         updated_at=post.updated_at,
     )
+
+
+def _serialize_settings(settings: BlogSettings | None) -> BlogSettingsResponse:
+    if not settings:
+        return BlogSettingsResponse(**DEFAULT_BLOG_SETTINGS, updated_at=None)
+    return BlogSettingsResponse(
+        nav_pricing_label=settings.nav_pricing_label,
+        nav_cta_label=settings.nav_cta_label,
+        nav_cta_href=settings.nav_cta_href,
+        hero_eyebrow=settings.hero_eyebrow,
+        hero_title=settings.hero_title,
+        hero_description=settings.hero_description,
+        search_placeholder=settings.search_placeholder,
+        hero_cta_label=settings.hero_cta_label,
+        hero_cta_href=settings.hero_cta_href,
+        sidebar_title=settings.sidebar_title,
+        sidebar_description=settings.sidebar_description,
+        sidebar_cta_label=settings.sidebar_cta_label,
+        sidebar_cta_href=settings.sidebar_cta_href,
+        all_category_label=settings.all_category_label,
+        categories=settings.categories or [],
+        empty_state_text=settings.empty_state_text,
+        article_nav_cta_label=settings.article_nav_cta_label,
+        article_nav_cta_href=settings.article_nav_cta_href,
+        article_cta_title=settings.article_cta_title,
+        article_cta_description=settings.article_cta_description,
+        updated_at=settings.updated_at,
+    )
+
+
+def _get_settings(db: Session) -> BlogSettings | None:
+    return db.query(BlogSettings).filter(BlogSettings.id == 1).first()
+
+
+def _get_or_create_settings(db: Session) -> BlogSettings:
+    settings = _get_settings(db)
+    if settings:
+        return settings
+    settings = BlogSettings(id=1, **DEFAULT_BLOG_SETTINGS)
+    db.add(settings)
+    db.commit()
+    db.refresh(settings)
+    return settings
 
 
 def _require_admin(current_user: User = Depends(get_current_user)) -> User:
@@ -90,6 +142,11 @@ def list_published_posts(
     return {"posts": [_serialize(post) for post in posts]}
 
 
+@public_router.get("/settings", response_model=BlogSettingsResponse)
+def get_public_blog_settings(db: Session = Depends(get_db)):
+    return _serialize_settings(_get_settings(db))
+
+
 @public_router.get("/posts/{slug}", response_model=BlogPostResponse)
 def get_published_post(slug: str, db: Session = Depends(get_db)):
     post = (
@@ -113,6 +170,34 @@ def list_admin_posts(
         query = query.filter(BlogPost.status == status_filter)
     posts = query.order_by(BlogPost.updated_at.desc()).all()
     return {"posts": [_serialize(post) for post in posts]}
+
+
+@admin_router.get("/settings", response_model=BlogSettingsResponse)
+def get_admin_blog_settings(
+    db: Session = Depends(get_db),
+    _: User = Depends(_require_admin),
+):
+    return _serialize_settings(_get_or_create_settings(db))
+
+
+@admin_router.patch("/settings", response_model=BlogSettingsResponse)
+def update_admin_blog_settings(
+    payload: BlogSettingsUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(_require_admin),
+):
+    settings = _get_or_create_settings(db)
+    data = payload.model_dump(exclude_unset=True)
+    for field, value in data.items():
+        if isinstance(value, str):
+            value = value.strip()
+        setattr(settings, field, value)
+    settings.updated_by = current_user.id
+    settings.updated_at = datetime.now(timezone.utc)
+    db.add(settings)
+    db.commit()
+    db.refresh(settings)
+    return _serialize_settings(settings)
 
 
 @admin_router.post("/posts", response_model=BlogPostResponse, status_code=status.HTTP_201_CREATED)
