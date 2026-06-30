@@ -2,6 +2,11 @@ name: Deploy production
 
 on:
   workflow_dispatch:
+  workflow_run:
+    workflows:
+      - CI
+    types:
+      - completed
 
 concurrency:
   group: production-deploy
@@ -12,6 +17,13 @@ jobs:
     name: Deploy to VPS
     runs-on: ubuntu-latest
     environment: production
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      (
+        github.event.workflow_run.conclusion == 'success' &&
+        github.event.workflow_run.event == 'push' &&
+        github.event.workflow_run.head_branch == 'main'
+      )
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -32,6 +44,7 @@ jobs:
 
       - name: Deploy on VPS
         env:
+          DEPLOY_SHA: ${{ github.event.workflow_run.head_sha }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
           VPS_PORT: ${{ secrets.VPS_PORT }}
           VPS_USER: ${{ secrets.VPS_USER }}
@@ -45,9 +58,10 @@ jobs:
           cd "$APP_DIR"
 
           git fetch origin main
+          target="${DEPLOY_SHA:-origin/main}"
           git clean -fd -e .env -e backups/ -e output/
-          git checkout -B production-main origin/main
-          git reset --hard origin/main
+          git checkout -B production-main "$target"
+          git reset --hard "$target"
           git clean -fd -e .env -e backups/ -e output/
 
           tag="$(git rev-parse --short HEAD)"

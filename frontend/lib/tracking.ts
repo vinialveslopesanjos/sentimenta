@@ -193,6 +193,8 @@ export function trackGoogleAdsSignupConversion(properties?: Record<string, unkno
     const timeout = window.setTimeout(resolve, 500);
     gtag("event", "conversion", {
       send_to: sendTo,
+      value: 1.0,
+      currency: "BRL",
       event_category: "signup",
       event_label: "completed_registration",
       ...properties,

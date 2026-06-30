@@ -1,54 +1,88 @@
 # Deploy e conversões, versão simples
 
-Este documento explica o que estava ficando complexo, como reduzir o trabalho manual e como medir cadastro completo no Google Ads.
+Este documento explica, de forma direta, como o código sai do GitHub e chega na VPS, o que ainda pode dar errado e como medir cadastro completo no Google Ads.
 
-## O que estava acontecendo
+## A ideia principal
 
-Antes, colocar algo em produção dependia de uma pessoa entrando na VPS por SSH e fazendo várias etapas na mão:
+Pense em três lugares diferentes:
 
-1. Atualizar o código no diretório certo.
-2. Conferir se a VPS estava usando aquele diretório.
-3. Fazer backup do banco.
-4. Buildar as imagens Docker.
-5. Rodar migrations.
-6. Subir containers.
-7. Validar API, site e dados.
+1. **GitHub**: é a pasta oficial do projeto na nuvem. É onde ficam PRs, histórico, revisão e testes.
+2. **GitHub Actions**: é o robô do GitHub. Ele baixa o código, roda testes e, se estiver tudo certo, pode mandar a VPS atualizar.
+3. **VPS**: é o computador que realmente serve o site `sentimenta.com.br`.
 
-Isso é muita coisa para fazer manualmente. O problema não é o Docker em si. O problema é que cada deploy misturava várias responsabilidades numa sessão SSH.
+O GitHub sozinho não muda a VPS. O que faz a ponte entre os dois é o **GitHub Actions**.
 
-## Por que deu trabalho no último deploy
+## Fluxo profissional
 
-Os principais motivos:
+O fluxo normal deve ser:
 
-- Existiam vários diretórios na VPS (`/opt/sentimenta`, `/opt/sentimenta-main-deploy`, staging etc.). Foi preciso descobrir qual estava realmente servindo produção.
-- O script de backup tentava conectar no Postgres via `localhost:5432`, mas o Postgres real está dentro do Docker Compose.
-- Dois deploys puderam rodar ao mesmo tempo, porque não havia lock. Isso deixou processos de backup presos.
-- A imagem Docker usa tag por commit. Se a tag não é passada, comandos isolados podem usar imagem antiga.
-- Variáveis `NEXT_PUBLIC_*` do Next.js entram no build. Então tracking de Google Ads precisa estar disponível antes de buildar a imagem web.
+1. Criar uma branch.
+2. Abrir PR.
+3. O GitHub Actions roda testes.
+4. Fazer merge na `main`.
+5. O CI roda de novo na `main`.
+6. Se o CI passar, o workflow **Deploy production** entra na VPS automaticamente.
+7. A VPS puxa o commit aprovado, faz backup, build, migrations, sobe containers e valida o site.
 
-## Como deve ser daqui para frente
+Na operação normal, você não precisa entrar na VPS.
 
-O fluxo correto deve ser:
+## O que ficou automatizado
 
-1. Abrir PR.
-2. CI roda testes/build.
-3. Fazer merge na `main`.
-4. No GitHub, rodar o workflow **Deploy production**.
-5. O workflow entra na VPS, atualiza o checkout limpo, faz backup, builda, roda migrations, sobe containers e valida endpoints.
+O workflow `.github/workflows/deploy-production.yml` roda de duas formas:
 
-Você não deveria precisar chamar Codex para SSH manual em deploy normal.
+- automaticamente, quando o workflow **CI** termina com sucesso em um push na `main`;
+- manualmente, pelo botão **Run workflow**, para emergência ou reprocessamento.
 
-## O que foi automatizado
+Ele não deploya PR. Ele também não deploya se o CI falhar.
 
-- `scripts/ops/deploy_compose.sh` agora:
-  - impede deploy duplo com lock;
-  - faz backup pelo Postgres do Docker Compose;
-  - builda as imagens;
-  - roda `alembic upgrade head`;
-  - sobe containers com `--remove-orphans`;
-  - valida `/health` da API e `/blog` do web.
+## O que acontece dentro da VPS
 
-- `.github/workflows/deploy-production.yml` permite deploy manual pelo GitHub Actions.
+O script `scripts/ops/deploy_compose.sh` faz:
+
+1. trava de deploy para evitar dois deploys ao mesmo tempo;
+2. backup do Postgres pelo Docker Compose;
+3. build das imagens Docker;
+4. `alembic upgrade head`;
+5. `docker compose up -d --remove-orphans`;
+6. validação local da API e do web.
+
+Depois disso, o GitHub Actions valida endpoints públicos do site.
+
+## Auditoria dos testes atuais
+
+Resposta curta: **não, os testes não garantem que nunca vai dar problema**.
+
+Nenhum projeto sério consegue prometer isso. O que testes fazem é reduzir bastante a chance de quebrar produção e impedir erros óbvios antes do deploy.
+
+Hoje o CI cobre:
+
+- build e type-check do frontend;
+- build dos pacotes compartilhados;
+- build do mobile quando existir;
+- testes do backend com `pytest`;
+- validação do `compose.prod.yml`;
+- smoke E2E de API, login, dashboard protegido e blog público.
+
+Isso é suficiente para bloquear muita coisa ruim, mas ainda não é uma garantia total.
+
+## Falhas e riscos que ainda existem
+
+- Os testes de backend rodam com SQLite em vários cenários, enquanto produção usa Postgres.
+- O CI valida o Compose, mas não sobe o stack inteiro de produção com Postgres real antes do deploy.
+- Não existe teste automático de rollback.
+- Não existe teste completo de integrações externas como Google Ads, Google Tag, Apify, Stripe, Instagram, TikTok e YouTube.
+- Migrations destrutivas ainda exigem cuidado humano.
+- Mudança de variável de ambiente `NEXT_PUBLIC_*` exige novo build da imagem web.
+
+Então a regra correta é: deploy automático sim, mas sempre atrás de CI verde, backup e validação.
+
+## Por que o último CI falhou
+
+O backend, web e compose passaram. O que falhou foi o smoke E2E do blog.
+
+O teste antigo procurava o texto sem acento `Reputacao digital`. Depois que os textos foram corrigidos, o site passou a exibir `Reputação digital`. O teste estava desatualizado, não necessariamente o produto quebrado.
+
+O teste foi ajustado para aceitar o português correto com acentos.
 
 ## Secrets necessários no GitHub
 
@@ -64,56 +98,50 @@ Em Variables, opcional:
 
 - `SITE_URL`: `https://sentimenta.com.br`.
 
-## Como fazer deploy
+## Como saber se foi para produção
 
-1. Entre no GitHub.
-2. Abra **Actions**.
-3. Escolha **Deploy production**.
-4. Clique **Run workflow**.
-5. Aguarde terminar verde.
+Depois de fazer merge:
 
-Se falhar, leia o log do workflow. O log deve mostrar em qual etapa falhou: backup, build, migration, subida dos containers ou validação.
+1. Abra **GitHub > Actions**.
+2. Veja o workflow **CI** da `main`.
+3. Se ele passar, veja o workflow **Deploy production**.
+4. Se o deploy ficar verde, abra:
+   - `https://sentimenta.com.br/blog`
+   - `https://sentimenta.com.br/api/v1/blog/settings`
+
+Se o CI falhar, nada deve ser deployado automaticamente.
 
 ## Rollback simples
 
 Se um deploy quebrar produção:
 
 1. Descubra o commit anterior bom.
-2. Entre na VPS.
-3. Rode:
+2. Rode o deploy manual para aquele commit ou entre na VPS em emergência.
+3. Se migration destrutiva tiver rodado, talvez seja necessário restaurar backup.
 
-```bash
-cd /opt/sentimenta-main-deploy
-git checkout <commit_bom>
-SENTIMENTA_IMAGE_TAG=<commit_bom_curto> bash scripts/ops/deploy_compose.sh
-```
-
-Rollback com migration destrutiva exige mais cuidado. Nesse caso, restaurar backup pode ser necessário.
+O ideal, no futuro, é criar um workflow manual de rollback para evitar SSH até nesses casos.
 
 ## Conversão correta no Google Ads
 
-O sucesso principal da Sentimenta agora deve ser:
+O sucesso principal da Sentimenta deve ser:
 
 > Cadastro completo.
 
-Isso significa: o usuário enviou o formulário de cadastro, a API criou a conta e o frontend recebeu sucesso. Não é clique no botão. Clique pode falhar; cadastro completo não.
+Isso significa que o usuário enviou o formulário, a API criou a conta e o frontend recebeu sucesso. Não é clique no botão.
 
 ## Como o tracking foi implementado
 
-O frontend já tinha o evento interno `register_success`. Agora, quando o cadastro é concluído, ele também pode disparar uma conversão do Google Ads:
+Quando o cadastro é concluído, o frontend pode disparar:
 
 ```ts
 gtag("event", "conversion", {
-  send_to: "AW-XXXXXXX/YYYYYYY"
+  send_to: "AW-XXXXXXX/YYYYYYY",
+  value: 1.0,
+  currency: "BRL"
 });
 ```
 
-O Google recomenda usar a Google tag em todas as páginas e um evento de conversão quando a ação real acontece. Referências:
-
-- https://support.google.com/google-ads/answer/7548399
-- https://developers.google.com/tag-platform/devguides/conversions
-
-Hoje o Sentimenta só carrega analytics depois do aceite no banner de cookies. Então, para testar no Tag Assistant, aceite os cookies antes de criar a conta de teste.
+O evento só dispara se as variáveis estiverem configuradas e se o usuário aceitar os cookies.
 
 ## Variáveis para ativar Google Ads
 
@@ -129,19 +157,7 @@ Esses valores vêm do Google Ads:
 - `NEXT_PUBLIC_GOOGLE_TAG_ID`: Conversion ID, começa com `AW-`.
 - `NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_CONVERSION_LABEL`: Conversion label da ação de conversão.
 
-Depois de preencher, precisa rodar deploy de novo, porque `NEXT_PUBLIC_*` entra no build do Next.js.
-
-## Como configurar no Google Ads
-
-1. Vá em **Metas > Resumo > Nova ação de conversão**.
-2. Escolha **Site**.
-3. Crie uma ação com nome: `Cadastro completo`.
-4. Categoria: `Inscrição` ou `Lead`.
-5. Marque como **Principal**.
-6. Pegue o `Conversion ID` e `Conversion label`.
-7. Coloque os valores na `.env` da VPS.
-8. Rode **Deploy production** no GitHub.
-9. Use o Tag Assistant para testar criando uma conta real de teste.
+Depois de preencher, precisa de novo deploy, porque `NEXT_PUBLIC_*` entra no build do Next.js.
 
 ## O que fazer com a conversão antiga quebrada
 
@@ -149,15 +165,13 @@ A conversão automática de **Visualização de página** não deve ser principa
 
 No Google Ads:
 
-- deixe `Cadastro completo` como principal;
-- rebaixe `Visualização de página` para secundária ou remova;
-- a campanha pode continuar em **Maximizar conversões**, mas só depois que o cadastro completo estiver validado.
+- deixar `Cadastro completo` como principal;
+- rebaixar `Visualização de página` para secundária ou remover;
+- manter a campanha em **Maximizar conversões** somente quando `Cadastro completo` estiver validado.
 
 ## Regra prática
 
-Para operação normal:
-
-- mudança de código: PR + merge + Deploy production;
-- mudança de texto do blog: painel admin, sem deploy;
-- mudança de env: editar `.env` da VPS uma vez + Deploy production;
-- problema em deploy: olhar Actions primeiro, SSH só em exceção.
+- Mudança de código: PR + merge + CI verde + deploy automático.
+- Mudança de texto do blog: painel admin, sem deploy.
+- Mudança de env: editar `.env` da VPS uma vez + novo deploy.
+- Problema em deploy: olhar GitHub Actions primeiro; SSH só em exceção.
