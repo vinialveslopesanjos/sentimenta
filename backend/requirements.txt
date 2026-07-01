@@ -22,7 +22,7 @@ httpx>=0.26.0
 requests>=2.31.0
 python-dotenv>=1.0.0
 pydantic[email]>=2.5.0
-pydantic-settings>=2.1.0
+pydantic-settings>=2.14.2
 
 # Crypto (token encryption)
 cryptography>=42.0.0
