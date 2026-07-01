@@ -38,6 +38,23 @@ def test_posts_require_auth(client):
     assert res.status_code == 401
 
 
+def test_thumbnail_proxy_applies_rate_limits(client, monkeypatch):
+    calls = []
+
+    def fake_check(key, max_requests, window_seconds):
+        calls.append((key, max_requests, window_seconds))
+
+    monkeypatch.setattr("app.middleware.rate_limiter.rate_limiter.check", fake_check)
+
+    res = client.get("/api/v1/posts/thumbnail")
+
+    assert res.status_code == 404
+    assert calls[0][0].startswith("thumbnail:ip:")
+    assert calls[0][1:] == (240, 300)
+    assert calls[1][0].startswith("thumbnail:target:")
+    assert calls[1][1:] == (600, 3600)
+
+
 def test_dashboard_summary_empty(client, auth_headers):
     res = client.get("/api/v1/dashboard/summary", headers=auth_headers)
     assert res.status_code == 200

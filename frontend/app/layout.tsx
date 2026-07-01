@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Script from "next/script";
+import { headers } from "next/headers";
 import { NextIntlClientProvider } from "next-intl";
 import { getLocale, getMessages } from "next-intl/server";
 import { Toaster } from "@/components/ui/toast";
@@ -18,6 +19,7 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
   const messages = await getMessages();
+  const nonce = (await headers()).get("x-nonce") || undefined;
 
   return (
     <html lang={locale}>
@@ -32,7 +34,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
           href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
           rel="stylesheet"
         />
-        <Script src="https://accounts.google.com/gsi/client" strategy="afterInteractive" />
+        {nonce && <meta name="csp-nonce" content={nonce} />}
+        <Script nonce={nonce} src="https://accounts.google.com/gsi/client" strategy="afterInteractive" />
       </head>
       <body className="min-h-screen font-body antialiased">
         <NextIntlClientProvider messages={messages}>

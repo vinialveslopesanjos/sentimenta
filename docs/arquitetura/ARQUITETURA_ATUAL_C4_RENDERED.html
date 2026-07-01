@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sentimenta | Arquitetura Renderizada</title>
+  <style>
+    :root {
+      --bg: #f6f7f9;
+      --surface: #ffffff;
+      --ink: #172033;
+      --muted: #64748b;
+      --line: #d7dde6;
+      --actor: #64748b;
+      --edge: #0891b2;
+      --app: #4f46e5;
+      --backend: #16a34a;
+      --data: #ea580c;
+      --external: #db2777;
+      --deploy: #475569;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.5;
+    }
+
+    main {
+      width: min(1240px, calc(100% - 24px));
+      margin: 0 auto;
+      padding: 18px 0 48px;
+    }
+
+    header,
+    section {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 18px;
+      margin: 12px 0;
+      box-shadow: 0 10px 28px rgba(23, 32, 51, 0.06);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: clamp(1.8rem, 7vw, 3.2rem);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: clamp(1.25rem, 4.5vw, 1.9rem);
+      letter-spacing: 0;
+    }
+
+    p { margin: 0 0 10px; }
+    ul { margin: 8px 0 0; padding-left: 20px; }
+    li { margin: 7px 0; }
+
+    code,
+    pre {
+      font-family: "Cascadia Code", "JetBrains Mono", Consolas, monospace;
+    }
+
+    .eyebrow {
+      color: #0f8f86;
+      font-size: 0.78rem;
+      font-weight: 800;
+      text-transform: uppercase;
+      margin-bottom: 8px;
+    }
+
+    .lead {
+      color: var(--muted);
+      max-width: 860px;
+      margin-top: 12px;
+    }
+
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 14px;
+    }
+
+    .badge {
+      border: 1px solid var(--line);
+      background: #f8fafc;
+      border-radius: 6px;
+      padding: 6px 9px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #26344d;
+    }
+
+    .diagram-frame {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      overflow: auto;
+      padding: 8px;
+      -webkit-overflow-scrolling: touch;
+    }
+
+    svg {
+      display: block;
+      height: auto;
+    }
+
+    .arch-svg {
+      min-width: 1420px;
+      width: 100%;
+      max-width: none;
+    }
+
+    .flow-svg {
+      min-width: 1360px;
+      width: 100%;
+      max-width: none;
+    }
+
+    .hint {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-bottom: 10px;
+    }
+
+    .note {
+      border-left: 4px solid #ea580c;
+      background: #fff8ed;
+      padding: 12px;
+      border-radius: 6px;
+      color: #3f2a14;
+    }
+
+    details {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+      margin-top: 12px;
+    }
+
+    summary {
+      padding: 12px;
+      cursor: pointer;
+      font-weight: 800;
+    }
+
+    pre {
+      margin: 0;
+      padding: 12px;
+      border-top: 1px solid var(--line);
+      overflow: auto;
+      font-size: 0.78rem;
+      line-height: 1.4;
+      background: #f8fafc;
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 760px) {
+      main { width: min(100% - 14px, 1240px); padding-top: 8px; }
+      header, section { padding: 14px; }
+      .diagram-frame { padding: 4px; }
+      .arch-svg { min-width: 1250px; }
+      .flow-svg { min-width: 1240px; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <div class="eyebrow">Sentimenta | diagramas renderizados inline</div>
+      <h1>Arquitetura atual e fluxo principal</h1>
+      <p class="lead">
+        Esta versão incorpora os desenhos como SVG dentro do HTML. Não carrega
+        Mermaid, PlantUML, CDN, imagens externas ou JavaScript. Ideal para abrir
+        no celular pela Tailscale.
+      </p>
+      <div class="badges">
+        <span class="badge">FastAPI</span>
+        <span class="badge">Next.js 15</span>
+        <span class="badge">Vite PWA</span>
+        <span class="badge">Celery + Redis</span>
+        <span class="badge">PostgreSQL 16</span>
+        <span class="badge">Docker Compose</span>
+        <span class="badge">VPS srv1377371</span>
+        <span class="badge">Commit prod 4ce5a06</span>
+      </div>
+    </header>
+
+    <section>
+      <h2>1. Diagrama de arquitetura renderizado</h2>
+      <p class="hint">No celular, deslize horizontalmente dentro do quadro para ver o diagrama completo.</p>
+      <div class="diagram-frame" role="img" aria-label="Diagrama de arquitetura do Sentimenta">
+        <svg class="arch-svg" viewBox="0 0 1600 1040" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569" />
+            </marker>
+            <marker id="arrow-blue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#2457c5" />
+            </marker>
+            <marker id="arrow-green" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#16a34a" />
+            </marker>
+            <marker id="arrow-pink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#db2777" />
+            </marker>
+            <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+              <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#172033" flood-opacity="0.09"/>
+            </filter>
+          </defs>
+
+          <rect x="0" y="0" width="1600" height="1040" fill="#ffffff" />
+          <text x="44" y="54" fill="#172033" font-size="28" font-weight="800">Sentimenta - Arquitetura atual do SaaS</text>
+          <text x="44" y="82" fill="#64748b" font-size="15">C4 Container com elementos de deployment confirmados no código, Compose, Nginx e VPS.</text>
+
+          <rect x="42" y="120" width="210" height="240" rx="10" fill="#f8fafc" stroke="#cbd5e1" />
+          <text x="64" y="150" fill="#334155" font-size="14" font-weight="800">ATORES</text>
+          <rect x="68" y="178" width="158" height="62" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="2" filter="url(#shadow)" />
+          <text x="147" y="203" text-anchor="middle" fill="#172033" font-size="14" font-weight="800">Usuário SaaS</text>
+          <text x="147" y="223" text-anchor="middle" fill="#64748b" font-size="12">Browser / PWA</text>
+          <rect x="68" y="262" width="158" height="62" rx="8" fill="#ffffff" stroke="#64748b" stroke-width="2" filter="url(#shadow)" />
+          <text x="147" y="287" text-anchor="middle" fill="#172033" font-size="14" font-weight="800">Admin</text>
+          <text x="147" y="307" text-anchor="middle" fill="#64748b" font-size="12">Blog / configurações</text>
+
+          <rect x="42" y="780" width="210" height="130" rx="10" fill="#f8fafc" stroke="#cbd5e1" />
+          <text x="64" y="810" fill="#334155" font-size="14" font-weight="800">CI/CD</text>
+          <rect x="68" y="834" width="158" height="54" rx="8" fill="#ffffff" stroke="#475569" stroke-width="2" filter="url(#shadow)" />
+          <text x="147" y="856" text-anchor="middle" fill="#172033" font-size="14" font-weight="800">GitHub Actions</text>
+          <text x="147" y="875" text-anchor="middle" fill="#64748b" font-size="12">deploy-production</text>
+
+          <rect x="306" y="110" width="850" height="800" rx="14" fill="#f8fafc" stroke="#94a3b8" stroke-width="2" />
+          <text x="332" y="142" fill="#172033" font-size="18" font-weight="800">VPS srv1377371</text>
+          <text x="332" y="166" fill="#64748b" font-size="13">Ubuntu 24.04 + Docker Compose project sentimenta</text>
+          <rect x="902" y="132" width="208" height="42" rx="7" fill="#ffffff" stroke="#475569" stroke-width="2" />
+          <text x="1006" y="150" text-anchor="middle" fill="#172033" font-size="13" font-weight="800">Docker Compose</text>
+          <text x="1006" y="166" text-anchor="middle" fill="#64748b" font-size="11">api, web, worker, beat, db, redis</text>
+
+          <rect x="344" y="220" width="180" height="74" rx="9" fill="#ecfeff" stroke="#0891b2" stroke-width="2" filter="url(#shadow)" />
+          <text x="434" y="248" text-anchor="middle" fill="#164e63" font-size="16" font-weight="800">Nginx</text>
+          <text x="434" y="270" text-anchor="middle" fill="#0e7490" font-size="12">reverse proxy HTTPS</text>
+
+          <rect x="590" y="198" width="190" height="72" rx="9" fill="#eef2ff" stroke="#4f46e5" stroke-width="2" filter="url(#shadow)" />
+          <text x="685" y="226" text-anchor="middle" fill="#1e1b4b" font-size="15" font-weight="800">Web app</text>
+          <text x="685" y="248" text-anchor="middle" fill="#4338ca" font-size="12">Next.js 15 / React</text>
+
+          <rect x="590" y="304" width="190" height="72" rx="9" fill="#eef2ff" stroke="#4f46e5" stroke-width="2" filter="url(#shadow)" />
+          <text x="685" y="332" text-anchor="middle" fill="#1e1b4b" font-size="15" font-weight="800">PWA estática</text>
+          <text x="685" y="354" text-anchor="middle" fill="#4338ca" font-size="12">Vite React em /app/</text>
+
+          <rect x="590" y="432" width="190" height="82" rx="9" fill="#f0fdf4" stroke="#16a34a" stroke-width="2" filter="url(#shadow)" />
+          <text x="685" y="462" text-anchor="middle" fill="#052e16" font-size="15" font-weight="800">API</text>
+          <text x="685" y="484" text-anchor="middle" fill="#15803d" font-size="12">FastAPI / Uvicorn</text>
+          <text x="685" y="501" text-anchor="middle" fill="#15803d" font-size="11">auth, pipeline, billing, dashboard</text>
+
+          <rect x="882" y="260" width="190" height="78" rx="9" fill="#fff7ed" stroke="#ea580c" stroke-width="2" filter="url(#shadow)" />
+          <text x="977" y="290" text-anchor="middle" fill="#431407" font-size="15" font-weight="800">Redis 7</text>
+          <text x="977" y="311" text-anchor="middle" fill="#9a3412" font-size="12">broker, result, cache</text>
+          <text x="977" y="327" text-anchor="middle" fill="#9a3412" font-size="11">rate limit, OAuth, JWT blacklist</text>
+
+          <rect x="882" y="392" width="190" height="74" rx="9" fill="#f0fdf4" stroke="#16a34a" stroke-width="2" filter="url(#shadow)" />
+          <text x="977" y="421" text-anchor="middle" fill="#052e16" font-size="15" font-weight="800">Worker</text>
+          <text x="977" y="443" text-anchor="middle" fill="#15803d" font-size="12">Celery</text>
+
+          <rect x="882" y="510" width="190" height="70" rx="9" fill="#f0fdf4" stroke="#16a34a" stroke-width="2" filter="url(#shadow)" />
+          <text x="977" y="537" text-anchor="middle" fill="#052e16" font-size="15" font-weight="800">Scheduler</text>
+          <text x="977" y="558" text-anchor="middle" fill="#15803d" font-size="12">Celery Beat</text>
+
+          <rect x="882" y="650" width="190" height="92" rx="9" fill="#fff7ed" stroke="#ea580c" stroke-width="2" filter="url(#shadow)" />
+          <text x="977" y="684" text-anchor="middle" fill="#431407" font-size="15" font-weight="800">PostgreSQL 16</text>
+          <text x="977" y="706" text-anchor="middle" fill="#9a3412" font-size="12">dados do SaaS</text>
+          <text x="977" y="723" text-anchor="middle" fill="#9a3412" font-size="11">runs, posts, comentários, análises</text>
+
+          <rect x="590" y="650" width="190" height="92" rx="9" fill="#fff7ed" stroke="#ea580c" stroke-width="2" filter="url(#shadow)" />
+          <text x="685" y="684" text-anchor="middle" fill="#431407" font-size="15" font-weight="800">media_output</text>
+          <text x="685" y="706" text-anchor="middle" fill="#9a3412" font-size="12">Docker volume</text>
+          <text x="685" y="723" text-anchor="middle" fill="#9a3412" font-size="11">/app/output, thumbnails</text>
+
+          <rect x="1210" y="110" width="340" height="800" rx="14" fill="#fdf2f8" stroke="#f9a8d4" stroke-width="2" />
+          <text x="1236" y="142" fill="#500724" font-size="18" font-weight="800">Serviços externos confirmados</text>
+          <rect x="1240" y="184" width="270" height="58" rx="8" fill="#ffffff" stroke="#db2777" stroke-width="2" filter="url(#shadow)" />
+          <text x="1375" y="207" text-anchor="middle" fill="#500724" font-size="14" font-weight="800">OpenRouter / Gemini</text>
+          <text x="1375" y="225" text-anchor="middle" fill="#9d174d" font-size="11">sentimento + vision LLM</text>
+          <rect x="1240" y="268" width="270" height="58" rx="8" fill="#ffffff" stroke="#db2777" stroke-width="2" filter="url(#shadow)" />
+          <text x="1375" y="291" text-anchor="middle" fill="#500724" font-size="14" font-weight="800">Apify actors</text>
+          <text x="1375" y="309" text-anchor="middle" fill="#9d174d" font-size="11">Instagram, TikTok, demographics</text>
+          <rect x="1240" y="352" width="270" height="70" rx="8" fill="#ffffff" stroke="#db2777" stroke-width="2" filter="url(#shadow)" />
+          <text x="1375" y="376" text-anchor="middle" fill="#500724" font-size="14" font-weight="800">Instagram / TikTok / YouTube</text>
+          <text x="1375" y="395" text-anchor="middle" fill="#9d174d" font-size="11">OAuth, mídia, comentários, canais</text>
+          <text x="1375" y="411" text-anchor="middle" fill="#9d174d" font-size="11">YouTube Data API + yt-dlp fallback</text>
+          <rect x="1240" y="452" width="270" height="58" rx="8" fill="#ffffff" stroke="#db2777" stroke-width="2" filter="url(#shadow)" />
+          <text x="1375" y="475" text-anchor="middle" fill="#500724" font-size="14" font-weight="800">Stripe</text>
+          <text x="1375" y="493" text-anchor="middle" fill="#9d174d" font-size="11">checkout, portal, webhook</text>
+          <rect x="1240" y="536" width="270" height="58" rx="8" fill="#ffffff" stroke="#db2777" stroke-width="2" filter="url(#shadow)" />
+          <text x="1375" y="559" text-anchor="middle" fill="#500724" font-size="14" font-weight="800">Resend</text>
+          <text x="1375" y="577" text-anchor="middle" fill="#9d174d" font-size="11">e-mails transacionais</text>
+          <rect x="1240" y="620" width="270" height="58" rx="8" fill="#ffffff" stroke="#db2777" stroke-width="2" filter="url(#shadow)" />
+          <text x="1375" y="643" text-anchor="middle" fill="#500724" font-size="14" font-weight="800">Google OAuth</text>
+          <text x="1375" y="661" text-anchor="middle" fill="#9d174d" font-size="11">GSI / userinfo</text>
+          <rect x="1240" y="704" width="270" height="58" rx="8" fill="#ffffff" stroke="#db2777" stroke-width="2" filter="url(#shadow)" />
+          <text x="1375" y="727" text-anchor="middle" fill="#500724" font-size="14" font-weight="800">Sentry</text>
+          <text x="1375" y="745" text-anchor="middle" fill="#9d174d" font-size="11">erros e traces</text>
+          <rect x="1240" y="788" width="270" height="58" rx="8" fill="#ffffff" stroke="#db2777" stroke-width="2" filter="url(#shadow)" />
+          <text x="1375" y="811" text-anchor="middle" fill="#500724" font-size="14" font-weight="800">Clarity / Google Tag</text>
+          <text x="1375" y="829" text-anchor="middle" fill="#9d174d" font-size="11">analytics frontend com consentimento</text>
+
+          <path d="M226 209 C270 209 300 257 344 257" stroke="#475569" stroke-width="2.2" fill="none" marker-end="url(#arrow)" />
+          <text x="285" y="230" fill="#475569" font-size="12">HTTPS</text>
+          <path d="M226 293 C272 293 300 265 344 265" stroke="#475569" stroke-width="2.2" fill="none" marker-end="url(#arrow)" />
+
+          <path d="M524 244 L590 234" stroke="#2457c5" stroke-width="2" fill="none" marker-end="url(#arrow-blue)" />
+          <text x="538" y="229" fill="#2457c5" font-size="12">/</text>
+          <path d="M524 260 L590 340" stroke="#2457c5" stroke-width="2" fill="none" marker-end="url(#arrow-blue)" />
+          <text x="536" y="321" fill="#2457c5" font-size="12">/app/</text>
+          <path d="M524 274 C558 310 555 438 590 468" stroke="#2457c5" stroke-width="2" fill="none" marker-end="url(#arrow-blue)" />
+          <text x="532" y="397" fill="#2457c5" font-size="12">/api/</text>
+
+          <path d="M685 270 L685 432" stroke="#2457c5" stroke-width="2" fill="none" marker-end="url(#arrow-blue)" />
+          <text x="704" y="356" fill="#2457c5" font-size="12">/api/v1 + JWT</text>
+          <path d="M780 472 L882 696" stroke="#16a34a" stroke-width="2" fill="none" marker-end="url(#arrow-green)" />
+          <text x="810" y="590" fill="#15803d" font-size="12">SQLAlchemy</text>
+          <path d="M780 455 C822 420 835 310 882 300" stroke="#16a34a" stroke-width="2" fill="none" marker-end="url(#arrow-green)" />
+          <text x="796" y="372" fill="#15803d" font-size="12">cache/rate limit</text>
+          <path d="M780 482 C826 504 834 414 882 424" stroke="#475569" stroke-width="2" stroke-dasharray="8 6" fill="none" marker-end="url(#arrow)" />
+          <text x="804" y="477" fill="#475569" font-size="12">enqueue task</text>
+          <path d="M977 338 L977 392" stroke="#475569" stroke-width="2" stroke-dasharray="8 6" fill="none" marker-end="url(#arrow)" />
+          <text x="990" y="370" fill="#475569" font-size="12">deliver</text>
+          <path d="M977 510 L977 338" stroke="#475569" stroke-width="2" stroke-dasharray="8 6" fill="none" marker-end="url(#arrow)" />
+          <text x="992" y="489" fill="#475569" font-size="12">scheduled tasks</text>
+          <path d="M977 466 L977 650" stroke="#16a34a" stroke-width="2" fill="none" marker-end="url(#arrow-green)" />
+          <path d="M590 494 C552 540 562 684 590 696" stroke="#16a34a" stroke-width="2" fill="none" marker-end="url(#arrow-green)" />
+          <text x="516" y="604" fill="#15803d" font-size="12">thumbnail proxy</text>
+          <path d="M882 432 C828 514 820 684 780 696" stroke="#16a34a" stroke-width="2" fill="none" marker-end="url(#arrow-green)" />
+          <text x="792" y="612" fill="#15803d" font-size="12">cache mídia</text>
+
+          <path d="M226 861 C456 861 672 174 902 154" stroke="#475569" stroke-width="2" stroke-dasharray="8 6" fill="none" marker-end="url(#arrow)" />
+          <text x="424" y="822" fill="#475569" font-size="12">SSH, build, Alembic, compose up</text>
+
+          <path d="M780 462 C1000 462 1110 648 1240 649" stroke="#db2777" stroke-width="2" fill="none" marker-end="url(#arrow-pink)" />
+          <text x="1050" y="623" fill="#9d174d" font-size="12">verifica login</text>
+          <path d="M780 476 C1000 476 1110 482 1240 482" stroke="#db2777" stroke-width="2" fill="none" marker-end="url(#arrow-pink)" />
+          <text x="1040" y="465" fill="#9d174d" font-size="12">checkout/portal</text>
+          <path d="M1240 498 C1100 520 950 545 780 500" stroke="#db2777" stroke-width="2" stroke-dasharray="7 5" fill="none" marker-end="url(#arrow-pink)" />
+          <text x="1034" y="534" fill="#9d174d" font-size="12">webhook billing</text>
+          <path d="M1072 414 C1144 358 1168 214 1240 213" stroke="#db2777" stroke-width="2" fill="none" marker-end="url(#arrow-pink)" />
+          <text x="1124" y="282" fill="#9d174d" font-size="12">LLM</text>
+          <path d="M1072 430 C1160 410 1164 298 1240 297" stroke="#db2777" stroke-width="2" fill="none" marker-end="url(#arrow-pink)" />
+          <text x="1130" y="356" fill="#9d174d" font-size="12">scraping</text>
+          <path d="M1072 436 C1158 438 1166 388 1240 388" stroke="#db2777" stroke-width="2" fill="none" marker-end="url(#arrow-pink)" />
+          <text x="1132" y="427" fill="#9d174d" font-size="12">ingestão</text>
+          <path d="M1072 452 C1160 486 1166 565 1240 565" stroke="#db2777" stroke-width="2" fill="none" marker-end="url(#arrow-pink)" />
+          <text x="1126" y="524" fill="#9d174d" font-size="12">notificação</text>
+          <path d="M780 500 C1010 610 1120 734 1240 733" stroke="#db2777" stroke-width="2" fill="none" marker-end="url(#arrow-pink)" />
+          <text x="1030" y="706" fill="#9d174d" font-size="12">erros/traces</text>
+          <path d="M780 220 C1010 210 1140 810 1240 817" stroke="#db2777" stroke-width="2" fill="none" marker-end="url(#arrow-pink)" />
+          <text x="966" y="220" fill="#9d174d" font-size="12">analytics</text>
+
+          <rect x="44" y="950" width="1510" height="54" rx="8" fill="#f8fafc" stroke="#cbd5e1" />
+          <line x1="72" y1="977" x2="132" y2="977" stroke="#475569" stroke-width="2" marker-end="url(#arrow)" />
+          <text x="146" y="982" fill="#475569" font-size="12">chamada síncrona / proxy HTTP</text>
+          <line x1="388" y1="977" x2="448" y2="977" stroke="#475569" stroke-width="2" stroke-dasharray="8 6" marker-end="url(#arrow)" />
+          <text x="462" y="982" fill="#475569" font-size="12">assíncrono / evento / webhook</text>
+          <rect x="720" y="962" width="26" height="20" rx="4" fill="#eef2ff" stroke="#4f46e5" />
+          <text x="758" y="977" fill="#475569" font-size="12">frontend</text>
+          <rect x="890" y="962" width="26" height="20" rx="4" fill="#f0fdf4" stroke="#16a34a" />
+          <text x="928" y="977" fill="#475569" font-size="12">backend/worker</text>
+          <rect x="1110" y="962" width="26" height="20" rx="4" fill="#fff7ed" stroke="#ea580c" />
+          <text x="1148" y="977" fill="#475569" font-size="12">dados/volume</text>
+          <rect x="1310" y="962" width="26" height="20" rx="4" fill="#fdf2f8" stroke="#db2777" />
+          <text x="1348" y="977" fill="#475569" font-size="12">externo</text>
+        </svg>
+      </div>
+    </section>
+
+    <section>
+      <h2>2. Diagrama de fluxo principal renderizado</h2>
+      <p class="hint">Fluxo escolhido: sincronização/análise de uma conexão social, o caminho mais crítico do produto.</p>
+      <div class="diagram-frame" role="img" aria-label="Diagrama de sequência do fluxo principal do Sentimenta">
+        <svg class="flow-svg" viewBox="0 0 1500 1180" xmlns="http://www.w3.org/2000/svg">
+          <defs>
+            <marker id="seq-arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#475569" />
+            </marker>
+            <marker id="seq-async" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="#2457c5" />
+            </marker>
+            <filter id="seq-shadow" x="-10%" y="-10%" width="130%" height="130%">
+              <feDropShadow dx="0" dy="8" stdDeviation="8" flood-color="#172033" flood-opacity="0.08"/>
+            </filter>
+          </defs>
+
+          <rect x="0" y="0" width="1500" height="1180" fill="#ffffff" />
+          <text x="44" y="54" fill="#172033" font-size="28" font-weight="800">Sentimenta - Fluxo principal de sincronização e análise</text>
+          <text x="44" y="82" fill="#64748b" font-size="15">Mostra chamadas síncronas, enfileiramento assíncrono, persistência e retorno ao usuário.</text>
+
+          <g id="participants" font-size="13">
+            <rect x="42" y="126" width="118" height="54" rx="8" fill="#f8fafc" stroke="#64748b" stroke-width="2" filter="url(#seq-shadow)" />
+            <text x="101" y="149" text-anchor="middle" font-weight="800" fill="#172033">Usuário</text>
+            <text x="101" y="166" text-anchor="middle" fill="#64748b">ator</text>
+
+            <rect x="194" y="126" width="128" height="54" rx="8" fill="#eef2ff" stroke="#4f46e5" stroke-width="2" filter="url(#seq-shadow)" />
+            <text x="258" y="149" text-anchor="middle" font-weight="800" fill="#172033">Next.js/PWA</text>
+            <text x="258" y="166" text-anchor="middle" fill="#64748b">frontend</text>
+
+            <rect x="366" y="126" width="128" height="54" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2" filter="url(#seq-shadow)" />
+            <text x="430" y="149" text-anchor="middle" font-weight="800" fill="#172033">FastAPI</text>
+            <text x="430" y="166" text-anchor="middle" fill="#64748b">API</text>
+
+            <rect x="538" y="126" width="128" height="54" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="2" filter="url(#seq-shadow)" />
+            <text x="602" y="149" text-anchor="middle" font-weight="800" fill="#172033">Redis</text>
+            <text x="602" y="166" text-anchor="middle" fill="#64748b">Celery</text>
+
+            <rect x="710" y="126" width="128" height="54" rx="8" fill="#f0fdf4" stroke="#16a34a" stroke-width="2" filter="url(#seq-shadow)" />
+            <text x="774" y="149" text-anchor="middle" font-weight="800" fill="#172033">Worker</text>
+            <text x="774" y="166" text-anchor="middle" fill="#64748b">Celery</text>
+
+            <rect x="882" y="126" width="128" height="54" rx="8" fill="#fff7ed" stroke="#ea580c" stroke-width="2" filter="url(#seq-shadow)" />
+            <text x="946" y="149" text-anchor="middle" font-weight="800" fill="#172033">PostgreSQL</text>
+            <text x="946" y="166" text-anchor="middle" fill="#64748b">dados</text>
+
+            <rect x="1054" y="126" width="138" height="54" rx="8" fill="#fdf2f8" stroke="#db2777" stroke-width="2" filter="url(#seq-shadow)" />
+            <text x="1123" y="149" text-anchor="middle" font-weight="800" fill="#172033">APIs sociais</text>
+            <text x="1123" y="166" text-anchor="middle" fill="#64748b">Apify/Graph/YT</text>
+
+            <rect x="1236" y="126" width="128" height="54" rx="8" fill="#fdf2f8" stroke="#db2777" stroke-width="2" filter="url(#seq-shadow)" />
+            <text x="1300" y="149" text-anchor="middle" font-weight="800" fill="#172033">OpenRouter</text>
+            <text x="1300" y="166" text-anchor="middle" fill="#64748b">Gemini</text>
+
+            <rect x="1400" y="126" width="72" height="54" rx="8" fill="#fdf2f8" stroke="#db2777" stroke-width="2" filter="url(#seq-shadow)" />
+            <text x="1436" y="149" text-anchor="middle" font-weight="800" fill="#172033">Resend</text>
+            <text x="1436" y="166" text-anchor="middle" fill="#64748b">e-mail</text>
+          </g>
+
+          <g stroke="#cbd5e1" stroke-width="1.5" stroke-dasharray="6 7">
+            <line x1="101" y1="180" x2="101" y2="1060" />
+            <line x1="258" y1="180" x2="258" y2="1060" />
+            <line x1="430" y1="180" x2="430" y2="1060" />
+            <line x1="602" y1="180" x2="602" y2="1060" />
+            <line x1="774" y1="180" x2="774" y2="1060" />
+            <line x1="946" y1="180" x2="946" y2="1060" />
+            <line x1="1123" y1="180" x2="1123" y2="1060" />
+            <line x1="1300" y1="180" x2="1300" y2="1060" />
+            <line x1="1436" y1="180" x2="1436" y2="1060" />
+          </g>
+
+          <g font-size="12" fill="#172033">
+            <path d="M101 225 L258 225" stroke="#475569" stroke-width="2" fill="none" marker-end="url(#seq-arrow)" />
+            <text x="180" y="214" text-anchor="middle">clica em sincronizar/analisar</text>
+
+            <path d="M258 275 L430 275" stroke="#475569" stroke-width="2" fill="none" marker-end="url(#seq-arrow)" />
+            <text x="344" y="264" text-anchor="middle">POST /connections/{id}/sync + JWT</text>
+
+            <path d="M430 325 L602 325" stroke="#475569" stroke-width="2" fill="none" marker-end="url(#seq-arrow)" />
+            <text x="516" y="314" text-anchor="middle">rate limit / estado temporário</text>
+
+            <path d="M430 375 L946 375" stroke="#475569" stroke-width="2" fill="none" marker-end="url(#seq-arrow)" />
+            <text x="688" y="364" text-anchor="middle">valida conexão, plano, créditos e run ativo</text>
+
+            <path d="M430 425 L946 425" stroke="#475569" stroke-width="2" fill="none" marker-end="url(#seq-arrow)" />
+            <text x="688" y="414" text-anchor="middle">cria PipelineRun status=running</text>
+
+            <path d="M430 475 L602 475" stroke="#2457c5" stroke-width="2" stroke-dasharray="8 6" fill="none" marker-end="url(#seq-async)" />
+            <text x="516" y="464" text-anchor="middle" fill="#2457c5">enqueue task_full_pipeline(run_id)</text>
+
+            <path d="M430 525 L258 525" stroke="#475569" stroke-width="2" fill="none" marker-end="url(#seq-arrow)" />
+            <text x="344" y="514" text-anchor="middle">retorna task_id, run_id, status</text>
+
+            <rect x="198" y="555" width="310" height="52" rx="7" fill="#f8fafc" stroke="#cbd5e1" />
+            <text x="353" y="576" text-anchor="middle" font-weight="800" fill="#334155">loop de acompanhamento</text>
+            <text x="353" y="595" text-anchor="middle" fill="#64748b">frontend faz polling dos runs/status</text>
+
+            <path d="M258 640 L430 640" stroke="#475569" stroke-width="2" fill="none" marker-end="url(#seq-arrow)" />
+            <text x="344" y="629" text-anchor="middle">GET /pipeline/runs</text>
+
+            <path d="M430 690 L946 690" stroke="#475569" stroke-width="2" fill="none" marker-end="url(#seq-arrow)" />
+            <text x="688" y="679" text-anchor="middle">lê PipelineRun do usuário</text>
+
+            <path d="M602 742 L774 742" stroke="#2457c5" stroke-width="2" stroke-dasharray="8 6" fill="none" marker-end="url(#seq-async)" />
+            <text x="688" y="731" text-anchor="middle" fill="#2457c5">entrega tarefa assíncrona</text>
+
+            <path d="M774 792 L946 792" stroke="#475569" stroke-width="2" fill="none" marker-end="url(#seq-arrow)" />
+            <text x="860" y="781" text-anchor="middle">carrega usuário, conexão e run</text>
+
+            <rect x="760" y="818" width="410" height="66" rx="8" fill="#fdf2f8" stroke="#f9a8d4" />
+            <text x="965" y="842" text-anchor="middle" font-weight="800" fill="#500724">alt por plataforma</text>
+            <text x="965" y="862" text-anchor="middle" fill="#9d174d">Instagram Graph, Apify ou YouTube Data API / yt-dlp</text>
+
+            <path d="M774 920 L1123 920" stroke="#db2777" stroke-width="2" fill="none" marker-end="url(#seq-arrow)" />
+            <text x="949" y="909" text-anchor="middle" fill="#9d174d">busca posts, comentários, métricas e mídia</text>
+
+            <path d="M1123 970 L774 970" stroke="#db2777" stroke-width="2" fill="none" marker-end="url(#seq-arrow)" />
+            <text x="949" y="959" text-anchor="middle" fill="#9d174d">retorna dados ingeridos</text>
+
+            <path d="M774 1020 L946 1020" stroke="#475569" stroke-width="2" fill="none" marker-end="url(#seq-arrow)" />
+            <text x="860" y="1009" text-anchor="middle">upsert posts/comments</text>
+
+            <path d="M774 1070 L1300 1070" stroke="#db2777" stroke-width="2" fill="none" marker-end="url(#seq-arrow)" />
+            <text x="1037" y="1059" text-anchor="middle" fill="#9d174d">batches de comentários + contexto</text>
+
+            <path d="M1300 1120 L774 1120" stroke="#db2777" stroke-width="2" fill="none" marker-end="url(#seq-arrow)" />
+            <text x="1037" y="1109" text-anchor="middle" fill="#9d174d">score, polaridade, emoções, tópicos, custo</text>
+          </g>
+
+          <g transform="translate(44 1030)">
+            <rect x="0" y="0" width="640" height="110" rx="8" fill="#f8fafc" stroke="#cbd5e1" />
+            <text x="20" y="30" fill="#334155" font-size="14" font-weight="800">Conclusão do worker</text>
+            <text x="20" y="56" fill="#475569" font-size="13">1. grava comment_analysis e summaries no PostgreSQL</text>
+            <text x="20" y="78" fill="#475569" font-size="13">2. consome créditos, invalida caches Redis e marca PipelineRun completed/failed</text>
+            <text x="20" y="100" fill="#475569" font-size="13">3. opcionalmente envia notificação de sync via Resend</text>
+          </g>
+
+          <g transform="translate(740 1030)">
+            <rect x="0" y="0" width="710" height="110" rx="8" fill="#f8fafc" stroke="#cbd5e1" />
+            <text x="20" y="30" fill="#334155" font-size="14" font-weight="800">Retorno ao usuário</text>
+            <text x="20" y="56" fill="#475569" font-size="13">O frontend consulta dashboard/conexões/runs, a API usa Redis quando há cache</text>
+            <text x="20" y="78" fill="#475569" font-size="13">e consulta PostgreSQL quando necessário. A UI exibe o resultado persistido e rastreável.</text>
+            <line x1="20" y1="96" x2="80" y2="96" stroke="#475569" stroke-width="2" marker-end="url(#seq-arrow)" />
+            <text x="94" y="100" fill="#475569" font-size="12">síncrono</text>
+            <line x1="180" y1="96" x2="240" y2="96" stroke="#2457c5" stroke-width="2" stroke-dasharray="8 6" marker-end="url(#seq-async)" />
+            <text x="254" y="100" fill="#475569" font-size="12">assíncrono</text>
+          </g>
+        </svg>
+      </div>
+    </section>
+
+    <section>
+      <h2>3. Evidências e pendências</h2>
+      <ul>
+        <li>Confirmado no código: FastAPI, Next.js, PWA Vite, Celery/Redis, PostgreSQL, Nginx, Docker Compose e GitHub Actions deploy.</li>
+        <li>Confirmado na VPS: containers <code>api</code>, <code>web</code>, <code>worker</code>, <code>beat</code>, <code>postgres</code> e <code>redis</code>; API/web saudáveis; produção no commit <code>4ce5a06</code>.</li>
+        <li>Confirmado no código/envs: OpenRouter/Gemini, Apify, Instagram, TikTok, YouTube, Stripe, Resend, Google OAuth, Sentry e analytics frontend.</li>
+        <li>Não encontrado no runtime atual: S3/R2/GCS, NoSQL, Kafka, RabbitMQ, SQS, WhatsApp/Twilio, Kubernetes, Helm ou Terraform.</li>
+      </ul>
+      <p class="note">
+        A VPS também roda outros projetos Docker fora do Sentimenta. Eles não são
+        parte da arquitetura do SaaS, mas representam risco operacional por
+        compartilhamento de CPU, memória, disco e rede.
+      </p>
+    </section>
+
+    <section>
+      <h2>4. Fontes técnicas dos diagramas</h2>
+      <p class="small">Mantidas para discussão técnica com o time. Os desenhos acima já estão renderizados no próprio HTML.</p>
+      <details>
+        <summary>Mermaid - arquitetura</summary>
+        <pre>flowchart LR
+  User["Usuário SaaS"] -->|"HTTPS"| Nginx["Nginx"]
+  Admin["Admin/blog"] -->|"HTTPS"| Nginx
+  Nginx -->|"/, /blog"| Web["Next.js 15"]
+  Nginx -->|"/app/"| Mobile["PWA Vite React"]
+  Nginx -->|"/api/"| API["FastAPI"]
+  Web -->|"HTTP /api/v1 + JWT"| API
+  Mobile -->|"HTTP /api/v1 + JWT"| API
+  API -->|"SQLAlchemy"| DB[("PostgreSQL 16")]
+  Worker["Celery Worker"] -->|"SQLAlchemy"| DB
+  API -.->|"enqueue"| Redis[("Redis 7")]
+  Redis -.->|"deliver task"| Worker
+  Beat["Celery Beat"] -.->|"scheduled tasks"| Redis
+  Worker -->|"LLM"| OpenRouter["OpenRouter/Gemini"]
+  Worker -->|"scraping/enrichment"| Apify["Apify"]
+  Worker -->|"media/comments"| Social["Instagram/TikTok/YouTube"]
+  API -->|"checkout/portal"| Stripe["Stripe"]
+  Stripe -->|"webhook"| API</pre>
+      </details>
+      <details>
+        <summary>PlantUML - fluxo principal</summary>
+        <pre>@startuml
+actor "Usuário" as User
+participant "Next.js/PWA" as Web
+participant "FastAPI" as API
+queue "Redis/Celery" as Redis
+participant "Celery Worker" as Worker
+database "PostgreSQL" as DB
+participant "APIs sociais / Apify" as Social
+participant "OpenRouter / Gemini" as LLM
+
+User -> Web : Clica em sincronizar/analisar
+Web -> API : POST /connections/{id}/sync com JWT
+API -> DB : Valida conexão, plano e créditos
+API -> DB : Cria PipelineRun running
+API ->> Redis : Enfileira task_full_pipeline
+Redis ->> Worker : Entrega task
+Worker -> Social : Ingestão de posts/comentários
+Worker -> DB : Upsert posts/comments
+Worker -> LLM : Analisa comentários em batches
+LLM --> Worker : Scores e tópicos
+Worker -> DB : Grava análises e finaliza run
+Web -> API : Polling de status/dashboard
+API --> Web : Métricas persistidas
+@enduml</pre>
+      </details>
+    </section>
+  </main>
+</body>
+</html>

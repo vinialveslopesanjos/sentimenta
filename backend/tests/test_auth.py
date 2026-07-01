@@ -1,5 +1,7 @@
 """Tests for authentication endpoints."""
 
+from urllib.parse import parse_qs, urlparse
+
 from app.models.credits import CreditBalance, CreditTransaction
 from app.models.demographics import UsageLog
 from app.models.user import User
@@ -26,6 +28,9 @@ def test_register_success(client):
     assert "access_token" in data
     assert "refresh_token" in data
     assert data["token_type"] == "bearer"
+    assert "sentimenta_access_token" in res.cookies
+    assert "sentimenta_refresh_token" in res.cookies
+    assert "sentimenta_session" in res.cookies
 
 
 def test_register_duplicate_email(client):
@@ -53,6 +58,7 @@ def test_login_success(client):
     )
     assert res.status_code == 200
     assert "access_token" in res.json()
+    assert "sentimenta_access_token" in res.cookies
 
 
 def test_login_unverified_email(client):
@@ -123,12 +129,94 @@ def test_refresh_token(client):
     assert "access_token" in res.json()
 
 
+def test_refresh_accepts_httponly_cookie(client):
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "cookie-refresh@example.com", "password": "Secret123", "accepted_terms": True},
+    )
+
+    res = client.post("/api/v1/auth/refresh", json={})
+
+    assert res.status_code == 200
+    assert "access_token" in res.json()
+    assert "sentimenta_access_token" in res.cookies
+
+
 def test_refresh_invalid_token(client):
     res = client.post(
         "/api/v1/auth/refresh",
         json={"refresh_token": "bad-token"},
     )
     assert res.status_code == 401
+
+
+def test_email_verification_token_is_hashed_and_still_usable(client, monkeypatch):
+    captured = {}
+
+    def fake_send_verification_email(email, name, verification_url):
+        captured["url"] = verification_url
+        return True
+
+    monkeypatch.setattr("app.routers.auth.send_verification_email", fake_send_verification_email)
+
+    res = client.post(
+        "/api/v1/auth/register",
+        json={"email": "verify-hash@example.com", "password": "Secret123", "accepted_terms": True},
+    )
+
+    assert res.status_code == 201
+    token = parse_qs(urlparse(captured["url"]).query)["token"][0]
+
+    db = TestSessionLocal()
+    user = db.query(User).filter(User.email == "verify-hash@example.com").one()
+    assert user.email_verification_token != token
+    assert len(user.email_verification_token) == 64
+    db.close()
+
+    verify = client.get(f"/api/v1/auth/verify-email?token={token}", follow_redirects=False)
+    assert verify.status_code in {302, 307}
+
+    db = TestSessionLocal()
+    user = db.query(User).filter(User.email == "verify-hash@example.com").one()
+    assert user.email_verified is True
+    assert user.email_verification_token is None
+    db.close()
+
+
+def test_password_reset_token_is_hashed_and_still_usable(client, monkeypatch):
+    captured = {}
+
+    def fake_send_password_reset_email(email, name, reset_url):
+        captured["url"] = reset_url
+        return True
+
+    monkeypatch.setattr("app.routers.auth.send_password_reset_email", fake_send_password_reset_email)
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "reset-hash@example.com", "password": "Secret123", "accepted_terms": True},
+    )
+
+    forgot = client.post("/api/v1/auth/forgot-password", json={"email": "reset-hash@example.com"})
+    assert forgot.status_code == 200
+    token = parse_qs(urlparse(captured["url"]).query)["token"][0]
+
+    db = TestSessionLocal()
+    user = db.query(User).filter(User.email == "reset-hash@example.com").one()
+    assert user.password_reset_token != token
+    assert len(user.password_reset_token) == 64
+    db.close()
+
+    reset = client.post(
+        "/api/v1/auth/reset-password",
+        json={"token": token, "new_password": "NewSecret123"},
+    )
+    assert reset.status_code == 200
+
+    db = TestSessionLocal()
+    user = db.query(User).filter(User.email == "reset-hash@example.com").one()
+    assert user.password_reset_token is None
+    assert user.token_version == 1
+    db.close()
 
 
 def test_delete_account_clears_credit_and_usage_records(client):

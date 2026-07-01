@@ -8,8 +8,12 @@ set -e  # Para imediatamente se qualquer comando falhar
 
 # ─── Configurações (editar antes de rodar) ───────────────────
 
-DB_PASSWORD="MUDE_ESTA_SENHA_FORTE_12345"
-REDIS_PASSWORD="REDIS_SENHA_FORTE_AQUI"
+generate_secret() {
+    openssl rand -base64 48 | tr -dc 'A-Za-z0-9' | head -c 32
+}
+
+DB_PASSWORD="${DB_PASSWORD:-$(generate_secret)}"
+REDIS_PASSWORD="${REDIS_PASSWORD:-$(generate_secret)}"
 GITHUB_REPO="https://github.com/vinialveslopesanjos/sentimenta.git"
 GIT_BRANCH="main"
 APP_DIR="/opt/sentimenta"

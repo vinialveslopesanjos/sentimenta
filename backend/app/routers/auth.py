@@ -1,10 +1,9 @@
 import logging
 import secrets
-import uuid as _uuid
 from datetime import datetime, timezone, timedelta
 from urllib.parse import quote
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -12,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.cache import get_redis
 from app.core.config import settings
 from app.core.deps import get_current_user, get_current_user_unverified
+from app.core.security import hash_action_token
 from app.db.session import get_db
 from app.models.user import User
 from app.schemas.auth import (
@@ -45,9 +45,78 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+ACCESS_COOKIE = "sentimenta_access_token"
+REFRESH_COOKIE = "sentimenta_refresh_token"
+SESSION_MARKER_COOKIE = "sentimenta_session"
+
+
+def _cookie_domain() -> str | None:
+    return settings.SESSION_COOKIE_DOMAIN or None
+
+
+def _set_auth_cookies(response: Response, tokens: dict) -> None:
+    common = {
+        "secure": settings.SESSION_COOKIE_SECURE,
+        "samesite": settings.SESSION_COOKIE_SAMESITE,
+        "domain": _cookie_domain(),
+        "path": "/",
+    }
+    response.set_cookie(
+        ACCESS_COOKIE,
+        tokens["access_token"],
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        httponly=True,
+        **common,
+    )
+    response.set_cookie(
+        REFRESH_COOKIE,
+        tokens["refresh_token"],
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600,
+        httponly=True,
+        **common,
+    )
+    response.set_cookie(
+        SESSION_MARKER_COOKIE,
+        "1",
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600,
+        httponly=False,
+        **common,
+    )
+
+
+def _clear_auth_cookies(response: Response) -> None:
+    for cookie_name in (ACCESS_COOKIE, REFRESH_COOKIE, SESSION_MARKER_COOKIE):
+        response.delete_cookie(
+            cookie_name,
+            domain=_cookie_domain(),
+            path="/",
+            secure=settings.SESSION_COOKIE_SECURE,
+            samesite=settings.SESSION_COOKIE_SAMESITE,
+        )
+
+
+def _find_user_by_action_token(db: Session, column_name: str, token: str) -> User | None:
+    column = getattr(User, column_name)
+    token_hash = hash_action_token(token)
+    user = db.query(User).filter(column == token_hash).first()
+    if user:
+        return user
+    return db.query(User).filter(column == token).first()
+
+
+def _as_utc(value: datetime) -> datetime:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-def register(data: UserRegister, request: Request, db: Session = Depends(get_db)):
+def register(
+    data: UserRegister,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     from app.middleware.rate_limiter import rate_limiter
     client_ip = request.client.host if request.client else "unknown"
     rate_limiter.check(f"register:{client_ip}", max_requests=5, window_seconds=3600)
@@ -67,8 +136,8 @@ def register(data: UserRegister, request: Request, db: Session = Depends(get_db)
 
     # Generate verification token and send email
     try:
-        token = str(_uuid.uuid4())
-        user.email_verification_token = token
+        token = secrets.token_urlsafe(32)
+        user.email_verification_token = hash_action_token(token)
         user.email_verification_sent_at = datetime.now(timezone.utc)
         db.add(user)
         db.commit()
@@ -82,11 +151,18 @@ def register(data: UserRegister, request: Request, db: Session = Depends(get_db)
     identify(str(user.id), {"email": user.email, "name": user.name, "plan": user.plan})
     capture(str(user.id), "user_signup", {"plan": user.plan})
 
-    return create_tokens(user)
+    tokens = create_tokens(user)
+    _set_auth_cookies(response, tokens)
+    return tokens
 
 
 @router.post("/login", response_model=TokenResponse)
-def login(data: UserLogin, request: Request, db: Session = Depends(get_db)):
+def login(
+    data: UserLogin,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
     from app.middleware.rate_limiter import rate_limiter
     client_ip = request.client.host if request.client else "unknown"
     rate_limiter.check(f"login:{client_ip}", max_requests=5, window_seconds=60)
@@ -107,26 +183,42 @@ def login(data: UserLogin, request: Request, db: Session = Depends(get_db)):
     identify(str(user.id), {"email": user.email, "name": user.name, "plan": user.plan})
     capture(str(user.id), "user_login")
 
-    return create_tokens(user)
+    tokens = create_tokens(user)
+    _set_auth_cookies(response, tokens)
+    return tokens
 
 
 @router.post("/google", response_model=TokenResponse)
-async def google_login(data: GoogleLogin, db: Session = Depends(get_db)):
+async def google_login(data: GoogleLogin, response: Response, db: Session = Depends(get_db)):
     try:
         user = await authenticate_google(db, data.token)
     except ValueError as e:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
-    return create_tokens(user)
+    tokens = create_tokens(user)
+    _set_auth_cookies(response, tokens)
+    return tokens
 
 
 @router.post("/refresh", response_model=TokenResponse)
-def refresh(data: TokenRefresh, db: Session = Depends(get_db)):
-    tokens = refresh_access_token(db, data.refresh_token)
+def refresh(
+    data: TokenRefresh,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+):
+    refresh_token = data.refresh_token or request.cookies.get(REFRESH_COOKIE)
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid refresh token",
+        )
+    tokens = refresh_access_token(db, refresh_token)
     if not tokens:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid refresh token",
         )
+    _set_auth_cookies(response, tokens)
     return tokens
 
 
@@ -227,27 +319,31 @@ def delete_account(
 async def logout(
     payload: LogoutRequest,
     request: Request,
+    response: Response,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_unverified),
 ):
-    token = request.headers.get("Authorization", "").replace("Bearer ", "")
+    token = request.headers.get("Authorization", "").replace("Bearer ", "") or request.cookies.get(ACCESS_COOKIE, "")
+    refresh_token = payload.refresh_token or request.cookies.get(REFRESH_COOKIE)
     r = get_redis()
     if r:
         if token:
             r.setex(f"blacklist:{token}", 3600, "1")
-        if payload.refresh_token:
+        if refresh_token:
             r.setex(
-                f"blacklist:{payload.refresh_token}",
+                f"blacklist:{refresh_token}",
                 settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 3600,
                 "1",
             )
     revoke_all_tokens(db, current_user)
+    _clear_auth_cookies(response)
     return {"message": "Logged out successfully"}
 
 
 @router.post("/change-password", response_model=TokenResponse)
 def change_password_endpoint(
     data: ChangePasswordRequest,
+    response: Response,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user_unverified),
 ):
@@ -255,7 +351,9 @@ def change_password_endpoint(
         updated_user = change_password(db, current_user, data.current_password, data.new_password)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
-    return create_tokens(updated_user)
+    tokens = create_tokens(updated_user)
+    _set_auth_cookies(response, tokens)
+    return tokens
 
 
 # ---------------------------------------------------------------------------
@@ -270,8 +368,8 @@ def forgot_password(data: ForgotPasswordRequest, request: Request, db: Session =
 
     user = db.query(User).filter(User.email == data.email).first()
     if user and user.password_hash:
-        token = str(_uuid.uuid4())
-        user.password_reset_token = token
+        token = secrets.token_urlsafe(32)
+        user.password_reset_token = hash_action_token(token)
         user.password_reset_sent_at = datetime.now(timezone.utc)
         db.add(user)
         db.commit()
@@ -288,12 +386,12 @@ def forgot_password(data: ForgotPasswordRequest, request: Request, db: Session =
 @router.post("/reset-password")
 def reset_password(data: ResetPasswordRequest, db: Session = Depends(get_db)):
     """Reset password using token from email."""
-    user = db.query(User).filter(User.password_reset_token == data.token).first()
+    user = _find_user_by_action_token(db, "password_reset_token", data.token)
     if not user:
         raise HTTPException(status_code=400, detail="Token invalido ou ja utilizado")
 
     if user.password_reset_sent_at:
-        elapsed = (datetime.now(timezone.utc) - user.password_reset_sent_at).total_seconds()
+        elapsed = (datetime.now(timezone.utc) - _as_utc(user.password_reset_sent_at)).total_seconds()
         if elapsed > 3600:  # 1 hour
             raise HTTPException(status_code=400, detail="Token expirado. Solicite um novo link.")
 
@@ -322,15 +420,15 @@ def send_verification(
 
     # Rate limit: 60 seconds between sends
     if current_user.email_verification_sent_at:
-        elapsed = (datetime.now(timezone.utc) - current_user.email_verification_sent_at).total_seconds()
+        elapsed = (datetime.now(timezone.utc) - _as_utc(current_user.email_verification_sent_at)).total_seconds()
         if elapsed < 60:
             raise HTTPException(
                 status_code=status.HTTP_429_TOO_MANY_REQUESTS,
                 detail=f"Aguarde {int(60 - elapsed)} segundos para reenviar.",
             )
 
-    token = str(_uuid.uuid4())
-    current_user.email_verification_token = token
+    token = secrets.token_urlsafe(32)
+    current_user.email_verification_token = hash_action_token(token)
     current_user.email_verification_sent_at = datetime.now(timezone.utc)
     db.add(current_user)
     db.commit()
@@ -346,13 +444,13 @@ def verify_email(
     db: Session = Depends(get_db),
 ):
     """Verify email via token link (no auth required — user clicks from email)."""
-    user = db.query(User).filter(User.email_verification_token == token).first()
+    user = _find_user_by_action_token(db, "email_verification_token", token)
     if not user:
         raise HTTPException(status_code=400, detail="Token inválido ou já utilizado")
 
     # Check expiry: 24 hours
     if user.email_verification_sent_at:
-        elapsed = (datetime.now(timezone.utc) - user.email_verification_sent_at).total_seconds()
+        elapsed = (datetime.now(timezone.utc) - _as_utc(user.email_verification_sent_at)).total_seconds()
         if elapsed > 86400:
             raise HTTPException(status_code=400, detail="Token expirado. Solicite um novo email de verificação.")
 
@@ -405,7 +503,7 @@ class ExchangeCodeRequest(BaseModel):
 
 
 @router.post("/exchange-code")
-def exchange_oauth_code(data: ExchangeCodeRequest):
+def exchange_oauth_code(data: ExchangeCodeRequest, response: Response):
     """Exchange a one-time OAuth login code for JWT tokens.
     The code was stored in Redis during the OAuth callback."""
     r = get_redis()
@@ -423,9 +521,16 @@ def exchange_oauth_code(data: ExchangeCodeRequest):
     except (json.JSONDecodeError, TypeError):
         raise HTTPException(status_code=400, detail="Invalid code payload")
 
-    return {
+    tokens = {
         "access_token": payload["access_token"],
         "refresh_token": payload["refresh_token"],
+        "token_type": "bearer",
+    }
+    _set_auth_cookies(response, tokens)
+    return {
+        "access_token": tokens["access_token"],
+        "refresh_token": tokens["refresh_token"],
+        "token_type": tokens["token_type"],
         "provider": payload.get("provider"),
         "pipeline_started": payload.get("pipeline_started", False),
     }

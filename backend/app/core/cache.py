@@ -13,7 +13,7 @@ def get_redis() -> Optional[redis.Redis]:
     global redis_client
     if redis_client is None:
         try:
-            redis_client = redis.from_url(settings.CELERY_BROKER_URL, decode_responses=True)
+            redis_client = redis.from_url(settings.CACHE_REDIS_URL, decode_responses=True)
             redis_client.ping()
         except Exception:
             redis_client = None

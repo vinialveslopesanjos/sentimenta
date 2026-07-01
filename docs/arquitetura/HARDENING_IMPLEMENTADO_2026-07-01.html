@@ -1,0 +1,428 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Hardening Implementado - Sentimenta</title>
+  <style>
+    :root {
+      --bg: #f5f7fb;
+      --paper: #ffffff;
+      --ink: #172033;
+      --muted: #5b677c;
+      --line: #d9e2ee;
+      --soft: #eef4f8;
+      --good: #047857;
+      --warn: #a16207;
+      --info: #075985;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+    main {
+      width: min(1180px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 24px 0 64px;
+    }
+    header, section {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 22px;
+      margin: 16px 0;
+    }
+    h1, h2, h3 {
+      margin: 0 0 12px;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+    h1 { font-size: clamp(28px, 5vw, 44px); }
+    h2 { font-size: 23px; margin-top: 4px; }
+    h3 { font-size: 17px; margin-top: 18px; }
+    p { margin: 0 0 12px; color: var(--muted); }
+    a { color: var(--info); text-decoration: none; overflow-wrap: anywhere; }
+    a:hover { text-decoration: underline; }
+    code, pre {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+    }
+    code {
+      background: #eef2f7;
+      border: 1px solid #dbe3ef;
+      border-radius: 5px;
+      padding: 1px 5px;
+    }
+    pre {
+      overflow-x: auto;
+      background: #0f172a;
+      color: #dbeafe;
+      border-radius: 8px;
+      padding: 14px;
+      font-size: 13px;
+      line-height: 1.45;
+    }
+    .meta, .cards {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #f8fafc;
+      padding: 7px 10px;
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .card {
+      flex: 1 1 240px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfdff;
+      padding: 14px;
+    }
+    .card strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      margin-top: 12px;
+      background: #fff;
+    }
+    table {
+      width: 100%;
+      min-width: 820px;
+      border-collapse: collapse;
+    }
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+    th {
+      background: var(--soft);
+      color: #263244;
+    }
+    tr:last-child td { border-bottom: 0; }
+    .tag {
+      display: inline-block;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-weight: 700;
+      color: #fff;
+      background: var(--good);
+      white-space: nowrap;
+    }
+    .tag.partial { background: var(--warn); }
+    .diagram {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+      padding: 14px;
+      overflow-x: auto;
+    }
+    .plantuml-render {
+      display: block;
+      max-width: 100%;
+      min-height: 260px;
+      margin: 0 auto 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+    .note {
+      border-left: 4px solid var(--info);
+      background: #eff6ff;
+      border-radius: 6px;
+      padding: 12px 14px;
+      color: #1e3a8a;
+    }
+    ul { margin: 8px 0 0; padding-left: 20px; color: var(--muted); }
+    li { margin: 5px 0; }
+    @media (max-width: 820px) {
+      main { width: min(100% - 18px, 1180px); padding-top: 10px; }
+      header, section { padding: 16px; }
+      table { min-width: 760px; }
+    }
+  </style>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: true, securityLevel: "strict", theme: "base" });
+  </script>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Hardening Implementado - Sentimenta</h1>
+      <p>Registro das correcoes aplicadas em seguranca, arquitetura operacional, CI/CD e documentacao apos a auditoria. O objetivo foi melhorar postura defensiva sem quebrar os fluxos atuais.</p>
+      <div class="meta">
+        <span class="pill">Data: 2026-07-01</span>
+        <span class="pill">Backend: FastAPI + Celery</span>
+        <span class="pill">Frontend: Next.js CSP nonce</span>
+        <span class="pill">CI: pip-audit + Gitleaks + Trivy + SBOM</span>
+      </div>
+    </header>
+
+    <section>
+      <h2>Resumo</h2>
+      <div class="cards">
+        <div class="card">
+          <strong>Sessoes mais seguras</strong>
+          <p>Backend seta cookies HttpOnly/Secure/SameSite e o web deixa de persistir access/refresh tokens em localStorage.</p>
+        </div>
+        <div class="card">
+          <strong>CSP com nonce</strong>
+          <p>Em producao, CSP e enforcement e remove <code>unsafe-eval</code>; scripts permitidos usam nonce por request.</p>
+        </div>
+        <div class="card">
+          <strong>Pipeline observavel</strong>
+          <p>Worker/beat ganharam healthchecks e existe endpoint admin com Redis, Celery, fila e runs problemáticos.</p>
+        </div>
+        <div class="card">
+          <strong>CI mais forte</strong>
+          <p>Dependencias Python, segredos, imagem/filesystem e SBOM agora entram no pipeline de GitHub Actions.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Status Por Pedido</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Pedido</th><th>Status</th><th>Como foi tratado</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>Worker e beat sem healthcheck</td><td><span class="tag">Implementado</span></td><td><code>compose.prod.yml</code> ganhou healthchecks com <code>python -m app.ops.healthchecks</code>; API ganhou <code>/health/ready</code>.</td></tr>
+            <tr><td>Observabilidade assincrona parcial</td><td><span class="tag partial">Fase 1</span></td><td>Novo endpoint admin <code>/api/v1/ops/health</code> agrega Redis, Celery, fila, workers e runs stale/failed/partial.</td></tr>
+            <tr><td>CSP Report-Only permissiva</td><td><span class="tag">Implementado</span></td><td>CSP dinamica no middleware; producao usa <code>Content-Security-Policy</code>, nonce e sem <code>unsafe-eval</code>.</td></tr>
+            <tr><td>Tokens em localStorage</td><td><span class="tag partial">Fase 1</span></td><td>Web e PWA usam cookies HttpOnly com fallback legado em memoria/localStorage antigo.</td></tr>
+            <tr><td>Hardening Docker</td><td><span class="tag partial">Fase 1</span></td><td><code>no-new-privileges</code>, <code>cap_drop: ALL</code>, limites de CPU/memoria/PIDs e read-only onde seguro.</td></tr>
+            <tr><td>Supply chain JS</td><td><span class="tag partial">Parcial</span></td><td><code>next-auth</code> removido, lockfile duplicado removido, audit fix sem breaking change; restam 2 moderadas Next/PostCSS.</td></tr>
+            <tr><td>Auditoria Python no CI</td><td><span class="tag">Implementado</span></td><td>CI roda <code>pip-audit -r backend/requirements.txt</code>.</td></tr>
+            <tr><td>Leads anti-spam</td><td><span class="tag">Implementado</span></td><td>Rate limit por IP e email em <code>/leads/diagnostic</code>.</td></tr>
+            <tr><td>Thumbnail proxy abuso</td><td><span class="tag">Implementado</span></td><td>Rate limit por IP e alvo hash/post_id em <code>/posts/thumbnail</code>.</td></tr>
+            <tr><td>Redis centralizado</td><td><span class="tag partial">Fase 1</span></td><td>Config suporta <code>CACHE_REDIS_URL</code> e <code>RATE_LIMIT_REDIS_URL</code>; Compose separa DBs Redis por funcao.</td></tr>
+            <tr><td>CI/CD seguranca/SBOM</td><td><span class="tag">Implementado</span></td><td>Gitleaks, Trivy high/critical e SBOM CycloneDX no GitHub Actions.</td></tr>
+            <tr><td>Multi-tenancy/IDOR</td><td><span class="tag partial">Fase 1</span></td><td>Suite nova cobre connections, posts, comments, dashboard, pipeline e billing/credits.</td></tr>
+            <tr><td>Tokens reset/verificacao em claro</td><td><span class="tag">Implementado</span></td><td>Novos tokens usam <code>secrets.token_urlsafe</code> + HMAC-SHA256; fallback temporario aceita tokens legados ate expirarem.</td></tr>
+            <tr><td>Documentacao drift</td><td><span class="tag">Implementado</span></td><td>README, Markdown e este HTML atualizados.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Checks Executados</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Check</th><th>Resultado</th></tr></thead>
+          <tbody>
+            <tr><td><code>python -m compileall backend\app</code></td><td>Passou</td></tr>
+            <tr><td><code>.venv\Scripts\python.exe -m pytest -q backend\tests</code></td><td>Passou: 71 testes</td></tr>
+            <tr><td><code>npm run build:packages</code></td><td>Passou</td></tr>
+            <tr><td><code>npm run type-check</code></td><td>Passou</td></tr>
+            <tr><td><code>npm run build:web</code></td><td>Passou</td></tr>
+            <tr><td><code>npm run build --workspace=@sentimenta/mobile --if-present</code></td><td>Passou</td></tr>
+            <tr><td><code>npm run audit:prod</code></td><td>Passou no gate high/critical; restam 2 moderadas Next/PostCSS</td></tr>
+            <tr><td>YAML parse de Compose, CI e Dependabot</td><td>Passou</td></tr>
+            <tr><td><code>docker compose -f compose.prod.yml config --quiet</code></td><td>Passou com Docker Compose standalone v5.2.0 em diretorio temporario sem usar <code>.env</code> real</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Arquitetura Das Atualizacoes - Mermaid</h2>
+      <div class="diagram">
+        <div class="mermaid">
+flowchart LR
+  User[Usuario autenticado] --> Web[Next.js Web]
+  Web --> MW[Middleware CSP nonce]
+  MW --> API[FastAPI API]
+  API --> PG[(PostgreSQL)]
+  API --> RCache[(Redis DB2<br/>cache + blacklist + OAuth code)]
+  API --> RRate[(Redis DB3<br/>rate limit)]
+  API --> RBroker[(Redis DB0/1<br/>Celery broker/result)]
+  RBroker --> Worker[Celery worker<br/>healthcheck]
+  RBroker --> Beat[Celery beat<br/>healthcheck]
+  API --> Ops[/Ops health admin/]
+  Ops --> RBroker
+  Ops --> RCache
+  Ops --> RRate
+  Ops --> PG
+  CI[GitHub Actions] --> Tests[pytest + build + type-check]
+  CI --> Scans[Gitleaks + Trivy + SBOM + pip-audit]
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Fluxo De Login Endurecido - Mermaid</h2>
+      <div class="diagram">
+        <div class="mermaid">
+sequenceDiagram
+  participant U as Usuario
+  participant W as Next.js Web
+  participant A as FastAPI Auth
+  participant R as Redis
+  participant DB as PostgreSQL
+
+  U->>W: login/register
+  W->>A: POST /auth/login ou /auth/register
+  A->>DB: valida usuario e token_version
+  A-->>W: JSON legado + Set-Cookie HttpOnly access/refresh
+  W->>W: guarda apenas token em memoria, limpa localStorage
+  W->>A: chamadas API com credentials include
+  A->>A: autentica por cookie ou Authorization legado
+  A-->>W: dados do usuario
+  W->>A: POST /auth/refresh sem token no body
+  A->>DB: valida refresh cookie
+  A-->>W: rotaciona cookies
+  W->>A: POST /auth/logout
+  A->>R: blacklist access/refresh
+  A-->>W: limpa cookies
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Arquitetura Das Atualizacoes - PlantUML</h2>
+      <img class="plantuml-render" id="plantuml-architecture-img" alt="Diagrama PlantUML de arquitetura das atualizacoes" />
+      <pre><code id="plantuml-architecture-source">@startuml
+left to right direction
+skinparam componentStyle rectangle
+
+actor "Usuario autenticado" as User
+
+rectangle "Sentimenta SaaS" {
+  component "Next.js Web\nCSP nonce middleware" as Web
+  component "FastAPI API\ncookie/header auth" as API
+  component "Celery worker\nhealthcheck" as Worker
+  component "Celery beat\nhealthcheck" as Beat
+  component "Ops health admin\n/api/v1/ops/health" as Ops
+
+  database "PostgreSQL" as PG
+  database "Redis DB0/1\nbroker/result" as RBroker
+  database "Redis DB2\ncache, blacklist, OAuth code" as RCache
+  database "Redis DB3\nrate limits" as RRate
+}
+
+cloud "GitHub Actions\npytest, builds, pip-audit,\nGitleaks, Trivy, SBOM" as CI
+
+User --> Web : HTTPS
+Web --> API : /api/v1 + cookies HttpOnly
+API --> PG : ORM
+API --> RCache : cache/session blacklist
+API --> RRate : public endpoint limits
+API --> RBroker : enqueue jobs
+RBroker --> Worker : tasks
+RBroker --> Beat : schedules
+Ops --> PG
+Ops --> RBroker
+Ops --> RCache
+Ops --> RRate
+CI --> Web
+CI --> API
+@enduml</code></pre>
+    </section>
+
+    <section>
+      <h2>Fluxo De Login Endurecido - PlantUML</h2>
+      <img class="plantuml-render" id="plantuml-flow-img" alt="Diagrama PlantUML do fluxo de login endurecido" />
+      <pre><code id="plantuml-flow-source">@startuml
+actor Usuario as U
+participant "Next.js Web" as W
+participant "FastAPI Auth" as A
+database "PostgreSQL" as DB
+database "Redis" as R
+
+U -> W: login/register
+W -> A: POST /auth/login ou /auth/register
+A -> DB: valida credenciais e token_version
+A --> W: Set-Cookie HttpOnly + JSON legado
+W -> W: limpa localStorage e usa cookie/memoria
+W -> A: API request com credentials include
+A -> A: resolve cookie ou Authorization legado
+A --> W: resposta autenticada
+W -> A: POST /auth/refresh
+A -> DB: valida refresh cookie
+A --> W: novos cookies
+W -> A: POST /auth/logout
+A -> R: blacklist access/refresh
+A --> W: delete cookies
+@enduml</code></pre>
+    </section>
+
+    <section>
+      <h2>Proxima Etapa</h2>
+      <ul>
+        <li>Remover estilos inline para eliminar <code>unsafe-inline</code> de <code>style-src</code>.</li>
+        <li>Remover fallback legado de bearer/localStorage depois que as sessoes antigas expirarem e os clientes estiverem atualizados.</li>
+        <li>Separar Redis em instancias fisicas ou servicos gerenciados quando a escala justificar.</li>
+        <li>Validar Trivy, Gitleaks e SBOM no GitHub Actions em PR/push; o Compose ja validou localmente com binario standalone.</li>
+        <li>Fazer deploy assistido e observar <code>/api/v1/ops/health</code>, Sentry e logs de worker/beat.</li>
+      </ul>
+      <p class="note">Este HTML e complementar ao relatorio Markdown em <code>docs/auditoria/HARDENING_IMPLEMENTADO_2026-07-01.md</code>.</p>
+    </section>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+  <script>
+    function encodePlantUml(text) {
+      const data = new TextEncoder().encode(text);
+      const compressed = pako.deflateRaw(data, { level: 9 });
+      let result = "";
+      for (let i = 0; i < compressed.length; i += 3) {
+        const b1 = compressed[i];
+        const b2 = i + 1 < compressed.length ? compressed[i + 1] : 0;
+        const b3 = i + 2 < compressed.length ? compressed[i + 2] : 0;
+        result += append3bytes(b1, b2, b3);
+      }
+      return result;
+    }
+
+    function append3bytes(b1, b2, b3) {
+      const c1 = b1 >> 2;
+      const c2 = ((b1 & 0x3) << 4) | (b2 >> 4);
+      const c3 = ((b2 & 0xF) << 2) | (b3 >> 6);
+      const c4 = b3 & 0x3F;
+      return encode6bit(c1 & 0x3F) + encode6bit(c2 & 0x3F) + encode6bit(c3 & 0x3F) + encode6bit(c4 & 0x3F);
+    }
+
+    function encode6bit(value) {
+      if (value < 10) return String.fromCharCode(48 + value);
+      value -= 10;
+      if (value < 26) return String.fromCharCode(65 + value);
+      value -= 26;
+      if (value < 26) return String.fromCharCode(97 + value);
+      value -= 26;
+      if (value === 0) return "-";
+      if (value === 1) return "_";
+      return "?";
+    }
+
+    function renderPlantUml(sourceId, imageId) {
+      const source = document.getElementById(sourceId);
+      const image = document.getElementById(imageId);
+      if (!source || !image) return;
+      image.src = "https://www.plantuml.com/plantuml/svg/" + encodePlantUml(source.textContent.trim());
+    }
+
+    window.addEventListener("load", () => {
+      renderPlantUml("plantuml-architecture-source", "plantuml-architecture-img");
+      renderPlantUml("plantuml-flow-source", "plantuml-flow-img");
+    });
+  </script>
+</body>
+</html>

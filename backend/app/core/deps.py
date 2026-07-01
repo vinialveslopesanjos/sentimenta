@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import Depends, HTTPException, status, Query
+from fastapi import Cookie, Depends, HTTPException, Query, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 
@@ -9,18 +9,27 @@ from app.core.security import token_version_matches
 from app.db.session import get_db
 from app.models.user import User
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+optional_oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)
 
 
 def get_current_user_unverified(
-    token: str = Depends(oauth2_scheme),
+    token: str | None = Depends(optional_oauth2_scheme),
+    cookie_token: str | None = Cookie(default=None, alias="sentimenta_access_token"),
     db: Session = Depends(get_db),
 ) -> User:
     """Authenticate user by JWT but do NOT check email_verified.
     Use this for endpoints that must work before email verification
     (e.g. /auth/me, /auth/send-verification, /auth/logout).
     """
-    payload = decode_token(token)
+    actual_token = token or cookie_token
+    if not actual_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Not authenticated",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    payload = decode_token(actual_token)
     if payload is None or payload.get("type") != "access":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -67,12 +76,13 @@ def get_current_user(
 
 
 async def get_current_user_token_or_query(
-    token: str = Depends(OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login", auto_error=False)),
+    token: str | None = Depends(optional_oauth2_scheme),
+    cookie_token: str | None = Cookie(default=None, alias="sentimenta_access_token"),
     query_token: str | None = Query(None, alias="token"),
     db: Session = Depends(get_db),
 ) -> User:
     """Gets the current user using either Auth header or query token (for SSE/WS)."""
-    actual_token = token or query_token
+    actual_token = token or cookie_token or query_token
     if not actual_token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

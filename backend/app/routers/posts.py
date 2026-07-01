@@ -1,6 +1,7 @@
 import uuid
+import hashlib
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.responses import FileResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -27,10 +28,18 @@ router = APIRouter(prefix="/posts", tags=["posts"])
 
 @router.get("/thumbnail")
 def get_thumbnail_proxy(
+    request: Request,
     url: str = Query("", min_length=0),
     post_id: str = Query("", description="Optional shortcode for stable cache lookup"),
 ):
     from app.services.media_cache_service import CACHE_DIR, _find_existing_file
+    from app.middleware.rate_limiter import rate_limiter
+
+    client_ip = request.client.host if request.client else "unknown"
+    cache_target = post_id or hashlib.sha256(url.encode("utf-8")).hexdigest()[:24]
+    rate_limiter.check(f"thumbnail:ip:{client_ip}", max_requests=240, window_seconds=300)
+    if cache_target:
+        rate_limiter.check(f"thumbnail:target:{cache_target}", max_requests=600, window_seconds=3600)
 
     # 1. Try stable cache by post shortcode (never expires)
     if post_id:

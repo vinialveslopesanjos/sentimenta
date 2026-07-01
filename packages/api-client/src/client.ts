@@ -29,6 +29,7 @@ import { SentimentaApiError } from "./errors";
 interface ClientConfig {
     baseUrl: string;
     getToken: () => string | null | Promise<string | null>;
+    cookieAuthSentinel?: string;
     fetchFn?: typeof fetch;
     onUnauthorized?: () => void;
 }
@@ -49,7 +50,7 @@ interface BillingPlan {
 // ─── Client factory ───────────────────────────────────────────────
 
 export function createApiClient(config: ClientConfig) {
-    const { baseUrl, getToken, onUnauthorized } = config;
+    const { baseUrl, getToken, onUnauthorized, cookieAuthSentinel } = config;
     const fetchFn = config.fetchFn || fetch;
 
     // ── Core fetch wrapper ────────────────────────────────────────
@@ -67,19 +68,19 @@ export function createApiClient(config: ClientConfig) {
 
         if (!skipAuth) {
             const token = await getToken();
-            if (token) {
+            if (token && token !== cookieAuthSentinel) {
                 headers["Authorization"] = `Bearer ${token}`;
             }
         }
 
         let res: Response;
         try {
-            res = await fetchFn(`${baseUrl}${path}`, { headers, ...rest });
+            res = await fetchFn(`${baseUrl}${path}`, { credentials: "include", headers, ...rest });
         } catch (error) {
             // Retry once for transient errors
             try {
                 await new Promise((resolve) => setTimeout(resolve, 300));
-                res = await fetchFn(`${baseUrl}${path}`, { headers, ...rest });
+                res = await fetchFn(`${baseUrl}${path}`, { credentials: "include", headers, ...rest });
             } catch {
                 const message =
                     error instanceof Error ? error.message : "Failed to fetch";

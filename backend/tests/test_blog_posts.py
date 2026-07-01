@@ -72,6 +72,12 @@ def test_non_admin_cannot_create_blog_post(client, auth_headers):
     assert res.json()["detail"] == "admin_required"
 
 
+def test_non_admin_cannot_list_admin_blog_posts(client, auth_headers):
+    res = client.get("/api/v1/admin/blog/posts", headers=auth_headers)
+    assert res.status_code == 403
+    assert res.json()["detail"] == "admin_required"
+
+
 def test_public_blog_settings_default_and_admin_update(client, db):
     public_default = client.get("/api/v1/blog/settings")
     assert public_default.status_code == 200

@@ -39,9 +39,21 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-sentimenta}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-sentimenta_db}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CACHE_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/2
+      RATE_LIMIT_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/3
       CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/1
       DEBUG: "false"
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: ${API_PIDS_LIMIT:-512}
+    mem_limit: ${API_MEMORY_LIMIT:-1g}
+    cpus: ${API_CPUS:-1.0}
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
     volumes:
@@ -52,28 +64,47 @@ services:
       redis:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/health >/dev/null"]
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8000/health/ready >/dev/null"]
       interval: 20s
       timeout: 5s
       retries: 5
+      start_period: 30s
 
   worker:
     image: sentimenta-api:${SENTIMENTA_IMAGE_TAG:-local}
     restart: unless-stopped
-    command: ["celery", "-A", "app.tasks.celery_app", "worker", "--loglevel=info", "--concurrency=${CELERY_CONCURRENCY:-2}"]
+    command: ["celery", "-A", "app.tasks.celery_app", "worker", "--loglevel=info", "--hostname=worker@%h", "--concurrency=${CELERY_CONCURRENCY:-2}"]
     env_file:
       - .env
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-sentimenta}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-sentimenta_db}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CACHE_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/2
+      RATE_LIMIT_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/3
       CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/1
       DEBUG: "false"
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: ${WORKER_PIDS_LIMIT:-512}
+    mem_limit: ${WORKER_MEMORY_LIMIT:-1g}
+    cpus: ${WORKER_CPUS:-1.0}
     volumes:
       - media_output:/app/output
     depends_on:
       api:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -m app.ops.healthchecks worker"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   beat:
     image: sentimenta-api:${SENTIMENTA_IMAGE_TAG:-local}
@@ -84,14 +115,32 @@ services:
     environment:
       DATABASE_URL: postgresql://${POSTGRES_USER:-sentimenta}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-sentimenta_db}
       REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
+      CACHE_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/2
+      RATE_LIMIT_REDIS_URL: redis://:${REDIS_PASSWORD}@redis:6379/3
       CELERY_BROKER_URL: redis://:${REDIS_PASSWORD}@redis:6379/0
       CELERY_RESULT_BACKEND: redis://:${REDIS_PASSWORD}@redis:6379/1
       DEBUG: "false"
+    read_only: true
+    tmpfs:
+      - /tmp:size=128m,mode=1777
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: ${BEAT_PIDS_LIMIT:-256}
+    mem_limit: ${BEAT_MEMORY_LIMIT:-512m}
+    cpus: ${BEAT_CPUS:-0.5}
     volumes:
       - media_output:/app/output
     depends_on:
       api:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "python -m app.ops.healthchecks beat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
 
   web:
     build:
@@ -112,6 +161,13 @@ services:
       NEXT_PUBLIC_GOOGLE_TAG_ID: ${NEXT_PUBLIC_GOOGLE_TAG_ID:-}
       NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_CONVERSION_LABEL: ${NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_CONVERSION_LABEL:-}
       NODE_ENV: production
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    pids_limit: ${WEB_PIDS_LIMIT:-512}
+    mem_limit: ${WEB_MEMORY_LIMIT:-1g}
+    cpus: ${WEB_CPUS:-1.0}
     ports:
       - "127.0.0.1:${WEB_PORT:-3000}:3000"
     depends_on:
