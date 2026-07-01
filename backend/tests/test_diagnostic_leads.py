@@ -78,3 +78,27 @@ def test_diagnostic_lead_rejects_honeypot(client, db):
 
     assert res.status_code == 400
     assert db.query(DiagnosticLead).count() == 0
+
+
+def test_diagnostic_lead_is_rate_limited_by_email(client, monkeypatch):
+    def fake_send_support_contact_email(**kwargs):
+        return True
+
+    monkeypatch.setattr(
+        "app.routers.leads.send_support_contact_email",
+        fake_send_support_contact_email,
+    )
+
+    payload = {
+        "name": "Lead Rate",
+        "email": "lead-rate@example.com",
+        "role": "agencia",
+        "profile_or_post": "@cliente",
+    }
+
+    for _ in range(3):
+        res = client.post("/api/v1/leads/diagnostic", json=payload)
+        assert res.status_code == 200
+
+    limited = client.post("/api/v1/leads/diagnostic", json=payload)
+    assert limited.status_code == 429

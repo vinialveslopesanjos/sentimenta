@@ -50,13 +50,13 @@ function formatApiErrorDetail(detail: unknown, fallback: string): string {
 async function tryRefreshToken(): Promise<string | null> {
   const { getRefreshToken, setTokens, clearTokens } = await import("./auth");
   const refreshToken = getRefreshToken();
-  if (!refreshToken) return null;
 
   try {
     const res = await fetch(`${API_URL}/auth/refresh`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refresh_token: refreshToken }),
+      credentials: "include",
+      body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
     });
     if (!res.ok) {
       clearTokens();
@@ -72,24 +72,25 @@ async function tryRefreshToken(): Promise<string | null> {
 
 async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T> {
   const { token, headers: customHeaders, _retried, ...rest } = options;
+  const { COOKIE_AUTH_SENTINEL } = await import("./auth");
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     ...((customHeaders as Record<string, string>) || {}),
   };
 
-  if (token) {
+  if (token && token !== COOKIE_AUTH_SENTINEL) {
     headers["Authorization"] = `Bearer ${token}`;
   }
 
   let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}`, { headers, ...rest });
+    res = await fetch(`${API_URL}${path}`, { credentials: "include", headers, ...rest });
   } catch (error) {
     // Retry once for transient backend reload/network blips in local dev.
     try {
       await new Promise((resolve) => setTimeout(resolve, 250));
-      res = await fetch(`${API_URL}${path}`, { headers, ...rest });
+      res = await fetch(`${API_URL}${path}`, { credentials: "include", headers, ...rest });
     } catch {
       const message = error instanceof Error ? error.message : "Failed to fetch";
       throw new Error(`Falha de conexão com API (${API_URL}). ${message}`);

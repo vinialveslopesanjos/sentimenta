@@ -1,0 +1,509 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Auditoria de Seguranca e Arquitetura - Sentimenta</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f5f7fb;
+      --paper: #ffffff;
+      --ink: #18202f;
+      --muted: #58657a;
+      --line: #d9e0ea;
+      --head: #eef3f8;
+      --critical: #991b1b;
+      --high: #c2410c;
+      --medium: #a16207;
+      --low: #2563eb;
+      --ok: #0f766e;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      line-height: 1.5;
+    }
+
+    main {
+      width: min(1180px, calc(100% - 28px));
+      margin: 0 auto;
+      padding: 24px 0 64px;
+    }
+
+    header {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 18px;
+    }
+
+    h1, h2, h3 {
+      margin: 0 0 12px;
+      line-height: 1.15;
+      letter-spacing: 0;
+    }
+
+    h1 {
+      font-size: clamp(28px, 5vw, 44px);
+    }
+
+    h2 {
+      font-size: 24px;
+      margin-top: 28px;
+    }
+
+    h3 {
+      font-size: 18px;
+      margin-top: 22px;
+    }
+
+    p {
+      margin: 0 0 12px;
+      color: var(--muted);
+    }
+
+    a {
+      color: #075985;
+      text-decoration: none;
+      overflow-wrap: anywhere;
+    }
+
+    a:hover { text-decoration: underline; }
+
+    code {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
+      background: #eef2f7;
+      border: 1px solid #dbe3ef;
+      border-radius: 5px;
+      padding: 1px 5px;
+      color: #111827;
+    }
+
+    .meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 16px;
+    }
+
+    .pill {
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      background: #f8fafc;
+      padding: 7px 10px;
+      color: var(--muted);
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    section {
+      background: var(--paper);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 22px;
+      margin: 18px 0;
+    }
+
+    .scores {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+    }
+
+    .score {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 16px;
+      background: #fbfdff;
+    }
+
+    .score strong {
+      display: block;
+      font-size: 32px;
+      line-height: 1;
+      margin: 8px 0;
+    }
+
+    .score span {
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .table-wrap {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      margin-top: 12px;
+      background: #fff;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 850px;
+    }
+
+    th, td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    th {
+      background: var(--head);
+      color: #263244;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+    }
+
+    tr:last-child td { border-bottom: 0; }
+
+    .sev {
+      display: inline-block;
+      min-width: 86px;
+      border-radius: 999px;
+      padding: 4px 8px;
+      font-size: 12px;
+      font-weight: 700;
+      text-align: center;
+      color: #fff;
+    }
+
+    .sev.critical { background: var(--critical); }
+    .sev.high { background: var(--high); }
+    .sev.medium { background: var(--medium); }
+    .sev.low { background: var(--low); }
+
+    ul {
+      margin: 8px 0 0;
+      padding-left: 20px;
+      color: var(--muted);
+    }
+
+    li { margin: 5px 0; }
+
+    .note {
+      border-left: 4px solid var(--ok);
+      background: #ecfdf5;
+      padding: 12px 14px;
+      color: #134e4a;
+      border-radius: 6px;
+      margin-top: 14px;
+    }
+
+    @media (max-width: 820px) {
+      main {
+        width: min(100% - 18px, 1180px);
+        padding-top: 10px;
+      }
+
+      header, section {
+        padding: 16px;
+      }
+
+      .scores {
+        grid-template-columns: 1fr;
+      }
+
+      table {
+        min-width: 760px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Auditoria de Seguranca e Arquitetura - Sentimenta</h1>
+      <p>Relatorio baseado em evidencias do repositorio local, artefatos de deploy, leitura operacional autorizada da VPS e referencias tecnicas externas. Nao houve exploracao ofensiva, dump de banco, chamada real a provedores externos ou alteracao em producao.</p>
+      <p><strong>Nota de atualizacao:</strong> varios achados deste relatorio foram tratados no hardening de 2026-07-01. Veja <a href="/HARDENING_IMPLEMENTADO_2026-07-01.html">HARDENING_IMPLEMENTADO_2026-07-01.html</a> para o estado pos-correcao.</p>
+      <div class="meta">
+        <span class="pill">Data: 2026-07-01</span>
+        <span class="pill">Escopo: SaaS Sentimenta</span>
+        <span class="pill">Backend: FastAPI + Celery</span>
+        <span class="pill">Frontend: Next.js + Vite PWA</span>
+        <span class="pill">Deploy: Docker Compose + Nginx</span>
+      </div>
+    </header>
+
+    <section>
+      <h2>Panorama executivo</h2>
+      <p>O Sentimenta tem uma base tecnica coerente para um SaaS de reputacao digital: backend FastAPI, frontend Next.js, PWA Vite, PostgreSQL, Redis, Celery worker/beat, integracoes com Stripe, Resend, Google OAuth, Instagram, TikTok, YouTube, Apify e LLM via OpenRouter/Gemini.</p>
+      <p>Os fundamentos de seguranca existem: autenticacao JWT com refresh, blacklist em Redis, versao de token por usuario, verificacao de email, rate limit em endpoints criticos de auth, criptografia de tokens sociais com Fernet, assinatura de webhook Stripe, containers nao-root, CORS restrito, API/web expostos apenas via localhost no Compose e Nginx na borda.</p>
+      <p>O risco atual esta menos em um bug isolado e mais em maturidade operacional e governanca: VPS unica e compartilhada com outros projetos, workers sem healthcheck, CSP ainda em modo Report-Only com <code>unsafe-inline</code>/<code>unsafe-eval</code>, tokens no <code>localStorage</code>, privilegio admin atrelado a emails hardcoded, observabilidade incompleta para pipeline assincrono e falta de evidencias de restore drill/HA.</p>
+    </section>
+
+    <section>
+      <h2>Scores</h2>
+      <div class="scores">
+        <div class="score">
+          <span>Seguranca</span>
+          <strong>6.8/10</strong>
+          <p>Bons controles basicos, mas riscos relevantes em XSS/token storage, admin governance, hardening operacional, supply chain e observabilidade.</p>
+        </div>
+        <div class="score">
+          <span>Arquitetura</span>
+          <strong>7.1/10</strong>
+          <p>Stack e separacao de responsabilidades sao adequadas. Cai por single-host compartilhado, workers sem saude declarativa, pouca IaC/HA e documentacao com drift.</p>
+        </div>
+        <div class="score">
+          <span>Prontidao operacional</span>
+          <strong>5.9/10</strong>
+          <p>A aplicacao esta de pe no basico, mas faltam alertas, metricas de fila, healthchecks, limites de recurso e restore drill.</p>
+        </div>
+      </div>
+    </section>
+
+    <section>
+      <h2>Tabela de achados</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Severidade</th>
+              <th>Achado</th>
+              <th>Evidencia observada</th>
+              <th>Impacto</th>
+              <th>Recomendacao</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="sev critical">Critico</span></td>
+              <td>Nenhuma vulnerabilidade critica confirmada</td>
+              <td>Nao foi encontrado P0 validado como auth bypass, RCE, segredo impresso, banco publico ou webhook sem assinatura.</td>
+              <td>Sem acao emergencial confirmada.</td>
+              <td>Manter validacao com scan formal, SAST/DAST, secret scanning e pentest antes de aumentar exposicao comercial.</td>
+            </tr>
+            <tr>
+              <td><span class="sev high">Alta</span></td>
+              <td>VPS unica e compartilhada com outros stacks</td>
+              <td>VPS roda <code>sentimenta</code>, <code>agent</code>, <code>chatwoot</code>, <code>evolution</code>, <code>nutri_evolution</code>; swap quase cheio.</td>
+              <td>Contencao fraca de recursos, maior blast radius e risco de indisponibilidade.</td>
+              <td>Isolar Sentimenta em VPS dedicada ou cluster; aplicar limites de CPU/memoria por container; separar redes; monitorar swap.</td>
+            </tr>
+            <tr>
+              <td><span class="sev high">Alta</span></td>
+              <td>Worker e beat sem healthcheck operacional</td>
+              <td>Containers <code>sentimenta-worker-1</code> e <code>sentimenta-beat-1</code> aparecem running, mas sem health status; Compose sem healthcheck para eles.</td>
+              <td>Pipeline pode parar ou degradar silenciosamente, afetando dados reais e rastreaveis.</td>
+              <td>Adicionar healthchecks Celery/beat, metricas de fila, idade do ultimo job, alertas para fila crescente e tarefas sem heartbeat.</td>
+            </tr>
+            <tr>
+              <td><span class="sev high">Alta</span></td>
+              <td>CSP em Report-Only e permissiva</td>
+              <td><code>frontend/next.config.js</code> define CSP Report-Only e inclui <code>unsafe-inline</code>/<code>unsafe-eval</code>.</td>
+              <td>XSS fica menos mitigado; combinado com tokens no <code>localStorage</code>, aumenta impacto de injecao.</td>
+              <td>Migrar CSP para enforcement por fases; remover <code>unsafe-eval</code>; adotar nonce/hash para scripts; manter report endpoint.</td>
+            </tr>
+            <tr>
+              <td><span class="sev high">Alta</span></td>
+              <td>Tokens de sessao persistem em <code>localStorage</code></td>
+              <td>Web/PWA armazenam access/refresh tokens em <code>localStorage</code>.</td>
+              <td>XSS pode roubar refresh token e manter sessao, com impacto maior para admin/enterprise.</td>
+              <td>Preferir cookies <code>HttpOnly</code>, <code>Secure</code>, <code>SameSite</code>; se mantiver bearer, reduzir TTL e usar refresh rotation.</td>
+            </tr>
+            <tr>
+              <td><span class="sev high">Alta</span></td>
+              <td>Privilegio admin definido por emails hardcoded</td>
+              <td><code>backend/app/services/auth_service.py</code> contem lista <code>ADMIN_EMAILS</code>; admin aparece acoplado a plano/privilegio.</td>
+              <td>Governanca fraca, dificil auditar concessao/revogacao e risco se fluxo de email for abusado.</td>
+              <td>Separar RBAC de plano comercial; mover admins para tabela/seed controlado; exigir 2FA para admin; auditar mudancas de papel.</td>
+            </tr>
+            <tr>
+              <td><span class="sev medium">Media-alta</span></td>
+              <td>Observabilidade assincrona parcial</td>
+              <td>Sentry/config existe, mas nao foi validado ativo; nao foram encontrados dashboards/alertas de Celery, Redis, creditos, webhooks ou pipeline.</td>
+              <td>Falhas de ingestao/LLM podem virar dado ausente ou atrasado sem alerta rapido.</td>
+              <td>Criar SLIs de pipeline, latencia por provider, fila Celery, dead tasks, credit burn, webhook failures e erros por tenant.</td>
+            </tr>
+            <tr>
+              <td><span class="sev medium">Media-alta</span></td>
+              <td>Hardening de containers e host incompleto</td>
+              <td>Compose usa containers nao-root e binds locais, mas nao ha <code>read_only</code>, <code>cap_drop</code>, <code>security_opt</code> ou limites de recurso.</td>
+              <td>Aumenta impacto de comprometimento de app e risco de exaustao de recursos.</td>
+              <td>Aplicar baseline Docker CIS/OWASP: <code>cap_drop: [ALL]</code>, <code>no-new-privileges</code>, FS read-only quando possivel e limites de memoria/CPU.</td>
+            </tr>
+            <tr>
+              <td><span class="sev medium">Media</span></td>
+              <td>Supply chain JS com vulnerabilidades moderadas</td>
+              <td><code>npm audit:prod</code> retornou 4 moderadas, incluindo cadeia envolvendo Next/PostCSS e <code>next-auth</code>/<code>uuid</code>.</td>
+              <td>Risco depende de explorabilidade e uso real, mas deve ser reduzido em SaaS publico.</td>
+              <td>Atualizar Next/deps; remover <code>next-auth</code> se nao usado; adicionar Dependabot/Renovate com SLA.</td>
+            </tr>
+            <tr>
+              <td><span class="sev medium">Media</span></td>
+              <td>Auditoria de dependencias Python nao validada</td>
+              <td>Ambiente local nao permitiu executar toda a suite; nao ha evidencia de <code>pip-audit</code> ou Safety no CI.</td>
+              <td>Vulnerabilidades em libs backend podem passar despercebidas.</td>
+              <td>Adicionar <code>pip-audit</code> no CI; usar lock/pinning de deps; revisar base images periodicamente.</td>
+            </tr>
+            <tr>
+              <td><span class="sev medium">Media</span></td>
+              <td>Endpoint publico de leads com anti-spam fraco</td>
+              <td><code>backend/app/routers/leads.py</code> usa honeypot, mas nao ha evidencia de rate limit robusto.</td>
+              <td>Spam, abuso de email/DB e ruido comercial.</td>
+              <td>Adicionar rate limit por IP/email, captcha adaptativo, validacao de dominio e alertas de volume.</td>
+            </tr>
+            <tr>
+              <td><span class="sev medium">Media</span></td>
+              <td>Proxy/cache de thumbnails publico pode consumir banda/disco</td>
+              <td>Endpoint <code>/posts/thumbnail</code> e servico de cache mitigam SSRF, mas seguem publicos e aceitam URLs permitidas.</td>
+              <td>Abuso de trafego/disco contra hosts allowlistados; potencial custo operacional.</td>
+              <td>Exigir auth ou rate limit; quotas de cache; limpeza por TTL; metricas de hit/miss e tamanho do cache.</td>
+            </tr>
+            <tr>
+              <td><span class="sev medium">Media</span></td>
+              <td>Redis centraliza cache, rate limit, blacklist e broker</td>
+              <td><code>REDIS_URL</code>, Celery broker/result e caches compartilham Redis; Compose usa senha unica/default user.</td>
+              <td>Falha ou saturacao do Redis afeta auth, filas, cache e pipeline de uma vez.</td>
+              <td>Separar Redis por funcao ou DB/instancia; usar ACLs por papel; monitorar memoria, evictions, conexoes e latencia.</td>
+            </tr>
+            <tr>
+              <td><span class="sev medium">Media</span></td>
+              <td>Backups existem, mas restore/RPO/RTO nao foram evidenciados</td>
+              <td>Ha script de backup Postgres em <code>scripts/ops</code>, mas auditoria nao validou destino, criptografia, retencao ou restore.</td>
+              <td>Backups podem nao ser recuperaveis quando necessario.</td>
+              <td>Documentar RPO/RTO; automatizar backup criptografado offsite; executar restore drill mensal.</td>
+            </tr>
+            <tr>
+              <td><span class="sev medium">Media</span></td>
+              <td>CI/CD sem evidencias fortes de imagem, segredos e SBOM</td>
+              <td>Nao foi encontrada evidencia suficiente de Trivy/Grype, secret scanning dedicado, Docker benchmark ou SBOM.</td>
+              <td>Risco de imagem vulneravel, segredo acidental ou drift operacional.</td>
+              <td>Adicionar secret scanning, container scan, SBOM, dependency review, branch protection e gates para high/critical.</td>
+            </tr>
+            <tr>
+              <td><span class="sev medium">Media</span></td>
+              <td>Multi-tenancy depende de disciplina por endpoint</td>
+              <td>Muitos endpoints filtram por <code>current_user.id</code>, e ha testes pontuais, mas nao foi visto teste matricial completo.</td>
+              <td>IDOR regressivo pode surgir em novas rotas ou filtros esquecidos.</td>
+              <td>Criar suite de autorizacao cross-tenant para todos os recursos: conexoes, posts, comentarios, dashboards, billing, blog/admin.</td>
+            </tr>
+            <tr>
+              <td><span class="sev low">Media-baixa</span></td>
+              <td>Token em query string ainda suportado para SSE</td>
+              <td><code>get_current_user_token_or_query</code> aceita token via query; frontend atual parece evitar SSE/fallback.</td>
+              <td>Query tokens podem aparecer em logs, historico ou referer se usados.</td>
+              <td>Remover query token quando possivel; usar cookie HttpOnly ou header em transporte compativel; mascarar logs.</td>
+            </tr>
+            <tr>
+              <td><span class="sev low">Media-baixa</span></td>
+              <td>Variaveis de ambiente legadas ampliam superficie</td>
+              <td>VPS contem chaves como Supabase, sem uso runtime encontrado nesta analise.</td>
+              <td>Secret sprawl dificulta rotacao e aumenta impacto de vazamento.</td>
+              <td>Inventariar envs; remover chaves nao usadas; rotacionar tokens antigos; documentar dono e uso de cada segredo.</td>
+            </tr>
+            <tr>
+              <td><span class="sev low">Media-baixa</span></td>
+              <td>Emails HTML interpolam valores sem escape explicito</td>
+              <td><code>email_service.py</code> monta HTML com valores como nome/usuario/URLs.</td>
+              <td>Possivel HTML injection em email, spoofing visual ou quebra de template.</td>
+              <td>Escapar valores dinamicos; renderizar templates com autoescape; validar URLs de destino.</td>
+            </tr>
+            <tr>
+              <td><span class="sev low">Baixa</span></td>
+              <td>Tokens de reset/verificacao ficam em claro no banco</td>
+              <td>Tokens UUID com expiracao sao armazenados diretamente.</td>
+              <td>Se banco vazar, tokens ativos podem ser usados ate expirar.</td>
+              <td>Armazenar hash dos tokens; TTL curto; invalidar todos os tokens anteriores por usuario.</td>
+            </tr>
+            <tr>
+              <td><span class="sev low">Baixa</span></td>
+              <td>Documentacao arquitetural com sinais de drift</td>
+              <td>Documentos antigos citam tecnologias/versoes diferentes das atuais; diagramas recentes corrigem parte disso.</td>
+              <td>Time pode tomar decisao operacional com base em informacao antiga.</td>
+              <td>Manter ADRs e C4 atualizados; gerar docs a partir de evidencias de codigo/deploy; versionar diagrama renderizado.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Roadmap recomendado</h2>
+      <h3>0 a 7 dias</h3>
+      <ul>
+        <li>Adicionar healthcheck e alerta para Celery worker e beat.</li>
+        <li>Criar alertas basicos: API, web, fila Celery, Redis memoria, Postgres storage e swap.</li>
+        <li>Remover ou proteger admin hardcoded com RBAC administravel.</li>
+        <li>Ativar rate limit nos endpoints publicos de lead e thumbnail.</li>
+        <li>Atualizar ou remover dependencias JS com vulnerabilidades moderadas.</li>
+      </ul>
+      <h3>7 a 30 dias</h3>
+      <ul>
+        <li>Migrar CSP de Report-Only para enforcement por etapas.</li>
+        <li>Planejar migracao de tokens do <code>localStorage</code> para cookie <code>HttpOnly</code>.</li>
+        <li>Criar suite IDOR cross-tenant para todos os recursos.</li>
+        <li>Adicionar container hardening no Compose.</li>
+        <li>Separar Redis por funcao ou aplicar ACLs.</li>
+        <li>Introduzir auditoria Python e container scan no CI.</li>
+      </ul>
+      <h3>30 a 90 dias</h3>
+      <ul>
+        <li>Isolar Sentimenta em infraestrutura dedicada ou gerenciada.</li>
+        <li>Implementar backup offsite criptografado com restore drill.</li>
+        <li>Versionar IaC para VPS, rede, Nginx e Compose.</li>
+        <li>Medir pipeline success rate, provider errors, credit burn e stale data.</li>
+        <li>Definir threat model e target OWASP ASVS para releases futuros.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>Componentes confirmados</h2>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Categoria</th>
+              <th>Confirmado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Frontend</td><td>Next.js web app, PWA Vite, pacote compartilhado de tipos/API client.</td></tr>
+            <tr><td>Backend</td><td>FastAPI modular com routers de auth, connections, posts, dashboard, pipeline, comments, billing, support, demographics, leads e blog.</td></tr>
+            <tr><td>Assincrono</td><td>Celery worker e beat usando Redis como broker/result backend.</td></tr>
+            <tr><td>Banco</td><td>PostgreSQL em container, volume persistente <code>postgres_data</code>.</td></tr>
+            <tr><td>Cache/fila</td><td>Redis com senha, volume <code>redis_data</code>, usado por Celery, blacklist, cache e rate limit.</td></tr>
+            <tr><td>Integracoes</td><td>Stripe, Resend, Google OAuth, Instagram, TikTok, YouTube, Apify, OpenRouter/Gemini, Clarity/Google Tag e Sentry configuravel.</td></tr>
+            <tr><td>Deploy</td><td>Docker Compose em VPS Ubuntu, Nginx reverse proxy, API e web expostos localmente por <code>127.0.0.1</code>, TLS/hosts via Nginx.</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <section>
+      <h2>Skills e referencias</h2>
+      <p>Foram usadas/lidas as skills locais <code>c4-model</code>, <code>find-skills</code>, <code>codex-security:security-scan</code>, <code>codex-security:deep-security-scan</code> e <code>codex-security:threat-model</code>. A busca externa encontrou skills como <code>openai/skills@security-threat-model</code>, <code>esaa-security-audit</code>, <code>multi-tenant-saas-architecture</code>, <code>agent-architecture-audit</code> e guias de Docker hardening.</p>
+      <div class="note">Skills de terceiros devem ser tratadas como dependencias de supply chain. A recomendacao e revisar o conteudo antes de instalar/executar, principalmente quando uma skill pode induzir comandos shell ou leitura de arquivos sensiveis.</div>
+      <h3>Referencias externas</h3>
+      <ul>
+        <li><a href="https://owasp.org/www-project-application-security-verification-standard/">OWASP ASVS</a></li>
+        <li><a href="https://owasp.org/www-project-samm/">OWASP SAMM</a></li>
+        <li><a href="https://owasp.org/Top10/2021/A01_2021-Broken_Access_Control/">OWASP Top 10 - Broken Access Control</a></li>
+        <li><a href="https://cheatsheetseries.owasp.org/cheatsheets/Docker_Security_Cheat_Sheet.html">OWASP Docker Security Cheat Sheet</a></li>
+        <li><a href="https://docs.docker.com/security/">Docker security docs</a></li>
+        <li><a href="https://www.cisecurity.org/benchmark/docker">CIS Docker Benchmark</a></li>
+        <li><a href="https://nextjs.org/docs/app/guides/content-security-policy">Next.js CSP docs</a></li>
+        <li><a href="https://fastapi.tiangolo.com/tutorial/security/oauth2-jwt/">FastAPI OAuth2/JWT docs</a></li>
+        <li><a href="https://docs.celeryq.dev/en/latest/userguide/security.html">Celery security docs</a></li>
+        <li><a href="https://redis.io/docs/latest/operate/oss_and_stack/management/security/acl/">Redis ACL docs</a></li>
+        <li><a href="https://officialskills.sh/openai/skills/security-threat-model">OpenAI Security Threat Model skill listing</a></li>
+        <li><a href="https://owasp.org/www-project-agentic-skills-top-10/">OWASP Agentic Skills Top 10</a></li>
+        <li><a href="https://safedep.io/agent-skills-threat-model">SafeDep Agent Skills threat model</a></li>
+        <li><a href="https://snyk.io/articles/skill-md-shell-access/">Snyk analysis of Skill.md shell-access risks</a></li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

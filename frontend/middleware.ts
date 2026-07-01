@@ -3,6 +3,47 @@ import { defaultLocale, locales, type Locale } from "./i18n/config";
 
 const COOKIE_NAME = "NEXT_LOCALE";
 
+function createNonce(): string {
+  return crypto.randomUUID().replace(/-/g, "");
+}
+
+function buildCsp(nonce: string): string {
+  const isProduction = process.env.NODE_ENV === "production";
+  const scriptSrc = [
+    "'self'",
+    `'nonce-${nonce}'`,
+    ...(isProduction ? [] : ["'unsafe-eval'"]),
+    "https://accounts.google.com",
+    "https://www.googletagmanager.com",
+    "https://www.clarity.ms",
+    "https://*.clarity.ms",
+  ].join(" ");
+
+  return [
+    "default-src 'self'",
+    "base-uri 'self'",
+    "frame-ancestors 'none'",
+    "object-src 'none'",
+    "img-src 'self' data: blob: https:",
+    "media-src 'self' https:",
+    `script-src ${scriptSrc}`,
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+    "font-src 'self' data: https://fonts.gstatic.com",
+    "connect-src 'self' https://sentimenta.com.br https://api.sentimenta.com.br https://accounts.google.com https://*.clarity.ms",
+    "frame-src 'self' https://accounts.google.com",
+    "form-action 'self'",
+    "report-uri /api/v1/security/csp-report",
+    "upgrade-insecure-requests",
+  ].join("; ");
+}
+
+function attachCsp(response: NextResponse, nonce: string) {
+  const headerName = process.env.NODE_ENV === "production"
+    ? "Content-Security-Policy"
+    : "Content-Security-Policy-Report-Only";
+  response.headers.set(headerName, buildCsp(nonce));
+}
+
 function getPreferredLocale(acceptLanguage: string | null): Locale {
   if (!acceptLanguage) return defaultLocale;
 
@@ -42,11 +83,19 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  const nonce = createNonce();
+  const requestHeaders = new Headers(request.headers);
+  requestHeaders.set("x-nonce", nonce);
+  const response = NextResponse.next({
+    request: {
+      headers: requestHeaders,
+    },
+  });
+
   // Check existing cookie
   const existingLocale = request.cookies.get(COOKIE_NAME)?.value as Locale | undefined;
   if (existingLocale && locales.includes(existingLocale)) {
-    // Cookie exists and is valid - pass along
-    const response = NextResponse.next();
+    attachCsp(response, nonce);
     return response;
   }
 
@@ -55,12 +104,12 @@ export function middleware(request: NextRequest) {
   const detectedLocale = getPreferredLocale(acceptLanguage);
 
   // Set cookie for future requests
-  const response = NextResponse.next();
   response.cookies.set(COOKIE_NAME, detectedLocale, {
     path: "/",
     maxAge: 60 * 60 * 24 * 365, // 1 year
     sameSite: "lax",
   });
+  attachCsp(response, nonce);
 
   return response;
 }

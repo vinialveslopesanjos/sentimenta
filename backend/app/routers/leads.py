@@ -34,13 +34,19 @@ def create_diagnostic_lead(
     db: Session = Depends(get_db),
 ):
     """Capture a diagnostic request before attempting email notification."""
+    from app.middleware.rate_limiter import rate_limiter
+
+    client_ip = request.client.host if request.client else "unknown"
+    normalized_email = str(payload.email).lower()
+    rate_limiter.check(f"diagnostic_lead:ip:{client_ip}", max_requests=8, window_seconds=3600)
+    rate_limiter.check(f"diagnostic_lead:email:{normalized_email}", max_requests=3, window_seconds=86400)
 
     if payload.website:
         raise HTTPException(status_code=400, detail="Invalid submission")
 
     lead = DiagnosticLead(
         name=payload.name.strip(),
-        email=str(payload.email).lower(),
+        email=normalized_email,
         role=payload.role.strip(),
         profile_or_post=payload.profile_or_post.strip(),
         context=payload.context.strip() if payload.context else None,

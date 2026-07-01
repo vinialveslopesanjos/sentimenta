@@ -1,8 +1,30 @@
 import time
 from collections import defaultdict
-from fastapi import HTTPException
+from typing import Optional
 
-from app.core.cache import get_redis
+from fastapi import HTTPException
+import redis
+
+from app.core.config import settings
+
+
+rate_limit_redis_client: Optional[redis.Redis] = None
+
+
+def get_rate_limit_redis() -> Optional[redis.Redis]:
+    global rate_limit_redis_client
+    if not settings.RATE_LIMIT_REDIS_URL:
+        return None
+    if rate_limit_redis_client is None:
+        try:
+            rate_limit_redis_client = redis.from_url(
+                settings.RATE_LIMIT_REDIS_URL,
+                decode_responses=True,
+            )
+            rate_limit_redis_client.ping()
+        except Exception:
+            rate_limit_redis_client = None
+    return rate_limit_redis_client
 
 
 class RateLimiter:
@@ -10,7 +32,7 @@ class RateLimiter:
         self._requests: dict[str, list[float]] = defaultdict(list)
 
     def check(self, key: str, max_requests: int, window_seconds: int):
-        redis_client = get_redis()
+        redis_client = get_rate_limit_redis()
         if redis_client:
             return self._check_redis(redis_client, key, max_requests, window_seconds)
         return self._check_memory(key, max_requests, window_seconds)
@@ -29,14 +51,15 @@ class RateLimiter:
         now_ms = int(time.time() * 1000)
         window_start = now_ms - (window_seconds * 1000)
         redis_key = f"rate_limit:{key}"
+        member = f"{now_ms}:{time.perf_counter_ns()}"
         pipeline = redis_client.pipeline()
         pipeline.zremrangebyscore(redis_key, 0, window_start)
-        pipeline.zadd(redis_key, {str(now_ms): now_ms})
+        pipeline.zadd(redis_key, {member: now_ms})
         pipeline.zcard(redis_key)
         pipeline.expire(redis_key, window_seconds)
         _, _, request_count, _ = pipeline.execute()
         if int(request_count) > max_requests:
-            redis_client.zrem(redis_key, str(now_ms))
+            redis_client.zrem(redis_key, member)
             raise HTTPException(
                 status_code=429,
                 detail=f"Rate limit exceeded. Try again in {window_seconds} seconds.",

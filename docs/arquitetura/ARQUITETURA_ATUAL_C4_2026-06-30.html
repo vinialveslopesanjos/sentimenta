@@ -1,0 +1,710 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Sentimenta | Arquitetura Atual C4</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --bg: #f6f7f9;
+      --surface: #ffffff;
+      --surface-2: #eef2f6;
+      --ink: #172033;
+      --muted: #5e6b7d;
+      --line: #d7dde6;
+      --brand: #2457c5;
+      --brand-2: #0f8f86;
+      --warn: #b45309;
+      --shadow: 0 16px 40px rgba(23, 32, 51, 0.08);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      line-height: 1.55;
+    }
+
+    a {
+      color: var(--brand);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .page {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 28px 0 56px;
+    }
+
+    header {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow);
+      padding: 28px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+    }
+
+    .eyebrow {
+      color: var(--brand-2);
+      font-size: 0.78rem;
+      font-weight: 800;
+      letter-spacing: 0;
+      text-transform: uppercase;
+      margin: 0 0 8px;
+    }
+
+    h1 {
+      font-size: clamp(2rem, 4vw, 3.4rem);
+      line-height: 1.04;
+      margin: 0;
+      letter-spacing: 0;
+    }
+
+    h2 {
+      font-size: clamp(1.35rem, 2.4vw, 2rem);
+      margin: 0 0 14px;
+      letter-spacing: 0;
+    }
+
+    h3 {
+      font-size: 1rem;
+      margin: 0 0 8px;
+      letter-spacing: 0;
+    }
+
+    p {
+      margin: 0 0 12px;
+    }
+
+    .lead {
+      max-width: 820px;
+      color: var(--muted);
+      font-size: 1.02rem;
+      margin-top: 14px;
+    }
+
+    .badges {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 18px;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 32px;
+      padding: 6px 10px;
+      background: var(--surface-2);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      color: #26344d;
+      font-size: 0.84rem;
+      font-weight: 700;
+      white-space: nowrap;
+    }
+
+    section {
+      background: var(--surface);
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      margin: 16px 0;
+      padding: 24px;
+      box-shadow: 0 8px 24px rgba(23, 32, 51, 0.05);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .fact {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 14px;
+      background: #fbfcfe;
+      min-height: 120px;
+    }
+
+    .fact strong {
+      display: block;
+      margin-bottom: 6px;
+    }
+
+    ul {
+      margin: 8px 0 0;
+      padding-left: 20px;
+    }
+
+    li {
+      margin: 7px 0;
+    }
+
+    code,
+    pre {
+      font-family: "JetBrains Mono", "Cascadia Code", Consolas, monospace;
+    }
+
+    .diagram {
+      overflow-x: auto;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 18px;
+      margin-top: 12px;
+    }
+
+    .diagram .mermaid {
+      min-width: 760px;
+    }
+
+    .plantuml-render {
+      width: 100%;
+      min-height: 260px;
+      display: block;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #ffffff;
+      padding: 12px;
+      object-fit: contain;
+    }
+
+    details {
+      margin-top: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fbfcfe;
+    }
+
+    summary {
+      cursor: pointer;
+      padding: 12px 14px;
+      font-weight: 800;
+      color: #26344d;
+    }
+
+    pre.source {
+      margin: 0;
+      padding: 14px;
+      overflow: auto;
+      border-top: 1px solid var(--line);
+      font-size: 0.82rem;
+      line-height: 1.45;
+      color: #1f2937;
+      background: #f8fafc;
+    }
+
+    .note {
+      border-left: 4px solid var(--brand);
+      background: #f5f8ff;
+      padding: 12px 14px;
+      border-radius: 6px;
+      color: #253858;
+    }
+
+    .warn {
+      border-left-color: var(--warn);
+      background: #fff8ed;
+    }
+
+    .small {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    @media (max-width: 800px) {
+      .page {
+        width: min(100% - 20px, 1180px);
+        padding-top: 10px;
+      }
+
+      header,
+      section {
+        padding: 18px;
+      }
+
+      .grid {
+        grid-template-columns: 1fr;
+      }
+
+      .badge {
+        white-space: normal;
+      }
+
+      .diagram {
+        padding: 10px;
+      }
+
+      .diagram .mermaid {
+        min-width: 900px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header>
+      <p class="eyebrow">Sentimenta | documentação arquitetural atual</p>
+      <h1>Arquitetura C4 e fluxo principal</h1>
+      <p class="lead">
+        Documento gerado em 2026-06-30 com leitura do repositório local e
+        verificação read-only da VPS de produção. A análise diferencia evidência
+        confirmada, inferências de alta confiança e pontos não encontrados.
+      </p>
+      <div class="badges">
+        <span class="badge">FastAPI</span>
+        <span class="badge">Next.js 15</span>
+        <span class="badge">Vite PWA</span>
+        <span class="badge">Celery + Redis</span>
+        <span class="badge">PostgreSQL 16</span>
+        <span class="badge">Docker Compose</span>
+        <span class="badge">VPS srv1377371</span>
+        <span class="badge">Commit prod 4ce5a06</span>
+      </div>
+    </header>
+
+    <section>
+      <h2>1. Resumo da arquitetura encontrada</h2>
+      <ul>
+        <li>O Sentimenta é um SaaS de análise de reputação digital com frontend web Next.js, PWA Vite/React, backend FastAPI, workers Celery, Redis e PostgreSQL.</li>
+        <li>O deploy de produção confirmado roda em uma única VPS Ubuntu 24.04.4 via Docker Compose, projeto <code>sentimenta</code>.</li>
+        <li>O Nginx fica na borda e encaminha <code>/api/</code> para a API local, <code>/</code> para o Next.js e <code>/app/</code> para a PWA estática.</li>
+        <li>O pipeline principal é assíncrono: a API cria um <code>PipelineRun</code>, publica tarefa Celery no Redis, o worker ingere dados, chama provedores externos, roda LLM e persiste resultados.</li>
+        <li>Redis é broker/result backend do Celery e também cache, rate limit, blacklist JWT e estado temporário de OAuth.</li>
+        <li>PostgreSQL é a persistência principal para usuários, conexões sociais, posts, comentários, análises, runs, créditos, Stripe events, demographics e blog.</li>
+        <li>Integrações confirmadas: OpenRouter/Gemini, Apify, Instagram Graph/OAuth, TikTok OAuth/API, YouTube Data API e <code>yt-dlp</code>, Stripe, Resend, Google OAuth, Sentry, Clarity/Google Tag.</li>
+      </ul>
+    </section>
+
+    <section>
+      <h2>2. Evidências e premissas</h2>
+      <div class="grid">
+        <article class="fact">
+          <strong>Confirmado no código</strong>
+          <p>Routers FastAPI, modelos SQLAlchemy, Celery Beat, pipeline tasks, compose de produção, workflows de deploy, Nginx e dependências runtime.</p>
+        </article>
+        <article class="fact">
+          <strong>Confirmado na VPS</strong>
+          <p>Containers <code>api</code>, <code>web</code>, <code>worker</code>, <code>beat</code>, <code>postgres</code> e <code>redis</code>; API/web healthy; Nginx roteando Sentimenta.</p>
+        </article>
+        <article class="fact">
+          <strong>Inferido com alta confiança</strong>
+          <p>Deploy atual em uma VPS única; PWA servida como artefato estático; Redis centraliza fila, cache e estados temporários.</p>
+        </article>
+      </div>
+      <p class="note warn" style="margin-top: 14px;">
+        Não foi encontrada evidência runtime de S3/R2/GCS, NoSQL, Kafka, RabbitMQ,
+        SQS, WhatsApp/Twilio, Kubernetes, Helm ou Terraform. Variáveis
+        <code>SUPABASE_*</code> existem na VPS, mas não houve uso runtime encontrado
+        no código atual.
+      </p>
+    </section>
+
+    <section>
+      <h2>3. Diagrama de arquitetura - Mermaid</h2>
+      <p class="small">Visão C4 Container com elementos de deployment confirmados.</p>
+      <div class="diagram">
+        <pre class="mermaid">
+flowchart LR
+  classDef actor fill:#f8fafc,stroke:#64748b,color:#0f172a
+  classDef edge fill:#ecfeff,stroke:#0891b2,color:#164e63
+  classDef app fill:#eef2ff,stroke:#4f46e5,color:#1e1b4b
+  classDef backend fill:#f0fdf4,stroke:#16a34a,color:#052e16
+  classDef data fill:#fff7ed,stroke:#ea580c,color:#431407
+  classDef external fill:#fdf2f8,stroke:#db2777,color:#500724
+  classDef deploy fill:#f1f5f9,stroke:#475569,color:#0f172a
+
+  subgraph Users["Atores"]
+    User["Usuário SaaS<br/>browser/PWA"]
+    Admin["Admin/blog"]
+  end
+
+  subgraph CI["CI/CD"]
+    GHA["GitHub Actions<br/>deploy-production"]
+  end
+
+  subgraph VPS["VPS srv1377371<br/>Ubuntu 24.04 + Docker Compose sentimenta"]
+    Compose["Docker Compose<br/>project sentimenta"]
+    Nginx["Nginx<br/>edge reverse proxy"]
+    Web["Web app<br/>Next.js 15 / React"]
+    Mobile["PWA estática<br/>Vite React em /app/"]
+    API["API<br/>FastAPI / Uvicorn"]
+    Worker["Worker<br/>Celery"]
+    Beat["Scheduler<br/>Celery Beat"]
+    DB[("PostgreSQL 16<br/>dados do SaaS")]
+    Redis[("Redis 7<br/>broker, result, cache")]
+    Media[("media_output<br/>volume local /app/output")]
+  end
+
+  subgraph External["Serviços externos"]
+    OpenRouter["OpenRouter<br/>Gemini/LLM"]
+    Apify["Apify actors<br/>Instagram/TikTok/demographics"]
+    Instagram["Instagram Graph<br/>OAuth + mídia/comentários"]
+    TikTok["TikTok APIs<br/>OAuth/userinfo"]
+    YouTube["YouTube Data API<br/>yt-dlp fallback"]
+    Stripe["Stripe<br/>checkout/portal/webhook"]
+    Resend["Resend<br/>e-mails"]
+    Google["Google OAuth<br/>GSI/userinfo"]
+    Sentry["Sentry<br/>erros/traces"]
+    Analytics["Clarity / Google Tag<br/>frontend analytics"]
+  end
+
+  User -->|"HTTPS"| Nginx
+  Admin -->|"HTTPS"| Nginx
+  Nginx -->|"/, /blog"| Web
+  Nginx -->|"/app/"| Mobile
+  Nginx -->|"/api/, /health"| API
+
+  Web -->|"HTTP /api/v1 + JWT"| API
+  Mobile -->|"HTTP /api/v1 + JWT"| API
+
+  API -->|"SQLAlchemy"| DB
+  Worker -->|"SQLAlchemy"| DB
+  API -->|"cache/rate limit/OAuth/JWT blacklist"| Redis
+  API -.->|"enqueue Celery task"| Redis
+  Redis -.->|"deliver task"| Worker
+  Beat -.->|"scheduled tasks"| Redis
+  API -->|"thumbnail proxy/cache"| Media
+  Worker -->|"cache thumbnails/output"| Media
+
+  API -->|"auth token verify"| Google
+  API -->|"checkout/portal"| Stripe
+  Stripe -->|"POST /billing/webhook"| API
+  Worker -->|"LLM sentiment + vision"| OpenRouter
+  Worker -->|"scrapers/enrichment"| Apify
+  Worker -->|"OAuth media/comments"| Instagram
+  Worker -->|"OAuth/userinfo"| TikTok
+  Worker -->|"channel/videos/comments"| YouTube
+  Worker -->|"sync notifications"| Resend
+  API -->|"errors/traces"| Sentry
+  Worker -->|"errors/traces"| Sentry
+  Web -->|"consented analytics"| Analytics
+
+  GHA -.->|"SSH, build, alembic, compose up"| Compose
+
+  class User,Admin actor
+  class Nginx edge
+  class Web,Mobile app
+  class API,Worker,Beat backend
+  class DB,Redis,Media data
+  class OpenRouter,Apify,Instagram,TikTok,YouTube,Stripe,Resend,Google,Sentry,Analytics external
+  class GHA,Compose deploy
+        </pre>
+      </div>
+    </section>
+
+    <section>
+      <h2>4. Diagrama de fluxo principal - Mermaid</h2>
+      <p class="small">
+        Fluxo escolhido: sincronização/análise de uma conexão social, porque é o
+        caminho que entrega a promessa central do produto.
+      </p>
+      <div class="diagram">
+        <pre class="mermaid">
+sequenceDiagram
+  autonumber
+  actor User as Usuário
+  participant Web as Next.js/PWA
+  participant API as FastAPI
+  participant Redis as Redis/Celery
+  participant Worker as Celery Worker
+  participant DB as PostgreSQL
+  participant Social as APIs sociais/Apify
+  participant LLM as OpenRouter/Gemini
+  participant Email as Resend
+
+  User->>Web: Clica em sincronizar/analisar conexão
+  Web->>API: POST /api/v1/connections/{id}/sync com JWT
+  API->>Redis: Verifica rate limit e estado temporário
+  API->>DB: Valida conexão, plano, créditos e run ativo
+  API->>DB: Cria PipelineRun status=running
+  API-)Redis: Enfileira task_full_pipeline(run_id)
+  API-->>Web: Retorna task_id, run_id e status inicial
+
+  loop Acompanhamento no frontend
+    Web->>API: GET /api/v1/pipeline/runs
+    API->>DB: Lê PipelineRun do usuário
+    API-->>Web: Status, passos e contadores
+  end
+
+  Redis-)Worker: Entrega task_full_pipeline
+  Worker->>DB: Carrega usuário, conexão e PipelineRun
+
+  alt Instagram OAuth
+    Worker->>Social: Busca mídia/comentários via Instagram Graph
+  else Instagram público, TikTok ou enrichment
+    Worker->>Social: Executa actors Apify
+  else YouTube
+    Worker->>Social: Usa YouTube Data API ou yt-dlp
+  end
+
+  Social-->>Worker: Posts, comentários, métricas e mídia
+  Worker->>DB: Upsert posts/comments e atualiza passos do run
+
+  loop Batches de comentários pendentes
+    Worker->>LLM: Envia comentários/contexto para análise
+    LLM-->>Worker: Score, polaridade, emoções, tópicos, custo
+    Worker->>DB: Grava comment_analysis e summaries
+  end
+
+  Worker->>DB: Consome créditos conforme comentários analisados
+  Worker->>Redis: Invalida caches do dashboard
+  Worker->>DB: Marca PipelineRun completed ou failed
+
+  opt Run concluído com sucesso
+    Worker->>Email: Envia notificação de sync
+  end
+
+  Web->>API: Busca dashboard/conexão atualizados
+  API->>Redis: Tenta métricas em cache
+  API->>DB: Consulta dados persistidos se necessário
+  API-->>Web: Dashboard com dados reais do run
+  Web-->>User: Exibe resultado e histórico rastreável
+        </pre>
+      </div>
+    </section>
+
+    <section>
+      <h2>5. Diagrama de arquitetura - PlantUML</h2>
+      <p class="small">Renderizado via PlantUML Server público. A fonte fica disponível logo abaixo.</p>
+      <img class="plantuml-render" id="plantuml-architecture-img" alt="Diagrama de arquitetura PlantUML" />
+      <details>
+        <summary>Fonte PlantUML</summary>
+        <pre class="source" id="plantuml-architecture-source"></pre>
+      </details>
+    </section>
+
+    <section>
+      <h2>6. Diagrama de fluxo principal - PlantUML</h2>
+      <p class="small">Sequence diagram do mesmo fluxo principal documentado em Mermaid.</p>
+      <img class="plantuml-render" id="plantuml-flow-img" alt="Diagrama de fluxo PlantUML" />
+      <details>
+        <summary>Fonte PlantUML</summary>
+        <pre class="source" id="plantuml-flow-source"></pre>
+      </details>
+    </section>
+
+    <section>
+      <h2>7. Ajustes recomendados</h2>
+      <ul>
+        <li>Adicionar healthcheck explícito para <code>worker</code> e <code>beat</code>.</li>
+        <li>Investigar swap quase cheio na VPS, pois a leitura read-only mostrou uso próximo do limite.</li>
+        <li>Reavaliar isolamento da VPS, já que o host executa outros projetos Docker não relacionados.</li>
+        <li>Padronizar a estratégia de progresso em tempo real: existe endpoint SSE, mas o frontend usa polling como fallback efetivo.</li>
+        <li>Revisar PostHog: há configuração/código, mas a dependência não foi encontrada em <code>requirements.txt</code>.</li>
+        <li>Atualizar documentação antiga que ainda descreve versões ou integrações divergentes da arquitetura atual.</li>
+        <li>Formalizar o papel das variáveis <code>SUPABASE_*</code> na VPS, pois não houve uso runtime encontrado.</li>
+      </ul>
+    </section>
+  </main>
+
+  <script type="text/plain" id="plantuml-architecture-text">@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+
+LAYOUT_LEFT_RIGHT()
+title Sentimenta - Arquitetura atual C4 Container
+
+Person(user, "Usuário SaaS", "Usa dashboard web ou PWA")
+Person(admin, "Admin", "Administra blog/configurações")
+
+System_Ext(github, "GitHub Actions", "CI/CD deploy-production")
+System_Ext(openrouter, "OpenRouter", "API OpenAI-compatible para Gemini/LLM")
+System_Ext(apify, "Apify", "Actors para Instagram/TikTok/demographics")
+System_Ext(instagram, "Instagram Graph", "OAuth, mídia e comentários")
+System_Ext(tiktok, "TikTok APIs", "OAuth e userinfo")
+System_Ext(youtube, "YouTube Data API", "Canais, vídeos e comentários; yt-dlp fallback")
+System_Ext(stripe, "Stripe", "Checkout, portal e webhooks")
+System_Ext(resend, "Resend", "E-mails transacionais")
+System_Ext(google, "Google OAuth", "GSI/userinfo")
+System_Ext(sentry, "Sentry", "Erros e traces")
+System_Ext(analytics, "Clarity / Google Tag", "Analytics do frontend com consentimento")
+
+System_Boundary(sentimenta, "Sentimenta SaaS - produção") {
+  Container_Boundary(vps, "VPS srv1377371 - Ubuntu 24.04 + Docker Compose") {
+    Container(compose_runtime, "Docker Compose project", "compose.prod.yml", "Define api, web, worker, beat, postgres, redis e volumes")
+    Container(nginx, "Nginx", "Reverse proxy", "Rotas /, /app, /api e /health")
+    Container(web, "Web app", "Next.js 15 / React", "Dashboard, blog e UI SaaS")
+    Container(mobile, "PWA estática", "Vite React", "Build servido em /app/")
+    Container(api, "API", "FastAPI / Uvicorn", "Auth, conexões, pipeline, billing, dashboard")
+    Container(worker, "Worker", "Celery", "Ingestão, análise LLM, credits e notificações")
+    Container(beat, "Scheduler", "Celery Beat", "Syncs agendados, refresh de tokens e snapshots")
+    ContainerDb(postgres, "PostgreSQL 16", "SQL", "Dados do produto e auditoria do pipeline")
+    ContainerDb(redis, "Redis 7", "Redis", "Celery broker/result, cache, rate limit, OAuth state e JWT blacklist")
+    ContainerDb(media, "media_output", "Docker volume", "Cache local de thumbnails e saída de mídia")
+  }
+}
+
+Rel(user, nginx, "Acessa", "HTTPS")
+Rel(admin, nginx, "Acessa", "HTTPS")
+Rel(nginx, web, "Serve / e /blog", "HTTP local 127.0.0.1:3000")
+Rel(nginx, mobile, "Serve /app/", "Arquivos estáticos")
+Rel(nginx, api, "Proxy /api e /health", "HTTP local 127.0.0.1:8000")
+Rel(web, api, "Chama API", "HTTP /api/v1 + JWT")
+Rel(mobile, api, "Chama API", "HTTP /api/v1 + JWT")
+
+Rel(api, postgres, "Lê/escreve dados", "SQLAlchemy")
+Rel(worker, postgres, "Lê/escreve ingestão, análises e runs", "SQLAlchemy")
+Rel(api, redis, "Cache, rate limit, OAuth state, blacklist e enqueue", "Redis/Celery")
+Rel(worker, redis, "Consome tasks e resultados", "Celery")
+Rel(beat, redis, "Agenda tasks recorrentes", "Celery Beat")
+Rel(api, media, "Proxy/cache de thumbnails", "FileResponse")
+Rel(worker, media, "Grava cache/saídas", "/app/output")
+
+Rel(api, google, "Verifica login Google", "HTTPS")
+Rel(api, stripe, "Checkout e portal", "HTTPS")
+Rel(stripe, api, "Webhook billing", "HTTPS POST /billing/webhook")
+Rel(worker, openrouter, "Analisa comentários e imagens", "HTTPS")
+Rel(worker, apify, "Scraping/enrichment", "HTTPS")
+Rel(worker, instagram, "OAuth, mídia e comentários", "HTTPS")
+Rel(worker, tiktok, "OAuth/userinfo", "HTTPS")
+Rel(worker, youtube, "Dados de canais/vídeos", "HTTPS")
+Rel(worker, resend, "Notificações de sync", "HTTPS")
+Rel(api, sentry, "Erros/traces", "SDK")
+Rel(worker, sentry, "Erros/traces Celery", "SDK")
+Rel(web, analytics, "Eventos de frontend", "JavaScript")
+Rel(github, compose_runtime, "Deploy via SSH, build, Alembic e compose up", "GitHub Actions")
+
+SHOW_LEGEND()
+@enduml</script>
+
+  <script type="text/plain" id="plantuml-flow-text">@startuml
+title Sentimenta - Fluxo principal de sincronização e análise
+
+skinparam sequenceMessageAlign center
+skinparam ParticipantPadding 25
+autonumber
+
+actor "Usuário" as User
+participant "Next.js/PWA" as Web
+participant "FastAPI" as API
+queue "Redis/Celery" as Redis
+participant "Celery Worker" as Worker
+database "PostgreSQL" as DB
+participant "APIs sociais / Apify" as Social
+participant "OpenRouter / Gemini" as LLM
+participant "Resend" as Email
+
+User -> Web : Clica em sincronizar/analisar
+Web -> API : POST /api/v1/connections/{id}/sync\nJWT
+API -> Redis : Rate limit / estado temporário
+API -> DB : Valida conexão, plano, créditos e run ativo
+API -> DB : Cria PipelineRun running
+API ->> Redis : Enfileira task_full_pipeline(run_id)
+API --> Web : task_id, run_id, status inicial
+
+loop polling de progresso
+  Web -> API : GET /api/v1/pipeline/runs
+  API -> DB : Lê PipelineRun do usuário
+  API --> Web : status, passos e contadores
+end
+
+Redis ->> Worker : Entrega task_full_pipeline
+Worker -> DB : Carrega conexão, usuário e run
+
+alt Instagram OAuth
+  Worker -> Social : Busca mídia/comentários via Graph API
+else Instagram público / TikTok / enrichment
+  Worker -> Social : Executa actor Apify
+else YouTube
+  Worker -> Social : YouTube Data API ou yt-dlp
+end
+
+Social --> Worker : Posts, comentários, métricas e mídia
+Worker -> DB : Upsert posts/comments e passos do run
+
+loop batches de comentários pendentes
+  Worker -> LLM : Comentários + contexto + imagem opcional
+  LLM --> Worker : Score, polaridade, emoções, tópicos e custo
+  Worker -> DB : Grava comment_analysis e summaries
+end
+
+Worker -> DB : Consome créditos pelo total analisado
+Worker -> Redis : Invalida caches do dashboard
+Worker -> DB : Marca PipelineRun completed ou failed
+
+opt sync concluído
+  Worker -> Email : Envia notificação
+end
+
+Web -> API : Busca dashboard atualizado
+API -> Redis : Tenta cache
+API -> DB : Consulta dados persistidos se necessário
+API --> Web : Métricas e histórico rastreável
+Web --> User : Exibe resultado
+@enduml</script>
+
+  <script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+  <script>
+    mermaid.initialize({
+      startOnLoad: true,
+      securityLevel: "loose",
+      theme: "base",
+      themeVariables: {
+        primaryColor: "#eef2ff",
+        primaryBorderColor: "#4f46e5",
+        primaryTextColor: "#172033",
+        lineColor: "#475569",
+        fontFamily: "Inter, Segoe UI, sans-serif"
+      }
+    });
+
+    function encodePlantUml(text) {
+      const data = new TextEncoder().encode(text);
+      const compressed = pako.deflateRaw(data, { level: 9 });
+      let result = "";
+      for (let i = 0; i < compressed.length; i += 3) {
+        const b1 = compressed[i];
+        const b2 = i + 1 < compressed.length ? compressed[i + 1] : 0;
+        const b3 = i + 2 < compressed.length ? compressed[i + 2] : 0;
+        result += append3bytes(b1, b2, b3);
+      }
+      return result;
+    }
+
+    function append3bytes(b1, b2, b3) {
+      const c1 = b1 >> 2;
+      const c2 = ((b1 & 0x3) << 4) | (b2 >> 4);
+      const c3 = ((b2 & 0xF) << 2) | (b3 >> 6);
+      const c4 = b3 & 0x3F;
+      return encode6bit(c1 & 0x3F) + encode6bit(c2 & 0x3F) + encode6bit(c3 & 0x3F) + encode6bit(c4 & 0x3F);
+    }
+
+    function encode6bit(value) {
+      if (value < 10) return String.fromCharCode(48 + value);
+      value -= 10;
+      if (value < 26) return String.fromCharCode(65 + value);
+      value -= 26;
+      if (value < 26) return String.fromCharCode(97 + value);
+      value -= 26;
+      if (value === 0) return "-";
+      if (value === 1) return "_";
+      return "?";
+    }
+
+    function renderPlantUml(textId, sourceId, imageId) {
+      const text = document.getElementById(textId).textContent.trim();
+      document.getElementById(sourceId).textContent = text;
+      const encoded = encodePlantUml(text);
+      document.getElementById(imageId).src = "https://www.plantuml.com/plantuml/svg/" + encoded;
+    }
+
+    window.addEventListener("load", () => {
+      renderPlantUml("plantuml-architecture-text", "plantuml-architecture-source", "plantuml-architecture-img");
+      renderPlantUml("plantuml-flow-text", "plantuml-flow-source", "plantuml-flow-img");
+    });
+  </script>
+</body>
+</html>

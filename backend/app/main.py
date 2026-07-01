@@ -1,11 +1,14 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import text
 
+from app.core.cache import get_redis
 from app.core.config import settings
-from app.routers import auth, connections, posts, dashboard, pipeline, comments, billing, support, demographics, leads, blog
+from app.db.session import SessionLocal
+from app.routers import auth, connections, posts, dashboard, pipeline, comments, billing, support, demographics, leads, blog, ops, security_reports
 
 logger = logging.getLogger(__name__)
 
@@ -60,8 +63,35 @@ app.include_router(demographics.router, prefix=settings.API_PREFIX)
 app.include_router(leads.router, prefix=settings.API_PREFIX)
 app.include_router(blog.public_router, prefix=settings.API_PREFIX)
 app.include_router(blog.admin_router, prefix=settings.API_PREFIX)
+app.include_router(ops.router, prefix=settings.API_PREFIX)
+app.include_router(security_reports.router, prefix=settings.API_PREFIX)
 
 
 @app.get("/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/health/ready")
+def readiness(response: Response):
+    checks = {"database": False, "redis": False}
+    try:
+        db = SessionLocal()
+        try:
+            db.execute(text("SELECT 1"))
+            checks["database"] = True
+        finally:
+            db.close()
+    except Exception:
+        checks["database"] = False
+
+    try:
+        redis_client = get_redis()
+        checks["redis"] = bool(redis_client and redis_client.ping())
+    except Exception:
+        checks["redis"] = False
+
+    ok = all(checks.values())
+    if not ok:
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+    return {"status": "ok" if ok else "degraded", "checks": checks}

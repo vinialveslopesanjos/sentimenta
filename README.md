@@ -93,28 +93,30 @@ O endpoint de sync/analyze retorna `run_id`, que tambem e usado pelo frontend pa
 - Erros de API com `detail` estruturado sao convertidos em mensagens legiveis.
 - `posthog-js` foi removido para reduzir superficie de dependencia vulneravel.
 - Tracking passa a usar Microsoft Clarity quando houver consentimento.
-- Headers de seguranca foram adicionados em modo `Content-Security-Policy-Report-Only`.
+- CSP agora e aplicada pelo `middleware.ts` com nonce por request em producao.
+- Tokens do web e da PWA passam a usar cookies HttpOnly com fallback legado em memoria/localStorage antigo.
 
 ### CI e Dependencias
 
 - Workflow CI roda em PRs e pushes relevantes.
 - Web: `npm ci`, `npm run build:packages`, `npm run type-check`, `npm run build:web`, `npm run audit:prod`.
-- Backend: instala `backend/requirements.txt` e roda `python -m pytest`.
+- Backend: instala `backend/requirements.txt`, roda `python -m pytest` e `pip-audit`.
+- Security job: Gitleaks, Trivy high/critical e SBOM CycloneDX.
+- Dependabot semanal para npm, pip e GitHub Actions.
 - `react-router` do mobile foi atualizado para remover advisory high de producao.
 - `output/` e tratado como artefato local/gerado e nao deve ser versionado.
 
 ## Seguranca
 
-O frontend define headers de seguranca no `next.config.js`:
+O frontend define headers estaticos de seguranca no `next.config.js`:
 
 - `Strict-Transport-Security`
 - `X-Content-Type-Options`
 - `X-Frame-Options`
 - `Referrer-Policy`
 - `Permissions-Policy`
-- `Content-Security-Policy-Report-Only`
 
-A CSP esta em modo report-only de proposito: ela permite observar bloqueios potenciais sem derrubar integracoes de login, analytics ou assets externos em producao.
+A CSP dinamica fica no `frontend/middleware.ts`: em producao usa `Content-Security-Policy` com `script-src` baseado em nonce; em desenvolvimento fica em `Content-Security-Policy-Report-Only` e permite `unsafe-eval` apenas para tooling local. `style-src` ainda permite `unsafe-inline` porque o frontend atual usa muitos estilos inline.
 
 ## Como Rodar Localmente
 
@@ -250,7 +252,6 @@ Nao versionar `output/`, caches de navegador, videos renderizados ou artefatos t
 
 ## Pendencias Conhecidas
 
-- Validar CSP em producao antes de trocar de report-only para enforcement.
-- Decidir se o lockfile antigo em `frontend/package-lock.json` deve ser removido em PR separado de limpeza de build/deploy.
-- Revisar advisories moderados de `next/postcss` e `next-auth/uuid` quando houver caminho de upgrade sem downgrade/breaking change.
+- Reduzir estilos inline para remover `unsafe-inline` de `style-src`.
+- Revisar advisory moderado de `next/postcss` quando houver caminho de upgrade sem downgrade/breaking change.
 - Reparar ambientes locais antigos de `.venv` quando apontarem para caminhos de outro usuario/maquina.

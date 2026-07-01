@@ -1,4 +1,6 @@
 import base64
+import hashlib
+import hmac
 from datetime import datetime, timedelta, timezone
 
 import bcrypt
@@ -82,6 +84,23 @@ def token_version_matches(payload: dict, current_version: int) -> bool:
         return int(token_version) == int(current_version)
     except (TypeError, ValueError):
         return False
+
+
+def hash_action_token(token: str) -> str:
+    """Hash one-time email/reset tokens before persisting them."""
+    return hmac.new(
+        settings.SECRET_KEY.encode("utf-8"),
+        token.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def verify_action_token(token: str, stored_token: str | None) -> bool:
+    """Validate new hashed tokens and legacy plaintext tokens during migration."""
+    if not token or not stored_token:
+        return False
+    hashed = hash_action_token(token)
+    return hmac.compare_digest(stored_token, hashed) or hmac.compare_digest(stored_token, token)
 
 
 # Social token encryption (AES-256 via Fernet)

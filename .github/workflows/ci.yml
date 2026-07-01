@@ -5,9 +5,6 @@ on:
   push:
     branches:
       - main
-      - feat/security-fixes
-      - codex/**
-      - fix/**
 
 jobs:
   web:
@@ -62,9 +59,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt
+          python -m pip install pip-audit
 
       - name: Run tests
         run: python -m pytest
+
+      - name: Python dependency audit
+        run: pip-audit -r requirements.txt
 
   infra:
     name: Infra config
@@ -83,6 +84,32 @@ jobs:
           cp .env.prod.example .env
           docker compose -f compose.prod.yml config
 
+  security:
+    name: Security scans
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Secret scan
+        run: |
+          docker run --rm -v "$PWD:/repo" ghcr.io/gitleaks/gitleaks:latest detect --source /repo --redact --no-git --verbose
+
+      - name: Filesystem vulnerability and misconfiguration scan
+        run: |
+          docker run --rm -v "$PWD:/repo" aquasec/trivy:latest fs --scanners vuln,misconfig,secret --severity HIGH,CRITICAL --exit-code 1 --ignore-unfixed /repo
+
+      - name: Generate SBOM
+        run: |
+          docker run --rm -v "$PWD:/repo" aquasec/trivy:latest fs --format cyclonedx --output /repo/trivy-sbom.cdx.json /repo
+
+      - name: Upload SBOM
+        uses: actions/upload-artifact@v4
+        with:
+          name: trivy-sbom
+          path: trivy-sbom.cdx.json
+          retention-days: 14
+
   e2e-smoke:
     name: E2E smoke
     runs-on: ubuntu-latest
@@ -90,6 +117,7 @@ jobs:
       - web
       - backend
       - infra
+      - security
     steps:
       - name: Checkout
         uses: actions/checkout@v4

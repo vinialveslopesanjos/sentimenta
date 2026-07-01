@@ -23,12 +23,23 @@ class Settings(BaseSettings):
 
     # Redis
     REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    CACHE_REDIS_URL: str = os.getenv("CACHE_REDIS_URL", os.getenv("REDIS_URL", "redis://localhost:6379/0"))
+    RATE_LIMIT_REDIS_URL: str = os.getenv(
+        "RATE_LIMIT_REDIS_URL",
+        os.getenv("REDIS_URL", "redis://localhost:6379/0"),
+    )
 
     # JWT Auth
     SECRET_KEY: str = os.getenv("SECRET_KEY", "")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 60  # 1 hour
     REFRESH_TOKEN_EXPIRE_DAYS: int = 30
+    SESSION_COOKIE_DOMAIN: str = os.getenv("SESSION_COOKIE_DOMAIN", "")
+    SESSION_COOKIE_SECURE: bool = os.getenv(
+        "SESSION_COOKIE_SECURE",
+        "true" if os.getenv("APP_URL", "").startswith("https://") else "false",
+    ).lower() == "true"
+    SESSION_COOKIE_SAMESITE: str = os.getenv("SESSION_COOKIE_SAMESITE", "lax")
 
     # Google OAuth
     GOOGLE_CLIENT_ID: str = os.getenv("GOOGLE_CLIENT_ID", "")
