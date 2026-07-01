@@ -104,7 +104,7 @@ jobs:
           docker run --rm -v "$PWD:/repo" aquasec/trivy:latest fs --format cyclonedx --output /repo/trivy-sbom.cdx.json /repo
 
       - name: Upload SBOM
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: trivy-sbom
           path: trivy-sbom.cdx.json
@@ -197,7 +197,7 @@ jobs:
 
       - name: Upload E2E artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-smoke-results
           path: |
