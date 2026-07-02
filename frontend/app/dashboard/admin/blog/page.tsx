@@ -2,8 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import ReactMarkdown from "react-markdown";
-import { AlertCircle, CheckCircle2, Eye, FileText, Globe2, Loader2, Plus, Save, Settings2 } from "lucide-react";
+import { AlertCircle, CheckCircle2, Eye, FileText, Globe2, ImagePlus, Loader2, Plus, Save, Settings2 } from "lucide-react";
+import { BlogMarkdown } from "@/components/blog/BlogMarkdown";
 import { Button } from "@/components/ds/Button";
 import { authApi, blogAdminApi, type BlogPostInput, type BlogSettingsInput } from "@/lib/api";
 import { getToken } from "@/lib/auth";
@@ -152,6 +152,7 @@ export default function AdminBlogPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [savingSettings, setSavingSettings] = useState(false);
+  const [uploadingCover, setUploadingCover] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [posts, setPosts] = useState<BlogPost[]>([]);
@@ -275,6 +276,25 @@ export default function AdminBlogPage() {
       setError(err instanceof Error ? err.message : "Não foi possível salvar as configurações do blog.");
     } finally {
       setSavingSettings(false);
+    }
+  };
+
+  const uploadCover = async (file: File | null) => {
+    if (!token || !file) return;
+    setUploadingCover(true);
+    setMessage(null);
+    setError(null);
+    try {
+      const uploaded = await blogAdminApi.uploadMedia(token, file);
+      update("cover_image_url", uploaded.url);
+      if (!form.cover_image_alt.trim()) {
+        update("cover_image_alt", `Capa editorial para ${form.title || "artigo do Sentimenta"}`);
+      }
+      setMessage("Capa enviada. A URL publica ja foi preenchida no artigo.");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Nao foi possivel enviar a capa.");
+    } finally {
+      setUploadingCover(false);
     }
   };
 
@@ -753,7 +773,7 @@ export default function AdminBlogPage() {
                 />
               </label>
 
-              <div className="grid gap-4 md:grid-cols-2">
+              <div className="grid gap-4 md:grid-cols-[1fr_auto_1fr]">
                 <label className="grid gap-1.5">
                   <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>URL da capa</span>
                   <input
@@ -762,6 +782,27 @@ export default function AdminBlogPage() {
                     className="rounded-lg border bg-transparent px-3 py-2.5 text-sm outline-none"
                     style={{ borderColor: "var(--border)", color: "var(--text-primary)" }}
                   />
+                </label>
+                <label className="grid content-end gap-1.5">
+                  <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Upload</span>
+                  <input
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    className="sr-only"
+                    disabled={uploadingCover}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] || null;
+                      void uploadCover(file);
+                      event.target.value = "";
+                    }}
+                  />
+                  <span
+                    className="inline-flex h-[42px] cursor-pointer items-center justify-center rounded-lg border px-4 text-sm font-semibold"
+                    style={{ borderColor: "var(--border)", color: "var(--primary)", backgroundColor: "var(--bg-subtle)" }}
+                  >
+                    {uploadingCover ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ImagePlus className="mr-2 h-4 w-4" />}
+                    Enviar capa
+                  </span>
                 </label>
                 <label className="grid gap-1.5">
                   <span className="text-sm font-medium" style={{ color: "var(--text-secondary)" }}>Alt da capa</span>
@@ -876,18 +917,9 @@ export default function AdminBlogPage() {
               <p className="mt-3 leading-7" style={{ color: "var(--text-muted)" }}>
                 {form.excerpt || "Resumo do artigo aparece aqui antes de publicar."}
               </p>
-              <div
-                className="prose prose-sm mt-6 max-w-none"
-                style={{
-                  color: "var(--text-secondary)",
-                  ["--tw-prose-headings" as string]: "var(--text-primary)",
-                  ["--tw-prose-body" as string]: "var(--text-secondary)",
-                  ["--tw-prose-links" as string]: "var(--primary)",
-                  ["--tw-prose-bold" as string]: "var(--text-primary)",
-                }}
-              >
-                <ReactMarkdown>{form.body_markdown || "Escreva o corpo em Markdown para visualizar."}</ReactMarkdown>
-              </div>
+              <BlogMarkdown className="mt-6" size="sm">
+                {form.body_markdown || "Escreva o corpo em Markdown para visualizar."}
+              </BlogMarkdown>
             </div>
           </aside>
         </section>

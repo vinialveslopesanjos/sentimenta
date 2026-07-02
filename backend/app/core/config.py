@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     APP_NAME: str = "Social Media Sentiment"
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
     API_PREFIX: str = "/api/v1"
+    BLOG_MEDIA_DIR: str = os.getenv("BLOG_MEDIA_DIR", str(BASE_DIR / "output" / "blog_media"))
+    BLOG_MEDIA_MAX_BYTES: int = int(os.getenv("BLOG_MEDIA_MAX_BYTES", str(10 * 1024 * 1024)))
 
     # Database
     DATABASE_URL: str = os.getenv(

@@ -1,12 +1,16 @@
 """Public and admin blog endpoints."""
 
+import re
 import uuid
 from datetime import datetime, timezone
+from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.deps import get_current_user
 from app.db.session import get_db
 from app.models.blog_post import BlogPost
@@ -24,6 +28,44 @@ from app.schemas.blog import (
 
 public_router = APIRouter(prefix="/blog", tags=["blog"])
 admin_router = APIRouter(prefix="/admin/blog", tags=["admin-blog"])
+
+ALLOWED_BLOG_MEDIA_TYPES = {
+    "image/jpeg": ".jpg",
+    "image/png": ".png",
+    "image/webp": ".webp",
+}
+
+
+def _blog_media_dir() -> Path:
+    media_dir = Path(settings.BLOG_MEDIA_DIR).expanduser().resolve()
+    media_dir.mkdir(parents=True, exist_ok=True)
+    return media_dir
+
+
+def _safe_media_stem(filename: str) -> str:
+    stem = Path(filename).stem.lower()
+    stem = re.sub(r"[^a-z0-9]+", "-", stem).strip("-")
+    return stem[:80] or "blog-cover"
+
+
+def _matches_image_signature(content_type: str, body: bytes) -> bool:
+    if content_type == "image/png":
+        return body.startswith(b"\x89PNG\r\n\x1a\n")
+    if content_type == "image/jpeg":
+        return body.startswith(b"\xff\xd8\xff")
+    if content_type == "image/webp":
+        return len(body) >= 12 and body[:4] == b"RIFF" and body[8:12] == b"WEBP"
+    return False
+
+
+def _media_path(filename: str) -> Path:
+    if "/" in filename or "\\" in filename or filename in {"", ".", ".."}:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
+    media_dir = _blog_media_dir()
+    path = (media_dir / filename).resolve()
+    if media_dir not in path.parents:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
+    return path
 
 
 def _serialize(post: BlogPost) -> BlogPostResponse:
@@ -147,6 +189,18 @@ def get_public_blog_settings(db: Session = Depends(get_db)):
     return _serialize_settings(_get_settings(db))
 
 
+@public_router.get("/media/{filename}")
+def get_blog_media(filename: str):
+    path = _media_path(filename)
+    if not path.exists() or not path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
+    return FileResponse(
+        path,
+        media_type="image/*",
+        headers={"Cache-Control": "public, max-age=31536000, immutable"},
+    )
+
+
 @public_router.get("/posts/{slug}", response_model=BlogPostResponse)
 def get_published_post(slug: str, db: Session = Depends(get_db)):
     post = (
@@ -198,6 +252,41 @@ def update_admin_blog_settings(
     db.commit()
     db.refresh(settings)
     return _serialize_settings(settings)
+
+
+@admin_router.post("/media", status_code=status.HTTP_201_CREATED)
+async def upload_blog_media(
+    file: UploadFile = File(...),
+    _: User = Depends(_require_admin),
+):
+    content_type = (file.content_type or "").split(";")[0].strip().lower()
+    extension = ALLOWED_BLOG_MEDIA_TYPES.get(content_type)
+    if not extension:
+        raise HTTPException(
+            status_code=status.HTTP_415_UNSUPPORTED_MEDIA_TYPE,
+            detail="Only PNG, JPEG, and WebP images are supported",
+        )
+
+    body = await file.read()
+    if not body:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty image")
+    if len(body) > settings.BLOG_MEDIA_MAX_BYTES:
+        raise HTTPException(status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE, detail="Image too large")
+    if not _matches_image_signature(content_type, body):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid image file")
+
+    media_dir = _blog_media_dir()
+    stem = _safe_media_stem(file.filename or "")
+    filename = f"{stem}-{uuid.uuid4().hex[:12]}{extension}"
+    target = media_dir / filename
+    target.write_bytes(body)
+
+    return {
+        "filename": filename,
+        "url": f"{settings.API_PREFIX}/blog/media/{filename}",
+        "content_type": content_type,
+        "size_bytes": len(body),
+    }
 
 
 @admin_router.post("/posts", response_model=BlogPostResponse, status_code=status.HTTP_201_CREATED)

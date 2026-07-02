@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import ReactMarkdown from "react-markdown";
 import { Calendar, ChevronLeft, Clock } from "lucide-react";
 import { BlogCover } from "@/components/blog/BlogCover";
+import { BlogMarkdown } from "@/components/blog/BlogMarkdown";
 import { Button } from "@/components/ds/Button";
 import { Logo } from "@/components/ds/Logo";
 import { fetchBlogSettings, fetchPublishedBlogPost, formatBlogDate } from "@/lib/blog";
@@ -135,19 +135,7 @@ export default async function BlogPostPage({ params }: BlogPostPageProps) {
           />
         </div>
 
-        <div
-          className="prose prose-lg mt-10 max-w-none"
-          style={{
-            color: "var(--text-secondary)",
-            ["--tw-prose-headings" as string]: "var(--text-primary)",
-            ["--tw-prose-body" as string]: "var(--text-secondary)",
-            ["--tw-prose-links" as string]: "var(--primary)",
-            ["--tw-prose-bold" as string]: "var(--text-primary)",
-            ["--tw-prose-bullets" as string]: "var(--primary)",
-          }}
-        >
-          <ReactMarkdown>{post.bodyMarkdown}</ReactMarkdown>
-        </div>
+        <BlogMarkdown className="mt-10">{post.bodyMarkdown}</BlogMarkdown>
 
         <aside
           className="mt-10 rounded-lg border p-6"
