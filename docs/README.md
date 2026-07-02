@@ -9,6 +9,7 @@ Leia primeiro quando o assunto for produção, decisão ou próximo passo críti
 - [Migração de infra 2026-06-27](./prioridade/INFRA_MIGRATION_2026-06-27.md)
 - [HTML antes e depois da infra](./prioridade/INFRA_ANTES_DEPOIS.html)
 - [Runbook de operação](./prioridade/OPERATIONS_RUNBOOK.md)
+- [Workflow local com dados reais](./prioridade/LOCAL_REAL_DATA_WORKFLOW.md)
 - [Guia de produção](./prioridade/PRODUCTION_GUIDE.md)
 - [Agente autônomo](./prioridade/AUTONOMOUS_AGENT.md)
 - [PRD](./prioridade/PRD.md)
