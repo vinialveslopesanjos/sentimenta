@@ -123,11 +123,13 @@ O ideal, no futuro, é criar um workflow manual de rollback para evitar SSH até
 
 ## Conversão correta no Google Ads
 
-O sucesso principal da Sentimenta deve ser:
+Enquanto o volume de cadastros for baixo (menos de ~30/mês), a conversão principal para lances é:
 
-> Cadastro completo.
+> Pedido de diagnóstico (formulário do `/diagnostico`).
 
-Isso significa que o usuário enviou o formulário, a API criou a conta e o frontend recebeu sucesso. Não é clique no botão.
+É um evento mais frequente e ainda significativo: um lead com nome, e-mail, perfil e UTM que fechamos manualmente.
+
+O `Cadastro completo` (usuário enviou o formulário, a API criou a conta e o frontend recebeu sucesso) continua medido e vira a conversão principal quando o volume crescer.
 
 ## Como o tracking foi implementado
 
@@ -150,12 +152,14 @@ Na `.env` da VPS:
 ```env
 NEXT_PUBLIC_GOOGLE_TAG_ID=AW-123456789
 NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_CONVERSION_LABEL=AbCdEfGhIjK
+NEXT_PUBLIC_GOOGLE_ADS_LEAD_CONVERSION_LABEL=LmNoPqRsTu
 ```
 
 Esses valores vêm do Google Ads:
 
 - `NEXT_PUBLIC_GOOGLE_TAG_ID`: Conversion ID, começa com `AW-`.
-- `NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_CONVERSION_LABEL`: Conversion label da ação de conversão.
+- `NEXT_PUBLIC_GOOGLE_ADS_SIGNUP_CONVERSION_LABEL`: label da ação `Cadastro completo`.
+- `NEXT_PUBLIC_GOOGLE_ADS_LEAD_CONVERSION_LABEL`: label da ação `Pedido de diagnóstico`.
 
 Depois de preencher, precisa de novo deploy, porque `NEXT_PUBLIC_*` entra no build do Next.js.
 
@@ -163,11 +167,12 @@ Depois de preencher, precisa de novo deploy, porque `NEXT_PUBLIC_*` entra no bui
 
 A conversão automática de **Visualização de página** não deve ser principal.
 
-No Google Ads:
+No Google Ads (feito em 2026-07-02, ver `docs/aquisicao/AUDITORIA_GOOGLE_ADS_2026-07-02.md`):
 
-- deixar `Cadastro completo` como principal;
-- rebaixar `Visualização de página` para secundária ou remover;
-- manter a campanha em **Maximizar conversões** somente quando `Cadastro completo` estiver validado.
+- `Visualização de página` rebaixada para secundária (a URL dela estava malformada);
+- `Pedido de diagnóstico` criada como principal para campanhas de lead;
+- `Cadastro completo` segue medida; volta a ser a meta de lances quando o volume crescer;
+- manter **Maximizar conversões** somente com uma conversão validada disparando.
 
 ## Regra prática
 
