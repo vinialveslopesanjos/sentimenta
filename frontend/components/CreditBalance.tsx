@@ -59,10 +59,7 @@ export function CreditBalance({
       setShowPackModal(false);
       onPurchase?.();
     } catch (error) {
-      const msg = error instanceof Error ? error.message : "Erro ao processar compra.";
-      setBuyError(msg.includes("não configurado") || msg.includes("Configure STRIPE")
-        ? "Compra de pacotes será habilitada em breve."
-        : msg);
+      setBuyError(error instanceof Error ? error.message : "Erro ao processar compra.");
     } finally {
       setBuyingPack(null);
     }

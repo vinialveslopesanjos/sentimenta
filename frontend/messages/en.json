@@ -885,7 +885,8 @@
     "statusLabels": {
       "sync": "Sync",
       "active": "Active",
-      "error": "Error"
+      "error": "Error",
+      "unavailable": "Currently unavailable"
     },
     "noProfilesYet": "No profiles connected yet.",
     "removeProfile": "Remove profile?",
@@ -955,7 +956,8 @@
       "high": "High",
       "medium": "Medium",
       "low": "Low"
-    }
+    },
+    "activeCount": "{count} active alert(s)"
   },
   "charts": {
     "positive": "Positive",

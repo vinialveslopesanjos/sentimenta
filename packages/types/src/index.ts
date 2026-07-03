@@ -13,4 +13,3 @@ export * from "./post";
 export * from "./comment";
 export * from "./dashboard";
 export * from "./pipeline";
-export * from "./billing";

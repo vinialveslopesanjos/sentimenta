@@ -121,6 +121,18 @@ def create_portal(
 
 # ─── Credit System Endpoints (ADR-011) ──────────────────────────────
 
+def _configured_pack_ids() -> set[str]:
+    """Packs compráveis = apenas os com price ID do Stripe configurado no env."""
+    from app.core.config import settings
+
+    price_map = {
+        "2500": settings.STRIPE_PRICE_PACK_2500,
+        "5000": settings.STRIPE_PRICE_PACK_5000,
+        "10000": settings.STRIPE_PRICE_PACK_10000,
+    }
+    return {pack_id for pack_id, price in price_map.items() if price}
+
+
 @router.get("/credits")
 def get_credits(
     current_user: User = Depends(get_current_user),
@@ -130,6 +142,7 @@ def get_credits(
     from app.services.credit_service import get_balance, get_credits_for_plan, CREDIT_PACKS, DEMOGRAPHIC_CREDIT_COST
     balance = get_balance(db, current_user.id)
     plan_allocation = get_credits_for_plan(current_user.plan)
+    available_packs = _configured_pack_ids()
     return {
         **balance,
         "plan": current_user.plan,
@@ -138,6 +151,7 @@ def get_credits(
         "packs": [
             {"id": k, "credits": v["credits"], "price_brl": v["price_brl"]}
             for k, v in CREDIT_PACKS.items()
+            if k in available_packs
         ],
     }
 

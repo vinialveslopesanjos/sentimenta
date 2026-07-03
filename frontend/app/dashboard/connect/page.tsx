@@ -493,7 +493,10 @@ export default function ConnectPage() {
                     </td>
                     <td className="px-5 py-4" style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>{relativeTime(conn.last_sync_at)}</td>
                     <td className="px-5 py-4">
-                      {syncing[conn.id] ? (
+                      {conn.platform === "twitter" ? (
+                        // Coleta do Twitter está desligada no pipeline (twitter_disabled)
+                        <Badge variant="muted" dot>{t("statusLabels.unavailable")}</Badge>
+                      ) : syncing[conn.id] ? (
                         <Badge variant="primary" dot>{t("statusLabels.sync")}</Badge>
                       ) : conn.status === "active" ? (
                         <Badge variant="positive" dot>{t("statusLabels.active")}</Badge>
@@ -504,11 +507,11 @@ export default function ConnectPage() {
                     <td className="px-5 py-4">
                       <button
                         onClick={() => handleToggleAutoSync(conn.id, conn.auto_sync)}
-                        disabled={togglingSync[conn.id]}
+                        disabled={togglingSync[conn.id] || conn.platform === "twitter"}
                         className="w-10 rounded-full relative transition-colors disabled:opacity-50"
-                        style={{ height: 22, backgroundColor: conn.auto_sync ? "var(--primary)" : "var(--bg-subtle)", border: conn.auto_sync ? "none" : "1px solid var(--border)" }}
+                        style={{ height: 22, backgroundColor: conn.auto_sync && conn.platform !== "twitter" ? "var(--primary)" : "var(--bg-subtle)", border: conn.auto_sync && conn.platform !== "twitter" ? "none" : "1px solid var(--border)" }}
                       >
-                        <div className={`absolute top-0.5 w-[18px] h-[18px] rounded-full transition-all ${conn.auto_sync ? "left-[20px]" : "left-0.5"}`} style={{ backgroundColor: "var(--bg-card)" }} />
+                        <div className={`absolute top-0.5 w-[18px] h-[18px] rounded-full transition-all ${conn.auto_sync && conn.platform !== "twitter" ? "left-[20px]" : "left-0.5"}`} style={{ backgroundColor: "var(--bg-card)" }} />
                       </button>
                     </td>
                     <td className="px-5 py-4">
