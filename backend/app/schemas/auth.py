@@ -110,6 +110,8 @@ class UserResponse(BaseModel):
     name: str | None
     avatar_url: str | None
     plan: str
+    subscription_status: str | None = None
+    plan_changed_at: datetime | None = None
     email_verified: bool = False
     onboarding_data: dict | None = None
     created_at: datetime

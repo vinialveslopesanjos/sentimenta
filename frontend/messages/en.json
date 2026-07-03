@@ -63,7 +63,7 @@
     "collapse": "Collapse",
     "logout": "Log out",
     "login": "Login",
-    "startFree": "Start free",
+    "startFree": "Start 14-day free trial",
     "connect": "Connect",
     "logs": "Logs",
     "config": "Config"
@@ -75,7 +75,7 @@
       "howItWorks": "How it works",
       "pricing": "Pricing",
       "login": "Login",
-      "startFree": "Start free",
+      "startFree": "Start 14-day free trial",
       "enter": "Sign in"
     },
     "hero": {
@@ -83,7 +83,7 @@
       "titleBreak": "first in the comments.",
       "titleHighlight": "",
       "subtitle": "Sentimenta transforms comments into clear signals of <strong>sentiment</strong>, <strong>emotion</strong> and <strong>risk</strong> so you can understand what is helping or hurting your <strong>image</strong>.",
-      "cta": "Start free",
+      "cta": "Try free for 14 days",
       "ctaDemo": "Try it live",
       "stats": {
         "commentsAnalyzed": "comments analyzed",
@@ -91,7 +91,7 @@
         "firstReading": "first reading"
       },
       "live": "LIVE",
-      "ctaPrimary": "Start free",
+      "ctaPrimary": "Try free for 14 days",
       "ctaSecondary": "Try it live",
       "statsComments": "comments analyzed",
       "statsEmotions": "emotions mapped",
@@ -198,91 +198,37 @@
     "pricing": {
       "badge": "PRICING",
       "title": "Simple and transparent.",
-      "subtitle": "Simple, flexible credit system. Start for free.",
+      "subtitle": "14-day free trial on every plan. 1 credit = 1 analyzed comment.",
       "mostPopular": "MOST POPULAR",
-      "startFree": "Start free",
+      "trialCta": "Try free for 14 days",
+      "trialNote": "14 days free · cancel anytime",
+      "contactCta": "Talk to us",
+      "customPrice": "Custom pricing",
       "currency": "R$",
-      "plans": {
-        "free": {
-          "name": "Free",
-          "price": "0",
-          "desc": "Try with 200 credits/month.",
-          "features": [
-            "1 connected profile",
-            "200 credits/month",
-            "Sentiment analysis",
-            "30 days of history"
-          ]
-        },
-        "starter": {
-          "name": "Starter",
-          "price": "97",
-          "desc": "For creators and small brands.",
-          "features": [
-            "3 connected profiles",
-            "5,000 credits/month",
-            "Sentiment analysis",
-            "Weekly health report",
-            "Extra packs available"
-          ]
-        },
-        "pro": {
-          "name": "Pro",
-          "price": "247",
-          "desc": "For growing brands and professionals.",
-          "features": [
-            "7 connected profiles",
-            "20,000 credits/month",
-            "Demographics (5 cred/profile)",
-            "Daily sync + PDF export",
-            "Extra packs available"
-          ]
-        },
-        "business": {
-          "name": "Business",
-          "price": "597",
-          "desc": "For agencies and high-volume operations.",
-          "features": [
-            "20 connected profiles",
-            "40,000 credits/month",
-            "Demographics + API access",
-            "12 months of history",
-            "Extra packs available"
-          ]
-        }
-      },
-      "creditExplanation": "1 credit = 1 analyzed comment. Demographics: 5 credits per profile. Unused plan credits renew each cycle. Extra packs never expire.",
-      "freePlan": "Free",
-      "freePlanPrice": "0",
-      "freePlanDesc": "Try with 200 credits/month.",
-      "freePlanFeature1": "200 credits/month",
-      "freePlanFeature2": "1 connected profile",
-      "freePlanFeature3": "Sentiment analysis",
-      "freePlanFeature4": "30 days of history",
+      "creditExplanation": "1 credit = 1 analyzed comment. Demographics: 5 credits per profile. Plan credits renew every cycle. Extra packs never expire.",
       "starterPlan": "Starter",
-      "starterPlanPrice": "97",
-      "starterPlanDesc": "For creators and small brands.",
-      "starterPlanFeature1": "5,000 credits/month",
+      "starterPlanPrice": "197",
+      "starterPlanDesc": "For brands that want to understand their audience.",
+      "starterPlanFeature1": "10,000 credits/month",
       "starterPlanFeature2": "3 connected profiles",
-      "starterPlanFeature3": "Sentiment analysis",
+      "starterPlanFeature3": "Sentiment and emotion analysis",
       "starterPlanFeature4": "Weekly health report",
-      "starterPlanFeature5": "Extra packs available",
+      "starterPlanFeature5": "Extra credit packs",
       "proPlan": "Pro",
-      "proPlanPrice": "247",
-      "proPlanDesc": "For growing brands and professionals.",
-      "proPlanFeature1": "20,000 credits/month",
-      "proPlanFeature2": "7 connected profiles",
+      "proPlanPrice": "497",
+      "proPlanDesc": "For agencies and high-volume brands.",
+      "proPlanFeature1": "40,000 credits/month",
+      "proPlanFeature2": "10 connected profiles",
       "proPlanFeature3": "Demographics included",
-      "proPlanFeature4": "Daily auto sync",
+      "proPlanFeature4": "Daily sync + API access",
       "proPlanFeature5": "PDF export + comparisons",
-      "businessPlan": "Business",
-      "businessPlanPrice": "597",
-      "businessPlanDesc": "For agencies and high-volume operations.",
-      "businessPlanFeature1": "40,000 credits/month",
-      "businessPlanFeature2": "20 connected profiles",
-      "businessPlanFeature3": "Demographics + API",
-      "businessPlanFeature4": "12 months of history",
-      "businessPlanFeature5": "Extra packs available"
+      "enterprisePlan": "Enterprise",
+      "enterprisePlanDesc": "For operations that need scale and SLA.",
+      "enterprisePlanFeature1": "Negotiated credit volume",
+      "enterprisePlanFeature2": "Unlimited profiles",
+      "enterprisePlanFeature3": "Dedicated onboarding and SLA",
+      "enterprisePlanFeature4": "Priority support",
+      "enterprisePlanFeature5": "Custom integrations"
     },
     "faq": {
       "title": "Frequently asked questions",
@@ -300,8 +246,8 @@
           "a": "End-to-end encryption, Brazilian servers, LGPD compliance."
         },
         {
-          "q": "What happens if I exceed my limit?",
-          "a": "On the free plan, analysis pauses until next cycle. On paid plans, you can buy extra credit packs to continue analyzing right away."
+          "q": "What happens if I exceed my credits?",
+          "a": "You can buy extra credit packs (they never expire) and keep analyzing right away, or wait for your plan's monthly renewal."
         }
       ],
       "q1": "Do I need an Instagram login to connect?",
@@ -310,14 +256,14 @@
       "a2": "First full analysis in under 2 minutes. Daily syncs take seconds.",
       "q3": "Is my data secure?",
       "a3": "End-to-end encryption, Brazilian servers, LGPD compliance.",
-      "q4": "What happens if I exceed my limit?",
-      "a4": "On the free plan, analysis pauses until next month. On paid plans, you can continue with proportional overage charges."
+      "q4": "What happens if I exceed my credits?",
+      "a4": "You can buy extra credit packs (they never expire) and keep analyzing right away, or wait for your plan's monthly renewal."
     },
     "cta": {
       "title": "Stop guessing.",
       "titleBreak": "Start feeling.",
-      "subtitle": "Free plan forever. Setup in 2 minutes.",
-      "button": "Start free now",
+      "subtitle": "14-day free trial on every plan. Setup in 2 minutes.",
+      "button": "Try free for 14 days",
       "titleLine2": "Start feeling."
     },
     "footer": {
@@ -761,7 +707,11 @@
       "portalError": "Could not open portal.",
       "planActivated": "Plan activated! Your new limits are now active.",
       "byConsultation": "By consultation",
-      "free": "Free"
+      "free": "Free",
+      "contactSales": "Talk to us",
+      "enterpriseUpsell": "Need more volume? Enterprise with custom pricing.",
+      "trialActive": "Trial active — {days} day(s) left",
+      "startTrial": "Start 14-day trial"
     },
     "notifications": {
       "channelsTitle": "Notification Channels",
@@ -811,15 +761,15 @@
     "plans": {
       "free": {
         "name": "Free",
-        "description": "200 credits/month"
+        "description": "No active subscription"
       },
       "starter": {
         "name": "Starter",
-        "description": "5,000 credits/month"
+        "description": "10,000 credits/month"
       },
       "pro": {
         "name": "Pro",
-        "description": "20,000 credits/month"
+        "description": "40,000 credits/month"
       },
       "business": {
         "name": "Business",
@@ -835,7 +785,7 @@
       },
       "creator": {
         "name": "Starter",
-        "description": "5,000 credits/month"
+        "description": "10,000 credits/month"
       },
       "agency": {
         "name": "Business",
@@ -1299,7 +1249,7 @@
     "learnMore": "Learn more"
   },
   "support": {
-    "startFree": "Start free",
+    "startFree": "Start 14-day free trial",
     "backHome": "Back",
     "title": "Support Center",
     "subtitle": "We're here to help",

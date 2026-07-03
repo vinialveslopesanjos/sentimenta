@@ -63,7 +63,7 @@
     "collapse": "Recolher",
     "logout": "Sair",
     "login": "Login",
-    "startFree": "Comece grátis",
+    "startFree": "Teste 14 dias grátis",
     "connect": "Conectar",
     "logs": "Logs",
     "config": "Config"
@@ -75,7 +75,7 @@
       "howItWorks": "Como funciona",
       "pricing": "Preços",
       "login": "Login",
-      "startFree": "Comece grátis",
+      "startFree": "Teste 14 dias grátis",
       "enter": "Entrar"
     },
     "hero": {
@@ -84,8 +84,8 @@
       "titleHighlight": "",
       "subtitle": "O Sentimenta transforma comentários das suas redes em sinais claros de <strong>sentimento</strong>, <strong>emoção</strong> e <strong>risco</strong> para você entender o que está ajudando ou prejudicando sua <strong>imagem</strong>.",
       "live": "AO VIVO",
-      "cta": "Comece grátis",
-      "ctaPrimary": "Comece grátis",
+      "cta": "Teste grátis por 14 dias",
+      "ctaPrimary": "Teste grátis por 14 dias",
       "ctaDemo": "Testar ao vivo",
       "ctaSecondary": "Testar ao vivo",
       "statsComments": "comentários analisados",
@@ -198,91 +198,37 @@
     "pricing": {
       "badge": "PREÇOS",
       "title": "Simples e transparente.",
-      "subtitle": "Sistema de cr\u00e9ditos simples e flex\u00edvel. Comece gr\u00e1tis.",
+      "subtitle": "14 dias grátis em qualquer plano. 1 crédito = 1 comentário analisado.",
       "mostPopular": "MAIS POPULAR",
-      "startFree": "Começar grátis",
+      "trialCta": "Teste grátis por 14 dias",
+      "trialNote": "14 dias grátis · cancele quando quiser",
+      "contactCta": "Falar com a gente",
+      "customPrice": "Sob consulta",
       "currency": "R$",
-      "creditExplanation": "1 cr\u00e9dito = 1 coment\u00e1rio analisado. Demographics: 5 cr\u00e9ditos por perfil. Cr\u00e9ditos n\u00e3o utilizados do plano renovam a cada ciclo. Pacotes extras n\u00e3o expiram.",
-      "freePlan": "Gr\u00e1tis",
-      "freePlanPrice": "0",
-      "freePlanDesc": "Para testar com 200 cr\u00e9ditos/m\u00eas.",
-      "freePlanFeature1": "200 cr\u00e9ditos/m\u00eas",
-      "freePlanFeature2": "1 perfil conectado",
-      "freePlanFeature3": "An\u00e1lise de sentimento",
-      "freePlanFeature4": "30 dias de hist\u00f3rico",
+      "creditExplanation": "1 crédito = 1 comentário analisado. Demographics: 5 créditos por perfil. Créditos do plano renovam a cada ciclo. Pacotes extras não expiram.",
       "starterPlan": "Starter",
-      "starterPlanPrice": "97",
-      "starterPlanDesc": "Para criadores e marcas pequenas.",
-      "starterPlanFeature1": "5.000 cr\u00e9ditos/m\u00eas",
+      "starterPlanPrice": "197",
+      "starterPlanDesc": "Para marcas que querem entender sua audiência.",
+      "starterPlanFeature1": "10.000 créditos/mês",
       "starterPlanFeature2": "3 perfis conectados",
-      "starterPlanFeature3": "An\u00e1lise de sentimento",
+      "starterPlanFeature3": "Análise de sentimento e emoções",
       "starterPlanFeature4": "Health report semanal",
-      "starterPlanFeature5": "Pacotes extras dispon\u00edveis",
+      "starterPlanFeature5": "Pacotes extras de créditos",
       "proPlan": "Pro",
-      "proPlanPrice": "247",
-      "proPlanDesc": "Para marcas e profissionais em crescimento.",
-      "proPlanFeature1": "20.000 cr\u00e9ditos/m\u00eas",
-      "proPlanFeature2": "7 perfis conectados",
+      "proPlanPrice": "497",
+      "proPlanDesc": "Para agências e marcas com alto volume.",
+      "proPlanFeature1": "40.000 créditos/mês",
+      "proPlanFeature2": "10 perfis conectados",
       "proPlanFeature3": "Demographics incluso",
-      "proPlanFeature4": "Sync di\u00e1rio autom\u00e1tico",
+      "proPlanFeature4": "Sync diário + acesso à API",
       "proPlanFeature5": "PDF export + comparativos",
-      "businessPlan": "Business",
-      "businessPlanPrice": "597",
-      "businessPlanDesc": "Para ag\u00eancias e opera\u00e7\u00f5es de alto volume.",
-      "businessPlanFeature1": "40.000 cr\u00e9ditos/m\u00eas",
-      "businessPlanFeature2": "20 perfis conectados",
-      "businessPlanFeature3": "Demographics + API",
-      "businessPlanFeature4": "12 meses de hist\u00f3rico",
-      "businessPlanFeature5": "Pacotes extras dispon\u00edveis",
-      "plans": {
-        "free": {
-          "name": "Grátis",
-          "price": "0",
-          "desc": "Teste com 200 créditos/mês.",
-          "features": [
-            "1 perfil conectado",
-            "200 créditos/mês",
-            "Análise de sentimento",
-            "30 dias de histórico"
-          ]
-        },
-        "starter": {
-          "name": "Starter",
-          "price": "97",
-          "desc": "Para criadores e marcas pequenas.",
-          "features": [
-            "3 perfis conectados",
-            "5.000 créditos/mês",
-            "Análise de sentimento",
-            "Health report semanal",
-            "Pacotes extras disponíveis"
-          ]
-        },
-        "pro": {
-          "name": "Pro",
-          "price": "247",
-          "desc": "Para marcas e profissionais em crescimento.",
-          "features": [
-            "7 perfis conectados",
-            "20.000 créditos/mês",
-            "Demographics (5 créd/perfil)",
-            "Sync diário + PDF export",
-            "Pacotes extras disponíveis"
-          ]
-        },
-        "business": {
-          "name": "Business",
-          "price": "597",
-          "desc": "Para agências e operações de alto volume.",
-          "features": [
-            "20 perfis conectados",
-            "40.000 créditos/mês",
-            "Demographics + API access",
-            "12 meses de histórico",
-            "Pacotes extras disponíveis"
-          ]
-        }
-      }
+      "enterprisePlan": "Enterprise",
+      "enterprisePlanDesc": "Para operações que precisam de escala e SLA.",
+      "enterprisePlanFeature1": "Volume de créditos negociado",
+      "enterprisePlanFeature2": "Perfis ilimitados",
+      "enterprisePlanFeature3": "Onboarding e SLA dedicados",
+      "enterprisePlanFeature4": "Suporte prioritário",
+      "enterprisePlanFeature5": "Integrações sob medida"
     },
     "faq": {
       "title": "Perguntas frequentes",
@@ -292,8 +238,8 @@
       "a2": "Primeira análise completa em menos de 2 minutos. Sincronizações diárias levam segundos.",
       "q3": "Meus dados ficam seguros?",
       "a3": "Criptografia ponta a ponta, servidores brasileiros, compliance LGPD.",
-      "q4": "O que acontece se eu exceder meu limite?",
-      "a4": "No plano grátis, a análise pausa até o próximo ciclo. Nos planos pagos, você pode comprar pacotes de créditos extras para continuar analisando na hora.",
+      "q4": "O que acontece se eu exceder meus créditos?",
+      "a4": "Você pode comprar pacotes de créditos extras (que não expiram) e continuar analisando na hora, ou aguardar a renovação mensal do seu plano.",
       "items": [
         {
           "q": "Preciso de login no Instagram para conectar?",
@@ -308,8 +254,8 @@
           "a": "Criptografia ponta a ponta, servidores brasileiros, compliance LGPD."
         },
         {
-          "q": "O que acontece se eu exceder meu limite?",
-          "a": "No plano grátis, a análise pausa até o próximo ciclo. Nos planos pagos, você pode comprar pacotes de créditos extras para continuar analisando na hora."
+          "q": "O que acontece se eu exceder meus créditos?",
+          "a": "Você pode comprar pacotes de créditos extras (que não expiram) e continuar analisando na hora, ou aguardar a renovação mensal do seu plano."
         }
       ]
     },
@@ -317,8 +263,8 @@
       "title": "Pare de adivinhar.",
       "titleLine2": "Comece a sentir.",
       "titleBreak": "Comece a sentir.",
-      "subtitle": "Plano grátis pra sempre. Setup em 2 minutos.",
-      "button": "Comece grátis agora"
+      "subtitle": "14 dias grátis em qualquer plano. Setup em 2 minutos.",
+      "button": "Teste grátis por 14 dias"
     },
     "footer": {
       "privacy": "Privacidade",
@@ -761,7 +707,11 @@
       "portalError": "Não foi possível abrir o portal.",
       "planActivated": "Plano ativado! Seus novos limites já estão ativos.",
       "byConsultation": "Sob consulta",
-      "free": "Grátis"
+      "free": "Grátis",
+      "contactSales": "Falar com a gente",
+      "enterpriseUpsell": "Precisa de mais volume? Enterprise sob consulta.",
+      "trialActive": "Trial ativo — {days} dia(s) restante(s)",
+      "startTrial": "Iniciar trial de 14 dias"
     },
     "notifications": {
       "channelsTitle": "Canais de Notificação",
@@ -811,15 +761,15 @@
     "plans": {
       "free": {
         "name": "Grátis",
-        "description": "200 créditos/mês"
+        "description": "Sem assinatura ativa"
       },
       "starter": {
         "name": "Starter",
-        "description": "5.000 créditos/mês"
+        "description": "10.000 créditos/mês"
       },
       "pro": {
         "name": "Pro",
-        "description": "20.000 créditos/mês"
+        "description": "40.000 créditos/mês"
       },
       "business": {
         "name": "Business",
@@ -835,7 +785,7 @@
       },
       "creator": {
         "name": "Starter",
-        "description": "5.000 créditos/mês"
+        "description": "10.000 créditos/mês"
       },
       "agency": {
         "name": "Business",
@@ -1299,7 +1249,7 @@
     "learnMore": "Saiba mais"
   },
   "support": {
-    "startFree": "Comece gratis",
+    "startFree": "Teste 14 dias grátis",
     "backHome": "Voltar",
     "title": "Central de Suporte",
     "subtitle": "Estamos aqui para ajudar",
