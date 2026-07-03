@@ -56,6 +56,18 @@ def get_or_create_customer(db: Session, user: User) -> str:
     return user.stripe_customer_id
 
 
+TRIAL_PERIOD_DAYS = 14
+
+
+def is_trial_eligible(user: User) -> bool:
+    """Trial único por usuário: elegível apenas se nunca teve assinatura.
+
+    Após qualquer assinatura (ativa, cancelada ou inadimplente) o webhook
+    preenche `subscription_status`, o que remove a elegibilidade.
+    """
+    return user.subscription_status is None and user.stripe_subscription_id is None
+
+
 def create_checkout_session(db: Session, user: User, plan_slug: str) -> str:
     _require_stripe()
     if plan_slug in {"free", "admin"}:
@@ -66,6 +78,12 @@ def create_checkout_session(db: Session, user: User, plan_slug: str) -> str:
         raise ValueError(f"Stripe price ID nao configurado para o plano {plan_slug}")
 
     customer_id = get_or_create_customer(db, user)
+    subscription_data: dict[str, Any] = {
+        "metadata": {"user_id": str(user.id), "plan": plan_slug},
+    }
+    if is_trial_eligible(user):
+        subscription_data["trial_period_days"] = TRIAL_PERIOD_DAYS
+
     session = stripe.checkout.Session.create(
         mode="subscription",
         customer=customer_id,
@@ -74,8 +92,10 @@ def create_checkout_session(db: Session, user: User, plan_slug: str) -> str:
         cancel_url=settings.STRIPE_CANCEL_URL,
         allow_promotion_codes=True,
         client_reference_id=str(user.id),
+        # Cartão obrigatório mesmo com total R$0 durante o trial
+        payment_method_collection="always",
         metadata={"user_id": str(user.id), "plan": plan_slug},
-        subscription_data={"metadata": {"user_id": str(user.id), "plan": plan_slug}},
+        subscription_data=subscription_data,
     )
     return session["url"]
 

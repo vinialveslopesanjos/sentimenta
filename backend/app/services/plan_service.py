@@ -29,24 +29,25 @@ PLATFORM_COSTS_USD = {
     "youtube": {"per_post": 0.0, "per_comment": 0.0, "per_profile": 0.0},
 }
 
-# ─── Plan Configuration — Strategy 2: Credits-based (ADR-011) ───────
-# Modelo: plano base + créditos mensais (1 crédito = 1 comentário).
-# Demographics Pro+ only: 5 créditos por perfil demográfico.
-# Gap de mercado: entre mLabs (R$70, sem sentiment) e Buzzmonitor (R$1.590).
+# ─── Plan Configuration — Pricing Jul/2026 ──────────────────────────
+# Modelo: trial 14d com cartão → Starter R$197 → Pro R$497 → Enterprise
+# sob consulta. 1 crédito = 1 comentário; demographics = 5 créditos/perfil.
+# "free" = estado sem assinatura: dados visíveis, sync bloqueado.
+# Ver docs/prioridade/PRICING_2026-07.md.
 
 PLAN_LIMITS = {
     "free": {
         "max_connections": 1,
-        "credits_per_month": 200,
-        "comments_included_per_month": 200,
-        "overage_price_per_comment": 0.0,  # Blocked — must upgrade
+        "credits_per_month": 0,
+        "comments_included_per_month": 0,
+        "overage_price_per_comment": 0.0,  # Blocked — must start trial
         "overage_allowed": False,
-        "sync_frequency": "weekly",          # auto sync semanal
-        "historic_days": 30,               # First run: max days back
+        "sync_frequency": "weekly",
+        "historic_days": 30,
         "max_posts_per_sync": 5,
         "max_comments_per_post": 500,
-        "syncs_per_month": 4,              # 4 syncs/month (cap enforced by 500 comments)
-        "apify_budget_brl": 15.0,
+        "syncs_per_month": 0,              # sem assinatura = sem sync
+        "apify_budget_brl": 0.0,
         "health_report": True,
         "pdf_export": False,
         "comparison": True,
@@ -55,16 +56,16 @@ PLAN_LIMITS = {
     },
     "starter": {
         "max_connections": 3,
-        "credits_per_month": 5_000,
-        "comments_included_per_month": 5_000,
-        "overage_price_per_comment": 0.04,
+        "credits_per_month": 10_000,
+        "comments_included_per_month": 10_000,
+        "overage_price_per_comment": 0.05,
         "overage_allowed": True,
         "sync_frequency": "weekly",
         "historic_days": 90,
         "max_posts_per_sync": 30,
         "max_comments_per_post": 1000,
         "syncs_per_month": 8,
-        "apify_budget_brl": 200.0,
+        "apify_budget_brl": 400.0,
         "health_report": True,
         "pdf_export": False,
         "comparison": False,
@@ -72,23 +73,24 @@ PLAN_LIMITS = {
         "demographics": False,
     },
     "pro": {
-        "max_connections": 7,
-        "credits_per_month": 20_000,
-        "comments_included_per_month": 20_000,
-        "overage_price_per_comment": 0.035,
+        "max_connections": 10,
+        "credits_per_month": 40_000,
+        "comments_included_per_month": 40_000,
+        "overage_price_per_comment": 0.04,
         "overage_allowed": True,
         "sync_frequency": "daily",
-        "historic_days": 180,
+        "historic_days": 365,
         "max_posts_per_sync": 60,
         "max_comments_per_post": 2000,
         "syncs_per_month": 30,
-        "apify_budget_brl": 800.0,
+        "apify_budget_brl": 1_600.0,
         "health_report": True,
         "pdf_export": True,
         "comparison": True,
-        "api_access": False,
+        "api_access": True,
         "demographics": True,
     },
+    # Legado: fora de linha desde jul/2026 (assinantes existentes mantêm)
     "business": {
         "max_connections": 20,
         "credits_per_month": 40_000,
@@ -333,6 +335,14 @@ def enforce_sync_limits(db: Session, user: User) -> dict:
 
     limits = get_plan_limits(user.plan)
 
+    # 0. Sem assinatura ativa: bloqueia antes de qualquer contagem
+    if user.plan == "free":
+        raise PlanLimitError(
+            "Você ainda não tem uma assinatura ativa. Inicie seu trial "
+            "gratuito de 14 dias para analisar comentários.",
+            code="no_subscription",
+        )
+
     # 1. Check syncs per month
     syncs_used = count_syncs_this_month(db, user.id)
     if syncs_used >= limits["syncs_per_month"]:
@@ -348,16 +358,10 @@ def enforce_sync_limits(db: Session, user: User) -> dict:
     total_credits = bal.plan_credits + bal.pack_credits
 
     if total_credits <= 0:
-        if user.plan == "free":
-            raise PlanLimitError(
-                "Seus créditos acabaram. Faça upgrade para continuar analisando.",
-                code="no_credits",
-            )
-        else:
-            raise PlanLimitError(
-                "Seus créditos acabaram. Compre um pacote de créditos extras para continuar.",
-                code="no_credits",
-            )
+        raise PlanLimitError(
+            "Seus créditos acabaram. Compre um pacote de créditos extras para continuar.",
+            code="no_credits",
+        )
 
     # 3. Check Apify budget (safety net)
     apify_spent = get_apify_spend_this_month(db, user.id)
@@ -378,10 +382,6 @@ def enforce_sync_limits(db: Session, user: User) -> dict:
         "max_posts": limits["max_posts_per_sync"],
         "max_comments_per_post": limits["max_comments_per_post"],
     }
-
-    # Free tier: remaining comments cap across all posts (capped by credits)
-    if user.plan == "free":
-        result["free_total_comments_cap"] = total_credits
 
     return result
 
