@@ -1149,9 +1149,9 @@
     "title": "Pipeline Logs",
     "subtitle": "Analysis execution history",
     "refresh": "Refresh",
-    "totalRuns": "Executions",
+    "totalRuns": "Recent runs",
     "completed": "Completed",
-    "totalCost": "Total cost",
+    "totalCost": "Cost (last 50)",
     "typeLabel": "Type:",
     "filterAll": "All",
     "filterFull": "Full",
@@ -1170,9 +1170,10 @@
     "stats": {
       "posts": "POSTS",
       "comments": "COMMENTS",
-      "analyzed": "ANALYZED",
+      "analyzed": "VALID ANALYSES",
       "duration": "DURATION",
-      "cost": "COST"
+      "cost": "COST",
+      "failures": "FAILURES"
     },
     "error": "error",
     "errors": "errors",
@@ -1180,7 +1181,10 @@
     "end": "End",
     "cancel": "Cancel",
     "pipeline": "Pipeline",
-    "system": "System"
+    "system": "System",
+    "recentScopeNote": "Totals refer to the last 50 runs, not the full period.",
+    "deleteConfirm": "Delete this run record? History is your audit trail.",
+    "pendingAnalysis": "fetched comments awaiting analysis"
   },
   "analysis": {
     "title": "Comparative Analysis",

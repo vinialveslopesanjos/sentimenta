@@ -1149,9 +1149,9 @@
     "title": "Logs de Pipeline",
     "subtitle": "Histórico de execuções de análise",
     "refresh": "Atualizar",
-    "totalRuns": "Execuções",
+    "totalRuns": "Últimas execuções",
     "completed": "Concluídas",
-    "totalCost": "Custo total",
+    "totalCost": "Custo (últimas 50)",
     "typeLabel": "Tipo:",
     "filterAll": "Todos",
     "filterFull": "Full",
@@ -1170,9 +1170,10 @@
     "stats": {
       "posts": "POSTS",
       "comments": "COMENTÁRIOS",
-      "analyzed": "ANALISADOS",
+      "analyzed": "ANÁLISES VÁLIDAS",
       "duration": "DURAÇÃO",
-      "cost": "CUSTO"
+      "cost": "CUSTO",
+      "failures": "FALHAS"
     },
     "error": "erro",
     "errors": "erros",
@@ -1180,7 +1181,10 @@
     "end": "Fim",
     "cancel": "Cancelar",
     "pipeline": "Pipeline",
-    "system": "Sistema"
+    "system": "Sistema",
+    "recentScopeNote": "Totais referentes às últimas 50 execuções, não ao período completo.",
+    "deleteConfirm": "Apagar este registro de execução? O histórico é sua trilha de auditoria.",
+    "pendingAnalysis": "comentários coletados aguardando análise"
   },
   "analysis": {
     "title": "Análise Comparativa",
