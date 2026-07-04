@@ -285,6 +285,481 @@
   border-bottom: 1px solid var(--border);
 }
 
+/* Liquid landing experiment */
+.landing-liquid-page {
+  background:
+    linear-gradient(140deg, oklch(99% 0.008 190), oklch(96% 0.028 194) 42%, oklch(98% 0.022 23) 74%, oklch(97% 0.026 82));
+  overflow-x: clip;
+}
+
+.landing-liquid-page > section,
+.landing-liquid-page > footer {
+  position: relative;
+  z-index: 1;
+}
+
+.dark .landing-liquid-page {
+  background:
+    linear-gradient(145deg, oklch(15% 0.019 195), oklch(18% 0.037 194) 42%, oklch(17% 0.031 24) 72%, oklch(16% 0.029 85));
+}
+
+.landing-liquid-backdrop {
+  background:
+    linear-gradient(135deg, oklch(99% 0.008 190 / 0.94), oklch(97% 0.028 194 / 0.84) 34%, oklch(98% 0.022 24 / 0.88) 68%, oklch(97% 0.026 82 / 0.82));
+}
+
+.dark .landing-liquid-backdrop {
+  background:
+    linear-gradient(135deg, oklch(15% 0.022 195 / 0.96), oklch(19% 0.042 194 / 0.9) 36%, oklch(18% 0.036 24 / 0.88) 70%, oklch(16% 0.03 82 / 0.88));
+}
+
+.landing-liquid-backdrop::before {
+  content: "";
+  position: absolute;
+  inset: -18%;
+  background:
+    conic-gradient(from 132deg at 52% 42%,
+      oklch(74% 0.105 194 / 0.52),
+      oklch(64% 0.118 18 / 0.34),
+      oklch(71% 0.096 78 / 0.28),
+      oklch(78% 0.086 194 / 0.46),
+      oklch(74% 0.105 194 / 0.52));
+  filter: blur(42px) saturate(1.18);
+  opacity: 0.72;
+  transform-origin: 48% 46%;
+  animation: landingLiquidDrift 28s cubic-bezier(0.22, 1, 0.36, 1) infinite alternate;
+}
+
+.landing-liquid-backdrop::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(115deg, oklch(100% 0.006 190 / 0.18), transparent 24%, transparent 76%, oklch(100% 0.006 190 / 0.2)),
+    repeating-linear-gradient(90deg, oklch(30% 0.028 194 / 0.05) 0 1px, transparent 1px 84px),
+    repeating-linear-gradient(0deg, oklch(30% 0.028 194 / 0.04) 0 1px, transparent 1px 84px);
+  mask-image: linear-gradient(to bottom, oklch(18% 0.018 195 / 0.94), oklch(18% 0.018 195 / 0.42) 54%, transparent 95%);
+  opacity: 0.72;
+}
+
+.landing-liquid-film {
+  position: absolute;
+  width: min(82vw, 1080px);
+  height: min(44vw, 520px);
+  border-radius: 44% 56% 58% 42% / 52% 44% 56% 48%;
+  filter: url("#landing-liquid-distort") blur(18px) saturate(1.18);
+  mix-blend-mode: multiply;
+  opacity: 0.64;
+  transform: translateZ(0);
+  animation: landingLiquidBreathe 18s cubic-bezier(0.22, 1, 0.36, 1) infinite alternate;
+}
+
+.dark .landing-liquid-film {
+  mix-blend-mode: screen;
+  opacity: 0.46;
+}
+
+.landing-liquid-film-a {
+  top: -8%;
+  left: -18%;
+  background: linear-gradient(118deg, oklch(78% 0.108 194 / 0.62), oklch(90% 0.04 194 / 0.18));
+}
+
+.landing-liquid-film-b {
+  top: -4%;
+  right: -24%;
+  background: linear-gradient(128deg, oklch(67% 0.126 18 / 0.5), oklch(88% 0.04 22 / 0.14));
+  animation-delay: -7s;
+}
+
+.landing-liquid-film-c {
+  top: 36%;
+  right: -20%;
+  width: min(70vw, 880px);
+  background: linear-gradient(104deg, oklch(73% 0.094 82 / 0.42), oklch(86% 0.044 88 / 0.12));
+  animation-delay: -11s;
+}
+
+.landing-liquid-film-d {
+  top: 58%;
+  left: -20%;
+  width: min(72vw, 920px);
+  background: linear-gradient(98deg, oklch(78% 0.092 194 / 0.4), oklch(88% 0.04 194 / 0.14));
+  animation-delay: -4s;
+}
+
+.landing-liquid-rim {
+  position: absolute;
+  border-radius: 999px;
+  border: 1px solid oklch(100% 0.006 190 / 0.42);
+  box-shadow:
+    inset 0 1px 1px oklch(100% 0.006 190 / 0.55),
+    inset 0 -24px 44px oklch(70% 0.094 194 / 0.1),
+    0 24px 80px oklch(54% 0.085 194 / 0.14);
+  opacity: 0.64;
+}
+
+.landing-liquid-rim-a {
+  width: min(42vw, 560px);
+  height: min(42vw, 560px);
+  right: 6%;
+  top: 8%;
+}
+
+.landing-liquid-rim-b {
+  width: min(30vw, 380px);
+  height: min(30vw, 380px);
+  left: 6%;
+  top: 42%;
+  opacity: 0.42;
+}
+
+.landing-liquid-grid {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(115deg, transparent, oklch(100% 0.006 190 / 0.18), transparent 62%),
+    radial-gradient(120% 78% at 50% 0%, transparent 50%, color-mix(in oklch, var(--bg-page) 88%, transparent) 100%);
+}
+
+.liquid-nav {
+  border-bottom: 1px solid transparent;
+}
+
+.liquid-nav.is-scrolled {
+  background: color-mix(in oklch, var(--bg-card) 78%, transparent);
+  border-bottom-color: color-mix(in oklch, var(--border) 52%, transparent);
+  box-shadow: 0 18px 46px -34px color-mix(in oklch, var(--primary) 44%, var(--text-primary));
+  backdrop-filter: blur(22px) saturate(1.18);
+  -webkit-backdrop-filter: blur(22px) saturate(1.18);
+}
+
+.liquid-ticker,
+.liquid-shell {
+  position: relative;
+  isolation: isolate;
+  background:
+    linear-gradient(135deg, oklch(100% 0.006 190 / 0.56), oklch(100% 0.006 190 / 0.24) 48%, color-mix(in oklch, var(--primary) 14%, transparent)),
+    color-mix(in oklch, var(--bg-card) 56%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 56%, oklch(100% 0.006 190 / 0.62));
+  box-shadow:
+    inset 0 1px 0 oklch(100% 0.006 190 / 0.74),
+    inset 0 -22px 46px color-mix(in oklch, var(--primary) 10%, transparent),
+    0 22px 70px -42px color-mix(in oklch, var(--primary) 40%, var(--text-primary));
+  backdrop-filter: blur(24px) saturate(1.24);
+  -webkit-backdrop-filter: blur(24px) saturate(1.24);
+}
+
+.liquid-shell {
+  overflow: hidden;
+  border-radius: 24px;
+  transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1), box-shadow 220ms cubic-bezier(0.22, 1, 0.36, 1), border-color 220ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.liquid-shell::before,
+.liquid-shell::after,
+.liquid-ticker::before {
+  content: "";
+  position: absolute;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.liquid-shell::before {
+  inset: -38%;
+  background:
+    conic-gradient(from 90deg at 50% 50%,
+      transparent,
+      oklch(100% 0.006 190 / 0.4),
+      transparent 32%,
+      color-mix(in oklch, var(--primary) 30%, transparent) 54%,
+      transparent 76%);
+  filter: blur(22px);
+  opacity: 0.64;
+  animation: landingLiquidSpecular 10s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+.liquid-shell::after {
+  inset: 1px;
+  border-radius: inherit;
+  border: 1px solid oklch(100% 0.006 190 / 0.34);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in oklch, var(--primary) 12%, transparent),
+    inset 18px 18px 38px oklch(100% 0.006 190 / 0.12),
+    inset -18px -18px 46px color-mix(in oklch, var(--secondary) 10%, transparent);
+}
+
+.liquid-shell-active {
+  border-color: color-mix(in oklch, var(--primary) 52%, oklch(100% 0.006 190 / 0.7));
+  box-shadow:
+    inset 0 1px 0 oklch(100% 0.006 190 / 0.82),
+    inset 0 -28px 60px color-mix(in oklch, var(--primary) 14%, transparent),
+    0 28px 92px -46px color-mix(in oklch, var(--primary) 58%, var(--text-primary));
+}
+
+.liquid-ticker::before {
+  inset: 1px;
+  border-radius: inherit;
+  background: linear-gradient(110deg, oklch(100% 0.006 190 / 0.45), transparent 36%, oklch(100% 0.006 190 / 0.22) 72%, transparent);
+}
+
+.liquid-preview-wrap::before {
+  content: "";
+  position: absolute;
+  inset: -40px -24px -34px -46px;
+  border-radius: 44px;
+  background:
+    linear-gradient(135deg, color-mix(in oklch, var(--primary) 34%, transparent), transparent 42%),
+    linear-gradient(320deg, color-mix(in oklch, var(--secondary) 22%, transparent), transparent 48%);
+  filter: blur(32px);
+  opacity: 0.58;
+}
+
+.liquid-lens-stack {
+  position: relative;
+  padding: 12px;
+  border-radius: 34px;
+  background:
+    linear-gradient(135deg, oklch(100% 0.006 190 / 0.28), transparent 56%),
+    color-mix(in oklch, var(--bg-card) 26%, transparent);
+  border: 1px solid oklch(100% 0.006 190 / 0.34);
+  box-shadow: inset 0 1px 0 oklch(100% 0.006 190 / 0.58);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.liquid-hero-title {
+  text-wrap: balance;
+  text-shadow: 0 18px 54px color-mix(in oklch, var(--primary) 16%, transparent);
+}
+
+.landing-hero-copy p {
+  text-wrap: pretty;
+}
+
+.landing-liquid-section {
+  isolation: isolate;
+}
+
+.landing-liquid-section::before {
+  content: "";
+  position: absolute;
+  inset: 8% 6%;
+  z-index: -1;
+  border-radius: 999px;
+  background:
+    radial-gradient(circle at 28% 30%, color-mix(in oklch, var(--primary) 22%, transparent), transparent 42%),
+    radial-gradient(circle at 74% 58%, color-mix(in oklch, var(--secondary) 13%, transparent), transparent 48%);
+  filter: blur(52px);
+  opacity: 0.52;
+  pointer-events: none;
+}
+
+.liquid-section-header {
+  text-wrap: balance;
+}
+
+.liquid-section-header p {
+  text-wrap: pretty;
+}
+
+.liquid-section-badge {
+  background:
+    linear-gradient(135deg, oklch(100% 0.006 190 / 0.58), oklch(100% 0.006 190 / 0.22)),
+    color-mix(in oklch, var(--bg-card) 64%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 64%, oklch(100% 0.006 190 / 0.42));
+  box-shadow:
+    inset 0 1px 0 oklch(100% 0.006 190 / 0.74),
+    0 14px 36px -30px color-mix(in oklch, var(--primary) 50%, var(--text-primary));
+  backdrop-filter: blur(18px) saturate(1.16);
+  -webkit-backdrop-filter: blur(18px) saturate(1.16);
+}
+
+.landing-demo-card,
+.landing-config-card,
+.landing-feature-card,
+.landing-proof-card {
+  border-radius: 28px;
+}
+
+.landing-demo-card {
+  box-shadow:
+    inset 0 1px 0 oklch(100% 0.006 190 / 0.72),
+    0 30px 96px -48px color-mix(in oklch, var(--primary) 54%, var(--text-primary));
+}
+
+.landing-demo-control {
+  padding: 6px;
+  border-radius: 24px;
+  background:
+    linear-gradient(135deg, oklch(100% 0.006 190 / 0.38), transparent),
+    color-mix(in oklch, var(--bg-subtle) 82%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 56%, transparent);
+}
+
+.landing-demo-input {
+  background: transparent;
+  border: 0;
+}
+
+.landing-demo-input::placeholder {
+  color: color-mix(in oklch, var(--text-muted) 68%, transparent);
+}
+
+.landing-demo-send {
+  box-shadow:
+    inset 0 1px 0 oklch(100% 0.006 190 / 0.38),
+    0 12px 30px -14px color-mix(in oklch, var(--primary) 78%, var(--text-primary));
+}
+
+.landing-suggestion-chip {
+  background:
+    linear-gradient(135deg, oklch(100% 0.006 190 / 0.46), color-mix(in oklch, var(--primary) 9%, transparent)),
+    color-mix(in oklch, var(--bg-card) 72%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 60%, transparent);
+  box-shadow: inset 0 1px 0 oklch(100% 0.006 190 / 0.56);
+}
+
+.landing-suggestion-chip:hover {
+  border-color: color-mix(in oklch, var(--primary) 58%, var(--border));
+  transform: translateY(-1px);
+}
+
+.landing-demo-result > div {
+  background:
+    linear-gradient(135deg, oklch(100% 0.006 190 / 0.52), color-mix(in oklch, var(--primary) 8%, transparent)),
+    color-mix(in oklch, var(--bg-subtle) 78%, transparent);
+  border: 1px solid color-mix(in oklch, var(--border) 56%, transparent);
+  box-shadow: inset 0 1px 0 oklch(100% 0.006 190 / 0.58);
+}
+
+.landing-threshold-range {
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+
+.landing-threshold-range::-webkit-slider-thumb {
+  appearance: none;
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  background:
+    linear-gradient(135deg, oklch(100% 0.006 190), color-mix(in oklch, var(--primary) 12%, oklch(100% 0.006 190)));
+  border: 2px solid var(--primary);
+  box-shadow:
+    inset 0 1px 0 oklch(100% 0.006 190 / 0.72),
+    0 8px 18px -10px color-mix(in oklch, var(--primary) 70%, var(--text-primary));
+}
+
+.landing-threshold-range::-moz-range-thumb {
+  width: 1.25rem;
+  height: 1.25rem;
+  border-radius: 999px;
+  background:
+    linear-gradient(135deg, oklch(100% 0.006 190), color-mix(in oklch, var(--primary) 12%, oklch(100% 0.006 190)));
+  border: 2px solid var(--primary);
+  box-shadow:
+    inset 0 1px 0 oklch(100% 0.006 190 / 0.72),
+    0 8px 18px -10px color-mix(in oklch, var(--primary) 70%, var(--text-primary));
+}
+
+.landing-configure-stage {
+  position: relative;
+  padding: clamp(0.25rem, 1vw, 0.75rem);
+  border-radius: 36px;
+}
+
+.landing-configure-stage::before {
+  content: "";
+  position: absolute;
+  inset: -18px;
+  z-index: -1;
+  border-radius: 42px;
+  background:
+    linear-gradient(135deg, color-mix(in oklch, var(--primary) 16%, transparent), transparent 48%),
+    linear-gradient(320deg, color-mix(in oklch, var(--accent) 12%, transparent), transparent 52%);
+  border: 1px solid oklch(100% 0.006 190 / 0.3);
+  filter: blur(0.2px);
+  opacity: 0.72;
+}
+
+.landing-config-card {
+  background:
+    linear-gradient(135deg, oklch(100% 0.006 190 / 0.5), color-mix(in oklch, var(--primary) 8%, transparent)),
+    color-mix(in oklch, var(--bg-card) 66%, transparent);
+}
+
+.landing-feature-card {
+  min-height: 0;
+}
+
+.landing-feature-card p {
+  max-width: 36ch;
+}
+
+.landing-proof-card {
+  max-width: 720px;
+  margin-inline: auto;
+}
+
+.landing-pricing-section .liquid-shell {
+  background:
+    linear-gradient(135deg, oklch(100% 0.006 190 / 0.52), color-mix(in oklch, var(--primary) 7%, transparent)),
+    color-mix(in oklch, var(--bg-card) 70%, transparent);
+}
+
+@media (max-width: 760px) {
+  .landing-liquid-section::before {
+    inset: 2% -18%;
+    opacity: 0.36;
+  }
+
+  .landing-demo-control {
+    align-items: stretch;
+  }
+
+  .landing-demo-send {
+    width: 3.25rem;
+    min-width: 3.25rem;
+    height: auto;
+  }
+
+  .landing-configure-stage::before {
+    inset: -8px;
+    border-radius: 30px;
+  }
+}
+
+@keyframes landingLiquidDrift {
+  0% {
+    transform: translate3d(-2%, -1%, 0) rotate(-4deg) scale(1);
+  }
+  100% {
+    transform: translate3d(3%, 2%, 0) rotate(7deg) scale(1.05);
+  }
+}
+
+@keyframes landingLiquidBreathe {
+  0% {
+    transform: translate3d(0, 0, 0) scale(1) rotate(-2deg);
+  }
+  100% {
+    transform: translate3d(1.4%, -1.2%, 0) scale(1.035) rotate(3deg);
+  }
+}
+
+@keyframes landingLiquidSpecular {
+  0%, 100% {
+    transform: translate3d(-16%, -12%, 0) rotate(0deg);
+    opacity: 0.28;
+  }
+  48% {
+    transform: translate3d(18%, 12%, 0) rotate(22deg);
+    opacity: 0.72;
+  }
+}
+
 /* Animations */
 @keyframes fadeInUp {
   from {
@@ -361,7 +836,10 @@
   .progress-shimmer,
   .ui-reveal,
   .ui-reveal-delay-1,
-  .ui-reveal-delay-2 {
+  .ui-reveal-delay-2,
+  .landing-liquid-backdrop::before,
+  .landing-liquid-film,
+  .liquid-shell::before {
     animation: none !important;
   }
 

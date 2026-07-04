@@ -138,7 +138,8 @@
       "titleLine2": "Watch the AI analyze it.",
       "inputPlaceholder": "Write something... e.g. 'Great work, congratulations!'",
       "emotionDetected": "detected emotion",
-      "scoreOf10": "score out of 10"
+      "scoreOf10": "score out of 10",
+      "analyzeButton": "Analyze comment"
     },
     "configure": {
       "title": "Set up your\nmonitoring.",
@@ -198,10 +199,10 @@
     "pricing": {
       "badge": "PRICING",
       "title": "Simple and transparent.",
-      "subtitle": "14-day free trial on every plan. 1 credit = 1 analyzed comment.",
+      "subtitle": "14-day free trial on every plan, card required. 1 credit = 1 analyzed comment.",
       "mostPopular": "MOST POPULAR",
       "trialCta": "Try free for 14 days",
-      "trialNote": "14 days free · cancel anytime",
+      "trialNote": "Card required · cancel anytime",
       "contactCta": "Talk to us",
       "customPrice": "Custom pricing",
       "currency": "R$",
@@ -262,7 +263,7 @@
     "cta": {
       "title": "Stop guessing.",
       "titleBreak": "Start feeling.",
-      "subtitle": "14-day free trial on every plan. Setup in 2 minutes.",
+      "subtitle": "14-day free trial with card. Setup in 2 minutes.",
       "button": "Try free for 14 days",
       "titleLine2": "Start feeling."
     },
@@ -337,7 +338,7 @@
     "welcomeBack": "Welcome back",
     "createAccount": "Create your account",
     "accessDashboard": "Access your sentiment dashboard.",
-    "freePlanInfo": "Free plan with 200 credits/month.",
+    "freePlanInfo": "14-day trial with card. Cancel anytime.",
     "loginTab": "Login",
     "registerTab": "Sign up",
     "continueWithInstagram": "Continue with Instagram",
@@ -760,7 +761,7 @@
     },
     "plans": {
       "free": {
-        "name": "Free",
+        "name": "No subscription",
         "description": "No active subscription"
       },
       "starter": {
@@ -793,16 +794,16 @@
       }
     },
     "planNames": {
-      "free": "Free",
+      "free": "No subscription",
       "starter": "Starter",
       "pro": "Pro",
       "business": "Business",
       "enterprise": "Enterprise"
     },
     "planDescriptions": {
-      "free": "200 credits/month",
-      "starter": "5,000 credits/month",
-      "pro": "20,000 credits/month",
+      "free": "No active subscription",
+      "starter": "10,000 credits/month",
+      "pro": "40,000 credits/month",
       "business": "40,000 credits/month",
       "enterprise": "Custom"
     }
@@ -899,7 +900,7 @@
       "steps": "Collecting posts and comments, analyzing sentiment with AI, and enriching demographic profiles.",
       "ok": "Got it"
     },
-    "freePlanNote": "Free plan: up to 5 posts and 200 credits/month. 1 credit = 1 comment.",
+    "freePlanNote": "No active subscription: start the 14-day trial with card to analyze comments.",
     "comingSoon": "Coming soon",
     "syncError": "Sync error",
     "multipleProfiles": "{count} profiles"

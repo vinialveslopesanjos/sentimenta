@@ -359,26 +359,39 @@ export default function ConnectPage() {
               <div style={{ fontSize: "0.75rem", color: "var(--text-primary)", lineHeight: 1.5 }}>
                 {(() => {
                   const planConfig: Record<string, { credits: string; sync: string; posts: string; demo: boolean; extra?: string }> = {
-                    free: { credits: "200", sync: "semanal", posts: "5", demo: false, extra: "Faça upgrade para mais créditos" },
-                    starter: { credits: "5.000", sync: "semanal", posts: "30", demo: false },
-                    pro: { credits: "20.000", sync: "diário", posts: "60", demo: true },
+                    free: { credits: "0", sync: "sem sincronização", posts: "0", demo: false, extra: "Inicie o trial de 14 dias" },
+                    starter: { credits: "10.000", sync: "semanal", posts: "30", demo: false },
+                    pro: { credits: "40.000", sync: "diário", posts: "60", demo: true },
                     business: { credits: "40.000", sync: "diário", posts: "120", demo: true },
                     admin: { credits: "ilimitados", sync: "diário", posts: "ilimitados", demo: true },
                     enterprise: { credits: "ilimitados", sync: "diário", posts: "ilimitados", demo: true },
                   };
                   const cfg = planConfig[userPlan] || planConfig.free;
+                  const isInactivePlan = userPlan === "free";
                   const remaining = creditBalance ? creditBalance.total.toLocaleString("pt-BR") : "...";
                   return (
                     <>
-                      <span style={{ fontWeight: 600 }}>Seu plano: {cfg.credits} créditos/mês</span>
-                      {creditBalance && <span style={{ color: "var(--text-muted)" }}> ({remaining} restantes)</span>}
-                      <br />
-                      1 crédito = 1 comentário analisado.
-                      {cfg.demo && " Demographics: 5 créditos/perfil."}
-                      {" "}Sync {cfg.sync}, até {cfg.posts} posts.
-                      {cfg.extra && <><br /><a href="/dashboard/settings?tab=billing" style={{ color: "var(--primary)", fontWeight: 500 }}>{cfg.extra}</a></>}
-                      {!cfg.extra && userPlan !== "admin" && userPlan !== "enterprise" && (
-                        <><br /><span style={{ color: "var(--text-muted)" }}>Acabou? <a href="/dashboard/settings?tab=billing" style={{ color: "var(--primary)", fontWeight: 500 }}>Compre pacotes extras</a></span></>
+                      {isInactivePlan ? (
+                        <>
+                          <span style={{ fontWeight: 600 }}>Sem assinatura ativa</span>
+                          <br />
+                          Inicie o trial de 14 dias com cartão para analisar comentários.
+                          <br />
+                          <a href="/dashboard/settings?tab=billing" style={{ color: "var(--primary)", fontWeight: 500 }}>{cfg.extra}</a>
+                        </>
+                      ) : (
+                        <>
+                          <span style={{ fontWeight: 600 }}>Seu plano: {cfg.credits} créditos/mês</span>
+                          {creditBalance && <span style={{ color: "var(--text-muted)" }}> ({remaining} restantes)</span>}
+                          <br />
+                          1 crédito = 1 comentário analisado.
+                          {cfg.demo && " Demographics: 5 créditos/perfil."}
+                          {" "}Sync {cfg.sync}, até {cfg.posts} posts.
+                          {cfg.extra && <><br /><a href="/dashboard/settings?tab=billing" style={{ color: "var(--primary)", fontWeight: 500 }}>{cfg.extra}</a></>}
+                          {!cfg.extra && userPlan !== "admin" && userPlan !== "enterprise" && (
+                            <><br /><span style={{ color: "var(--text-muted)" }}>Acabou? <a href="/dashboard/settings?tab=billing" style={{ color: "var(--primary)", fontWeight: 500 }}>Compre pacotes extras</a></span></>
+                          )}
+                        </>
                       )}
                     </>
                   );

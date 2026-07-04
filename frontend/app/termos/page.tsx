@@ -89,7 +89,7 @@ export default function TermosPage() {
                 na página de planos da plataforma.
               </p>
               <ul className="list-disc pl-6 space-y-2">
-                <li>O plano gratuito possui limitações de uso e funcionalidades.</li>
+                <li>O trial gratuito pode exigir cartão e possui limitações de uso e funcionalidades.</li>
                 <li>Os planos pagos são cobrados via Stripe, em ciclos mensais ou anuais conforme escolha do usuário.</li>
                 <li>A Mazy Labs reserva-se o direito de alterar preços e funcionalidades dos planos, com aviso prévio de 30 dias.</li>
               </ul>
