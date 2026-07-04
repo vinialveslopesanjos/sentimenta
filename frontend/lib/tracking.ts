@@ -48,6 +48,7 @@ const UTM_KEYS = [
 ] as const;
 
 export type Attribution = Partial<Record<(typeof UTM_KEYS)[number], string>> & {
+  gclid?: string;
   first_path?: string;
   captured_at?: string;
 };
@@ -80,6 +81,10 @@ export function captureAttribution(): Attribution | null {
     const value = params.get(key);
     if (value) attribution[key] = value.slice(0, 120);
   }
+
+  // Google click ID: permite importar conversões off-line no futuro.
+  const gclid = params.get("gclid");
+  if (gclid) attribution.gclid = gclid.slice(0, 120);
 
   if (Object.keys(attribution).length === 0) {
     return readStoredAttribution();
@@ -122,6 +127,17 @@ function signupConversionLabel() {
 function signupConversionSendTo() {
   const tagId = googleTagId();
   const label = signupConversionLabel();
+  if (!tagId || !label) return "";
+  return `${tagId}/${label}`;
+}
+
+function leadConversionLabel() {
+  return process.env.NEXT_PUBLIC_GOOGLE_ADS_LEAD_CONVERSION_LABEL || "";
+}
+
+function leadConversionSendTo() {
+  const tagId = googleTagId();
+  const label = leadConversionLabel();
   if (!tagId || !label) return "";
   return `${tagId}/${label}`;
 }
@@ -188,12 +204,15 @@ export function track(event: TrackEvent, properties?: Record<string, unknown>) {
   }
 }
 
-export function trackGoogleAdsSignupConversion(properties?: Record<string, unknown>): Promise<void> {
+function fireGoogleAdsConversion(
+  sendTo: string,
+  defaults: Record<string, unknown>,
+  properties?: Record<string, unknown>,
+): Promise<void> {
   if (!hasConsent() || !initialized || typeof window === "undefined") return Promise.resolve();
 
   ensureGoogleTag();
 
-  const sendTo = signupConversionSendTo();
   const gtag = (window as GoogleWindow).gtag;
   if (!sendTo || typeof gtag !== "function") return Promise.resolve();
 
@@ -203,8 +222,7 @@ export function trackGoogleAdsSignupConversion(properties?: Record<string, unkno
       send_to: sendTo,
       value: 1.0,
       currency: "BRL",
-      event_category: "signup",
-      event_label: "completed_registration",
+      ...defaults,
       ...properties,
       event_callback: () => {
         window.clearTimeout(timeout);
@@ -214,9 +232,30 @@ export function trackGoogleAdsSignupConversion(properties?: Record<string, unkno
   });
 }
 
+export function trackGoogleAdsSignupConversion(properties?: Record<string, unknown>): Promise<void> {
+  return fireGoogleAdsConversion(
+    signupConversionSendTo(),
+    { event_category: "signup", event_label: "completed_registration" },
+    properties,
+  );
+}
+
+export function trackGoogleAdsLeadConversion(properties?: Record<string, unknown>): Promise<void> {
+  return fireGoogleAdsConversion(
+    leadConversionSendTo(),
+    { event_category: "lead", event_label: "diagnostic_request" },
+    properties,
+  );
+}
+
 export async function trackCompletedSignup(properties?: Record<string, unknown>) {
   track("register_success", properties);
   await trackGoogleAdsSignupConversion();
+}
+
+export async function trackDiagnosticLead(properties?: Record<string, unknown>) {
+  track("diagnostic_request_submitted", properties);
+  await trackGoogleAdsLeadConversion();
 }
 
 // ---------------------------------------------------------------------------
