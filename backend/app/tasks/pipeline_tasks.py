@@ -61,6 +61,59 @@ def _append_step(db, run, message: str):
         db.rollback()
 
 
+def _finalize_run_status(db, run, total_analyzed: int, total_errors: int, skipped_reasons=None) -> None:
+    """Define o status final da run sem mentir para o cliente.
+
+    Regra de ouro (auditoria 2026-06-28): comentários coletados sem nenhuma
+    análise válida nunca podem virar `completed` silencioso — no mínimo é
+    `partial`, com o motivo persistido em notes.skipped_reasons.
+    """
+    from sqlalchemy import func as _sa_func
+
+    from app.models.comment import Comment as _Comment
+
+    pending_after = 0
+    if run.connection_id is not None:
+        pending_after = (
+            db.query(_sa_func.count(_Comment.id))
+            .filter(
+                _Comment.connection_id == run.connection_id,
+                _Comment.status == "pending",
+            )
+            .scalar()
+            or 0
+        )
+
+    reasons = sorted({r for r in (skipped_reasons or set()) if r})
+    fetched = run.comments_fetched or 0
+
+    if total_errors > 0:
+        run.status = "partial"
+    elif total_analyzed == 0 and fetched > 0 and pending_after > 0:
+        run.status = "partial"
+        reason = ", ".join(reasons) if reasons else "análise não processou os comentários coletados"
+        _append_step(db, run, f"Atenção: {pending_after} comentários aguardando análise ({reason})")
+    else:
+        run.status = "completed"
+
+    if reasons:
+        try:
+            notes = json.loads(run.notes) if run.notes else {}
+        except (json.JSONDecodeError, TypeError):
+            notes = {"old_notes": run.notes} if run.notes else {}
+        notes["skipped_reasons"] = reasons
+        run.notes = json.dumps(notes, ensure_ascii=False)
+
+    # Alerta interno: coletou e nada virou análise válida
+    if fetched > 0 and total_analyzed == 0 and (total_errors > 0 or pending_after > 0):
+        logger.error(
+            "RUN_HEALTH: run=%s connection=%s fetched=%d analyzed=0 errors=%d pending_after=%d reasons=%s",
+            run.id, run.connection_id, fetched, total_errors, pending_after, reasons or "-",
+        )
+
+    run.ended_at = datetime.now(timezone.utc)
+
+
 def _run_async(coro):
     """Run an async function from a sync Celery task."""
     loop = asyncio.new_event_loop()
@@ -176,6 +229,7 @@ def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str 
         total_analyzed = 0
         total_llm_calls = 0
         total_errors = 0
+        skipped_reasons: set[str] = set()
 
         for idx, post in enumerate(posts, 1):
             stats = analyze_post_comments(db, post.id)
@@ -183,6 +237,8 @@ def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str 
             total_analyzed += analyzed
             total_llm_calls += stats.get("llm_calls", 0)
             total_errors += stats.get("errors", 0)
+            if stats.get("skipped_reason"):
+                skipped_reasons.add(stats["skipped_reason"])
 
             if analyzed > 0:
                 generate_post_summary(db, post.id)
@@ -205,12 +261,11 @@ def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str 
         run.comments_analyzed = total_analyzed
         run.llm_calls = total_llm_calls
         run.errors_count = total_errors
-        run.status = "completed" if total_errors == 0 else "partial"
-        run.ended_at = datetime.now(timezone.utc)
+        _finalize_run_status(db, run, total_analyzed, total_errors, skipped_reasons)
         if total_errors == 0:
-            step_cb(f"Análise concluída: {total_analyzed} comentários processados")
+            step_cb(f"Análise concluída: {total_analyzed} análises válidas")
         else:
-            step_cb(f"Análise concluída com {total_errors} erro{'s' if total_errors > 1 else ''}: {total_analyzed} comentários processados")
+            step_cb(f"Análise concluída: {total_analyzed} análises válidas, {total_errors} falha{'s' if total_errors > 1 else ''}")
 
         # Invalidate cache
         try:
@@ -339,6 +394,7 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         total_llm_calls = 0
         total_errors = 0
         total_cost = 0.0
+        skipped_reasons: set[str] = set()
 
         from app.services.analysis_service import (
             analyze_post_comments,
@@ -358,6 +414,8 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
             total_llm_calls += stats.get("llm_calls", 0)
             total_errors += stats.get("errors", 0)
             total_cost += stats.get("cost_usd", 0.0)
+            if stats.get("skipped_reason"):
+                skipped_reasons.add(stats["skipped_reason"])
 
             if analyzed_count > 0:
                 generate_post_summary(db, post.id)
@@ -419,12 +477,11 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         run.llm_calls = total_llm_calls
         run.errors_count = total_errors
         run.total_cost_usd = total_cost
-        run.status = "completed" if total_errors == 0 else "partial"
-        run.ended_at = datetime.now(timezone.utc)
+        _finalize_run_status(db, run, total_analyzed, total_errors, skipped_reasons)
         if total_errors == 0:
-            _append_step(db, run, "Pipeline concluído sem erros")
+            _append_step(db, run, f"Pipeline concluído: {total_analyzed} análises válidas")
         else:
-            _append_step(db, run, f"Pipeline concluído com {total_errors} erro{'s' if total_errors > 1 else ''} de análise")
+            _append_step(db, run, f"Pipeline concluído: {total_analyzed} análises válidas, {total_errors} falha{'s' if total_errors > 1 else ''}")
 
         # Invalidate dashboard cache for this user
         try:
@@ -584,7 +641,7 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                     # First sync: fetch last 7 days
                     since_date = (datetime.now(timezone.utc) - timedelta(days=7)).date().isoformat()
 
-                _append_step(db, run, f"Sync semanal iniciado para @{conn.username}")
+                _append_step(db, run, f"Sync automático ({frequency_filter or 'geral'}) iniciado para @{conn.username}")
                 ingest_result = _do_ingest(
                     db, conn,
                     max_posts=max_posts,
@@ -639,6 +696,7 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 total_llm_calls = 0
                 total_errors = 0
                 total_cost = 0.0
+                skipped_reasons: set[str] = set()
                 if posts_with_pending:
                     _append_step(db, run, f"Analisando {len(posts_with_pending)} posts com comentários pendentes")
                 for idx, post in enumerate(posts_with_pending, 1):
@@ -648,6 +706,8 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                     total_llm_calls += stats.get("llm_calls", 0)
                     total_errors += stats.get("errors", 0)
                     total_cost += stats.get("cost_usd", 0.0)
+                    if stats.get("skipped_reason"):
+                        skipped_reasons.add(stats["skipped_reason"])
                     if analyzed > 0:
                         generate_post_summary(db, post.id)
                         _append_step(db, run, f"Analisado post {idx}/{len(posts_with_pending)}: {analyzed} novos comentários")
@@ -714,9 +774,8 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 run.llm_calls = total_llm_calls
                 run.errors_count = total_errors
                 run.total_cost_usd = total_cost
-                run.status = "partial" if total_errors > 0 else "completed"
-                run.ended_at = datetime.now(timezone.utc)
-                _append_step(db, run, f"Sync concluído: {run.posts_fetched} posts, {total_analyzed} analisados, {total_llm_calls} LLM calls, custo ${total_cost:.4f}")
+                _finalize_run_status(db, run, total_analyzed, total_errors, skipped_reasons)
+                _append_step(db, run, f"Sync concluído: {run.posts_fetched} posts, {total_analyzed} análises válidas, {total_errors} falhas, {total_llm_calls} LLM calls, custo ${total_cost:.4f}")
 
                 # Invalidate cache
                 try:

@@ -177,6 +177,8 @@ export const authApi = {
       name: string | null;
       avatar_url: string | null;
       plan: string;
+      subscription_status: string | null;
+      plan_changed_at: string | null;
       email_verified: boolean;
       onboarding_data: Record<string, string> | null;
     }>("/auth/me", { token }),

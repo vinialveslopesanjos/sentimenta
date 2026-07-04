@@ -104,6 +104,7 @@ export default function LogsPage() {
   const handleDelete = async (runId: string) => {
     const token = getToken();
     if (!token) return;
+    if (!window.confirm(t("deleteConfirm"))) return;
     await pipelineApi.deleteRun(token, runId);
     loadRuns();
   };
@@ -124,10 +125,13 @@ export default function LogsPage() {
       </div>
 
       {!loading && runs.length > 0 && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <Badge variant="primary">{t("totalRuns")} {totalRuns}</Badge>
-          <Badge variant="positive" dot>{t("completed")} {completed}</Badge>
-          <Badge variant="warning">{t("totalCost")} {fmtCostBRL(totalCostUsd)}</Badge>
+        <div className="space-y-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Badge variant="primary">{t("totalRuns")} {totalRuns}</Badge>
+            <Badge variant="positive" dot>{t("completed")} {completed}</Badge>
+            <Badge variant="warning">{t("totalCost")} {fmtCostBRL(totalCostUsd)}</Badge>
+          </div>
+          <p style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>{t("recentScopeNote")}</p>
         </div>
       )}
 
@@ -213,7 +217,9 @@ export default function LogsPage() {
                     {[
                       { icon: FileText, label: t("stats.posts"), value: `${fmt(run.posts_fetched)}/${run.target_posts != null ? fmt(run.target_posts) : "\u2014"}` },
                       { icon: MessageCircle, label: t("stats.comments"), value: `${fmt(run.comments_fetched)}/${run.target_comments != null ? fmt(run.target_comments) : "\u2014"}` },
-                      { icon: CheckCircle, label: t("stats.analyzed"), value: run.comments_fetched > 0 ? `${fmt(run.comments_analyzed)}/${fmt(run.comments_fetched)} (${Math.round(run.comments_analyzed / run.comments_fetched * 100)}%)` : fmt(run.comments_analyzed) },
+                      // comments_analyzed conta apenas an\u00e1lises com score v\u00e1lido;
+                      // ratio vs. fetched enganava (backlog antigo gerava >100%)
+                      { icon: CheckCircle, label: t("stats.analyzed"), value: fmt(run.comments_analyzed) },
                       { icon: Clock, label: t("stats.duration"), value: duration ?? "\u2014" },
                       { icon: DollarSign, label: t("stats.cost"), value: fmtCostBRL(runCostUsd) },
                     ].map(stat => (
@@ -231,6 +237,15 @@ export default function LogsPage() {
                     <div className="mt-3 px-4 py-2.5 rounded-xl flex items-center gap-2" style={{ backgroundColor: "var(--sentiment-negative-bg)" }}>
                       <AlertTriangle className="w-4 h-4" style={{ color: "var(--sentiment-negative)" }} />
                       <span style={{ fontSize: "0.78rem", fontWeight: 500, color: "var(--sentiment-negative)" }}>{run.errors_count} {run.errors_count > 1 ? t("errors") : t("error")}</span>
+                    </div>
+                  )}
+
+                  {Array.isArray(notesData?.skipped_reasons) && notesData.skipped_reasons.length > 0 && (
+                    <div className="mt-3 px-4 py-2.5 rounded-xl flex items-center gap-2" style={{ backgroundColor: "var(--secondary-bg)" }}>
+                      <Clock className="w-4 h-4" style={{ color: "var(--secondary)" }} />
+                      <span style={{ fontSize: "0.78rem", fontWeight: 500, color: "var(--secondary)" }}>
+                        {t("pendingAnalysis")}: {notesData.skipped_reasons.join(", ")}
+                      </span>
                     </div>
                   )}
                 </div>

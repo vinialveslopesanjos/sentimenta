@@ -25,48 +25,40 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/billing", tags=["billing"])
 
+# Pricing Jul/2026 — trial 14d com cartao em todos os planos self-serve.
+# Business (R$597) saiu de linha: assinantes existentes seguem em PLAN_LIMITS.
 PLAN_PRICING = [
-    {
-        "slug": "free",
-        "name": "Gratis",
-        "price_brl": 0,
-        "price_annual_brl": 0,
-        "description": "Teste o Sentimenta com 500 comentarios/mes.",
-    },
     {
         "slug": "starter",
         "name": "Starter",
-        "price_brl": 97,
-        "price_annual_brl": 77,
-        "description": "Para criadores e marcas pequenas.",
+        "price_brl": 197,
+        "price_annual_brl": 157,
+        "trial_days": 14,
+        "description": "Para marcas que querem entender sua audiencia.",
     },
     {
         "slug": "pro",
         "name": "Pro",
-        "price_brl": 247,
-        "price_annual_brl": 197,
-        "description": "Para marcas e profissionais em crescimento.",
+        "price_brl": 497,
+        "price_annual_brl": 397,
+        "trial_days": 14,
+        "description": "Para agencias e marcas com alto volume, com demographics e API.",
         "highlight": True,
-    },
-    {
-        "slug": "business",
-        "name": "Business",
-        "price_brl": 597,
-        "price_annual_brl": 477,
-        "description": "Para agencias e operacoes com alto volume.",
     },
     {
         "slug": "enterprise",
         "name": "Enterprise",
-        "price_brl": 0,
-        "price_annual_brl": 0,
-        "description": "Volume ilimitado, SLA dedicado e onboarding.",
+        "price_brl": None,
+        "price_annual_brl": None,
+        "trial_days": 0,
+        "description": "Volume e SLA negociados, onboarding dedicado. Sob consulta.",
+        "contact_sales": True,
     },
 ]
 
 
 class CheckoutSessionRequest(BaseModel):
-    plan_slug: str = Field(pattern=r"^(starter|pro|business|enterprise)$")
+    plan_slug: str = Field(pattern=r"^(starter|pro)$")
 
 
 @router.get("/plans")
@@ -129,6 +121,18 @@ def create_portal(
 
 # ─── Credit System Endpoints (ADR-011) ──────────────────────────────
 
+def _configured_pack_ids() -> set[str]:
+    """Packs compráveis = apenas os com price ID do Stripe configurado no env."""
+    from app.core.config import settings
+
+    price_map = {
+        "2500": settings.STRIPE_PRICE_PACK_2500,
+        "5000": settings.STRIPE_PRICE_PACK_5000,
+        "10000": settings.STRIPE_PRICE_PACK_10000,
+    }
+    return {pack_id for pack_id, price in price_map.items() if price}
+
+
 @router.get("/credits")
 def get_credits(
     current_user: User = Depends(get_current_user),
@@ -138,6 +142,7 @@ def get_credits(
     from app.services.credit_service import get_balance, get_credits_for_plan, CREDIT_PACKS, DEMOGRAPHIC_CREDIT_COST
     balance = get_balance(db, current_user.id)
     plan_allocation = get_credits_for_plan(current_user.plan)
+    available_packs = _configured_pack_ids()
     return {
         **balance,
         "plan": current_user.plan,
@@ -146,6 +151,7 @@ def get_credits(
         "packs": [
             {"id": k, "credits": v["credits"], "price_brl": v["price_brl"]}
             for k, v in CREDIT_PACKS.items()
+            if k in available_packs
         ],
     }
 
@@ -261,8 +267,16 @@ async def stripe_webhook(
                 db.commit()
                 logger.info("Credit pack granted: user=%s credits=%d session=%s", pack_user_id, pack_credits, session_id)
         else:
-            # Regular subscription checkout
+            # Regular subscription checkout. Busca a subscription real para
+            # não sobrescrever o status trialing com "active".
             subscription = {"id": subscription_id, "status": "active", "metadata": metadata}
+            if subscription_id:
+                try:
+                    import stripe
+                    real_sub = stripe.Subscription.retrieve(subscription_id)
+                    subscription = real_sub.to_dict() if hasattr(real_sub, "to_dict") else dict(real_sub)
+                except Exception as exc:
+                    logger.warning("Could not retrieve subscription %s: %s", subscription_id, exc)
             sync_subscription_by_customer(db, customer_id, subscription, user_id=user_id)
 
     elif event_type in {"customer.subscription.created", "customer.subscription.updated"}:
@@ -271,10 +285,15 @@ async def stripe_webhook(
 
         # Grant initial credits on subscription creation (ADR-011)
         if event_type == "customer.subscription.created":
-            from app.services.credit_service import grant_monthly
+            from app.services.credit_service import grant_monthly, grant_trial
             user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
             if user:
-                grant_monthly(db, user.id, user.plan)
+                if obj.get("status") == "trialing":
+                    # Trial 14d: teto de TRIAL_CREDITS; créditos cheios só
+                    # chegam com o primeiro invoice.paid de valor > 0
+                    grant_trial(db, user.id, user.plan)
+                else:
+                    grant_monthly(db, user.id, user.plan)
                 db.commit()
 
     elif event_type == "customer.subscription.deleted":
@@ -282,12 +301,15 @@ async def stripe_webhook(
         sync_subscription_by_customer(db, customer_id, None)
 
     elif event_type == "invoice.paid":
-        # Monthly credit renewal (ADR-011)
+        # Monthly credit renewal (ADR-011).
+        # amount_paid == 0 cobre a fatura R$0 emitida no início do trial —
+        # nesse caso os créditos são os de grant_trial, não os do plano cheio.
         customer_id = obj.get("customer")
-        if customer_id:
+        amount_paid = obj.get("amount_paid") or 0
+        if customer_id and amount_paid > 0:
             from app.services.credit_service import grant_monthly
             user = db.query(User).filter(User.stripe_customer_id == customer_id).first()
-            if user and user.subscription_status == "active":
+            if user and user.subscription_status in {"active", "trialing"}:
                 grant_monthly(db, user.id, user.plan)
                 db.commit()
                 logger.info("Monthly credits renewed for user %s (plan=%s)", user.id, user.plan)

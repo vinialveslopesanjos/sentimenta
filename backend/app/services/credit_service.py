@@ -21,11 +21,12 @@ from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
-# ─── Credit Allocations per Plan ────────────────────────────────────
+# ─── Credit Allocations per Plan (Pricing Jul/2026) ─────────────────
+# "free" = estado sem assinatura (0 créditos); "business" é legado.
 PLAN_CREDITS = {
-    "free": 200,
-    "starter": 5_000,
-    "pro": 20_000,
+    "free": 0,
+    "starter": 10_000,
+    "pro": 40_000,
     "business": 40_000,
     "enterprise": 999_999,
     "admin": 999_999,
@@ -33,11 +34,15 @@ PLAN_CREDITS = {
 
 DEMOGRAPHIC_CREDIT_COST = 5  # 1 profile = 5 credits
 
+# Teto de créditos durante o trial de 14 dias (qualquer plano)
+TRIAL_CREDITS = 1_000
+
 # ─── Credit Pack Definitions ────────────────────────────────────────
+# Preço por crédito nunca abaixo do excedente do plano superior
 CREDIT_PACKS = {
-    "2500": {"credits": 2_500, "price_brl": 49},
-    "5000": {"credits": 5_000, "price_brl": 89},
-    "10000": {"credits": 10_000, "price_brl": 159},
+    "2500": {"credits": 2_500, "price_brl": 99},
+    "5000": {"credits": 5_000, "price_brl": 179},
+    "10000": {"credits": 10_000, "price_brl": 299},
 }
 
 LEGACY_PLAN_MAP = {
@@ -219,6 +224,49 @@ def grant_monthly(db: Session, user_id, plan: str = None) -> int:
         user_id, plan, new_credits, old_credits,
     )
     return new_credits
+
+
+def grant_trial(db: Session, user_id, plan: str = None) -> int:
+    """
+    Grant trial credits when a subscription starts in `trialing` status.
+    Caps at TRIAL_CREDITS regardless of plan; full plan credits only come
+    with the first real invoice.paid (see billing webhook).
+    Returns new plan_credits value.
+    """
+    bal = (
+        db.query(CreditBalance)
+        .filter(CreditBalance.user_id == user_id)
+        .with_for_update()
+        .first()
+    )
+
+    if bal is None:
+        bal = get_or_create_balance(db, user_id)
+        bal = (
+            db.query(CreditBalance)
+            .filter(CreditBalance.user_id == user_id)
+            .with_for_update()
+            .one()
+        )
+
+    if plan is None:
+        user = db.get(User, user_id)
+        plan = user.plan if user else "free"
+
+    trial_credits = min(TRIAL_CREDITS, get_credits_for_plan(plan))
+    bal.plan_credits = trial_credits
+    bal.cycle_start = datetime.now(timezone.utc)
+
+    _record_transaction(
+        db, bal, trial_credits, "grant_trial", "trial_start",
+        f"Trial de 14 dias iniciado: {trial_credits:,} créditos ({plan}).",
+    )
+
+    logger.info(
+        "Trial credits granted: user=%s plan=%s credits=%d",
+        user_id, plan, trial_credits,
+    )
+    return trial_credits
 
 
 def grant_pack(

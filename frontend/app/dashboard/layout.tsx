@@ -12,6 +12,7 @@ import { useTranslations } from "next-intl";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import OnboardingModal from "@/components/OnboardingModal";
 import { CreditDepletedBanner } from "@/components/CreditBalance";
+import { SubscriptionBanner } from "@/components/SubscriptionBanner";
 
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -20,6 +21,8 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [creditsDepleted, setCreditsDepleted] = useState(false);
   const [userPlan, setUserPlan] = useState("free");
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+  const [planChangedAt, setPlanChangedAt] = useState<string | null>(null);
   const { theme, toggleTheme } = useTheme();
   const tl = useTranslations("layout");
   const tc = useTranslations("common");
@@ -40,6 +43,8 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         }
         identifyUser(user.id, { email: user.email, name: user.name, plan: user.plan });
         setUserPlan(user.plan);
+        setSubscriptionStatus(user.subscription_status ?? null);
+        setPlanChangedAt(user.plan_changed_at ?? null);
         if (!user.onboarding_data) {
           setShowOnboarding(true);
         }
@@ -122,7 +127,10 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         </header>
         <main className="p-4 md:p-6 lg:p-8">
           <div className="max-w-[1320px] mx-auto">
-            {creditsDepleted && (
+            <div className="empty:hidden mb-0 [&>*]:mb-6">
+              <SubscriptionBanner plan={userPlan} subscriptionStatus={subscriptionStatus} planChangedAt={planChangedAt} />
+            </div>
+            {creditsDepleted && userPlan !== "free" && (
               <div className="mb-6">
                 <CreditDepletedBanner plan={userPlan} />
               </div>
