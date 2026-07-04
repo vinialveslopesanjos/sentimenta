@@ -138,7 +138,8 @@
       "classification": "classificação",
       "aiConfidence": "confiança da IA",
       "emotionDetected": "emoção detectada",
-      "scoreOf10": "score de 10"
+      "scoreOf10": "score de 10",
+      "analyzeButton": "Analisar comentário"
     },
     "configure": {
       "title": "Configure seu\nmonitoramento.",
@@ -198,10 +199,10 @@
     "pricing": {
       "badge": "PREÇOS",
       "title": "Simples e transparente.",
-      "subtitle": "14 dias grátis em qualquer plano. 1 crédito = 1 comentário analisado.",
+      "subtitle": "14 dias grátis em qualquer plano, com cartão. 1 crédito = 1 comentário analisado.",
       "mostPopular": "MAIS POPULAR",
       "trialCta": "Teste grátis por 14 dias",
-      "trialNote": "14 dias grátis · cancele quando quiser",
+      "trialNote": "Cartão necessário · cancele quando quiser",
       "contactCta": "Falar com a gente",
       "customPrice": "Sob consulta",
       "currency": "R$",
@@ -263,7 +264,7 @@
       "title": "Pare de adivinhar.",
       "titleLine2": "Comece a sentir.",
       "titleBreak": "Comece a sentir.",
-      "subtitle": "14 dias grátis em qualquer plano. Setup em 2 minutos.",
+      "subtitle": "14 dias grátis com cartão. Setup em 2 minutos.",
       "button": "Teste grátis por 14 dias"
     },
     "footer": {
@@ -337,7 +338,7 @@
     "welcomeBack": "Bem-vindo de volta",
     "createAccount": "Crie sua conta",
     "accessDashboard": "Acesse seu dashboard de sentimento.",
-    "freePlanInfo": "Plano grátis com 200 créditos/mês.",
+    "freePlanInfo": "Trial de 14 dias com cartão. Cancele quando quiser.",
     "loginTab": "Login",
     "registerTab": "Cadastrar",
     "continueWithInstagram": "Continuar com Instagram",
@@ -760,7 +761,7 @@
     },
     "plans": {
       "free": {
-        "name": "Grátis",
+        "name": "Sem assinatura",
         "description": "Sem assinatura ativa"
       },
       "starter": {
@@ -793,16 +794,16 @@
       }
     },
     "planNames": {
-      "free": "Grátis",
+      "free": "Sem assinatura",
       "starter": "Starter",
       "pro": "Pro",
       "business": "Business",
       "enterprise": "Enterprise"
     },
     "planDescriptions": {
-      "free": "200 créditos/mês",
-      "starter": "5.000 créditos/mês",
-      "pro": "20.000 créditos/mês",
+      "free": "Sem assinatura ativa",
+      "starter": "10.000 créditos/mês",
+      "pro": "40.000 créditos/mês",
       "business": "40.000 créditos/mês",
       "enterprise": "Personalizado"
     }
@@ -899,7 +900,7 @@
       "steps": "Coletando posts e comentários, analisando sentimento com IA e enriquecendo perfis demográficos.",
       "ok": "Entendi"
     },
-    "freePlanNote": "Plano gratuito: até 5 posts e 200 créditos/mês. 1 crédito = 1 comentário.",
+    "freePlanNote": "Sem assinatura ativa: inicie o trial de 14 dias com cartão para analisar comentários.",
     "comingSoon": "Em breve",
     "syncError": "Erro ao sincronizar",
     "multipleProfiles": "{count} perfis"

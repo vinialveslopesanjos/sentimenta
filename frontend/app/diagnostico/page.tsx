@@ -287,8 +287,8 @@ export default function DiagnosticoPage() {
             <div className="flex items-start gap-3">
               <MessageSquareText className="mt-1 h-5 w-5 shrink-0" style={{ color: "var(--primary)" }} />
               <p className="max-w-[560px] leading-7" style={{ color: "var(--text-secondary)" }}>
-                Prefere explorar por conta própria? Crie uma conta gratuita e analise seus próprios
-                comentários no painel, sem cartão de crédito.
+                Prefere explorar por conta própria? Inicie um trial de 14 dias com cartão e use
+                1.000 créditos de teste para analisar comentários reais no painel.
               </p>
             </div>
             <Link
@@ -296,7 +296,7 @@ export default function DiagnosticoPage() {
               className="inline-flex shrink-0 items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold"
               style={{ color: "white", backgroundColor: "var(--primary)" }}
             >
-              Comece grátis
+              Iniciar trial de 14 dias
             </Link>
           </div>
         </div>
