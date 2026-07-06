@@ -2,12 +2,18 @@ from app.models.diagnostic_lead import DiagnosticLead
 
 
 def test_diagnostic_lead_is_saved_when_email_fails(client, db, monkeypatch):
+    captured = []
+
     def fake_send_support_contact_email(**kwargs):
         return False
 
     monkeypatch.setattr(
         "app.routers.leads.send_support_contact_email",
         fake_send_support_contact_email,
+    )
+    monkeypatch.setattr(
+        "app.routers.leads.capture",
+        lambda distinct_id, event, properties: captured.append((distinct_id, event, properties)),
     )
 
     res = client.post(
@@ -35,6 +41,17 @@ def test_diagnostic_lead_is_saved_when_email_fails(client, db, monkeypatch):
     assert lead.attribution == {"utm_source": "instagram", "utm_campaign": "first_100"}
     assert lead.email_sent_at is None
     assert lead.email_error == "send_support_contact_email returned false"
+    assert len(captured) == 1
+    distinct_id, event, props = captured[0]
+    assert distinct_id.startswith("lead:")
+    assert event == "diagnostic_request_submitted"
+    assert props["source"] == "sentimenta_backend"
+    assert props["tracking_mode"] == "first_party_server"
+    assert props["event_type"] == "conversion"
+    assert props["conversion_name"] == "diagnostic_request"
+    assert props["lead_id"] == str(lead.id)
+    assert props["email_domain"] == "example.com"
+    assert props["attr_utm_source"] == "instagram"
 
 
 def test_diagnostic_lead_marks_email_sent(client, db, monkeypatch):

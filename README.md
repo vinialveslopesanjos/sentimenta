@@ -91,8 +91,10 @@ O endpoint de sync/analyze retorna `run_id`, que tambem e usado pelo frontend pa
 - Dashboard mostra estado neutro quando ainda nao ha comentarios analisados.
 - Tela de conexao permite sync minimo de teste: 1 post e 10 comentarios.
 - Erros de API com `detail` estruturado sao convertidos em mensagens legiveis.
-- `posthog-js` foi removido para reduzir superficie de dependencia vulneravel.
-- Tracking passa a usar Microsoft Clarity quando houver consentimento.
+- `posthog-js` segue fora do frontend para reduzir superficie de dependencia vulneravel.
+- Views, cliques e eventos de funil web sao enviados por uma rota first-party
+  (`/api/v1/analytics/web`) para o PostHog server-side, inclusive sem cookie.
+- Tracking de terceiros usa Microsoft Clarity e Google Tag somente quando houver consentimento.
 - CSP agora e aplicada pelo `middleware.ts` com nonce por request em producao.
 - Tokens do web e da PWA passam a usar cookies HttpOnly com fallback legado em memoria/localStorage antigo.
 
