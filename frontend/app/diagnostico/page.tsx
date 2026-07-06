@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, BarChart3, CheckCircle2, Loader2, MessageSquareText, Send, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ds/Button";
 import { Logo } from "@/components/ds/Logo";
-import { getAttribution, trackDiagnosticLead } from "@/lib/tracking";
+import { currentAttributionPath, getAttribution, trackDiagnosticLead } from "@/lib/tracking";
 
 type DiagnosticForm = {
   name: string;
@@ -53,7 +53,7 @@ export default function DiagnosticoPage() {
           role: form.role,
           profile_or_post: form.profileOrPost,
           context: form.context || null,
-          source_path: window.location.pathname,
+          source_path: currentAttributionPath(),
           attribution,
           website: "",
         }),

@@ -8,7 +8,7 @@ from sqlalchemy import text
 from app.core.cache import get_redis
 from app.core.config import settings
 from app.db.session import SessionLocal
-from app.routers import auth, connections, posts, dashboard, pipeline, comments, billing, support, demographics, leads, blog, ops, security_reports
+from app.routers import analytics, auth, connections, posts, dashboard, pipeline, comments, billing, support, demographics, leads, blog, ops, security_reports
 
 logger = logging.getLogger(__name__)
 
@@ -61,6 +61,7 @@ app.include_router(billing.router, prefix=settings.API_PREFIX)
 app.include_router(support.router, prefix=settings.API_PREFIX)
 app.include_router(demographics.router, prefix=settings.API_PREFIX)
 app.include_router(leads.router, prefix=settings.API_PREFIX)
+app.include_router(analytics.router, prefix=settings.API_PREFIX)
 app.include_router(blog.public_router, prefix=settings.API_PREFIX)
 app.include_router(blog.admin_router, prefix=settings.API_PREFIX)
 app.include_router(ops.router, prefix=settings.API_PREFIX)
