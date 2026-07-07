@@ -24,6 +24,11 @@ logger = logging.getLogger(__name__)
 
 DEMOGRAPHICS_MAX_PROFILES_PER_RUN = 1000
 
+# Sync automático é incremental (só comentários novos desde a última sync) —
+# nunca usar o limite cheio do plano aqui. Foi o limite admin (999999) vazando
+# para o maxItems do actor que gerou a run de US$40 em 2026-07-01.
+DAILY_SYNC_MAX_COMMENTS_PER_POST = 500
+
 # Persisted in run notes.skipped_reasons and shown to the user when a run is
 # cut short by credit depletion (ADR-011: analysis never runs unbilled).
 OUT_OF_CREDITS_REASON = "créditos esgotados"
@@ -205,7 +210,7 @@ def _do_ingest(db, connection, max_posts: int = 10, max_comments_per_post: int =
         return {"error": f"Unsupported platform: {connection.platform}"}
 
 
-@celery_app.task(bind=True)
+@celery_app.task(bind=True, soft_time_limit=7200, time_limit=7500)
 def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str | None = None) -> dict:
     """Analyze-only: run sentiment analysis on existing pending comments (no ingestion)."""
     db = SessionLocal()
@@ -359,7 +364,7 @@ def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str 
         db.close()
 
 
-@celery_app.task(bind=True)
+@celery_app.task(bind=True, soft_time_limit=7200, time_limit=7500)
 def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None, use_apify_comments: bool = False, comment_sample_mode: str = "all", run_id: str | None = None) -> dict:
     """Run the full pipeline: ingest + analyze for all posts."""
     db = SessionLocal()
@@ -606,7 +611,7 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         db.close()
 
 
-@celery_app.task(bind=True)
+@celery_app.task(bind=True, soft_time_limit=10800, time_limit=11100)
 def task_daily_sync(self, frequency_filter: str = None) -> dict:
     """Scheduled ETL: ingest new posts + comments, enrich via Apify, analyze, for all active connections.
     frequency_filter: 'weekly' or 'daily' — filters connections by plan sync_frequency."""
@@ -715,7 +720,7 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 # Use plan limits for max_posts
                 plan_limits = get_plan_limits(user.plan) if user else get_plan_limits("free")
                 max_posts = 5  # Daily sync: only check last 5 posts for new comments
-                max_comments = plan_limits["max_comments_per_post"]
+                max_comments = min(plan_limits["max_comments_per_post"], DAILY_SYNC_MAX_COMMENTS_PER_POST)
 
                 # Use last_sync_at to only fetch new posts since last sync
                 if conn.last_sync_at:
@@ -898,6 +903,21 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 results[conn.username] = {"error": str(exc)}
 
         return results
+    finally:
+        db.close()
+
+
+@celery_app.task(bind=True, soft_time_limit=120, time_limit=180)
+def task_reconcile_stale_runs(self) -> dict:
+    """Beat independente: marca como failed runs presas em 'running'.
+
+    Antes essa reconciliação só rodava de carona no task_daily_sync — uma run
+    presa às 00:15 ficava 'RODANDO' o dia inteiro na UI.
+    """
+    db = SessionLocal()
+    try:
+        reconciled = _mark_stale_running_runs(db, max_age_hours=4)
+        return {"reconciled": reconciled}
     finally:
         db.close()
 

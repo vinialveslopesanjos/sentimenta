@@ -46,6 +46,19 @@ COMMENT_TIMEOUT = 600     # 10 min per run
 COMMENT_WORKERS = 10      # parallel workers
 COMMENT_MAX_RETRIES = 3   # retry attempts for 429/5xx
 
+# ── Hard safety caps (aprendizado da run de US$40,16 em 2026-07-01) ─────
+# Teto ABSOLUTO de comentários por post, aplicado independente de plano ou
+# input do usuário — o daily_sync do plano admin passou 999999 como maxItems
+# num actor pay-per-result e um único post viral custou US$40.
+HARD_MAX_COMMENTS_PER_POST = int(os.getenv("APIFY_HARD_MAX_COMMENTS_PER_POST", "2000"))
+# Teto de cobrança por run enviado à API (defesa extra para actors
+# pay-per-result/pay-per-event; a API ignora quando não se aplica).
+MAX_CHARGE_PER_RUN_USD = os.getenv("APIFY_MAX_CHARGE_PER_RUN_USD", "2")
+
+
+def _run_params(token: str) -> dict:
+    return {"token": token, "maxTotalChargeUsd": MAX_CHARGE_PER_RUN_USD}
+
 # Map Apify type field to our post_type
 _TYPE_MAP = {
     "GraphImage": "image",
@@ -96,7 +109,7 @@ def fetch_profile_apify(username: str) -> Optional[dict]:
             "resultsType": "details",
         }
         with httpx.Client(timeout=120) as client:
-            resp = client.post(run_url, params={"token": token}, json=payload)
+            resp = client.post(run_url, params=_run_params(token), json=payload)
             resp.raise_for_status()
             items = resp.json()
 
@@ -132,7 +145,7 @@ def fetch_profile_pic_apify(username: str) -> Optional[str]:
             "resultsType": "details",
         }
         with httpx.Client(timeout=120) as client:
-            resp = client.post(run_url, params={"token": token}, json=payload)
+            resp = client.post(run_url, params=_run_params(token), json=payload)
             resp.raise_for_status()
             items = resp.json()
 
@@ -172,7 +185,7 @@ def fetch_post_thumbnail_apify(shortcode: str) -> Optional[str]:
             "resultsType": "posts",
         }
         with httpx.Client(timeout=120) as client:
-            resp = client.post(run_url, params={"token": token}, json=payload)
+            resp = client.post(run_url, params=_run_params(token), json=payload)
             resp.raise_for_status()
             items = resp.json()
 
@@ -224,7 +237,7 @@ def fetch_posts_apify(
             "resultsType": "posts",
         }
         with httpx.Client(timeout=300) as client:
-            resp = client.post(run_url, params={"token": token}, json=payload)
+            resp = client.post(run_url, params=_run_params(token), json=payload)
             resp.raise_for_status()
             items = resp.json()
 
@@ -294,7 +307,7 @@ def _enrich_batch(shortcodes: list[str], token: str) -> dict[str, dict]:
     }
     try:
         with httpx.Client(timeout=600) as client:
-            resp = client.post(run_url, params={"token": token}, json=payload)
+            resp = client.post(run_url, params=_run_params(token), json=payload)
             resp.raise_for_status()
             items = resp.json()
 
@@ -428,13 +441,14 @@ def _fetch_comments_for_post(post_url: str, max_items: int, token: str) -> list[
     if is_limit_reached():
         return []
 
+    max_items = max(1, min(int(max_items), HARD_MAX_COMMENTS_PER_POST))
     run_url = f"{APIFY_BASE_URL}/acts/{COMMENT_ACTOR}/run-sync-get-dataset-items"
     payload = {"startUrls": [post_url], "maxItems": max_items}
 
     for attempt in range(COMMENT_MAX_RETRIES):
         try:
             with httpx.Client(timeout=COMMENT_TIMEOUT) as client:
-                resp = client.post(run_url, params={"token": token}, json=payload)
+                resp = client.post(run_url, params=_run_params(token), json=payload)
                 resp.raise_for_status()
                 items = resp.json()
             _record_run_cost(COMMENT_ACTOR)
@@ -537,6 +551,7 @@ def fetch_comments_apify(
             limits[url] = _calc_sample_size(comment_counts[url])
         else:
             limits[url] = max_per_post
+        limits[url] = max(1, min(limits[url], HARD_MAX_COMMENTS_PER_POST))
 
     total_posts = len(post_urls)
     _step(f"Apify Comments: {total_posts} posts ({COMMENT_WORKERS} workers, 1 post/run)")

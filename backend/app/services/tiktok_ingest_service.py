@@ -114,7 +114,8 @@ def _run_apify_actor(
     try:
         resp = httpx.post(
             f"{APIFY_BASE_URL}/acts/{actor_id}/runs",
-            params={"token": token},
+            # maxTotalChargeUsd: teto de cobrança por run (ver apify_service)
+            params={"token": token, "maxTotalChargeUsd": "2"},
             json=input_data,
             timeout=30,
         )
