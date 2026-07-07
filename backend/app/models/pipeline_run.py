@@ -21,6 +21,9 @@ class PipelineRun(Base):
     )
     run_type: Mapped[str] = mapped_column(String(50), nullable=False)
     status: Mapped[str] = mapped_column(String(50), default="running")
+    # Etapa atual para progresso granular no frontend:
+    # queued | ingesting | analyzing | demographics | report | done
+    stage: Mapped[str | None] = mapped_column(String(30), nullable=True)
     posts_fetched: Mapped[int] = mapped_column(Integer, default=0)
     comments_fetched: Mapped[int] = mapped_column(Integer, default=0)
     comments_analyzed: Mapped[int] = mapped_column(Integer, default=0)

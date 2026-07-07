@@ -56,7 +56,7 @@
   "nav": {
     "dashboard": "Dashboard",
     "connectProfiles": "Connect Profiles",
-    "pipelineLogs": "Pipeline Logs",
+    "pipelineLogs": "Analyses",
     "analysis": "Analysis",
     "alerts": "Alerts",
     "account": "Account",
@@ -65,7 +65,7 @@
     "login": "Login",
     "startFree": "Start 14-day free trial",
     "connect": "Connect",
-    "logs": "Logs",
+    "logs": "Analyses",
     "config": "Config"
   },
   "landing": {
@@ -1152,7 +1152,7 @@
     }
   },
   "logs": {
-    "title": "Pipeline Logs",
+    "title": "Analyses",
     "subtitle": "Analysis execution history",
     "refresh": "Refresh",
     "totalRuns": "Recent runs",
@@ -1317,5 +1317,36 @@
     "footerSupport": "Support",
     "footerBlog": "Blog",
     "footerCopyright": "© 2026 Sentimenta"
+  },
+  "preflight": {
+    "titleSync": "Confirm sync",
+    "titleAnalyze": "Confirm analysis",
+    "loading": "Calculating estimate...",
+    "posts": "Posts to collect",
+    "comments": "Estimated comments",
+    "pendingComments": "Pending comments",
+    "credits": "Credits",
+    "creditsValue": "~{est} of {avail} available",
+    "eta": "Estimated time",
+    "etaValue": "{min}–{max} min",
+    "partialWarning": "Your balance doesn't cover the full estimate (~{missing} credits short). Analysis will run as far as your balance allows; the rest stays pending.",
+    "noCredits": "You're out of credits. Get a plan or a credit pack to analyze.",
+    "nothingPending": "No comments pending analysis for this profile.",
+    "getCredits": "Get credits",
+    "confirm": "Start analysis",
+    "starting": "Starting...",
+    "cancel": "Cancel"
+  },
+  "runsPill": {
+    "tooltip": "See analysis progress",
+    "genericRun": "Analysis",
+    "stage": {
+      "queued": "queued",
+      "ingesting": "collecting",
+      "analyzing": "analyzing",
+      "demographics": "demographics",
+      "report": "generating report",
+      "running": "in progress"
+    }
   }
 }

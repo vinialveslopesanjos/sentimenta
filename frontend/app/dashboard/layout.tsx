@@ -11,6 +11,7 @@ import { Bell, Plus, Moon, Sun } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import OnboardingModal from "@/components/OnboardingModal";
+import { ActiveRunsProvider, ActiveRunPill } from "@/components/ActiveRunsContext";
 import { CreditDepletedBanner } from "@/components/CreditBalance";
 import { SubscriptionBanner } from "@/components/SubscriptionBanner";
 
@@ -79,6 +80,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <ActiveRunsProvider>
     <div className="min-h-screen" style={{ backgroundColor: "var(--bg-page)" }}>
       {showOnboarding && <OnboardingModal onComplete={() => setShowOnboarding(false)} />}
       <SidebarNew />
@@ -93,6 +95,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           }}
         >
           <div className="flex items-center gap-3">
+            <ActiveRunPill />
           </div>
           <div className="flex items-center gap-2 md:gap-3">
             <LanguageSwitcher />
@@ -140,6 +143,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         </main>
       </div>
     </div>
+    </ActiveRunsProvider>
   );
 }
 

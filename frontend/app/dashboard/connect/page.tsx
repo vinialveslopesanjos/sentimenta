@@ -17,6 +17,9 @@ import {
 import { relativeTime } from "@/lib/helpers";
 import { track } from "@/lib/tracking";
 import { Button } from "@/components/ds/Button";
+import PreflightModal from "@/components/PreflightModal";
+import { useActiveRuns } from "@/components/ActiveRunsContext";
+import type { PreflightEstimate } from "@/lib/types";
 import { Badge } from "@/components/ds/Badge";
 import { GlassSocialIcon } from "@/components/GlassSocialIcons";
 
@@ -54,6 +57,16 @@ export default function ConnectPage() {
   const [syncParams, setSyncParams] = useState<SyncSettings>(DEFAULT_SYNC_SETTINGS);
   const [syncEstimate, setSyncEstimate] = useState<{ show: boolean; minMinutes: number; maxMinutes: number; username: string }>({ show: false, minMinutes: 0, maxMinutes: 0, username: "" });
   const [userPlan, setUserPlan] = useState("free");
+  const { activeRuns, refresh: refreshRuns } = useActiveRuns();
+  const [preflight, setPreflight] = useState<{
+    open: boolean;
+    target: "one" | "all";
+    connId: string | null;
+    label: string;
+    estimate: PreflightEstimate | null;
+    loading: boolean;
+    confirming: boolean;
+  }>({ open: false, target: "one", connId: null, label: "", estimate: null, loading: false, confirming: false });
   const [creditBalance, setCreditBalance] = useState<{ total: number; plan_credits: number; plan_allocation: number } | null>(null);
 
   const loadConnections = useCallback(async () => {
@@ -150,6 +163,62 @@ export default function ConnectPage() {
       maxMinutes: Math.max(2, Math.ceil(baseMinutes * 2)),
     };
   }, []);
+
+  const requestSync = async (connId: string) => {
+    const token = getToken();
+    if (!token) return;
+    const conn = connections.find(c => c.id === connId);
+    setPreflight({ open: true, target: "one", connId, label: conn ? `@${conn.username}` : "", estimate: null, loading: true, confirming: false });
+    try {
+      const est = await connectionsApi.preflight(token, connId, "sync", toSyncPayload(syncParams));
+      setPreflight(p => ({ ...p, estimate: est, loading: false }));
+    } catch (err) {
+      setPreflight(p => ({ ...p, open: false }));
+      setErrors(e => ({ ...e, [connId]: err instanceof Error ? err.message : t("syncError") }));
+    }
+  };
+
+  const requestSyncAll = async () => {
+    const token = getToken();
+    if (!token || connections.length === 0) return;
+    setPreflight({ open: true, target: "all", connId: null, label: t("multipleProfiles", { count: connections.length }), estimate: null, loading: true, confirming: false });
+    try {
+      const payload = toSyncPayload(syncParams);
+      const estimates = await Promise.all(
+        connections.map(c => connectionsApi.preflight(token, c.id, "sync", payload).catch(() => null))
+      );
+      const valid = estimates.filter((e): e is PreflightEstimate => e !== null);
+      if (valid.length === 0) throw new Error(t("syncError"));
+      const sum = valid.reduce((acc, e) => ({
+        ...acc,
+        estimated_posts: acc.estimated_posts + e.estimated_posts,
+        estimated_comments: acc.estimated_comments + e.estimated_comments,
+        estimated_credits: acc.estimated_credits + e.estimated_credits,
+        estimated_minutes_min: acc.estimated_minutes_min + e.estimated_minutes_min,
+        estimated_minutes_max: acc.estimated_minutes_max + e.estimated_minutes_max,
+      }), { ...valid[0], estimated_posts: 0, estimated_comments: 0, estimated_credits: 0, estimated_minutes_min: 0, estimated_minutes_max: 0 });
+      sum.fits = sum.available_credits >= sum.estimated_credits;
+      sum.missing_credits = Math.max(0, sum.estimated_credits - sum.available_credits);
+      setPreflight(p => ({ ...p, estimate: sum, loading: false }));
+    } catch (err) {
+      setPreflight(p => ({ ...p, open: false }));
+      setErrors(e => ({ ...e, all: err instanceof Error ? err.message : t("syncError") }));
+    }
+  };
+
+  const confirmPreflight = async () => {
+    setPreflight(p => ({ ...p, confirming: true }));
+    try {
+      if (preflight.target === "one" && preflight.connId) {
+        await handleSync(preflight.connId);
+      } else {
+        await handleSyncAll();
+      }
+    } finally {
+      setPreflight(p => ({ ...p, open: false, confirming: false }));
+      refreshRuns();
+    }
+  };
 
   const handleSync = async (connId: string) => {
     const token = getToken()!;
@@ -457,7 +526,7 @@ export default function ConnectPage() {
                 </div>
               </div>
               <div className="flex justify-end pt-2">
-                <Button variant="primary" size="sm" onClick={handleSyncAll}>{t("addNewData")}</Button>
+                <Button variant="primary" size="sm" onClick={requestSyncAll}>{t("addNewData")}</Button>
               </div>
             </div>
           )}
@@ -532,7 +601,7 @@ export default function ConnectPage() {
                         <Link href={`/profile/${conn.id}`} className="p-1.5 rounded-lg transition-colors">
                           <BarChart3 className="w-3.5 h-3.5" style={{ color: "var(--text-muted)" }} />
                         </Link>
-                        <button onClick={() => handleSync(conn.id)} disabled={syncing[conn.id]} className="p-1.5 rounded-lg transition-colors disabled:opacity-50">
+                        <button onClick={() => requestSync(conn.id)} disabled={syncing[conn.id] || activeRuns.some(r => r.connection_id === conn.id)} className="p-1.5 rounded-lg transition-colors disabled:opacity-50">
                           <RefreshCw className={`w-3.5 h-3.5 ${syncing[conn.id] ? "animate-spin" : ""}`} style={{ color: "var(--text-muted)" }} />
                         </button>
                         <button onClick={() => setConfirmDelete(conn.id)} className="p-1.5 rounded-lg transition-colors">
@@ -547,6 +616,17 @@ export default function ConnectPage() {
           </div>
         )}
       </div>
+
+      <PreflightModal
+        open={preflight.open}
+        mode="sync"
+        targetLabel={preflight.label}
+        estimate={preflight.estimate}
+        loading={preflight.loading}
+        confirming={preflight.confirming}
+        onConfirm={confirmPreflight}
+        onClose={() => setPreflight(p => ({ ...p, open: false }))}
+      />
 
       {/* Sync estimate banner */}
       {syncEstimate.show && (

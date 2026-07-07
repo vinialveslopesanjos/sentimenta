@@ -11,6 +11,7 @@ class PipelineRunResponse(BaseModel):
     connection_username: str | None = None
     run_type: str
     status: str
+    stage: str | None = None
     posts_fetched: int
     comments_fetched: int
     comments_analyzed: int
@@ -28,6 +29,7 @@ class PipelineRunResponse(BaseModel):
 
 class PipelineStatusResponse(BaseModel):
     status: str
+    stage: str | None = None
     posts_fetched: int
     comments_fetched: int
     comments_analyzed: int

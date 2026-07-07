@@ -55,6 +55,16 @@ def _debit_analyzed_credits(db, run, user_id, connection, analyzed: int, source:
     return consumed >= analyzed
 
 
+def _set_stage(db, run, stage: str) -> None:
+    """Update the run's current stage (queued|ingesting|analyzing|demographics|report|done)."""
+    run.stage = stage
+    try:
+        db.commit()
+    except Exception as exc:
+        logger.error("_set_stage commit failed (stage=%s): %s", stage, exc)
+        db.rollback()
+
+
 def _mark_stale_running_runs(db, max_age_hours: int = 6) -> int:
     cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
     stale_runs = (
@@ -147,6 +157,7 @@ def _finalize_run_status(db, run, total_analyzed: int, total_errors: int, skippe
             run.id, run.connection_id, fetched, total_errors, pending_after, reasons or "-",
         )
 
+    run.stage = "done"
     run.ended_at = datetime.now(timezone.utc)
 
 
@@ -226,6 +237,8 @@ def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str 
             db.rollback()
             logger.warning("Analyze skipped for %s — another run is already running", connection_id)
             return {"error": "pipeline already running for this connection"}
+
+        _set_stage(db, run, "analyzing")
 
         def step_cb(msg):
             _append_step(db, run, msg)
@@ -409,6 +422,7 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         def step_cb(msg):
             _append_step(db, run, msg)
 
+        _set_stage(db, run, "ingesting")
         _append_step(db, run, "Iniciando extração de dados...")
         ingest_result = _do_ingest(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since_date, mode="full", progress_callback=update_progress, step_callback=step_cb, use_apify_comments=use_apify_comments, comment_sample_mode=comment_sample_mode)
         if "error" in ingest_result:
@@ -458,6 +472,7 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
 
         total_posts = len(posts)
         logger.info(f"Starting analysis for {total_posts} posts on connection {connection_id}")
+        _set_stage(db, run, "analyzing")
         _append_step(db, run, "Iniciando análise de sentimento...")
 
         for idx, post in enumerate(posts, 1):
@@ -492,6 +507,7 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         db.commit()
 
         # Stage 3: Demographics (disabled by default)
+        _set_stage(db, run, "demographics")
         try:
             if _out_of_credits(db, user_uuid):
                 # Enrichment hits Apify (real money) — never run it unbilled.
@@ -548,6 +564,7 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         if total_analyzed > 0:
             try:
                 from app.routers.dashboard import _build_health_report
+                _set_stage(db, run, "report")
                 _append_step(db, run, "Gerando diagnóstico de IA...")
                 report = _build_health_report(db, user_uuid)
                 if report and report.get("report_text"):
@@ -707,6 +724,7 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                     # First sync: fetch last 7 days
                     since_date = (datetime.now(timezone.utc) - timedelta(days=7)).date().isoformat()
 
+                _set_stage(db, run, "ingesting")
                 _append_step(db, run, f"Sync automático ({frequency_filter or 'geral'}) iniciado para @{conn.username}")
                 ingest_result = _do_ingest(
                     db, conn,
@@ -763,6 +781,7 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 total_errors = 0
                 total_cost = 0.0
                 skipped_reasons: set[str] = set()
+                _set_stage(db, run, "analyzing")
                 if posts_with_pending:
                     _append_step(db, run, f"Analisando {len(posts_with_pending)} posts com comentários pendentes")
                 for idx, post in enumerate(posts_with_pending, 1):
@@ -788,6 +807,7 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                         break
 
                 # Stage 3: Demographics (only if enough new usernames)
+                _set_stage(db, run, "demographics")
                 try:
                     from app.services.demographics_service import extract_new_usernames, run_demographics_pipeline
                     if not plan_limits.get("demographics", False):

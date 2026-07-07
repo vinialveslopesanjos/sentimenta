@@ -56,7 +56,7 @@
   "nav": {
     "dashboard": "Dashboard",
     "connectProfiles": "Conectar Perfis",
-    "pipelineLogs": "Logs do Pipeline",
+    "pipelineLogs": "Análises",
     "analysis": "Análise",
     "alerts": "Alertas",
     "account": "Conta",
@@ -65,7 +65,7 @@
     "login": "Login",
     "startFree": "Teste 14 dias grátis",
     "connect": "Conectar",
-    "logs": "Logs",
+    "logs": "Análises",
     "config": "Config"
   },
   "landing": {
@@ -1152,7 +1152,7 @@
     }
   },
   "logs": {
-    "title": "Logs de Pipeline",
+    "title": "Análises",
     "subtitle": "Histórico de execuções de análise",
     "refresh": "Atualizar",
     "totalRuns": "Últimas execuções",
@@ -1317,5 +1317,36 @@
     "footerSupport": "Suporte",
     "footerBlog": "Blog",
     "footerCopyright": "© 2026 Sentimenta"
+  },
+  "preflight": {
+    "titleSync": "Confirmar sincronização",
+    "titleAnalyze": "Confirmar análise",
+    "loading": "Calculando estimativa...",
+    "posts": "Posts a coletar",
+    "comments": "Comentários estimados",
+    "pendingComments": "Comentários pendentes",
+    "credits": "Créditos",
+    "creditsValue": "~{est} de {avail} disponíveis",
+    "eta": "Tempo estimado",
+    "etaValue": "{min}–{max} min",
+    "partialWarning": "Seu saldo não cobre a estimativa completa (faltam ~{missing} créditos). A análise vai até onde o saldo permitir e o restante fica pendente.",
+    "noCredits": "Você está sem créditos. Adquira um plano ou pacote para analisar.",
+    "nothingPending": "Nenhum comentário pendente de análise neste perfil.",
+    "getCredits": "Obter créditos",
+    "confirm": "Iniciar análise",
+    "starting": "Iniciando...",
+    "cancel": "Cancelar"
+  },
+  "runsPill": {
+    "tooltip": "Ver andamento das análises",
+    "genericRun": "Análise",
+    "stage": {
+      "queued": "na fila",
+      "ingesting": "coletando",
+      "analyzing": "analisando",
+      "demographics": "demografia",
+      "report": "gerando relatório",
+      "running": "em andamento"
+    }
   }
 }
