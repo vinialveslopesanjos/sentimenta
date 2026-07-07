@@ -319,6 +319,17 @@ export const connectionsApi = {
       { method: "POST", token, body: params ? JSON.stringify(params) : undefined }
     ),
 
+  preflight: (
+    token: string,
+    connectionId: string,
+    mode: "sync" | "analyze",
+    params?: { max_posts?: number; max_comments_per_post?: number; since_date?: string; use_apify_comments?: boolean; comment_sample_mode?: string }
+  ) =>
+    apiFetch<import("./types").PreflightEstimate>(
+      `/connections/${connectionId}/preflight?mode=${mode}`,
+      { method: "POST", token, body: params ? JSON.stringify(params) : undefined }
+    ),
+
   analyze: (token: string, connectionId: string) =>
     apiFetch<{ connection_id: string; task_id: string; run_id?: string; message: string }>(
       `/connections/${connectionId}/analyze`,

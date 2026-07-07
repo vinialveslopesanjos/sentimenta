@@ -41,6 +41,7 @@ def list_pipeline_runs(
             connection_username=conn.username if conn else None,
             run_type=run.run_type,
             status=run.status,
+            stage=run.stage,
             posts_fetched=run.posts_fetched,
             comments_fetched=run.comments_fetched,
             comments_analyzed=run.comments_analyzed,
@@ -84,6 +85,7 @@ def get_pipeline_run(
         connection_username=conn.username if conn else None,
         run_type=run.run_type,
         status=run.status,
+        stage=run.stage,
         posts_fetched=run.posts_fetched,
         comments_fetched=run.comments_fetched,
         comments_analyzed=run.comments_analyzed,
@@ -160,6 +162,7 @@ def get_pipeline_status(
 
     return PipelineStatusResponse(
         status=run.status,
+        stage=run.stage,
         posts_fetched=run.posts_fetched,
         comments_fetched=run.comments_fetched,
         comments_analyzed=run.comments_analyzed,
@@ -191,6 +194,7 @@ async def stream_run_progress(
 
             progress_data = {
                 "status": run.status,
+                "stage": run.stage,
                 "posts_fetched": run.posts_fetched or 0,
                 "comments_fetched": run.comments_fetched or 0,
                 "comments_analyzed": run.comments_analyzed or 0,

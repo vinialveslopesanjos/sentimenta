@@ -573,6 +573,95 @@ async def tiktok_connection_callback(
 
 
 # --- Sync ---
+@router.post("/{connection_id}/preflight")
+def preflight_run(
+    connection_id: uuid.UUID,
+    mode: str = "sync",
+    body: Optional[SyncRequest] = Body(default=None),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Estimativa sem side effects do que uma run vai consumir (posts,
+    comentários, créditos, tempo) versus o saldo disponível. Nada é criado
+    nem debitado — é a base do modal de confirmação no frontend."""
+    from sqlalchemy import func as sa_func
+
+    from app.models.comment import Comment
+    from app.models.post import Post
+    from app.services.credit_service import get_available_credits
+    from app.services.plan_service import get_plan_limits
+
+    if mode not in ("sync", "analyze"):
+        raise HTTPException(status_code=422, detail="mode deve ser 'sync' ou 'analyze'")
+
+    conn = (
+        db.query(SocialConnection)
+        .filter(
+            SocialConnection.id == connection_id,
+            SocialConnection.user_id == current_user.id,
+        )
+        .first()
+    )
+    if not conn:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    available = get_available_credits(db, current_user.id)
+
+    if mode == "analyze":
+        pending = (
+            db.query(sa_func.count(Comment.id))
+            .filter(
+                Comment.connection_id == connection_id,
+                Comment.status.in_(["pending", "error"]),
+            )
+            .scalar()
+            or 0
+        )
+        estimated_credits = pending
+        estimated_comments = pending
+        estimated_posts = 0
+        avg_comments = None
+        # ~500 comentários/min de análise LLM em lote
+        base_minutes = estimated_comments / 500
+    else:
+        params = body or SyncRequest()
+        plan_limits = get_plan_limits(current_user.plan)
+        estimated_posts = min(params.max_posts, plan_limits["max_posts_per_sync"])
+        effective_max_comments = min(
+            params.max_comments_per_post, plan_limits["max_comments_per_post"]
+        )
+        if params.use_apify_comments:
+            effective_max_comments = min(10000, plan_limits.get("max_comments_per_post", 10000))
+
+        # Média histórica de comentários/post da própria conexão (fallback 50)
+        avg_comments = (
+            db.query(sa_func.avg(Post.comment_count))
+            .filter(Post.connection_id == connection_id, Post.comment_count > 0)
+            .scalar()
+        )
+        avg_comments = int(avg_comments) if avg_comments else 50
+        per_post = min(avg_comments, effective_max_comments)
+        estimated_comments = estimated_posts * per_post
+        estimated_credits = estimated_comments
+        # ~6s de scrape por post + ~500 comentários/min de análise
+        base_minutes = estimated_posts * 0.1 + estimated_comments / 500
+
+    fits = available >= estimated_credits
+    return {
+        "mode": mode,
+        "estimated_posts": estimated_posts,
+        "estimated_comments": estimated_comments,
+        "estimated_credits": estimated_credits,
+        "available_credits": available,
+        "fits": fits,
+        "missing_credits": max(0, estimated_credits - available),
+        "estimated_minutes_min": max(1, int(base_minutes * 0.8)),
+        "estimated_minutes_max": max(2, int(base_minutes * 2) + 1),
+        "avg_comments_per_post": avg_comments,
+        "pending_comments": estimated_comments if mode == "analyze" else None,
+    }
+
+
 @router.post("/{connection_id}/sync", response_model=SyncResponse)
 def trigger_sync(
     connection_id: uuid.UUID,

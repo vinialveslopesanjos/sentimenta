@@ -7,6 +7,7 @@ export interface PipelineRun {
   connection_username: string | null;
   run_type: string;
   status: string; // running | completed | failed | partial
+  stage?: string | null; // queued | ingesting | analyzing | demographics | report | done
   posts_fetched: number;
   comments_fetched: number;
   comments_analyzed: number;
@@ -20,8 +21,23 @@ export interface PipelineRun {
   notes: string | null;
 }
 
+export interface PreflightEstimate {
+  mode: "sync" | "analyze";
+  estimated_posts: number;
+  estimated_comments: number;
+  estimated_credits: number;
+  available_credits: number;
+  fits: boolean;
+  missing_credits: number;
+  estimated_minutes_min: number;
+  estimated_minutes_max: number;
+  avg_comments_per_post: number | null;
+  pending_comments: number | null;
+}
+
 export interface PipelineStatus {
   status: string;
+  stage?: string | null;
   posts_fetched: number;
   comments_fetched: number;
   comments_analyzed: number;
