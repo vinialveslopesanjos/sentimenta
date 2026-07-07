@@ -10,6 +10,8 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
+from sqlalchemy.exc import IntegrityError
+
 from app.tasks.celery_app import celery_app
 from app.db.session import SessionLocal
 from app.models.pipeline_run import PipelineRun
@@ -21,6 +23,36 @@ from app.models.follower_snapshot import FollowerSnapshot
 logger = logging.getLogger(__name__)
 
 DEMOGRAPHICS_MAX_PROFILES_PER_RUN = 1000
+
+# Persisted in run notes.skipped_reasons and shown to the user when a run is
+# cut short by credit depletion (ADR-011: analysis never runs unbilled).
+OUT_OF_CREDITS_REASON = "créditos esgotados"
+
+
+def _out_of_credits(db, user_id) -> bool:
+    from app.services.credit_service import get_available_credits
+    return get_available_credits(db, user_id) <= 0
+
+
+def _debit_analyzed_credits(db, run, user_id, connection, analyzed: int, source: str) -> bool:
+    """Debit credits for comments analyzed in one post.
+
+    Returns False when the balance ran out before covering `analyzed` —
+    callers must stop analyzing further posts.
+    """
+    from app.services.credit_service import consume_up_to
+
+    if analyzed <= 0:
+        return True
+    consumed = consume_up_to(
+        db, user_id, analyzed,
+        type="consume_comment",
+        source=source,
+        description=f"@{connection.username}: {analyzed} comentários analisados",
+        metadata={"pipeline_run_id": str(run.id), "platform": connection.platform},
+    )
+    db.commit()
+    return consumed >= analyzed
 
 
 def _mark_stale_running_runs(db, max_age_hours: int = 6) -> int:
@@ -93,6 +125,10 @@ def _finalize_run_status(db, run, total_analyzed: int, total_errors: int, skippe
         run.status = "partial"
         reason = ", ".join(reasons) if reasons else "análise não processou os comentários coletados"
         _append_step(db, run, f"Atenção: {pending_after} comentários aguardando análise ({reason})")
+    elif OUT_OF_CREDITS_REASON in reasons and pending_after > 0:
+        # Run cortada por saldo: nunca reportar completed com backlog pendente
+        run.status = "partial"
+        _append_step(db, run, f"Atenção: {pending_after} comentários não analisados (créditos esgotados)")
     else:
         run.status = "completed"
 
@@ -184,7 +220,12 @@ def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str 
             db.add(run)
         run.celery_task_id = self.request.id
         run.status = "running"
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            logger.warning("Analyze skipped for %s — another run is already running", connection_id)
+            return {"error": "pipeline already running for this connection"}
 
         def step_cb(msg):
             _append_step(db, run, msg)
@@ -232,6 +273,10 @@ def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str 
         skipped_reasons: set[str] = set()
 
         for idx, post in enumerate(posts, 1):
+            if _out_of_credits(db, user_uuid):
+                skipped_reasons.add(OUT_OF_CREDITS_REASON)
+                step_cb("Análise interrompida: créditos esgotados")
+                break
             stats = analyze_post_comments(db, post.id)
             analyzed = stats.get("analyzed", 0)
             total_analyzed += analyzed
@@ -245,6 +290,11 @@ def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str 
 
             run.comments_analyzed = total_analyzed
             step_cb(f"Post {idx}/{len(posts)}: {analyzed} comentários analisados")
+
+            if not _debit_analyzed_credits(db, run, user_uuid, connection, analyzed, "analyze"):
+                skipped_reasons.add(OUT_OF_CREDITS_REASON)
+                step_cb("Análise interrompida: créditos esgotados")
+                break
 
         # Sync comment counts
         post_counts = (
@@ -325,7 +375,12 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
 
         run.celery_task_id = self.request.id
         run.status = "running"
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            logger.warning("Full pipeline skipped for %s — another run is already running", connection_id)
+            return {"error": "pipeline already running for this connection"}
 
         connection = db.get(SocialConnection, conn_uuid)
         if not connection:
@@ -406,6 +461,10 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         _append_step(db, run, "Iniciando análise de sentimento...")
 
         for idx, post in enumerate(posts, 1):
+            if _out_of_credits(db, user_uuid):
+                skipped_reasons.add(OUT_OF_CREDITS_REASON)
+                _append_step(db, run, "Análise interrompida: créditos esgotados")
+                break
             logger.info(f"Analyzing post {idx}/{total_posts}: {post.platform_post_id}")
 
             stats = analyze_post_comments(db, post.id)
@@ -425,52 +484,46 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
             _append_step(db, run, f"Analisado post {idx}/{total_posts}: {analyzed_count} comentários processados")
             logger.info(f"Post {idx}/{total_posts} done. Total analyzed: {total_analyzed}")
 
+            if not _debit_analyzed_credits(db, run, user_uuid, connection, analyzed_count, "full_pipeline"):
+                skipped_reasons.add(OUT_OF_CREDITS_REASON)
+                _append_step(db, run, "Análise interrompida: créditos esgotados")
+                break
+
         db.commit()
 
         # Stage 3: Demographics (disabled by default)
         try:
-            from app.services.demographics_service import run_demographics_pipeline
-            demo_result = run_demographics_pipeline(
-                db, conn_uuid, enabled=True,
-                platform=connection.platform or "instagram",
-                max_usernames=DEMOGRAPHICS_MAX_PROFILES_PER_RUN,
-            )
-            if not demo_result.get("skipped"):
-                profiles_enriched = demo_result.get("profiles_enriched", demo_result.get("enrichments_saved", 0))
-                _append_step(db, run, f"Demographics: {profiles_enriched} perfis enriquecidos")
-                # Consume credits for demographics (5 credits per profile — ADR-011)
-                if profiles_enriched > 0:
-                    try:
-                        from app.services.credit_service import consume, DEMOGRAPHIC_CREDIT_COST
-                        consume(
-                            db, user_uuid, profiles_enriched * DEMOGRAPHIC_CREDIT_COST,
-                            type="consume_demographic",
-                            source="full_pipeline",
-                            description=f"Demographics @{connection.username}: {profiles_enriched} perfis × {DEMOGRAPHIC_CREDIT_COST} créd",
-                            metadata={"pipeline_run_id": str(run.id), "profiles": profiles_enriched},
-                        )
-                        db.commit()
-                    except Exception as credit_exc:
-                        logger.warning("Failed to consume credits for demographics: %s", credit_exc)
+            if _out_of_credits(db, user_uuid):
+                # Enrichment hits Apify (real money) — never run it unbilled.
+                _append_step(db, run, "Demographics: pulado (créditos esgotados)")
+            else:
+                from app.services.demographics_service import run_demographics_pipeline
+                demo_result = run_demographics_pipeline(
+                    db, conn_uuid, enabled=True,
+                    platform=connection.platform or "instagram",
+                    max_usernames=DEMOGRAPHICS_MAX_PROFILES_PER_RUN,
+                )
+                if not demo_result.get("skipped"):
+                    profiles_enriched = demo_result.get("profiles_enriched", demo_result.get("enrichments_saved", 0))
+                    _append_step(db, run, f"Demographics: {profiles_enriched} perfis enriquecidos")
+                    # Consume credits for demographics (5 credits per profile — ADR-011)
+                    if profiles_enriched > 0:
+                        try:
+                            from app.services.credit_service import consume_up_to, DEMOGRAPHIC_CREDIT_COST
+                            consume_up_to(
+                                db, user_uuid, profiles_enriched * DEMOGRAPHIC_CREDIT_COST,
+                                type="consume_demographic",
+                                source="full_pipeline",
+                                description=f"Demographics @{connection.username}: {profiles_enriched} perfis × {DEMOGRAPHIC_CREDIT_COST} créd",
+                                metadata={"pipeline_run_id": str(run.id), "profiles": profiles_enriched},
+                            )
+                            db.commit()
+                        except Exception as credit_exc:
+                            logger.warning("Failed to consume credits for demographics: %s", credit_exc)
         except Exception as e:
             logger.warning("Demographics pipeline error for %s: %s", connection_id, e)
 
-        # Consume credits for actually analyzed comments (ADR-011)
-        try:
-            from app.services.credit_service import consume, InsufficientCreditsError
-            if total_analyzed > 0:
-                consume(
-                    db, user_uuid, total_analyzed,
-                    type="consume_comment",
-                    source="full_pipeline",
-                    description=f"Sync @{connection.username}: {total_analyzed} comentários analisados",
-                    metadata={"pipeline_run_id": str(run.id), "platform": connection.platform},
-                )
-                db.commit()
-        except InsufficientCreditsError:
-            logger.warning("Insufficient credits for user %s after analysis", user_uuid)
-        except Exception as credit_exc:
-            logger.warning("Failed to consume credits for full_pipeline: %s", credit_exc)
+        # Comment credits already debited per post inside the analysis loop.
 
         # Update run
         run.comments_analyzed = total_analyzed
@@ -593,6 +646,12 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                         results[conn.username] = {"skipped": "frequency_mismatch"}
                         continue
 
+                # Never spend Apify money for a user who can't pay for the analysis
+                if _out_of_credits(db, conn.user_id):
+                    logger.info("Skipping @%s — user %s has no credits", conn.username, conn.user_id)
+                    results[conn.username] = {"skipped": "no_credits"}
+                    continue
+
                 logger.info("Daily sync starting for @%s [platform=%s, priority=%d]",
                             conn.username, conn.platform, PLATFORM_PRIORITY.get(conn.platform, 99))
 
@@ -616,7 +675,14 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 )
                 run.celery_task_id = self.request.id
                 db.add(run)
-                db.commit()
+                try:
+                    db.commit()
+                except IntegrityError:
+                    db.rollback()
+                    run = None
+                    logger.info("Skipping @%s — pipeline already running (unique index)", conn.username)
+                    results[conn.username] = {"skipped": "already_running"}
+                    continue
 
                 def step_cb(msg, _run=run):
                     _append_step(db, _run, msg)
@@ -700,6 +766,10 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 if posts_with_pending:
                     _append_step(db, run, f"Analisando {len(posts_with_pending)} posts com comentários pendentes")
                 for idx, post in enumerate(posts_with_pending, 1):
+                    if _out_of_credits(db, conn.user_id):
+                        skipped_reasons.add(OUT_OF_CREDITS_REASON)
+                        _append_step(db, run, "Análise interrompida: créditos esgotados")
+                        break
                     stats = analyze_post_comments(db, post.id)
                     analyzed = stats.get("analyzed", 0)
                     total_analyzed += analyzed
@@ -712,28 +782,19 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                         generate_post_summary(db, post.id)
                         _append_step(db, run, f"Analisado post {idx}/{len(posts_with_pending)}: {analyzed} novos comentários")
 
-                # Consume credits for actually analyzed comments (ADR-011)
-                try:
-                    from app.services.credit_service import consume, InsufficientCreditsError
-                    if total_analyzed > 0:
-                        consume(
-                            db, conn.user_id, total_analyzed,
-                            type="consume_comment",
-                            source="daily_sync",
-                            description=f"Daily sync @{conn.username}: {total_analyzed} comentários analisados",
-                            metadata={"pipeline_run_id": str(run.id), "platform": conn.platform},
-                        )
-                        db.commit()
-                except InsufficientCreditsError:
-                    logger.warning("Insufficient credits for user %s during daily_sync @%s", conn.user_id, conn.username)
-                except Exception as credit_exc:
-                    logger.warning("Failed to consume credits for daily_sync @%s: %s", conn.username, credit_exc)
+                    if not _debit_analyzed_credits(db, run, conn.user_id, conn, analyzed, "daily_sync"):
+                        skipped_reasons.add(OUT_OF_CREDITS_REASON)
+                        _append_step(db, run, "Análise interrompida: créditos esgotados")
+                        break
 
                 # Stage 3: Demographics (only if enough new usernames)
                 try:
                     from app.services.demographics_service import extract_new_usernames, run_demographics_pipeline
                     if not plan_limits.get("demographics", False):
                         _append_step(db, run, "Demographics: não disponível no plano atual")
+                    elif _out_of_credits(db, conn.user_id):
+                        # Enrichment hits Apify (real money) — never run it unbilled.
+                        _append_step(db, run, "Demographics: pulado (créditos esgotados)")
                     else:
                         new_count = len(extract_new_usernames(db, conn.id, platform=conn.platform or "instagram"))
                         if new_count >= 10:
@@ -750,8 +811,8 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                                 # Consume credits for demographics (5 credits per profile — ADR-011)
                                 if profiles_enriched > 0:
                                     try:
-                                        from app.services.credit_service import consume, DEMOGRAPHIC_CREDIT_COST
-                                        consume(
+                                        from app.services.credit_service import consume_up_to, DEMOGRAPHIC_CREDIT_COST
+                                        consume_up_to(
                                             db, conn.user_id, profiles_enriched * DEMOGRAPHIC_CREDIT_COST,
                                             type="consume_demographic",
                                             source="daily_sync",

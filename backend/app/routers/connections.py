@@ -625,7 +625,11 @@ def trigger_sync(
     if params.use_apify_comments:
         effective_max_comments = min(10000, plan_limits.get("max_comments_per_post", 10000))
 
-    # Create PipelineRun in router so we can return the real run_id
+    # Create PipelineRun in router so we can return the real run_id.
+    # The partial unique index (one running run per connection) closes the
+    # race window left by the active_run check above.
+    from sqlalchemy.exc import IntegrityError
+
     run = PipelineRun(
         user_id=current_user.id,
         connection_id=connection_id,
@@ -634,7 +638,11 @@ def trigger_sync(
         target_posts=effective_max_posts,
     )
     db.add(run)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Sync already running for this connection")
 
     from app.tasks.pipeline_tasks import task_full_pipeline
 
@@ -693,6 +701,16 @@ def trigger_analyze(
     if not conn:
         raise HTTPException(status_code=404, detail="Connection not found")
 
+    # Analysis consumes credits (1/comentário) — block users with no balance
+    from app.services.credit_service import get_available_credits
+    if get_available_credits(db, current_user.id) <= 0:
+        raise HTTPException(
+            status_code=402,
+            detail="Sem créditos disponíveis. Faça upgrade do plano ou compre um pacote de créditos para analisar.",
+        )
+
+    from sqlalchemy.exc import IntegrityError
+
     run = PipelineRun(
         user_id=current_user.id,
         connection_id=connection_id,
@@ -700,7 +718,11 @@ def trigger_analyze(
         status="running",
     )
     db.add(run)
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(status_code=409, detail="Sync or analysis already running for this connection")
 
     from app.tasks.pipeline_tasks import task_analyze_connection
 
