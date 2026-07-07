@@ -35,6 +35,10 @@ export interface PreflightEstimate {
   estimated_minutes_max: number;
   avg_comments_per_post: number | null;
   pending_comments: number | null;
+  pending_backlog?: number;
+  demographics_available?: boolean;
+  demographics_cost_per_profile?: number;
+  last_sync_at?: string | null;
 }
 
 export interface PipelineStatus {

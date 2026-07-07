@@ -10,6 +10,13 @@ from app.core.config import settings
 from app.db.session import SessionLocal
 from app.routers import analytics, auth, connections, posts, dashboard, pipeline, comments, billing, support, demographics, leads, blog, ops, security_reports
 
+import logging
+
+# httpx loga a URL completa das requests (incluindo ?token=...) no nível INFO.
+# WARNING evita vazar o token do Apify nos logs do worker/api.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
+
 logger = logging.getLogger(__name__)
 
 if settings.SENTRY_DSN:

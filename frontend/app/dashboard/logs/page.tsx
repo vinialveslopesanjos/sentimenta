@@ -236,6 +236,15 @@ export default function LogsPage() {
                     ))}
                   </div>
 
+                  {run.comments_analyzed > run.comments_fetched && run.comments_fetched > 0 && (
+                    <div className="mt-3 px-4 py-2.5 rounded-xl flex items-center gap-2" style={{ backgroundColor: "var(--bg-subtle)" }}>
+                      <Clock className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
+                      <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>
+                        {t("backlogNote", { count: fmt(run.comments_analyzed - run.comments_fetched) })}
+                      </span>
+                    </div>
+                  )}
+
                   {run.errors_count > 0 && (
                     <div className="mt-3 px-4 py-2.5 rounded-xl flex items-center gap-2" style={{ backgroundColor: "var(--sentiment-negative-bg)" }}>
                       <AlertTriangle className="w-4 h-4" style={{ color: "var(--sentiment-negative)" }} />

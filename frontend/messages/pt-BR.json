@@ -1191,7 +1191,8 @@
     "system": "Sistema",
     "recentScopeNote": "Totais referentes às últimas 50 execuções, não ao período completo.",
     "deleteConfirm": "Apagar este registro de execução? O histórico é sua trilha de auditoria.",
-    "pendingAnalysis": "comentários coletados aguardando análise"
+    "pendingAnalysis": "comentários coletados aguardando análise",
+    "backlogNote": "{count} análises desta execução eram pendências de coletas anteriores."
   },
   "analysis": {
     "title": "Análise Comparativa",
@@ -1336,7 +1337,11 @@
     "getCredits": "Obter créditos",
     "confirm": "Iniciar análise",
     "starting": "Iniciando...",
-    "cancel": "Cancelar"
+    "cancel": "Cancelar",
+    "backlog": "Pendências de análises anteriores",
+    "incrementalNote": "Coleta incremental: só posts e comentários novos desde {date}.",
+    "demographicsTitle": "Incluir Demographics (opcional)",
+    "demographicsDesc": "Enriquece o perfil demográfico dos comentaristas. Custo: {cost} créditos por perfil novo encontrado."
   },
   "runsPill": {
     "tooltip": "Ver andamento das análises",

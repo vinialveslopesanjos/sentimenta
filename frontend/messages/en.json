@@ -1191,7 +1191,8 @@
     "system": "System",
     "recentScopeNote": "Totals refer to the last 50 runs, not the full period.",
     "deleteConfirm": "Delete this run record? History is your audit trail.",
-    "pendingAnalysis": "fetched comments awaiting analysis"
+    "pendingAnalysis": "fetched comments awaiting analysis",
+    "backlogNote": "{count} analyses in this run were backlog from previous collections."
   },
   "analysis": {
     "title": "Comparative Analysis",
@@ -1336,7 +1337,11 @@
     "getCredits": "Get credits",
     "confirm": "Start analysis",
     "starting": "Starting...",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "backlog": "Backlog from previous analyses",
+    "incrementalNote": "Incremental collection: only posts and comments newer than {date}.",
+    "demographicsTitle": "Include Demographics (optional)",
+    "demographicsDesc": "Enriches commenter demographic profiles. Cost: {cost} credits per new profile found."
   },
   "runsPill": {
     "tooltip": "See analysis progress",

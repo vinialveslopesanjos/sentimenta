@@ -139,7 +139,7 @@ def analyze_post_comments(
 
     llm = LLMClient()
 
-    stats = {"attempted": 0, "analyzed": 0, "errors": 0, "llm_calls": 0}
+    stats = {"attempted": 0, "analyzed": 0, "errors": 0, "llm_calls": 0, "cost_usd": 0.0}
 
     post_context = {}
     persona_text = None
@@ -287,6 +287,7 @@ def analyze_post_comments(
                     )
 
                 stats["attempted"] += 1
+                stats["cost_usd"] += result.get("cost_estimate_usd") or 0.0
                 if is_error:
                     stats["errors"] += 1
                 else:

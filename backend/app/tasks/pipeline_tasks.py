@@ -365,7 +365,7 @@ def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str 
 
 
 @celery_app.task(bind=True, soft_time_limit=7200, time_limit=7500)
-def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None, use_apify_comments: bool = False, comment_sample_mode: str = "all", run_id: str | None = None) -> dict:
+def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None, use_apify_comments: bool = False, comment_sample_mode: str = "all", run_id: str | None = None, include_demographics: bool = False) -> dict:
     """Run the full pipeline: ingest + analyze for all posts."""
     db = SessionLocal()
     try:
@@ -513,10 +513,13 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
 
         db.commit()
 
-        # Stage 3: Demographics (disabled by default)
+        # Stage 3: Demographics — opt-in (P3.0): custa 5 créd/perfil + Apify,
+        # então só roda quando o usuário marcou no preflight.
         _set_stage(db, run, "demographics")
         try:
-            if _out_of_credits(db, user_uuid):
+            if not include_demographics:
+                _append_step(db, run, "Demographics: não solicitado nesta análise")
+            elif _out_of_credits(db, user_uuid):
                 # Enrichment hits Apify (real money) — never run it unbilled.
                 _append_step(db, run, "Demographics: pulado (créditos esgotados)")
             else:
@@ -592,6 +595,9 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
                 logger.warning("Auto health report generation failed: %s", report_err)
         else:
             _append_step(db, run, "Diagnóstico de IA não gerado: nenhum comentário foi analisado")
+
+        # O health report roda após o finalize — garantir stage terminal correto
+        _set_stage(db, run, "done")
 
         return {
             "posts_fetched": run.posts_fetched,

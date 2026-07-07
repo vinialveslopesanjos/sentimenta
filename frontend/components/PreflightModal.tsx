@@ -7,6 +7,10 @@ import { AlertTriangle, Clock, Coins, FileText, MessageSquare, X } from "lucide-
 import { useTranslations } from "next-intl";
 import type { PreflightEstimate } from "@/lib/types";
 
+export interface PreflightConfirmOptions {
+  includeDemographics: boolean;
+}
+
 interface Props {
   open: boolean;
   mode: "sync" | "analyze";
@@ -14,7 +18,7 @@ interface Props {
   estimate: PreflightEstimate | null;
   loading: boolean;
   confirming: boolean;
-  onConfirm: () => void;
+  onConfirm: (options: PreflightConfirmOptions) => void;
   onClose: () => void;
 }
 
@@ -33,7 +37,11 @@ function Row({ icon, label, value }: { icon: React.ReactNode; label: string; val
 export default function PreflightModal({ open, mode, targetLabel, estimate, loading, confirming, onConfirm, onClose }: Props) {
   const t = useTranslations("preflight");
   const [mounted, setMounted] = useState(false);
+  const [includeDemographics, setIncludeDemographics] = useState(false);
   useEffect(() => setMounted(true), []);
+  useEffect(() => {
+    if (open) setIncludeDemographics(false);
+  }, [open]);
 
   if (!mounted || !open) return null;
 
@@ -71,6 +79,13 @@ export default function PreflightModal({ open, mode, targetLabel, estimate, load
                 label={mode === "analyze" ? t("pendingComments") : t("comments")}
                 value={`~${fmt(estimate.estimated_comments)}`}
               />
+              {mode === "sync" && (estimate.pending_backlog ?? 0) > 0 && (
+                <Row
+                  icon={<MessageSquare className="w-4 h-4" />}
+                  label={t("backlog")}
+                  value={`+${fmt(estimate.pending_backlog ?? 0)}`}
+                />
+              )}
               <Row
                 icon={<Coins className="w-4 h-4" />}
                 label={t("credits")}
@@ -82,6 +97,28 @@ export default function PreflightModal({ open, mode, targetLabel, estimate, load
                 value={t("etaValue", { min: estimate.estimated_minutes_min, max: estimate.estimated_minutes_max })}
               />
             </div>
+
+            {mode === "sync" && estimate.last_sync_at && (
+              <p className="text-xs mb-3" style={{ color: "var(--text-muted)" }}>
+                {t("incrementalNote", { date: new Date(estimate.last_sync_at).toLocaleDateString("pt-BR") })}
+              </p>
+            )}
+
+            {mode === "sync" && estimate.demographics_available && (
+              <label className="flex items-start gap-2.5 rounded-xl p-3 mb-4 cursor-pointer" style={{ backgroundColor: "var(--bg-subtle)" }}>
+                <input
+                  type="checkbox"
+                  checked={includeDemographics}
+                  onChange={(e) => setIncludeDemographics(e.target.checked)}
+                  className="mt-0.5"
+                />
+                <span className="text-xs" style={{ color: "var(--text-primary)" }}>
+                  <span style={{ fontWeight: 600 }}>{t("demographicsTitle")}</span>
+                  <br />
+                  <span style={{ color: "var(--text-muted)" }}>{t("demographicsDesc", { cost: estimate.demographics_cost_per_profile ?? 5 })}</span>
+                </span>
+              </label>
+            )}
 
             {nothingToDo && (
               <p className="text-sm mb-4" style={{ color: "var(--text-muted)" }}>{t("nothingPending")}</p>
@@ -112,7 +149,7 @@ export default function PreflightModal({ open, mode, targetLabel, estimate, load
                 </Link>
               ) : (
                 <button
-                  onClick={onConfirm}
+                  onClick={() => onConfirm({ includeDemographics })}
                   disabled={confirming || nothingToDo}
                   className="flex-1 py-3 rounded-xl text-sm font-semibold transition-all disabled:opacity-50"
                   style={{ backgroundColor: "var(--primary)", color: "var(--primary-foreground)" }}

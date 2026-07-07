@@ -16,8 +16,9 @@ import {
 } from "@/lib/syncSettings";
 import { relativeTime } from "@/lib/helpers";
 import { track } from "@/lib/tracking";
+import { toast } from "sonner";
 import { Button } from "@/components/ds/Button";
-import PreflightModal from "@/components/PreflightModal";
+import PreflightModal, { type PreflightConfirmOptions } from "@/components/PreflightModal";
 import { useActiveRuns } from "@/components/ActiveRunsContext";
 import type { PreflightEstimate } from "@/lib/types";
 import { Badge } from "@/components/ds/Badge";
@@ -174,7 +175,9 @@ export default function ConnectPage() {
       setPreflight(p => ({ ...p, estimate: est, loading: false }));
     } catch (err) {
       setPreflight(p => ({ ...p, open: false }));
-      setErrors(e => ({ ...e, [connId]: err instanceof Error ? err.message : t("syncError") }));
+      const msg = err instanceof Error ? err.message : t("syncError");
+      setErrors(e => ({ ...e, [connId]: msg }));
+      toast.error(msg);
     }
   };
 
@@ -202,17 +205,19 @@ export default function ConnectPage() {
       setPreflight(p => ({ ...p, estimate: sum, loading: false }));
     } catch (err) {
       setPreflight(p => ({ ...p, open: false }));
-      setErrors(e => ({ ...e, all: err instanceof Error ? err.message : t("syncError") }));
+      const msg = err instanceof Error ? err.message : t("syncError");
+      setErrors(e => ({ ...e, all: msg }));
+      toast.error(msg);
     }
   };
 
-  const confirmPreflight = async () => {
+  const confirmPreflight = async (options: PreflightConfirmOptions) => {
     setPreflight(p => ({ ...p, confirming: true }));
     try {
       if (preflight.target === "one" && preflight.connId) {
-        await handleSync(preflight.connId);
+        await handleSync(preflight.connId, options);
       } else {
-        await handleSyncAll();
+        await handleSyncAll(options);
       }
     } finally {
       setPreflight(p => ({ ...p, open: false, confirming: false }));
@@ -220,28 +225,30 @@ export default function ConnectPage() {
     }
   };
 
-  const handleSync = async (connId: string) => {
+  const handleSync = async (connId: string, options?: PreflightConfirmOptions) => {
     const token = getToken()!;
     setSyncing(s => ({ ...s, [connId]: true }));
     setErrors(e => ({ ...e, [connId]: "" }));
     track("sync_triggered", { connection_id: connId });
     try {
-      await connectionsApi.sync(token, connId, toSyncPayload(syncParams));
+      await connectionsApi.sync(token, connId, { ...toSyncPayload(syncParams), include_demographics: options?.includeDemographics ?? false });
       const conn = connections.find(c => c.id === connId);
       const est = estimateSyncTime(syncParams);
       setSyncEstimate({ show: true, ...est, username: conn?.username || "" });
     } catch (err) {
-      setErrors(e => ({ ...e, [connId]: err instanceof Error ? err.message : t("syncError") }));
+      const msg = err instanceof Error ? err.message : t("syncError");
+      setErrors(e => ({ ...e, [connId]: msg }));
+      toast.error(msg);
     } finally {
       setTimeout(() => setSyncing(s => ({ ...s, [connId]: false })), 2500);
     }
   };
 
-  const handleSyncAll = async () => {
+  const handleSyncAll = async (options?: PreflightConfirmOptions) => {
     const token = getToken();
     if (!token || connections.length === 0) return;
     track("sync_all_triggered", { count: connections.length });
-    const payload = toSyncPayload(syncParams);
+    const payload = { ...toSyncPayload(syncParams), include_demographics: options?.includeDemographics ?? false };
     for (const conn of connections) {
       setSyncing(s => ({ ...s, [conn.id]: true }));
       try {

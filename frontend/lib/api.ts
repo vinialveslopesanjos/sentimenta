@@ -312,7 +312,7 @@ export const connectionsApi = {
   sync: (
     token: string,
     connectionId: string,
-    params?: { max_posts?: number; max_comments_per_post?: number; since_date?: string; use_apify_comments?: boolean; comment_sample_mode?: string }
+    params?: { max_posts?: number; max_comments_per_post?: number; since_date?: string; use_apify_comments?: boolean; comment_sample_mode?: string; include_demographics?: boolean }
   ) =>
     apiFetch<{ connection_id: string; task_id: string; run_id?: string; message: string }>(
       `/connections/${connectionId}/sync`,
@@ -323,7 +323,7 @@ export const connectionsApi = {
     token: string,
     connectionId: string,
     mode: "sync" | "analyze",
-    params?: { max_posts?: number; max_comments_per_post?: number; since_date?: string; use_apify_comments?: boolean; comment_sample_mode?: string }
+    params?: { max_posts?: number; max_comments_per_post?: number; since_date?: string; use_apify_comments?: boolean; comment_sample_mode?: string; include_demographics?: boolean }
   ) =>
     apiFetch<import("./types").PreflightEstimate>(
       `/connections/${connectionId}/preflight?mode=${mode}`,
