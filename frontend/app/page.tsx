@@ -237,6 +237,7 @@ export default function LandingPage() {
             <a href="#demo" style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>{t("nav.liveTest")}</a>
             <a href="#como" style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>{t("nav.howItWorks")}</a>
             <a href="#preco" style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>{t("nav.pricing")}</a>
+            <Link href="/diagnostico" style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>{t("nav.diagnostic")}</Link>
             <LanguageSwitcher />
             <Link href="/login" style={{ fontSize: "0.85rem", fontWeight: 500, color: "var(--primary)" }}>{t("nav.login")}</Link>
             <Link href="/login"><Button size="sm">{t("nav.startFree")}</Button></Link>
@@ -280,6 +281,11 @@ export default function LandingPage() {
               <motion.div initial={{ opacity: 0.9, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.38, delay: 0.18 }} className="flex items-center gap-3 mt-10 flex-wrap">
                 <Link href="/login"><Button variant="pill" size="lg" iconRight={<ArrowRight className="w-4 h-4" />}>{t("hero.ctaPrimary")}</Button></Link>
                 <a href="#demo"><Button variant="pill-glass" size="lg" icon={<Play className="w-3.5 h-3.5" />}>{t("hero.ctaSecondary")}</Button></a>
+              </motion.div>
+              <motion.div initial={{ opacity: 0.9 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="mt-5">
+                <Link href="/diagnostico" style={{ fontSize: "0.85rem", color: "var(--primary)", fontWeight: 500, textDecoration: "underline", textUnderlineOffset: 4 }}>
+                  {t("hero.ctaDiagnostic")} →
+                </Link>
               </motion.div>
               <motion.div initial={{ opacity: 0.9 }} animate={{ opacity: 1 }} transition={{ delay: 0.22 }} className="flex items-center gap-6 mt-8 flex-wrap">
                 {[{ v: "12K+", l: t("hero.statsComments") }, { v: "8", l: t("hero.statsEmotions") }, { v: "<2min", l: t("hero.statsFirstRead") }].map(s => (
@@ -673,6 +679,12 @@ export default function LandingPage() {
             <p className="text-center mt-8" style={{ fontSize: "0.82rem", color: "var(--text-muted)", maxWidth: 600, margin: "2rem auto 0" }}>
               {creditExplanation}
             </p>
+            <p className="text-center mt-4" style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+              {t("pricing.diagnosticNote")}{" "}
+              <Link href="/diagnostico" style={{ color: "var(--primary)", fontWeight: 500, textDecoration: "underline", textUnderlineOffset: 4 }}>
+                {t("pricing.diagnosticCta")}
+              </Link>
+            </p>
           </FadeIn>
         </div>
       </section>
@@ -717,6 +729,11 @@ export default function LandingPage() {
               <Link href="/login" className="inline-block px-10 py-4 bg-white rounded-full hover:bg-white/90 transition-all shadow-[0_8px_32px_-8px_rgba(0,0,0,0.2)]" style={{ fontSize: "0.95rem", fontWeight: 600, color: "#0e2325" }}>
                 {t("cta.button")}
               </Link>
+              <p className="mt-5">
+                <Link href="/diagnostico" style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.75)", textDecoration: "underline", textUnderlineOffset: 4 }}>
+                  {t("cta.diagnosticLink")}
+                </Link>
+              </p>
             </div>
           </div>
         </section>

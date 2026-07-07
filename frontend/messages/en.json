@@ -76,6 +76,7 @@
       "pricing": "Pricing",
       "login": "Login",
       "startFree": "Start 14-day free trial",
+      "diagnostic": "Free diagnostic",
       "enter": "Sign in"
     },
     "hero": {
@@ -93,6 +94,7 @@
       "live": "LIVE",
       "ctaPrimary": "Try free for 14 days",
       "ctaSecondary": "Try it live",
+      "ctaDiagnostic": "Prefer to see it first? Request a free diagnostic of your profile",
       "statsComments": "comments analyzed",
       "statsEmotions": "emotions mapped",
       "statsFirstRead": "first reading"
@@ -207,6 +209,8 @@
       "customPrice": "Custom pricing",
       "currency": "R$",
       "creditExplanation": "1 credit = 1 analyzed comment. Demographics: 5 credits per profile. Plan credits renew every cycle. Extra packs never expire.",
+      "diagnosticNote": "Not ready to subscribe?",
+      "diagnosticCta": "Request a free diagnostic of your profile",
       "starterPlan": "Starter",
       "starterPlanPrice": "197",
       "starterPlanDesc": "For brands that want to understand their audience.",
@@ -265,7 +269,8 @@
       "titleBreak": "Start feeling.",
       "subtitle": "14-day free trial with card. Setup in 2 minutes.",
       "button": "Try free for 14 days",
-      "titleLine2": "Start feeling."
+      "titleLine2": "Start feeling.",
+      "diagnosticLink": "or request a free diagnostic, no signup needed"
     },
     "footer": {
       "privacy": "Privacy",
