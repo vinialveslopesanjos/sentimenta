@@ -1179,7 +1179,8 @@
       "analyzed": "ANÁLISES VÁLIDAS",
       "duration": "DURAÇÃO",
       "cost": "CUSTO",
-      "failures": "FALHAS"
+      "failures": "FALHAS",
+      "credits": "Créditos"
     },
     "error": "erro",
     "errors": "erros",
