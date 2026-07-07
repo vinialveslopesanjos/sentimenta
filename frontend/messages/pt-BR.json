@@ -76,6 +76,7 @@
       "pricing": "Preços",
       "login": "Login",
       "startFree": "Teste 14 dias grátis",
+      "diagnostic": "Diagnóstico grátis",
       "enter": "Entrar"
     },
     "hero": {
@@ -88,6 +89,7 @@
       "ctaPrimary": "Teste grátis por 14 dias",
       "ctaDemo": "Testar ao vivo",
       "ctaSecondary": "Testar ao vivo",
+      "ctaDiagnostic": "Prefere ver antes? Peça um diagnóstico grátis do seu perfil",
       "statsComments": "comentários analisados",
       "statsEmotions": "emoções mapeadas",
       "statsFirstRead": "primeira leitura",
@@ -207,6 +209,8 @@
       "customPrice": "Sob consulta",
       "currency": "R$",
       "creditExplanation": "1 crédito = 1 comentário analisado. Demographics: 5 créditos por perfil. Créditos do plano renovam a cada ciclo. Pacotes extras não expiram.",
+      "diagnosticNote": "Ainda não quer assinar?",
+      "diagnosticCta": "Peça um diagnóstico grátis do seu perfil",
       "starterPlan": "Starter",
       "starterPlanPrice": "197",
       "starterPlanDesc": "Para marcas que querem entender sua audiência.",
@@ -265,7 +269,8 @@
       "titleLine2": "Comece a sentir.",
       "titleBreak": "Comece a sentir.",
       "subtitle": "14 dias grátis com cartão. Setup em 2 minutos.",
-      "button": "Teste grátis por 14 dias"
+      "button": "Teste grátis por 14 dias",
+      "diagnosticLink": "ou peça um diagnóstico grátis, sem cadastro"
     },
     "footer": {
       "privacy": "Privacidade",

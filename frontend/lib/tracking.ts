@@ -226,18 +226,55 @@ function getCspNonce(): string | undefined {
   return document.querySelector<HTMLMetaElement>('meta[name="csp-nonce"]')?.content || undefined;
 }
 
+function ensureGtagShim(): (...args: unknown[]) => void {
+  const googleWindow = window as GoogleWindow;
+  googleWindow.dataLayer = googleWindow.dataLayer || [];
+  if (!googleWindow.gtag) {
+    googleWindow.gtag = function gtagShim() {
+      // gtag.js only processes `arguments` objects pushed to dataLayer — a
+      // plain array is silently ignored, dropping queued commands (e.g. the
+      // signup conversion fired before the script finished loading).
+      // eslint-disable-next-line prefer-rest-params
+      googleWindow.dataLayer?.push(arguments);
+    };
+  }
+  return googleWindow.gtag;
+}
+
+const GOOGLE_CONSENT_KEYS = [
+  "ad_storage",
+  "ad_user_data",
+  "ad_personalization",
+  "analytics_storage",
+] as const;
+
+function googleConsentPayload(value: "granted" | "denied") {
+  return Object.fromEntries(GOOGLE_CONSENT_KEYS.map((key) => [key, value]));
+}
+
+let googleConsentGranted = false;
+
+function updateGoogleConsent(granted: boolean) {
+  if (typeof window === "undefined" || granted === googleConsentGranted) return;
+  const gtag = ensureGtagShim();
+  gtag("consent", "update", googleConsentPayload(granted ? "granted" : "denied"));
+  googleConsentGranted = granted;
+}
+
 function ensureGoogleTag() {
   const tagId = googleTagId();
   if (!tagId || document.getElementById("google-tag-script")) return;
 
-  const googleWindow = window as GoogleWindow;
-  googleWindow.dataLayer = googleWindow.dataLayer || [];
-  googleWindow.gtag = googleWindow.gtag || function gtagShim(...args: unknown[]) {
-    googleWindow.dataLayer?.push(args);
-  };
+  const gtag = ensureGtagShim();
 
-  googleWindow.gtag("js", new Date());
-  googleWindow.gtag("config", tagId);
+  // Consent Mode v2: the tag loads for everyone starting as "denied" — Google
+  // receives cookieless pings and models Ads conversions for visitors who
+  // never accept the banner. Upgraded to "granted" via updateGoogleConsent.
+  gtag("consent", "default", { ...googleConsentPayload("denied"), wait_for_update: 500 });
+  gtag("set", "ads_data_redaction", true);
+  gtag("set", "url_passthrough", true);
+  gtag("js", new Date());
+  gtag("config", tagId);
 
   const script = document.createElement("script");
   script.id = "google-tag-script";
@@ -249,8 +286,13 @@ function ensureGoogleTag() {
 }
 
 function initPaidTracking() {
+  // Google tag runs consent-aware for every visitor (Consent Mode v2).
+  ensureGoogleTag();
+  updateGoogleConsent(hasConsent());
+
   if (!hasConsent() || paidTrackingInitialized) return;
 
+  // Clarity records sessions and uses storage, so it stays consent-gated.
   const clarityId = process.env.NEXT_PUBLIC_CLARITY_ID;
   if (clarityId && !document.getElementById("clarity-script")) {
     const script = document.createElement("script");
@@ -261,7 +303,6 @@ function initPaidTracking() {
     document.head.appendChild(script);
   }
 
-  ensureGoogleTag();
   paidTrackingInitialized = true;
 }
 
@@ -404,7 +445,9 @@ function fireGoogleAdsConversion(
   defaults: Record<string, unknown>,
   properties?: Record<string, unknown>,
 ): Promise<void> {
-  if (!hasConsent() || !initialized || typeof window === "undefined") return Promise.resolve();
+  // No consent gate: under Consent Mode v2 the ping goes out cookieless when
+  // consent is denied and Google Ads models the conversion.
+  if (!initialized || typeof window === "undefined") return Promise.resolve();
 
   ensureGoogleTag();
 
