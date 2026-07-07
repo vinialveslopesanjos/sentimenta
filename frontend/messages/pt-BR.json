@@ -56,7 +56,7 @@
   "nav": {
     "dashboard": "Dashboard",
     "connectProfiles": "Conectar Perfis",
-    "pipelineLogs": "Análises",
+    "pipelineLogs": "Atividade",
     "analysis": "Análise",
     "alerts": "Alertas",
     "account": "Conta",
@@ -65,7 +65,7 @@
     "login": "Login",
     "startFree": "Teste 14 dias grátis",
     "connect": "Conectar",
-    "logs": "Análises",
+    "logs": "Atividade",
     "config": "Config"
   },
   "landing": {
@@ -1152,7 +1152,7 @@
     }
   },
   "logs": {
-    "title": "Análises",
+    "title": "Atividade",
     "subtitle": "Histórico de execuções de análise",
     "refresh": "Atualizar",
     "totalRuns": "Últimas execuções",

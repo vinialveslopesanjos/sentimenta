@@ -450,8 +450,14 @@ export default function ConnectPage() {
                         </>
                       ) : (
                         <>
-                          <span style={{ fontWeight: 600 }}>Seu plano: {cfg.credits} créditos/mês</span>
-                          {creditBalance && <span style={{ color: "var(--text-muted)" }}> ({remaining} restantes)</span>}
+                          {cfg.credits === "ilimitados" ? (
+                            <span style={{ fontWeight: 600 }}>Seu plano: créditos sem limite</span>
+                          ) : (
+                            <>
+                              <span style={{ fontWeight: 600 }}>Seu plano: {cfg.credits} créditos/mês</span>
+                              {creditBalance && <span style={{ color: "var(--text-muted)" }}> ({remaining} restantes)</span>}
+                            </>
+                          )}
                           <br />
                           1 crédito = 1 comentário analisado.
                           {cfg.demo && " Demographics: 5 créditos/perfil."}

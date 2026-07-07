@@ -39,6 +39,11 @@ celery_app.conf.beat_schedule = {
         "schedule": crontab(hour=3, minute=15),  # Daily 3:15AM - Pro/Business/Enterprise
         "kwargs": {"frequency_filter": "daily"},
     },
+    "reconcile-stale-runs": {
+        "task": "app.tasks.pipeline_tasks.task_reconcile_stale_runs",
+        "schedule": crontab(minute="*/30"),  # runs presas nunca ficam >4h30 na UI
+        "options": {"soft_time_limit": 120, "time_limit": 180},
+    },
 }
 
 # Auto-discover tasks
