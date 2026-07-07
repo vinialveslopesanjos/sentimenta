@@ -18,6 +18,8 @@ class PipelineRunResponse(BaseModel):
     llm_calls: int
     errors_count: int
     total_cost_usd: float
+    apify_cost_usd: float = 0.0
+    credits_consumed: int = 0
     started_at: datetime
     ended_at: datetime | None
     notes: str | None

@@ -30,6 +30,9 @@ class PipelineRun(Base):
     llm_calls: Mapped[int] = mapped_column(Integer, default=0)
     errors_count: Mapped[int] = mapped_column(Integer, default=0)
     total_cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
+    # Custo real do Apify acumulado durante a run (coluna criada na migração
+    # cc2a68b89ef7 e populada a partir do P2.1 jul/2026)
+    apify_cost_usd: Mapped[float] = mapped_column(Float, default=0.0)
     started_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

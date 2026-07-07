@@ -427,6 +427,8 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         def step_cb(msg):
             _append_step(db, run, msg)
 
+        from app.core.apify_cost_tracker import reset_run_cost, get_run_cost
+        reset_run_cost()
         _set_stage(db, run, "ingesting")
         _append_step(db, run, "Iniciando extração de dados...")
         ingest_result = _do_ingest(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since_date, mode="full", progress_callback=update_progress, step_callback=step_cb, use_apify_comments=use_apify_comments, comment_sample_mode=comment_sample_mode)
@@ -547,6 +549,7 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         # Comment credits already debited per post inside the analysis loop.
 
         # Update run
+        run.apify_cost_usd = round(get_run_cost(), 6)
         run.comments_analyzed = total_analyzed
         run.llm_calls = total_llm_calls
         run.errors_count = total_errors
@@ -729,6 +732,8 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                     # First sync: fetch last 7 days
                     since_date = (datetime.now(timezone.utc) - timedelta(days=7)).date().isoformat()
 
+                from app.core.apify_cost_tracker import reset_run_cost, get_run_cost
+                reset_run_cost()
                 _set_stage(db, run, "ingesting")
                 _append_step(db, run, f"Sync automático ({frequency_filter or 'geral'}) iniciado para @{conn.username}")
                 ingest_result = _do_ingest(
@@ -856,6 +861,7 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
 
                 db.commit()
 
+                run.apify_cost_usd = round(get_run_cost(), 6)
                 run.comments_analyzed = total_analyzed
                 run.llm_calls = total_llm_calls
                 run.errors_count = total_errors

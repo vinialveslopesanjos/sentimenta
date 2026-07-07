@@ -17,6 +17,30 @@ from app.schemas.pipeline import PipelineRunResponse, PipelineStatusResponse
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
 
+def _credits_consumed_by_run(db: Session, user_id) -> dict[str, int]:
+    """Soma créditos debitados por run (metadata.pipeline_run_id das transações).
+
+    Agregado em Python: são no máximo algumas centenas de transações por
+    usuário e o JSON operator varia entre Postgres e SQLite (testes).
+    """
+    from app.models.credits import CreditTransaction
+
+    rows = (
+        db.query(CreditTransaction.metadata_json, CreditTransaction.amount)
+        .filter(
+            CreditTransaction.user_id == user_id,
+            CreditTransaction.amount < 0,
+        )
+        .all()
+    )
+    consumed: dict[str, int] = {}
+    for meta, amount in rows:
+        run_id = (meta or {}).get("pipeline_run_id")
+        if run_id:
+            consumed[run_id] = consumed.get(run_id, 0) - amount
+    return consumed
+
+
 @router.get("/runs", response_model=list[PipelineRunResponse])
 def list_pipeline_runs(
     current_user: User = Depends(get_current_user),
@@ -30,6 +54,8 @@ def list_pipeline_runs(
         .limit(50)
         .all()
     )
+
+    credits_by_run = _credits_consumed_by_run(db, current_user.id)
 
     result = []
     for run in runs:
@@ -48,6 +74,8 @@ def list_pipeline_runs(
             llm_calls=run.llm_calls,
             errors_count=run.errors_count,
             total_cost_usd=run.total_cost_usd,
+            apify_cost_usd=run.apify_cost_usd or 0.0,
+            credits_consumed=credits_by_run.get(str(run.id), 0),
             started_at=run.started_at,
             ended_at=run.ended_at,
             notes=run.notes,
@@ -92,6 +120,8 @@ def get_pipeline_run(
         llm_calls=run.llm_calls,
         errors_count=run.errors_count,
         total_cost_usd=run.total_cost_usd,
+        apify_cost_usd=run.apify_cost_usd or 0.0,
+        credits_consumed=_credits_consumed_by_run(db, current_user.id).get(str(run.id), 0),
         started_at=run.started_at,
         ended_at=run.ended_at,
         notes=run.notes,

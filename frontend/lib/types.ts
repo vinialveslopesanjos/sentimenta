@@ -16,6 +16,8 @@ export interface PipelineRun {
   target_posts?: number | null;
   target_comments?: number | null;
   total_cost_usd: number;
+  apify_cost_usd?: number;
+  credits_consumed?: number;
   started_at: string;
   ended_at: string | null;
   notes: string | null;

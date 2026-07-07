@@ -54,6 +54,10 @@ HARD_MAX_COMMENTS_PER_POST = int(os.getenv("APIFY_HARD_MAX_COMMENTS_PER_POST", "
 # Teto de cobrança por run enviado à API (defesa extra para actors
 # pay-per-result/pay-per-event; a API ignora quando não se aplica).
 MAX_CHARGE_PER_RUN_USD = os.getenv("APIFY_MAX_CHARGE_PER_RUN_USD", "2")
+# Preço do actor de comentários (pay-per-result, US$0,50/1000). Determinístico
+# por definição do modelo de cobrança — mais preciso e thread-safe que buscar
+# o "last run" na API (racy com 10 workers em paralelo).
+COMMENT_COST_PER_ITEM_USD = float(os.getenv("APIFY_COMMENT_COST_PER_ITEM_USD", "0.0005"))
 
 
 def _run_params(token: str) -> dict:
@@ -451,7 +455,7 @@ def _fetch_comments_for_post(post_url: str, max_items: int, token: str) -> list[
                 resp = client.post(run_url, params=_run_params(token), json=payload)
                 resp.raise_for_status()
                 items = resp.json()
-            _record_run_cost(COMMENT_ACTOR)
+            add_cost(len(items or []) * COMMENT_COST_PER_ITEM_USD)
             return [c for c in (_parse_apify_comment(item) for item in (items or [])) if c]
         except httpx.HTTPStatusError as e:
             if e.response.status_code in (429, 500, 502, 503) and attempt < COMMENT_MAX_RETRIES - 1:
