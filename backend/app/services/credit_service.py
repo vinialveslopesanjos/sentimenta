@@ -181,6 +181,80 @@ def consume(
     return remaining
 
 
+def consume_up_to(
+    db: Session,
+    user_id,
+    amount: int,
+    type: str,
+    source: str = "sync",
+    description: str = None,
+    metadata: dict = None,
+) -> int:
+    """
+    Atomically consume at most `amount` credits, draining whatever is available
+    (plan credits first, then pack credits).
+
+    Unlike consume(), never raises InsufficientCreditsError: returns how many
+    credits were actually consumed (0..amount). Callers compare the return
+    value against `amount` to detect depletion and stop further work.
+    """
+    if amount <= 0:
+        return 0
+
+    bal = (
+        db.query(CreditBalance)
+        .filter(CreditBalance.user_id == user_id)
+        .with_for_update()
+        .first()
+    )
+    if bal is None:
+        bal = get_or_create_balance(db, user_id)
+        bal = (
+            db.query(CreditBalance)
+            .filter(CreditBalance.user_id == user_id)
+            .with_for_update()
+            .one()
+        )
+
+    total = bal.plan_credits + bal.pack_credits
+    to_consume = min(total, amount)
+    if to_consume <= 0:
+        return 0
+
+    from_plan = min(bal.plan_credits, to_consume)
+    from_pack = to_consume - from_plan
+    bal.plan_credits -= from_plan
+    bal.pack_credits -= from_pack
+
+    remaining = bal.plan_credits + bal.pack_credits
+
+    _record_transaction(
+        db, bal, -to_consume, type, source,
+        description or f"Consumo: {to_consume} créditos",
+        metadata,
+    )
+
+    logger.info(
+        "Credits consumed (up_to): user=%s requested=%d consumed=%d type=%s remaining=%d",
+        user_id, amount, to_consume, type, remaining,
+    )
+
+    from app.core.analytics import capture
+    capture(str(user_id), "credits_consumed", {
+        "amount": to_consume, "type": type, "remaining": remaining,
+    })
+    if remaining <= 0:
+        capture(str(user_id), "credits_depleted", {"type": type})
+
+    return to_consume
+
+
+def get_available_credits(db: Session, user_id) -> int:
+    """Total credits (plan + pack) currently available, without locking."""
+    bal = get_or_create_balance(db, user_id)
+    return bal.plan_credits + bal.pack_credits
+
+
 def grant_monthly(db: Session, user_id, plan: str = None) -> int:
     """
     Reset plan credits for a new billing cycle.
