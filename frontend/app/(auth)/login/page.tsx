@@ -8,6 +8,7 @@ import { useTranslations } from "next-intl";
 import { authApi } from "@/lib/api";
 import { getToken, setTokens } from "@/lib/auth";
 import { getAttribution, track, trackCompletedSignup } from "@/lib/tracking";
+import SocialLogin from "@/components/SocialLogin";
 import { Logo } from "@/components/ds/Logo";
 import { Button } from "@/components/ds/Button";
 
@@ -171,6 +172,15 @@ function LoginPageInner() {
                 {m === "login" ? t("loginTab") : t("registerTab")}
               </button>
             ))}
+          </div>
+
+          {/* Login social — sem senha, sem muro de verificação de e-mail */}
+          <SocialLogin onError={setError} />
+
+          <div className="flex items-center gap-3 my-6">
+            <div className="flex-1 h-px" style={{ backgroundColor: "var(--border)" }} />
+            <span style={{ fontSize: "0.72rem", color: "var(--text-faint)" }}>{t("orEmail")}</span>
+            <div className="flex-1 h-px" style={{ backgroundColor: "var(--border)" }} />
           </div>
 
           {/* Form */}

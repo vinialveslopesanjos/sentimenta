@@ -879,3 +879,11 @@ export const blogAdminApi = {
     return response.json();
   },
 };
+
+export const publicApi = {
+  preview: (platform: "youtube" | "instagram", handle: string) =>
+    apiFetch<import("./types").PreviewResult>("/public/preview", {
+      method: "POST",
+      body: JSON.stringify({ platform, handle }),
+    }),
+};
