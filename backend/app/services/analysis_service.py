@@ -159,8 +159,9 @@ def analyze_post_comments(
                         post.image_context = generated_context
                         db.commit()
                         logger.info("Visual context successfully generated and saved.")
-                        # Delay after image API call to respect Gemini rate limits
-                        time.sleep(5)
+                        # P3.1: sem sleep fixo aqui. A chamada Vision (~8s) já
+                        # auto-limita o ritmo e o OpenRouter aguenta 200+ RPM —
+                        # o sleep(5) por post custava ~25 min numa run de 300 posts.
                     else:
                         logger.warning("Failed to generate useful visual context: %s", generated_context)
                 except Exception as e:
