@@ -1219,7 +1219,9 @@
     "profileB": "Profile B",
     "selectProfile": "Select a profile...",
     "all": "All",
-    "1y": "1y"
+    "1y": "1y",
+    "noDataForProfile": "No analyzed data for this profile in the selected period. Run an analysis in Connect Profiles.",
+    "loadError": "Failed to load comparison. Try again."
   },
   "onboarding": {
     "profileTitle": "What's your profile?",

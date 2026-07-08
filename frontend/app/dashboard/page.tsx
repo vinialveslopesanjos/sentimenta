@@ -1093,7 +1093,7 @@ export default function DashboardPage() {
                 </div>
                 <div className="grid grid-cols-2 gap-2 mb-4">
                   {[
-                    { l: tc("followers"), v: formatNumber(profile.followers_count) },
+                    { l: tc("followers"), v: profile.followers_count ? formatNumber(profile.followers_count) : "—" },
                     { l: tc("status"), v: profile.status === "active" ? tc("active") : profile.status },
                   ].map(s => (
                     <div key={s.l} className="text-center">
@@ -1130,7 +1130,12 @@ export default function DashboardPage() {
           </div>
         ) : recentPosts.filter(p => p.content_text && p.content_text !== "null").length > 0 ? (
           <div className="space-y-1">
-            {recentPosts.filter(p => p.content_text && p.content_text !== "null").map((post, i) => {
+            {(() => {
+              // Prioriza posts com comentários — post 0/0 não tem análise para abrir
+              const visible = recentPosts.filter(p => p.content_text && p.content_text !== "null");
+              const withComments = visible.filter(p => (p.comment_count ?? 0) > 0);
+              return withComments.length > 0 ? withComments : visible;
+            })().map((post, i) => {
               const postTitle = post.content_text!.length > 60 ? post.content_text!.slice(0, 60) + "..." : post.content_text!;
               const thumbSrc = post.thumbnail_url ? `/api/v1/posts/thumbnail?url=${encodeURIComponent(post.thumbnail_url)}` : null;
               return (
