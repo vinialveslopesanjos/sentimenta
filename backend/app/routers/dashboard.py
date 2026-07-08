@@ -1077,9 +1077,26 @@ def get_connections_compare(
         .all()
     )
 
-    # Get emotions per connection from PostAnalysisSummary
+    # Get emotions per connection from PostAnalysisSummary.
+    # Conexões sem comentários no período entram com zeros — sumir da resposta
+    # fazia o frontend mostrar "selecione um perfil" com perfil selecionado.
+    row_map = {row.connection_id: row for row in rows}
+
+    class _ZeroRow:
+        total_comments = 0
+        total_analyzed = 0
+        avg_score = None
+        avg_polarity = None
+        positive = 0
+        neutral = 0
+        negative = 0
+
+        def __init__(self, connection_id):
+            self.connection_id = connection_id
+
     connections_data = []
-    for row in rows:
+    for conn_id in valid_ids:
+        row = row_map.get(conn_id) or _ZeroRow(conn_id)
         conn = conn_map.get(row.connection_id)
         total_analyzed = int(row.total_analyzed or 0)
         positive = int(row.positive or 0)
@@ -1942,8 +1959,14 @@ def get_youtube_stats(
     total_videos = len(posts)
     avg_views = round(total_views / total_videos) if total_videos > 0 else 0
 
-    # Average engagement rate from posts
-    engagement_rates = [p.engagement_rate for p in posts if p.engagement_rate is not None]
+    # Average engagement rate from posts. Fallback: o ingest nem sempre
+    # popula engagement_rate — calcula (likes+comentários)/views por vídeo.
+    engagement_rates = []
+    for p in posts:
+        if p.engagement_rate is not None and p.engagement_rate > 0:
+            engagement_rates.append(p.engagement_rate)
+        elif (p.view_count or 0) > 0:
+            engagement_rates.append(((p.like_count or 0) + (p.comment_count or 0)) / p.view_count)
     avg_engagement = round(sum(engagement_rates) / len(engagement_rates), 4) if engagement_rates else 0.0
 
     channel_stats = {

@@ -1219,7 +1219,9 @@
     "profileB": "Perfil B",
     "selectProfile": "Selecione um perfil...",
     "all": "Tudo",
-    "1y": "1a"
+    "1y": "1a",
+    "noDataForProfile": "Sem dados analisados para este perfil no período. Rode uma análise em Conectar Perfis.",
+    "loadError": "Erro ao carregar a comparação. Tente novamente."
   },
   "onboarding": {
     "profileTitle": "Qual seu perfil?",
