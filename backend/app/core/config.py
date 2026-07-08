@@ -88,6 +88,9 @@ class Settings(BaseSettings):
     LLM_DAILY_LIMIT_USD: float = float(os.getenv("LLM_DAILY_LIMIT_USD", "1.0"))
 
     # Pipeline
+    # P3.1: análise paralela entre posts (cada worker usa a própria sessão de DB).
+    # 4 workers × ~25 comentários/min por worker ≈ 100/min — meta: 500 em <5 min.
+    ANALYSIS_MAX_WORKERS: int = int(os.getenv("ANALYSIS_MAX_WORKERS", "4"))
     DEFAULT_MAX_COMMENTS: int = int(os.getenv("DEFAULT_MAX_COMMENTS", "500"))
     DEFAULT_BATCH_SIZE: int = int(os.getenv("DEFAULT_BATCH_SIZE", "30"))
     PROMPT_VERSION: str = os.getenv("PROMPT_VERSION", "v1")

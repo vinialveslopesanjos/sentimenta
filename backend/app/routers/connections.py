@@ -575,9 +575,11 @@ async def tiktok_connection_callback(
 
 
 # --- Sync ---
-# Ritmo REAL medido em produção (07/07): ~12-30 comentários/min (Vision por
-# post + batches LLM). A constante antiga (500/min) gerava ETAs de fantasia.
-ANALYSIS_COMMENTS_PER_MINUTE = 20
+# P3.1 (07/07): análise paralela entre posts (ANALYSIS_MAX_WORKERS=4 workers ×
+# ~25 comentários/min por batch de 50) e sem Vision/sleep em post sem pendência.
+# Ritmo esperado ~100/min no caso típico (vários posts); 80 desconta waves
+# incompletas e o caso de um único post grande (sequencial dentro do post).
+ANALYSIS_COMMENTS_PER_MINUTE = 80
 
 
 @router.post("/{connection_id}/preflight")

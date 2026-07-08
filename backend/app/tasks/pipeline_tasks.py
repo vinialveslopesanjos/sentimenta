@@ -175,6 +175,136 @@ def _run_async(coro):
         loop.close()
 
 
+def _pending_posts_for_connection(db, connection_id) -> list[tuple]:
+    """Posts da conexão que ainda têm comentários pendentes, com a contagem.
+
+    P3.1: a run de 2h53min em produção (07/07) iterava TODOS os 307 posts da
+    conexão para analisar 10. Mesma seleção do task_daily_sync (join com
+    Comment.status == 'pending'), mas com a contagem por post para projetar
+    o consumo de créditos antes de despachar cada wave paralela.
+    """
+    from sqlalchemy import func as sa_func
+
+    from app.models.comment import Comment
+
+    rows = (
+        db.query(Comment.post_id, sa_func.count(Comment.id))
+        .join(Post, Post.id == Comment.post_id)
+        .filter(
+            Post.connection_id == connection_id,
+            Comment.status == "pending",
+        )
+        .group_by(Comment.post_id)
+        .all()
+    )
+    return [(post_id, int(count)) for post_id, count in rows]
+
+
+def _analyze_post_job(post_id):
+    """Analisa um post numa thread worker, com sessão própria.
+
+    Sessões SQLAlchemy NÃO são thread-safe — cada worker abre a sua via
+    SessionLocal(). Imports resolvidos em tempo de chamada para respeitar
+    monkeypatch nos testes (mesmo padrão do resto do módulo).
+    """
+    from app.services.analysis_service import analyze_post_comments, generate_post_summary
+
+    worker_db = SessionLocal()
+    try:
+        stats = analyze_post_comments(worker_db, post_id)
+        if stats.get("analyzed", 0) > 0:
+            generate_post_summary(worker_db, post_id)
+        return stats
+    except Exception as exc:
+        logger.exception("Analysis worker failed for post %s: %s", post_id, exc)
+        return {"attempted": 0, "analyzed": 0, "errors": 1, "llm_calls": 0, "cost_usd": 0.0}
+    finally:
+        worker_db.close()
+
+
+def _run_analysis_waves(db, run, user_id, connection, posts_pending, source: str, step_cb) -> dict:
+    """Analisa posts com pendências em waves paralelas (P3.1).
+
+    Regras:
+    - Cada worker usa a própria sessão de DB (_analyze_post_job).
+    - Débito de créditos, steps de progresso e contadores da run só na thread
+      principal, após cada wave.
+    - ADR-011 (análise nunca roda sem cobrança): o tamanho da wave é limitado
+      pela projeção de saldo — um post só entra se o saldo projetado ainda for
+      positivo, então o overshoot fica igual ao do fluxo sequencial (dentro de
+      um post), não workers × post.
+    - Posts com 0 processados não geram step (o resumo de pulados fica a cargo
+      do chamador, que conhece o total de posts da conexão).
+    """
+    from app.core.config import settings
+    from app.services.credit_service import get_available_credits
+
+    totals = {"analyzed": 0, "llm_calls": 0, "errors": 0, "cost_usd": 0.0, "posts_processed": 0}
+    skipped_reasons: set[str] = set()
+    max_workers = max(1, settings.ANALYSIS_MAX_WORKERS)
+    queue = list(posts_pending)
+    total_targets = len(posts_pending)
+    interrupted = False
+
+    while queue and not interrupted:
+        if _out_of_credits(db, user_id):
+            skipped_reasons.add(OUT_OF_CREDITS_REASON)
+            step_cb("Análise interrompida: créditos esgotados")
+            break
+
+        # Monta a wave projetando o consumo: para de encher quando o saldo
+        # projetado zera (o débito real acontece após a wave, por post).
+        projected_balance = get_available_credits(db, user_id)
+        wave = []
+        while queue and len(wave) < max_workers and projected_balance > 0:
+            post_id, n_pending = queue.pop(0)
+            wave.append(post_id)
+            projected_balance -= max(n_pending, 1)
+
+        if not wave:
+            break
+        if len(wave) == 1:
+            results = [_analyze_post_job(wave[0])]
+        else:
+            with ThreadPoolExecutor(max_workers=len(wave)) as executor:
+                results = list(executor.map(_analyze_post_job, wave))
+
+        for stats in results:
+            totals["posts_processed"] += 1
+            analyzed = stats.get("analyzed", 0)
+            errors = stats.get("errors", 0)
+            totals["analyzed"] += analyzed
+            totals["llm_calls"] += stats.get("llm_calls", 0)
+            totals["errors"] += errors
+            totals["cost_usd"] += stats.get("cost_usd", 0.0)
+            if stats.get("skipped_reason"):
+                skipped_reasons.add(stats["skipped_reason"])
+
+            run.comments_analyzed = totals["analyzed"]
+            # Notes legíveis: só reporta posts que processaram algo
+            if analyzed > 0 or errors > 0:
+                suffix = f", {errors} falha{'s' if errors > 1 else ''}" if errors else ""
+                step_cb(
+                    f"Post {totals['posts_processed']}/{total_targets}: "
+                    f"{analyzed} comentários analisados{suffix}"
+                )
+
+            if not _debit_analyzed_credits(db, run, user_id, connection, analyzed, source):
+                if not interrupted:
+                    skipped_reasons.add(OUT_OF_CREDITS_REASON)
+                    step_cb("Análise interrompida: créditos esgotados")
+                    interrupted = True
+
+    try:
+        db.commit()  # persiste run.comments_analyzed mesmo sem step no fim
+    except Exception as exc:
+        logger.error("_run_analysis_waves final commit failed: %s", exc)
+        db.rollback()
+
+    totals["skipped_reasons"] = skipped_reasons
+    return totals
+
+
 def _do_ingest(db, connection, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None, is_incremental: bool = False, mode: str = "full", progress_callback=None, step_callback=None, use_apify_comments: bool = False, comment_sample_mode: str = "all") -> dict:
     """Core ingest logic without creating a PipelineRun. Used by both task_ingest and task_full_pipeline."""
     if connection.platform == "youtube":
@@ -271,48 +401,40 @@ def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str 
 
         step_cb(f"Iniciando análise de {pending_count} comentários pendentes...")
 
-        posts = db.query(Post).filter(Post.connection_id == conn_uuid).all()
-        run.posts_fetched = len(posts)
+        total_posts = (
+            db.query(sa_func.count(Post.id))
+            .filter(Post.connection_id == conn_uuid)
+            .scalar()
+            or 0
+        )
+        run.posts_fetched = total_posts
         total_comments = (
             db.query(sa_func.count(Comment.id))
             .filter(Comment.connection_id == conn_uuid)
             .scalar()
         )
         run.comments_fetched = total_comments
-        run.target_posts = len(posts)
+        run.target_posts = total_posts
         run.target_comments = pending_count
         db.commit()
 
-        from app.services.analysis_service import analyze_post_comments, generate_post_summary
+        # P3.1: itera SÓ posts com comentários pendentes (mesma seleção do
+        # daily_sync) e analisa em waves paralelas.
+        posts_pending = _pending_posts_for_connection(db, conn_uuid)
+        if posts_pending:
+            step_cb(f"Analisando {len(posts_pending)} posts com comentários pendentes")
 
-        total_analyzed = 0
-        total_llm_calls = 0
-        total_errors = 0
-        skipped_reasons: set[str] = set()
+        wave_totals = _run_analysis_waves(
+            db, run, user_uuid, connection, posts_pending, "analyze", step_cb
+        )
+        total_analyzed = wave_totals["analyzed"]
+        total_llm_calls = wave_totals["llm_calls"]
+        total_errors = wave_totals["errors"]
+        skipped_reasons: set[str] = wave_totals["skipped_reasons"]
 
-        for idx, post in enumerate(posts, 1):
-            if _out_of_credits(db, user_uuid):
-                skipped_reasons.add(OUT_OF_CREDITS_REASON)
-                step_cb("Análise interrompida: créditos esgotados")
-                break
-            stats = analyze_post_comments(db, post.id)
-            analyzed = stats.get("analyzed", 0)
-            total_analyzed += analyzed
-            total_llm_calls += stats.get("llm_calls", 0)
-            total_errors += stats.get("errors", 0)
-            if stats.get("skipped_reason"):
-                skipped_reasons.add(stats["skipped_reason"])
-
-            if analyzed > 0:
-                generate_post_summary(db, post.id)
-
-            run.comments_analyzed = total_analyzed
-            step_cb(f"Post {idx}/{len(posts)}: {analyzed} comentários analisados")
-
-            if not _debit_analyzed_credits(db, run, user_uuid, connection, analyzed, "analyze"):
-                skipped_reasons.add(OUT_OF_CREDITS_REASON)
-                step_cb("Análise interrompida: créditos esgotados")
-                break
+        posts_no_pending = total_posts - len(posts_pending)
+        if posts_no_pending > 0:
+            step_cb(f"{posts_no_pending} posts sem comentários pendentes pulados")
 
         # Sync comment counts
         post_counts = (
@@ -344,7 +466,7 @@ def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str 
             pass
 
         return {
-            "posts_fetched": len(posts),
+            "posts_fetched": total_posts,
             "comments_fetched": total_comments,
             "comments_analyzed": total_analyzed,
             "llm_calls": total_llm_calls,
@@ -369,6 +491,8 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
     """Run the full pipeline: ingest + analyze for all posts."""
     db = SessionLocal()
     try:
+        from sqlalchemy import func as sa_func
+
         conn_uuid = uuid.UUID(connection_id)
         user_uuid = uuid.UUID(user_id)
 
@@ -459,57 +583,41 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         except Exception as usage_exc:
             logger.warning("Failed to log usage for full_pipeline: %s", usage_exc)
 
-        # Step 2: Analyze each post
-        posts = (
-            db.query(Post)
+        # Step 2: Analyze — P3.1: SÓ posts com comentários pendentes (mesma
+        # seleção do daily_sync), em waves paralelas. Antes: TODOS os posts da
+        # conexão eram iterados (307 posts para analisar 10 → run de 2h53min).
+        total_posts = (
+            db.query(sa_func.count(Post.id))
             .filter(Post.connection_id == conn_uuid)
-            .all()
+            .scalar()
+            or 0
         )
+        posts_pending = _pending_posts_for_connection(db, conn_uuid)
 
-        total_analyzed = 0
-        total_llm_calls = 0
-        total_errors = 0
-        total_cost = 0.0
-        skipped_reasons: set[str] = set()
-
-        from app.services.analysis_service import (
-            analyze_post_comments,
-            generate_post_summary,
+        logger.info(
+            "Starting analysis for %d posts with pending comments (of %d total) on connection %s",
+            len(posts_pending), total_posts, connection_id,
         )
-
-        total_posts = len(posts)
-        logger.info(f"Starting analysis for {total_posts} posts on connection {connection_id}")
         _set_stage(db, run, "analyzing")
         _append_step(db, run, "Iniciando análise de sentimento...")
+        if posts_pending:
+            _append_step(db, run, f"Analisando {len(posts_pending)} posts com comentários pendentes")
 
-        for idx, post in enumerate(posts, 1):
-            if _out_of_credits(db, user_uuid):
-                skipped_reasons.add(OUT_OF_CREDITS_REASON)
-                _append_step(db, run, "Análise interrompida: créditos esgotados")
-                break
-            logger.info(f"Analyzing post {idx}/{total_posts}: {post.platform_post_id}")
+        def step_analysis(msg):
+            _append_step(db, run, msg)
 
-            stats = analyze_post_comments(db, post.id)
-            analyzed_count = stats.get("analyzed", 0)
-            total_analyzed += analyzed_count
-            total_llm_calls += stats.get("llm_calls", 0)
-            total_errors += stats.get("errors", 0)
-            total_cost += stats.get("cost_usd", 0.0)
-            if stats.get("skipped_reason"):
-                skipped_reasons.add(stats["skipped_reason"])
+        wave_totals = _run_analysis_waves(
+            db, run, user_uuid, connection, posts_pending, "full_pipeline", step_analysis
+        )
+        total_analyzed = wave_totals["analyzed"]
+        total_llm_calls = wave_totals["llm_calls"]
+        total_errors = wave_totals["errors"]
+        total_cost = wave_totals["cost_usd"]
+        skipped_reasons: set[str] = wave_totals["skipped_reasons"]
 
-            if analyzed_count > 0:
-                generate_post_summary(db, post.id)
-
-            # Inform SSE continuously
-            run.comments_analyzed = total_analyzed
-            _append_step(db, run, f"Analisado post {idx}/{total_posts}: {analyzed_count} comentários processados")
-            logger.info(f"Post {idx}/{total_posts} done. Total analyzed: {total_analyzed}")
-
-            if not _debit_analyzed_credits(db, run, user_uuid, connection, analyzed_count, "full_pipeline"):
-                skipped_reasons.add(OUT_OF_CREDITS_REASON)
-                _append_step(db, run, "Análise interrompida: créditos esgotados")
-                break
+        posts_no_pending = total_posts - len(posts_pending)
+        if posts_no_pending > 0:
+            _append_step(db, run, f"{posts_no_pending} posts sem comentários pendentes pulados")
 
         db.commit()
 
