@@ -32,6 +32,8 @@ class SyncRequest(BaseModel):
     since_date: Optional[date] = None
     use_apify_comments: bool = True
     comment_sample_mode: str = Field("all", pattern=r"^(all|sample)$")
+    # Demographics é opt-in (5 créditos/perfil + custo Apify) — P3.0
+    include_demographics: bool = False
 
 router = APIRouter(prefix="/connections", tags=["connections"])
 
@@ -573,6 +575,11 @@ async def tiktok_connection_callback(
 
 
 # --- Sync ---
+# Ritmo REAL medido em produção (07/07): ~12-30 comentários/min (Vision por
+# post + batches LLM). A constante antiga (500/min) gerava ETAs de fantasia.
+ANALYSIS_COMMENTS_PER_MINUTE = 20
+
+
 @router.post("/{connection_id}/preflight")
 def preflight_run(
     connection_id: uuid.UUID,
@@ -607,22 +614,24 @@ def preflight_run(
 
     available = get_available_credits(db, current_user.id)
 
-    if mode == "analyze":
-        pending = (
-            db.query(sa_func.count(Comment.id))
-            .filter(
-                Comment.connection_id == connection_id,
-                Comment.status.in_(["pending", "error"]),
-            )
-            .scalar()
-            or 0
+    # Backlog: comentários já coletados aguardando análise — a run manual
+    # também processa esse passivo, então ele entra na conta de créditos.
+    pending_backlog = (
+        db.query(sa_func.count(Comment.id))
+        .filter(
+            Comment.connection_id == connection_id,
+            Comment.status.in_(["pending", "error"]),
         )
-        estimated_credits = pending
-        estimated_comments = pending
+        .scalar()
+        or 0
+    )
+
+    if mode == "analyze":
+        estimated_credits = pending_backlog
+        estimated_comments = pending_backlog
         estimated_posts = 0
         avg_comments = None
-        # ~500 comentários/min de análise LLM em lote
-        base_minutes = estimated_comments / 500
+        base_minutes = estimated_comments / ANALYSIS_COMMENTS_PER_MINUTE
     else:
         params = body or SyncRequest()
         plan_limits = get_plan_limits(current_user.plan)
@@ -642,16 +651,21 @@ def preflight_run(
         avg_comments = int(avg_comments) if avg_comments else 50
         per_post = min(avg_comments, effective_max_comments)
         estimated_comments = estimated_posts * per_post
-        estimated_credits = estimated_comments
-        # ~6s de scrape por post + ~500 comentários/min de análise
-        base_minutes = estimated_posts * 0.1 + estimated_comments / 500
+        # Honestidade (P3.0): a run processa novos + backlog pendente
+        estimated_credits = estimated_comments + pending_backlog
+        base_minutes = (
+            estimated_posts * 0.1
+            + (estimated_comments + pending_backlog) / ANALYSIS_COMMENTS_PER_MINUTE
+        )
 
+    plan_limits_full = get_plan_limits(current_user.plan)
     fits = available >= estimated_credits
     return {
         "mode": mode,
         "estimated_posts": estimated_posts,
         "estimated_comments": estimated_comments,
         "estimated_credits": estimated_credits,
+        "pending_backlog": pending_backlog,
         "available_credits": available,
         "fits": fits,
         "missing_credits": max(0, estimated_credits - available),
@@ -659,6 +673,9 @@ def preflight_run(
         "estimated_minutes_max": max(2, int(base_minutes * 2) + 1),
         "avg_comments_per_post": avg_comments,
         "pending_comments": estimated_comments if mode == "analyze" else None,
+        "demographics_available": bool(plan_limits_full.get("demographics")),
+        "demographics_cost_per_profile": 5,
+        "last_sync_at": conn.last_sync_at.isoformat() if conn.last_sync_at else None,
     }
 
 
@@ -744,6 +761,7 @@ def trigger_sync(
         use_apify_comments=params.use_apify_comments,
         comment_sample_mode=params.comment_sample_mode,
         run_id=str(run.id),
+        include_demographics=params.include_demographics,
     )
 
     # Store celery task id on the run

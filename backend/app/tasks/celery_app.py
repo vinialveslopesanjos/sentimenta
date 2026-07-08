@@ -1,3 +1,9 @@
+import logging
+
+# httpx loga a URL completa das requests (incluindo ?token=...) no nível INFO.
+# WARNING evita vazar o token do Apify nos logs do worker/api.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 from celery import Celery
 from celery.schedules import crontab
 from app.core.config import settings
