@@ -206,3 +206,27 @@ export interface HealthReport {
   data_summary: Record<string, unknown>;
   has_new_data?: boolean;
 }
+
+// --- Prévia Mágica (público) ---
+export interface PreviewPost {
+  caption: string;
+  thumbnail_url: string | null;
+  analyzed_comments: number;
+  avg_score: number;
+  top_emotion: string | null;
+  sentiment_split: { positive: number; neutral: number; negative: number };
+}
+
+export interface PreviewResult {
+  platform: "youtube" | "instagram";
+  handle: string;
+  profile: {
+    display_name: string | null;
+    profile_image_url: string | null;
+    followers_count: number;
+  };
+  overall_score: number | null;
+  posts: PreviewPost[];
+  generated_at: string;
+  cached?: boolean;
+}

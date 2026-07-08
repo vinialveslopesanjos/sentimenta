@@ -78,8 +78,14 @@ def analyze_post_comments(
     post_id: uuid.UUID,
     batch_size: int = 50,
     prompt_version: str = "v1",
+    skip_vision: bool = False,
 ) -> dict:
-    """Analyze pending comments for a post, skipping already-analyzed rows."""
+    """Analyze pending comments for a post, skipping already-analyzed rows.
+
+    skip_vision=True pula a geração de contexto visual (Vision LLM, ~8s/post) —
+    usado pela Prévia Mágica anônima, onde a legenda já dá contexto suficiente
+    e velocidade importa mais que a análise da imagem.
+    """
     analysis_exists = _analysis_exists_expression(db, prompt_version)
 
     # Repair stale pending rows: if analysis exists, mark processed.
@@ -149,7 +155,7 @@ def analyze_post_comments(
             post_context["post_caption"] = post.content_text
         
         # Auto-generate image context via Vision LLM if missing
-        if not post.image_context and isinstance(post.media_urls, dict):
+        if not skip_vision and not post.image_context and isinstance(post.media_urls, dict):
             image_url = post.media_urls.get("url") or post.media_urls.get("thumbnail_url")
             if image_url:
                 logger.info("Generating visual context for post %s using Vision LLM...", str(post.id))
