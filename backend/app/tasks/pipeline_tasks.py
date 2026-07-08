@@ -476,6 +476,7 @@ def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str 
     except Exception as e:
         logger.exception("Analyze-only failed for connection %s", connection_id)
         try:
+            db.rollback()
             run.status = "failed"
             run.ended_at = datetime.now(timezone.utc)
             _append_step(db, run, f"Erro: {str(e)[:200]}")
@@ -718,6 +719,7 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
     except Exception as e:
         logger.exception("Full pipeline failed for connection %s", connection_id)
         try:
+            db.rollback()
             run.status = "failed"
             run.ended_at = datetime.now(timezone.utc)
             _append_step(db, run, f"Erro: {str(e)[:200]}")
@@ -890,15 +892,23 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 # Analyze only posts with pending comments
                 from app.services.analysis_service import analyze_post_comments, generate_post_summary
                 from app.models.comment import Comment
-                posts_with_pending = (
-                    db.query(Post)
-                    .join(Comment, Comment.post_id == Post.id)
+                # DISTINCT sobre Post inteiro quebra no Postgres (media_urls é
+                # JSON, sem operador de igualdade) — distinct só nos ids.
+                pending_post_ids = [
+                    row[0]
+                    for row in db.query(Comment.post_id)
+                    .join(Post, Post.id == Comment.post_id)
                     .filter(
                         Post.connection_id == conn.id,
                         Comment.status == "pending",
                     )
                     .distinct()
                     .all()
+                ]
+                posts_with_pending = (
+                    db.query(Post).filter(Post.id.in_(pending_post_ids)).all()
+                    if pending_post_ids
+                    else []
                 )
                 total_analyzed = 0
                 total_llm_calls = 0
@@ -1015,6 +1025,10 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 logger.error("Weekly sync failed for @%s: %s", conn.username, exc)
                 if run is not None:
                     try:
+                        # Sessão pode estar abortada (ex.: erro de SQL) — sem o
+                        # rollback, marcar failed falha e a run fica presa em
+                        # running até o reconcile (visto em produção 08/07).
+                        db.rollback()
                         run.status = "failed"
                         run.ended_at = datetime.now(timezone.utc)
                         _append_step(db, run, f"Erro: {str(exc)[:200]}")
