@@ -149,7 +149,11 @@ class LLMClient:
         last_error: Exception | None = None
         for attempt in range(POLITICAL_MAX_RETRIES):
             try:
-                response = self._call_llm(system_prompt, user_prompt)
+                response = self._call_llm(
+                    system_prompt,
+                    user_prompt,
+                    max_tokens=max(600, min(8000, len(comments) * 350)),
+                )
                 results = self._parse_political_v2_response(response, expected_ids)
                 tokens_in = response.get("usage", {}).get("prompt_tokens", 0)
                 tokens_out = response.get("usage", {}).get("completion_tokens", 0)
@@ -306,7 +310,13 @@ class LLMClient:
             "X-Title": "Sentimenta",
         }
 
-    def _call_llm(self, system_prompt: str, user_prompt: str) -> dict:
+    def _call_llm(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        *,
+        max_tokens: int | None = None,
+    ) -> dict:
         """Chama OpenRouter (formato OpenAI chat completions)."""
         payload = {
             "model": self.model,
@@ -317,6 +327,8 @@ class LLMClient:
             "temperature": 0.1,
             "response_format": {"type": "json_object"},
         }
+        if max_tokens is not None:
+            payload["max_tokens"] = max_tokens
 
         resp = requests.post(
             f"{self.base_url}/chat/completions",

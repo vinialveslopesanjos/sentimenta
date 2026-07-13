@@ -251,8 +251,11 @@ def test_political_analysis_adds_repair_instruction_to_retry_prompt():
         "usage": {},
     }
 
-    def fake_call(_system_prompt, user_prompt):
+    max_tokens_seen = []
+
+    def fake_call(_system_prompt, user_prompt, *, max_tokens=None):
         prompts.append(user_prompt)
+        max_tokens_seen.append(max_tokens)
         return invalid if len(prompts) == 1 else valid
 
     with patch("app.services.llm_client.time.sleep"), patch.object(
@@ -264,3 +267,4 @@ def test_political_analysis_adds_repair_instruction_to_retry_prompt():
     assert "CORRECAO OBRIGATORIA" not in prompts[0]
     assert "CORRECAO OBRIGATORIA" in prompts[1]
     assert "stance_score_0_10 numericos" in prompts[1]
+    assert max_tokens_seen == [600, 600]
