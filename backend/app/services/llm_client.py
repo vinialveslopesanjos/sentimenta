@@ -389,7 +389,14 @@ Retorne APENAS JSON estrito neste formato:
                 continue
             comment_id = str(item.get("comment_id") or "")
             if comment_id in expected_ids and comment_id not in by_id:
-                by_id[comment_id] = self._normalize_political_v2_item(item)
+                try:
+                    by_id[comment_id] = self._normalize_political_v2_item(item)
+                except (TypeError, ValueError) as exc:
+                    by_id[comment_id] = self._political_v2_error(
+                        comment_id,
+                        f"Invalid item returned by LLM: {exc}",
+                        "political-context-v2",
+                    )
         return [
             by_id.get(comment_id) or self._political_v2_error(comment_id, "Item ausente na resposta do LLM", "political-context-v2")
             for comment_id in expected_ids
