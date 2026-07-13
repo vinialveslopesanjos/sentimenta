@@ -8,7 +8,7 @@ from sqlalchemy import text
 from app.core.cache import get_redis
 from app.core.config import settings
 from app.db.session import SessionLocal
-from app.routers import analytics, auth, connections, posts, dashboard, pipeline, comments, billing, support, demographics, leads, blog, ops, security_reports, public, meta_compliance
+from app.routers import analytics, auth, connections, posts, dashboard, pipeline, comments, billing, support, demographics, leads, blog, ops, security_reports, public, meta_compliance, internal_analysis
 
 import logging
 
@@ -75,6 +75,7 @@ app.include_router(ops.router, prefix=settings.API_PREFIX)
 app.include_router(security_reports.router, prefix=settings.API_PREFIX)
 app.include_router(public.router, prefix=settings.API_PREFIX)
 app.include_router(meta_compliance.router, prefix=settings.API_PREFIX)
+app.include_router(internal_analysis.router, prefix=settings.API_PREFIX)
 
 
 @app.get("/health")
