@@ -23,6 +23,7 @@ BASE_URL = settings.LLM_BASE_URL  # https://openrouter.ai/api/v1
 MODEL = settings.LLM_MODEL  # google/gemini-2.0-flash-001
 
 MAX_RETRIES = 5
+POLITICAL_MAX_RETRIES = 2
 RETRY_DELAY = 5
 RATE_LIMIT_DELAY = 30
 
@@ -144,7 +145,8 @@ class LLMClient:
         expected_ids = [c["comment_id"] for c in comments]
         system_prompt = self._get_political_v2_system_prompt()
         user_prompt = self._get_user_prompt(comments_payload, context)
-        for attempt in range(MAX_RETRIES):
+        last_error: Exception | None = None
+        for attempt in range(POLITICAL_MAX_RETRIES):
             try:
                 response = self._call_llm(system_prompt, user_prompt)
                 results = self._parse_political_v2_response(response, expected_ids)
@@ -164,15 +166,26 @@ class LLMClient:
                     yield result
                 return
             except Exception as exc:
-                if attempt < MAX_RETRIES - 1:
+                last_error = exc
+                if attempt < POLITICAL_MAX_RETRIES - 1:
                     is_rate_limit = "429" in str(exc) or "Too Many Requests" in str(exc)
                     delay = (RATE_LIMIT_DELAY if is_rate_limit else RETRY_DELAY * (2 ** attempt)) + random.uniform(1, 3)
-                    logger.warning("Political V2 analysis retry %d/%d in %.0fs: %s", attempt + 1, MAX_RETRIES, delay, exc)
+                    logger.warning("Political V2 analysis retry %d/%d in %.0fs: %s", attempt + 1, POLITICAL_MAX_RETRIES, delay, exc)
                     time.sleep(delay)
                     continue
-                logger.error("Political V2 analysis failed after %d retries: %s", MAX_RETRIES, exc)
-                for comment_id in expected_ids:
-                    yield self._political_v2_error(comment_id, str(exc), prompt_version)
+        if len(comments) > 1:
+            midpoint = len(comments) // 2
+            logger.warning(
+                "Political V2 batch failed after %d attempts; splitting %d comments: %s",
+                POLITICAL_MAX_RETRIES,
+                len(comments),
+                last_error,
+            )
+            yield from self.analyze_political_comments_v2(comments[:midpoint], context, prompt_version)
+            yield from self.analyze_political_comments_v2(comments[midpoint:], context, prompt_version)
+            return
+        logger.error("Political V2 analysis failed after %d attempts: %s", POLITICAL_MAX_RETRIES, last_error)
+        yield self._political_v2_error(expected_ids[0], str(last_error), prompt_version)
 
     def analyze_image(self, image_url: str, caption: str = None) -> str:
         """Analisa imagem via OpenRouter vision."""
