@@ -153,7 +153,13 @@ class LLMClient:
                 tokens_in = response.get("usage", {}).get("prompt_tokens", 0)
                 tokens_out = response.get("usage", {}).get("completion_tokens", 0)
                 cost = self._estimate_cost(tokens_in, tokens_out)
-                for result in results:
+                valid_results = [result for result in results if result.get("score_0_10") is not None]
+                missing_ids = {
+                    str(result.get("comment_id"))
+                    for result in results
+                    if result.get("score_0_10") is None
+                }
+                for result in valid_results:
                     result.update(
                         {
                             "model": self.model,
@@ -164,6 +170,20 @@ class LLMClient:
                         }
                     )
                     yield result
+                if missing_ids:
+                    missing_comments = [
+                        comment for comment in comments if str(comment["comment_id"]) in missing_ids
+                    ]
+                    if len(comments) == 1:
+                        raise ValueError(f"Missing valid score for comment {expected_ids[0]}")
+                    logger.warning(
+                        "Political V2 response omitted %d/%d valid items; retrying only missing comments",
+                        len(missing_comments),
+                        len(comments),
+                    )
+                    yield from self.analyze_political_comments_v2(
+                        missing_comments, context, prompt_version
+                    )
                 return
             except Exception as exc:
                 last_error = exc

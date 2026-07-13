@@ -131,3 +131,61 @@ def test_political_analysis_splits_batch_after_malformed_json():
     assert call.call_count == 4
     assert [item["comment_id"] for item in items] == ["one", "two"]
     assert [item["score_0_10"] for item in items] == [9, 1]
+
+
+def test_political_analysis_retries_only_items_omitted_from_valid_response():
+    llm = object.__new__(LLMClient)
+    llm.model = "test-model"
+    llm.cost_per_1k_input = 0
+    llm.cost_per_1k_output = 0
+    partial = {
+        "choices": [
+            {
+                "message": {
+                    "content": json.dumps(
+                        {
+                            "items": [
+                                {
+                                    "comment_id": "one",
+                                    "general_sentiment_score_0_10": 8,
+                                    "stance_score_0_10": 9,
+                                }
+                            ]
+                        }
+                    )
+                }
+            }
+        ],
+        "usage": {},
+    }
+    recovered = {
+        "choices": [
+            {
+                "message": {
+                    "content": json.dumps(
+                        {
+                            "items": [
+                                {
+                                    "comment_id": "two",
+                                    "general_sentiment_score_0_10": 2,
+                                    "stance_score_0_10": 1,
+                                }
+                            ]
+                        }
+                    )
+                }
+            }
+        ],
+        "usage": {},
+    }
+    comments = [
+        {"comment_id": "one", "text": "apoio"},
+        {"comment_id": "two", "text": "rejeicao"},
+    ]
+
+    with patch.object(llm, "_call_llm", side_effect=[partial, recovered]) as call:
+        items = list(llm.analyze_political_comments_v2(comments, {}))
+
+    assert call.call_count == 2
+    assert [item["comment_id"] for item in items] == ["one", "two"]
+    assert [item["score_0_10"] for item in items] == [9, 1]
