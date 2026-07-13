@@ -104,3 +104,30 @@ def test_parser_preserves_valid_items_when_one_item_has_missing_score():
     assert items[0]["score_0_10"] == 9
     assert items[1]["score_0_10"] is None
     assert items[1]["needs_review"] is True
+
+
+def test_political_analysis_splits_batch_after_malformed_json():
+    llm = object.__new__(LLMClient)
+    llm.model = "test-model"
+    llm.cost_per_1k_input = 0
+    llm.cost_per_1k_output = 0
+    invalid = {"choices": [{"message": {"content": "{"}}], "usage": {}}
+    valid_content = json.dumps(
+        {
+            "items": [
+                {"comment_id": "one", "general_sentiment_score_0_10": 8, "stance_score_0_10": 9},
+                {"comment_id": "two", "general_sentiment_score_0_10": 2, "stance_score_0_10": 1},
+            ]
+        }
+    )
+    valid = {"choices": [{"message": {"content": valid_content}}], "usage": {}}
+    comments = [{"comment_id": "one", "text": "apoio"}, {"comment_id": "two", "text": "rejeicao"}]
+
+    with patch("app.services.llm_client.time.sleep"), patch.object(
+        llm, "_call_llm", side_effect=[invalid, invalid, valid, valid]
+    ) as call:
+        items = list(llm.analyze_political_comments_v2(comments, {}))
+
+    assert call.call_count == 4
+    assert [item["comment_id"] for item in items] == ["one", "two"]
+    assert [item["score_0_10"] for item in items] == [9, 1]
