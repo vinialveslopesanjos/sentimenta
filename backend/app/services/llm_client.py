@@ -490,7 +490,26 @@ Retorne APENAS JSON estrito neste formato:
         agreement = item.get("agreement_with_post")
         if not isinstance(agreement, bool):
             agreement = None
-        needs_review = bool(item.get("needs_review", False)) or stance_label == "unclear" or confidence < 0.65
+        original_stance_score = None
+        original_stance_label = None
+        consistency_adjusted = False
+        if (
+            target_entity == "opponent"
+            and agreement is True
+            and general_score <= 4
+            and stance_score <= 5
+        ):
+            original_stance_score = stance_score
+            original_stance_label = stance_label
+            stance_score = 8.0
+            stance_label = "support"
+            consistency_adjusted = True
+        needs_review = (
+            bool(item.get("needs_review", False))
+            or stance_label == "unclear"
+            or confidence < 0.65
+            or consistency_adjusted
+        )
         return {
             "comment_id": str(item["comment_id"]),
             "score_0_10": stance_score,
@@ -509,6 +528,14 @@ Retorne APENAS JSON estrito neste formato:
             "summary_pt": summary,
             "confidence": confidence,
             "needs_review": needs_review,
+            "consistency_adjusted": consistency_adjusted,
+            "consistency_adjustment_reason": (
+                "negative_opponent_criticism_agrees_with_candidate_post"
+                if consistency_adjusted
+                else None
+            ),
+            "original_stance_score_0_10": original_stance_score,
+            "original_stance_label": original_stance_label,
             "raw_llm_response": None,
         }
 

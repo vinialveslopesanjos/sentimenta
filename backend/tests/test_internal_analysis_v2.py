@@ -268,3 +268,26 @@ def test_political_analysis_adds_repair_instruction_to_retry_prompt():
     assert "CORRECAO OBRIGATORIA" in prompts[1]
     assert "stance_score_0_10 numericos" in prompts[1]
     assert max_tokens_seen == [600, 600]
+
+
+def test_normalizer_converts_agreed_opponent_criticism_to_indirect_support():
+    llm = object.__new__(LLMClient)
+    item = llm._normalize_political_v2_item(
+        {
+            "comment_id": "one",
+            "general_sentiment_score_0_10": 2,
+            "stance_score_0_10": 2,
+            "stance_label": "opposition",
+            "target_entity": "opponent",
+            "target_name": "Prefeito adversario",
+            "agreement_with_post": True,
+            "confidence": 0.95,
+        }
+    )
+
+    assert item["score_0_10"] == 8
+    assert item["stance_label"] == "support"
+    assert item["needs_review"] is True
+    assert item["consistency_adjusted"] is True
+    assert item["original_stance_score_0_10"] == 2
+    assert item["original_stance_label"] == "opposition"
