@@ -177,10 +177,19 @@ class LLMClient:
                     if len(comments) == 1:
                         raise ValueError(f"Missing valid score for comment {expected_ids[0]}")
                     logger.warning(
-                        "Political V2 response omitted %d/%d valid items; retrying only missing comments",
+                        "Political V2 response omitted %d/%d items; retrying only missing comments",
                         len(missing_comments),
                         len(comments),
                     )
+                    if len(missing_comments) == len(comments):
+                        midpoint = len(missing_comments) // 2
+                        yield from self.analyze_political_comments_v2(
+                            missing_comments[:midpoint], context, prompt_version
+                        )
+                        yield from self.analyze_political_comments_v2(
+                            missing_comments[midpoint:], context, prompt_version
+                        )
+                        return
                     yield from self.analyze_political_comments_v2(
                         missing_comments, context, prompt_version
                     )
