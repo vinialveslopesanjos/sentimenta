@@ -227,3 +227,40 @@ def test_political_analysis_splits_when_valid_response_omits_every_item():
     assert call.call_count == 3
     assert [item["comment_id"] for item in items] == ["one", "two"]
     assert [item["score_0_10"] for item in items] == [9, 1]
+
+
+def test_political_analysis_adds_repair_instruction_to_retry_prompt():
+    llm = object.__new__(LLMClient)
+    llm.model = "test-model"
+    llm.cost_per_1k_input = 0
+    llm.cost_per_1k_output = 0
+    prompts = []
+    invalid = {
+        "choices": [{"message": {"content": json.dumps({"items": [{
+            "comment_id": "one",
+            "general_sentiment_score_0_10": 5,
+        }]})}}],
+        "usage": {},
+    }
+    valid = {
+        "choices": [{"message": {"content": json.dumps({"items": [{
+            "comment_id": "one",
+            "general_sentiment_score_0_10": 5,
+            "stance_score_0_10": 7,
+        }]})}}],
+        "usage": {},
+    }
+
+    def fake_call(_system_prompt, user_prompt):
+        prompts.append(user_prompt)
+        return invalid if len(prompts) == 1 else valid
+
+    with patch("app.services.llm_client.time.sleep"), patch.object(
+        llm, "_call_llm", side_effect=fake_call
+    ):
+        items = list(llm.analyze_political_comments_v2([{"comment_id": "one", "text": "texto"}], {}))
+
+    assert items[0]["score_0_10"] == 7
+    assert "CORRECAO OBRIGATORIA" not in prompts[0]
+    assert "CORRECAO OBRIGATORIA" in prompts[1]
+    assert "stance_score_0_10 numericos" in prompts[1]

@@ -144,7 +144,8 @@ class LLMClient:
         ]
         expected_ids = [c["comment_id"] for c in comments]
         system_prompt = self._get_political_v2_system_prompt()
-        user_prompt = self._get_user_prompt(comments_payload, context)
+        base_user_prompt = self._get_user_prompt(comments_payload, context)
+        user_prompt = base_user_prompt
         last_error: Exception | None = None
         for attempt in range(POLITICAL_MAX_RETRIES):
             try:
@@ -197,6 +198,14 @@ class LLMClient:
             except Exception as exc:
                 last_error = exc
                 if attempt < POLITICAL_MAX_RETRIES - 1:
+                    user_prompt = (
+                        base_user_prompt
+                        + "\n\nCORRECAO OBRIGATORIA: a resposta anterior foi invalida ou incompleta. "
+                        + "Retorne somente JSON valido com exatamente um item para cada comment_id: "
+                        + ", ".join(str(comment_id) for comment_id in expected_ids)
+                        + ". Todos os itens devem conter general_sentiment_score_0_10 e "
+                        + "stance_score_0_10 numericos entre 0 e 10. Nao omita IDs nem scores."
+                    )
                     is_rate_limit = "429" in str(exc) or "Too Many Requests" in str(exc)
                     delay = (RATE_LIMIT_DELAY if is_rate_limit else RETRY_DELAY * (2 ** attempt)) + random.uniform(1, 3)
                     logger.warning("Political V2 analysis retry %d/%d in %.0fs: %s", attempt + 1, POLITICAL_MAX_RETRIES, delay, exc)
