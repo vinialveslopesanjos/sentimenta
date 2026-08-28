@@ -1,10 +1,11 @@
 """Best-effort, low-cardinality telemetry for broken product drill-downs."""
 
 import logging
+import re
 from collections.abc import Awaitable, Callable
+from functools import lru_cache
 
 from fastapi import Request, Response
-from starlette.routing import Match
 
 from app.core.config import settings
 from app.db.session import SessionLocal
@@ -18,27 +19,44 @@ _DRILLDOWN_PREFIXES = (
     "/api/v1/demographics/",
     "/api/v1/pipeline/runs/",
 )
+_PATH_PARAMETER = re.compile(r"\{[^/{}]+\}")
+
+
+@lru_cache(maxsize=512)
+def _template_pattern(template: str) -> re.Pattern[str]:
+    """Compile an OpenAPI path template without exposing parameter values."""
+    parts: list[str] = []
+    cursor = 0
+    for match in _PATH_PARAMETER.finditer(template):
+        parts.append(re.escape(template[cursor : match.start()]))
+        parts.append("[^/]+")
+        cursor = match.end()
+    parts.append(re.escape(template[cursor:]))
+    return re.compile("^" + "".join(parts) + "$")
 
 
 def _route_template(request: Request) -> str:
+    # Function middleware does not receive the matched route in the outer
+    # request scope on every Starlette/FastAPI version. Newer FastAPI versions
+    # may also expose the original unprefixed route (for example
+    # /posts/{post_id}). Resolve the public, fully-prefixed OpenAPI template
+    # first instead of ever falling back to the raw URL, which could persist a
+    # customer/resource identifier in telemetry.
+    try:
+        registered_paths = request.app.openapi().get("paths", {})
+    except Exception:
+        return ""
+
+    method = request.method.lower()
+    raw_path = request.url.path
+    for candidate_template, operations in registered_paths.items():
+        if method in operations and _template_pattern(str(candidate_template)).match(raw_path):
+            return str(candidate_template)
+
     route = request.scope.get("route")
     template = getattr(route, "path", None)
-    if template:
+    if template and _template_pattern(str(template)).match(raw_path):
         return str(template)
-
-    # Function middleware does not receive the matched route in the outer
-    # request scope on every Starlette version. Resolve it from the registered
-    # routes instead of falling back to the raw URL, which could persist a
-    # customer/resource identifier in telemetry.
-    for candidate in request.app.router.routes:
-        try:
-            match, _ = candidate.matches(request.scope)
-        except (AttributeError, KeyError):
-            continue
-        if match == Match.FULL:
-            candidate_template = getattr(candidate, "path", None)
-            if candidate_template:
-                return str(candidate_template)
 
     return ""
 
