@@ -1570,7 +1570,8 @@
         "collected_without_valid_analysis": "{saved_count, plural, one {A coleta salvou # comentário, mas ele não produziu uma análise válida.} other {A coleta salvou # comentários, mas nenhum produziu uma análise válida.}}",
         "execution_failed_after_collection": "A atualização falhou depois de salvar {saved_count} comentários e concluir {valid_count} análises.",
         "execution_failed_before_collection": "A atualização falhou antes de salvar novos comentários.",
-        "partial_analysis": "A execução terminou parcialmente: {valid_count} de {saved_count} comentários produziram análise válida.",
+        "analysis_includes_backlog": "A execução coletou {saved_count} novos comentários e produziu {valid_count} análises válidas. Pelo menos {minimum_backlog_count} vieram de itens salvos antes desta coleta.",
+        "partial_analysis": "A execução terminou parcialmente: coletou {saved_count} comentários e produziu {valid_count} análises válidas neste processamento.",
         "no_new_comments": "A execução terminou sem salvar novos comentários.",
         "analysis_completed": "A execução concluiu {valid_count} análises válidas sobre dados já salvos.",
         "collection_completed": "A atualização concluiu {valid_count} análises válidas a partir de {saved_count} comentários salvos.",
@@ -1581,7 +1582,8 @@
         "historical_data_preserved": "Esta tentativa não substituiu a leitura anterior. O dashboard mantém somente {historical_valid_count} análises válidas históricas e não representa o momento atual.",
         "evaluation_unavailable": "A execução não deixou uma base válida para calcular score, tendências ou alertas.",
         "collected_data_unusable": "{saved_count, plural, one {O comentário salvo não entra no score, nas tendências nem nos alertas. O dashboard não consegue avaliar a reputação com esta atualização.} other {Os # comentários salvos não entram no score, nas tendências nem nos alertas. O dashboard não consegue avaliar a reputação com esta atualização.}}",
-        "partial_basis": "O dashboard considera somente {valid_count} análises válidas desta execução; {remaining_count} comentários ficaram fora da leitura.",
+        "backlog_scope_explained": "As {valid_count} análises válidas entram na leitura. Coleta nova e análise de pendências têm escopos diferentes e não devem ser tratadas como uma taxa entre si.",
+        "partial_basis": "Somente as {valid_count} análises válidas entram na leitura. Consulte o log para identificar pendências; o produto não deduz esse total pela diferença entre coleta e análise.",
         "no_new_evidence": "Nenhuma evidência nova foi adicionada. A base anterior é preservada, se existir; isso não prova ausência de comentários na rede.",
         "valid_data_available": "Esta execução produziu {valid_count} análises válidas para a leitura registrada.",
         "evaluation_unconfirmed": "Evite interpretar a reputação até confirmar o resultado ou recuperar os dados."
@@ -1625,7 +1627,7 @@
     "recentScopeNote": "Totais referentes às últimas 50 execuções, não ao período completo.",
     "deleteConfirm": "Apagar este registro de execução? O histórico é sua trilha de auditoria.",
     "pendingAnalysis": "comentários coletados aguardando análise",
-    "backlogNote": "{count} análises desta execução eram pendências de coletas anteriores."
+    "backlogNote": "Pelo menos {count} análises desta execução vieram de itens salvos antes desta coleta."
   },
   "analysis": {
     "title": "Análise Comparativa",
@@ -1849,7 +1851,9 @@
       "historicalTitle": "Leitura histórica — atualização necessária",
       "qualifiedTitle": "Leitura limitada pela cobertura",
       "unavailableTitle": "Sem base válida para interpretar esta tela",
-      "denominators": "Base comprovada: {valid} análises válidas de {saved} itens salvos."
+      "denominators": "Base comprovada: {valid} análises válidas de {saved} itens salvos.",
+      "legacyHistoricalDescription": "Há análises históricas nesta tela, mas nenhum snapshot registra período, cobertura e denominadores da coleta. Atualize os dados antes de interpretar o presente.",
+      "legacyDenominators": "Base histórica exibida: {valid} análises válidas de {saved} itens salvos; escopo ainda não comprovado por snapshot."
     },
     "funnel": {
       "ariaLabel": "Funil reconciliado de contagens",
@@ -1989,8 +1993,9 @@
       "retry": "Tentar novamente",
       "errorTitle": "Status dos dados indisponível",
       "errorDescription": "Não foi possível confirmar o frescor e a cobertura. Evite interpretar os insights até recuperar este status.",
-      "noSnapshotTitle": "Ainda não há uma base de dados",
-      "noSnapshotDescription": "Conecte um perfil e conclua a primeira coleta antes de interpretar a reputação.",
+      "noSnapshotTitle": "Sem snapshot de coleta comprovado",
+      "noSnapshotDescription": "Ainda não há uma coleta com período, cobertura e denominadores registrados. Se já existem dados históricos, trate-os somente como histórico e atualize antes de interpretar o presente.",
+      "noSnapshotAction": "Revisar perfis e coletar",
       "states": {
         "healthy": "Dados em dia",
         "healthyNoAnalysis": "Coleta recente, sem análise válida",

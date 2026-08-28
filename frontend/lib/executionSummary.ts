@@ -52,12 +52,14 @@ export function getPipelineRunHumanSummary(run: PipelineRun): PipelineRunHumanSu
   const savedCount = count(run.comments_fetched);
   const validCount = count(run.comments_analyzed);
   const remainingCount = Math.max(savedCount - validCount, 0);
+  const minimumBacklogCount = Math.max(validCount - savedCount, 0);
   const historicalValidCount = count(run.snapshot?.valid_count);
   const hasHistoricalData = historicalValidCount > 0 && run.snapshot?.language_policy?.mode === "historical";
   const parameters = {
     saved_count: savedCount,
     valid_count: validCount,
     remaining_count: remainingCount,
+    minimum_backlog_count: minimumBacklogCount,
     errors_count: count(run.errors_count),
     historical_valid_count: historicalValidCount,
   };
@@ -91,6 +93,11 @@ export function getPipelineRunHumanSummary(run: PipelineRun): PipelineRunHumanSu
       : "execution_failed_before_collection";
     impactCode = hasHistoricalData ? "historical_data_preserved" : "evaluation_unavailable";
     nextAction = snapshotAction(run.snapshot, pageAction("retry_sync", "/dashboard/connect"));
+  } else if (rawStatus === "partial" && minimumBacklogCount > 0) {
+    effectiveStatus = "attention";
+    reasonCode = happenedCode = "analysis_includes_backlog";
+    impactCode = "backlog_scope_explained";
+    nextAction = technicalLogAction(run.id);
   } else if (rawStatus === "partial" || (savedCount > 0 && validCount < savedCount)) {
     effectiveStatus = "attention";
     reasonCode = happenedCode = "partial_analysis";
@@ -101,6 +108,12 @@ export function getPipelineRunHumanSummary(run: PipelineRun): PipelineRunHumanSu
     reasonCode = happenedCode = "no_new_comments";
     impactCode = "no_new_evidence";
     nextAction = pageAction("review_collection", "/dashboard/connect", "medium");
+  } else if (rawStatus === "completed" && minimumBacklogCount > 0) {
+    effectiveStatus = "success";
+    reasonCode = "analysis_completed_with_backlog";
+    happenedCode = "analysis_includes_backlog";
+    impactCode = "backlog_scope_explained";
+    nextAction = snapshotAction(run.snapshot, pageAction("keep_monitoring", "/dashboard", "low"));
   } else if (rawStatus === "completed") {
     effectiveStatus = "success";
     reasonCode = happenedCode = run.run_type === "analyze" ? "analysis_completed" : "collection_completed";
@@ -114,7 +127,7 @@ export function getPipelineRunHumanSummary(run: PipelineRun): PipelineRunHumanSu
   }
 
   return {
-    contract_version: 1,
+    contract_version: 2,
     effective_status: effectiveStatus,
     reason_code: reasonCode,
     happened: { code: happenedCode, parameters },

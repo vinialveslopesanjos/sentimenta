@@ -397,9 +397,11 @@ export default function ProfileDetailPage() {
   const totalComments = dashboard?.total_comments ?? 0;
   const totalAnalyzed = dashboard?.total_analyzed ?? 0;
   const profileSnapshot = dashboard?.snapshot ?? null;
-  const profileLanguageMode = profileSnapshot?.language_policy.mode ?? "unavailable";
   const snapshotValidCount = profileSnapshot?.valid_count;
   const hasProfileEvidence = totalAnalyzed > 0 && (snapshotValidCount == null || snapshotValidCount > 0);
+  const hasLegacyProfileEvidence = !profileSnapshot && hasProfileEvidence;
+  const profileLanguageMode = profileSnapshot?.language_policy.mode
+    ?? (hasLegacyProfileEvidence ? "historical" : "unavailable");
   const profileNeverSynced = profileSnapshot?.health === "never_synced";
   const profileConnectedWithoutAnalysis = !hasProfileEvidence && profileSnapshot?.health === "healthy";
   const profileEvidenceIsCurrent = profileLanguageMode === "current";
@@ -1140,7 +1142,13 @@ export default function ProfileDetailPage() {
         </Button>
       </div>
 
-      <SurfaceEvidenceNotice snapshot={profileSnapshot} surface="profile" />
+      <SurfaceEvidenceNotice
+        snapshot={profileSnapshot}
+        surface="profile"
+        legacyEvidence={hasLegacyProfileEvidence
+          ? { validCount: totalAnalyzed, savedCount: totalComments }
+          : undefined}
+      />
       <CountFunnel snapshot={profileSnapshot} surface="profile" />
       <ProvenanceDrawer snapshot={profileSnapshot} open={provenanceOpen} onClose={closeProvenance} />
 

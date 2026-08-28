@@ -181,7 +181,7 @@ function snapshotFor(scenario: Scenario) {
 async function installFixture(
   page: Page,
   getScenario: () => Scenario,
-  latestMode: "snapshot" | "empty" | "error" = "snapshot",
+  latestMode: "snapshot" | "empty" | "legacy" | "error" = "snapshot",
 ) {
   await page.context().addCookies([{ name: "NEXT_LOCALE", value: "pt-BR", url: "http://127.0.0.1:3000" }]);
   await page.addInitScript(() => {
@@ -204,11 +204,11 @@ async function installFixture(
         await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ detail: "Synthetic status outage" }) });
         return;
       }
-      body = latestMode === "empty" ? null : snapshot;
+      body = latestMode === "empty" || latestMode === "legacy" ? null : snapshot;
     }
     else if (path.endsWith("/dashboard/summary")) {
       body = {
-        snapshot,
+        snapshot: latestMode === "legacy" ? null : snapshot,
         total_connections: 1,
         total_posts: scenario.saved ? 1 : 0,
         total_comments: scenario.saved,
@@ -377,7 +377,7 @@ test("missing status evidence blocks interpretation instead of failing silently"
   });
 });
 
-test("an account without any snapshot gets a first-collection action", async ({ page }) => {
+test("an account without any snapshot gets a neutral collection-recovery action", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 950 });
   await installFixture(page, () => scenarios[4], "empty");
   await page.goto("/dashboard/alerts");
@@ -385,10 +385,26 @@ test("an account without any snapshot gets a first-collection action", async ({ 
   const status = page.getByTestId("global-data-status");
   await expect(status).toBeVisible();
   await expect(status).toHaveAttribute("data-status-state", "no_snapshot");
-  await expect(status).toContainText("Ainda não há uma base de dados");
-  await expect(status.getByRole("link", { name: "Iniciar primeira coleta" })).toHaveAttribute("href", "/dashboard/connect");
+  await expect(status).toContainText("Sem snapshot de coleta comprovado");
+  await expect(status).toContainText("Se já existem dados históricos, trate-os somente como histórico");
+  await expect(status.getByRole("link", { name: "Revisar perfis e coletar" })).toHaveAttribute("href", "/dashboard/connect");
 
   await status.screenshot({
     path: "artifacts/product-audit-2026-08-26/evidence/1.1/no-snapshot.png",
   });
+});
+
+test("legacy analyses without a snapshot are labeled historical instead of nonexistent", async ({ page }) => {
+  const stale = scenarios.find((scenario) => scenario.name === "stale")!;
+  await page.setViewportSize({ width: 1440, height: 950 });
+  await installFixture(page, () => stale, "legacy");
+  await page.goto("/dashboard");
+
+  const status = page.getByTestId("global-data-status");
+  await expect(status).toContainText("Sem snapshot de coleta comprovado");
+
+  const reputation = page.getByTestId("dashboard-reputation-summary");
+  await expect(reputation).toHaveAttribute("data-evidence-state", "historical");
+  await expect(reputation).toContainText("Leitura histórica");
+  await expect(reputation).toContainText("não sustenta conclusões ou recomendações para o presente");
 });

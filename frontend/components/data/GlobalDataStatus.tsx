@@ -164,7 +164,7 @@ export function GlobalDataStatus({ snapshot, loadState, onRetry }: GlobalDataSta
             className="inline-flex min-h-9 items-center justify-center rounded-lg px-3 text-xs font-bold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
             style={{ color: "var(--primary-foreground)", backgroundColor: "var(--primary)" }}
           >
-            {t("actions.start_first_sync")}
+            {t("global.noSnapshotAction")}
           </Link>
         </div>
       </section>

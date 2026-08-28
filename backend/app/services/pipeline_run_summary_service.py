@@ -14,7 +14,7 @@ from typing import Any, Mapping
 from app.models.pipeline_run import PipelineRun
 
 
-PIPELINE_RUN_SUMMARY_CONTRACT_VERSION = 1
+PIPELINE_RUN_SUMMARY_CONTRACT_VERSION = 2
 
 
 def _count(value: Any) -> int:
@@ -100,6 +100,7 @@ def build_pipeline_run_human_summary(
     valid_count = _count(run.comments_analyzed)
     errors_count = _count(run.errors_count)
     remaining_count = max(saved_count - valid_count, 0)
+    minimum_backlog_count = max(valid_count - saved_count, 0)
     context = _snapshot_context(snapshot)
     historical_valid_count = _count(context["valid_count"])
     has_historical_data = bool(context["has_historical_data"])
@@ -107,6 +108,7 @@ def build_pipeline_run_human_summary(
         "saved_count": saved_count,
         "valid_count": valid_count,
         "remaining_count": remaining_count,
+        "minimum_backlog_count": minimum_backlog_count,
         "errors_count": errors_count,
         "historical_valid_count": historical_valid_count,
     }
@@ -145,6 +147,12 @@ def build_pipeline_run_human_summary(
             context,
             fallback=_page_action("retry_sync", "/dashboard/connect"),
         )
+    elif raw_status == "partial" and minimum_backlog_count > 0:
+        effective_status = "attention"
+        reason_code = "analysis_includes_backlog"
+        happened_code = "analysis_includes_backlog"
+        impact_code = "backlog_scope_explained"
+        next_action = _technical_log_action(run.id)
     elif raw_status == "partial" or (saved_count > 0 and valid_count < saved_count):
         effective_status = "attention"
         reason_code = "partial_analysis"
@@ -157,6 +165,15 @@ def build_pipeline_run_human_summary(
         happened_code = "no_new_comments"
         impact_code = "no_new_evidence"
         next_action = _page_action("review_collection", "/dashboard/connect", "medium")
+    elif raw_status == "completed" and minimum_backlog_count > 0:
+        effective_status = "success"
+        reason_code = "analysis_completed_with_backlog"
+        happened_code = "analysis_includes_backlog"
+        impact_code = "backlog_scope_explained"
+        next_action = _safe_snapshot_action(
+            context,
+            fallback=_page_action("keep_monitoring", "/dashboard", "low"),
+        )
     elif raw_status == "completed":
         effective_status = "success"
         reason_code = "analysis_completed" if str(run.run_type or "") == "analyze" else "collection_completed"
