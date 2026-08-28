@@ -59,10 +59,7 @@ export function CreditBalance({
       setShowPackModal(false);
       onPurchase?.();
     } catch (error) {
-      const msg = error instanceof Error ? error.message : "Erro ao processar compra.";
-      setBuyError(msg.includes("não configurado") || msg.includes("Configure STRIPE")
-        ? "Compra de pacotes será habilitada em breve."
-        : msg);
+      setBuyError(error instanceof Error ? error.message : "Erro ao processar compra.");
     } finally {
       setBuyingPack(null);
     }
@@ -214,9 +211,11 @@ export function CreditIndicator({
   planAllocation: number;
   planCredits: number;
 }) {
+  // Planos admin/enterprise têm alocação sentinela (999.999) — nunca alarmar.
+  const isUnlimited = planAllocation >= 900_000;
   const usedCredits = planAllocation - planCredits;
-  const usedPct = planAllocation > 0 ? Math.min((usedCredits / planAllocation) * 100, 100) : 0;
-  const isLow = total <= 0 || usedPct >= 90;
+  const usedPct = planAllocation > 0 ? Math.min(Math.max((usedCredits / planAllocation) * 100, 0), 100) : 0;
+  const isLow = !isUnlimited && (total <= 0 || usedPct >= 90);
 
   return (
     <div
@@ -227,9 +226,9 @@ export function CreditIndicator({
       <div className="flex-1 min-w-0">
         <div className="flex items-center justify-between">
           <span style={{ fontSize: "0.72rem", fontWeight: 600, color: isLow ? "var(--sentiment-negative)" : "var(--text-primary)" }}>
-            {total.toLocaleString("pt-BR")}
+            {isUnlimited ? "Sem limite" : total.toLocaleString("pt-BR")}
           </span>
-          <span style={{ fontSize: "0.6rem", color: "var(--text-muted)" }}>créd.</span>
+          <span style={{ fontSize: "0.6rem", color: "var(--text-muted)" }}>{isUnlimited ? "" : "créd."}</span>
         </div>
         <div className="w-full rounded-full mt-0.5" style={{ height: 3, backgroundColor: "var(--border)" }}>
           <div

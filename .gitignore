@@ -74,7 +74,8 @@ artifacts/
 .local/
 apps/sentimenta-logo-motion/
 redesign/
-tests/
+/tests/
+!backend/tests/
 .understand-anything/
 analise-custos-apify.xlsx
 

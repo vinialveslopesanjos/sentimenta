@@ -125,8 +125,6 @@ def operational_health(
         "celery": celery,
         "pipeline": pipeline,
     }
-
-
 @router.get("/trust")
 def operational_trust(
     hours: int = Query(default=24, ge=1, le=168),

@@ -10,7 +10,11 @@ from app.core.config import settings
 from app.db.session import SessionLocal
 from app.middleware.read_only import read_only_guard
 from app.middleware.operational_telemetry import capture_product_telemetry
-from app.routers import auth, connections, posts, dashboard, pipeline, comments, billing, support, demographics, leads, blog, ops, security_reports, data_snapshots
+from app.routers import analytics, auth, blog, billing, comments, connections, dashboard, data_snapshots, demographics, internal_analysis, leads, meta_compliance, ops, pipeline, posts, public, security_reports, support
+
+# httpx loga a URL completa das requests (incluindo ?token=...) no nível INFO.
+# WARNING evita vazar o token do Apify nos logs do worker/api.
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 logger = logging.getLogger(__name__)
 
@@ -66,11 +70,15 @@ app.include_router(billing.router, prefix=settings.API_PREFIX)
 app.include_router(support.router, prefix=settings.API_PREFIX)
 app.include_router(demographics.router, prefix=settings.API_PREFIX)
 app.include_router(leads.router, prefix=settings.API_PREFIX)
+app.include_router(analytics.router, prefix=settings.API_PREFIX)
 app.include_router(blog.public_router, prefix=settings.API_PREFIX)
 app.include_router(blog.admin_router, prefix=settings.API_PREFIX)
 app.include_router(ops.router, prefix=settings.API_PREFIX)
 app.include_router(security_reports.router, prefix=settings.API_PREFIX)
 app.include_router(data_snapshots.router, prefix=settings.API_PREFIX)
+app.include_router(public.router, prefix=settings.API_PREFIX)
+app.include_router(meta_compliance.router, prefix=settings.API_PREFIX)
+app.include_router(internal_analysis.router, prefix=settings.API_PREFIX)
 
 
 @app.get("/health")

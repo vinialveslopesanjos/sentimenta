@@ -20,6 +20,30 @@ from app.services.pipeline_run_summary_service import build_pipeline_run_human_s
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
 
+def _credits_consumed_by_run(db: Session, user_id) -> dict[str, int]:
+    """Soma créditos debitados por run (metadata.pipeline_run_id das transações).
+
+    Agregado em Python: são no máximo algumas centenas de transações por
+    usuário e o JSON operator varia entre Postgres e SQLite (testes).
+    """
+    from app.models.credits import CreditTransaction
+
+    rows = (
+        db.query(CreditTransaction.metadata_json, CreditTransaction.amount)
+        .filter(
+            CreditTransaction.user_id == user_id,
+            CreditTransaction.amount < 0,
+        )
+        .all()
+    )
+    consumed: dict[str, int] = {}
+    for meta, amount in rows:
+        run_id = (meta or {}).get("pipeline_run_id")
+        if run_id:
+            consumed[run_id] = consumed.get(run_id, 0) - amount
+    return consumed
+
+
 @router.get("/runs", response_model=list[PipelineRunResponse])
 def list_pipeline_runs(
     current_user: User = Depends(get_current_user),
@@ -44,6 +68,7 @@ def list_pipeline_runs(
         .all()
     ) if runs else []
     snapshots_by_run = {snapshot.trigger_run_id: snapshot for snapshot in snapshots}
+    credits_by_run = _credits_consumed_by_run(db, current_user.id)
 
     result = []
     for run in runs:
@@ -56,12 +81,15 @@ def list_pipeline_runs(
             connection_username=conn.username if conn else None,
             run_type=run.run_type,
             status=run.status,
+            stage=run.stage,
             posts_fetched=run.posts_fetched,
             comments_fetched=run.comments_fetched,
             comments_analyzed=run.comments_analyzed,
             llm_calls=run.llm_calls,
             errors_count=run.errors_count,
             total_cost_usd=run.total_cost_usd,
+            apify_cost_usd=run.apify_cost_usd or 0.0,
+            credits_consumed=credits_by_run.get(str(run.id), 0),
             started_at=run.started_at,
             ended_at=run.ended_at,
             notes=run.notes,
@@ -112,12 +140,15 @@ def get_pipeline_run(
         connection_username=conn.username if conn else None,
         run_type=run.run_type,
         status=run.status,
+        stage=run.stage,
         posts_fetched=run.posts_fetched,
         comments_fetched=run.comments_fetched,
         comments_analyzed=run.comments_analyzed,
         llm_calls=run.llm_calls,
         errors_count=run.errors_count,
         total_cost_usd=run.total_cost_usd,
+        apify_cost_usd=run.apify_cost_usd or 0.0,
+        credits_consumed=_credits_consumed_by_run(db, current_user.id).get(str(run.id), 0),
         started_at=run.started_at,
         ended_at=run.ended_at,
         notes=run.notes,
@@ -190,6 +221,7 @@ def get_pipeline_status(
 
     return PipelineStatusResponse(
         status=run.status,
+        stage=run.stage,
         posts_fetched=run.posts_fetched,
         comments_fetched=run.comments_fetched,
         comments_analyzed=run.comments_analyzed,
@@ -221,6 +253,7 @@ async def stream_run_progress(
 
             progress_data = {
                 "status": run.status,
+                "stage": run.stage,
                 "posts_fetched": run.posts_fetched or 0,
                 "comments_fetched": run.comments_fetched or 0,
                 "comments_analyzed": run.comments_analyzed or 0,

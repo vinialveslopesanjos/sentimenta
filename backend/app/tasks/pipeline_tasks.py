@@ -10,6 +10,8 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
 
+from sqlalchemy.exc import IntegrityError
+
 from app.tasks.celery_app import celery_app
 from app.db.session import SessionLocal
 from app.models.pipeline_run import PipelineRun
@@ -21,6 +23,51 @@ from app.models.follower_snapshot import FollowerSnapshot
 logger = logging.getLogger(__name__)
 
 DEMOGRAPHICS_MAX_PROFILES_PER_RUN = 1000
+
+# Sync automático é incremental (só comentários novos desde a última sync) —
+# nunca usar o limite cheio do plano aqui. Foi o limite admin (999999) vazando
+# para o maxItems do actor que gerou a run de US$40 em 2026-07-01.
+DAILY_SYNC_MAX_COMMENTS_PER_POST = 500
+
+# Persisted in run notes.skipped_reasons and shown to the user when a run is
+# cut short by credit depletion (ADR-011: analysis never runs unbilled).
+OUT_OF_CREDITS_REASON = "créditos esgotados"
+
+
+def _out_of_credits(db, user_id) -> bool:
+    from app.services.credit_service import get_available_credits
+    return get_available_credits(db, user_id) <= 0
+
+
+def _debit_analyzed_credits(db, run, user_id, connection, analyzed: int, source: str) -> bool:
+    """Debit credits for comments analyzed in one post.
+
+    Returns False when the balance ran out before covering `analyzed` —
+    callers must stop analyzing further posts.
+    """
+    from app.services.credit_service import consume_up_to
+
+    if analyzed <= 0:
+        return True
+    consumed = consume_up_to(
+        db, user_id, analyzed,
+        type="consume_comment",
+        source=source,
+        description=f"@{connection.username}: {analyzed} comentários analisados",
+        metadata={"pipeline_run_id": str(run.id), "platform": connection.platform},
+    )
+    db.commit()
+    return consumed >= analyzed
+
+
+def _set_stage(db, run, stage: str) -> None:
+    """Update the run's current stage (queued|ingesting|analyzing|demographics|report|done)."""
+    run.stage = stage
+    try:
+        db.commit()
+    except Exception as exc:
+        logger.error("_set_stage commit failed (stage=%s): %s", stage, exc)
+        db.rollback()
 
 
 def _capture_terminal_snapshot(db, run: PipelineRun | None):
@@ -118,6 +165,64 @@ def _set_collection_metadata(
     run.notes = json.dumps(notes, ensure_ascii=False, sort_keys=True)
 
 
+def _finalize_run_status(db, run, total_analyzed: int, total_errors: int, skipped_reasons=None) -> None:
+    """Define o status final da run sem mentir para o cliente.
+
+    Regra de ouro (auditoria 2026-06-28): comentários coletados sem nenhuma
+    análise válida nunca podem virar `completed` silencioso — no mínimo é
+    `partial`, com o motivo persistido em notes.skipped_reasons.
+    """
+    from sqlalchemy import func as _sa_func
+
+    from app.models.comment import Comment as _Comment
+
+    pending_after = 0
+    if run.connection_id is not None:
+        pending_after = (
+            db.query(_sa_func.count(_Comment.id))
+            .filter(
+                _Comment.connection_id == run.connection_id,
+                _Comment.status == "pending",
+            )
+            .scalar()
+            or 0
+        )
+
+    reasons = sorted({r for r in (skipped_reasons or set()) if r})
+    fetched = run.comments_fetched or 0
+
+    if total_errors > 0:
+        run.status = "partial"
+    elif total_analyzed == 0 and fetched > 0 and pending_after > 0:
+        run.status = "partial"
+        reason = ", ".join(reasons) if reasons else "análise não processou os comentários coletados"
+        _append_step(db, run, f"Atenção: {pending_after} comentários aguardando análise ({reason})")
+    elif OUT_OF_CREDITS_REASON in reasons and pending_after > 0:
+        # Run cortada por saldo: nunca reportar completed com backlog pendente
+        run.status = "partial"
+        _append_step(db, run, f"Atenção: {pending_after} comentários não analisados (créditos esgotados)")
+    else:
+        run.status = "completed"
+
+    if reasons:
+        try:
+            notes = json.loads(run.notes) if run.notes else {}
+        except (json.JSONDecodeError, TypeError):
+            notes = {"old_notes": run.notes} if run.notes else {}
+        notes["skipped_reasons"] = reasons
+        run.notes = json.dumps(notes, ensure_ascii=False)
+
+    # Alerta interno: coletou e nada virou análise válida
+    if fetched > 0 and total_analyzed == 0 and (total_errors > 0 or pending_after > 0):
+        logger.error(
+            "RUN_HEALTH: run=%s connection=%s fetched=%d analyzed=0 errors=%d pending_after=%d reasons=%s",
+            run.id, run.connection_id, fetched, total_errors, pending_after, reasons or "-",
+        )
+
+    run.stage = "done"
+    run.ended_at = datetime.now(timezone.utc)
+
+
 def _run_async(coro):
     """Run an async function from a sync Celery task."""
     loop = asyncio.new_event_loop()
@@ -125,6 +230,136 @@ def _run_async(coro):
         return loop.run_until_complete(coro)
     finally:
         loop.close()
+
+
+def _pending_posts_for_connection(db, connection_id) -> list[tuple]:
+    """Posts da conexão que ainda têm comentários pendentes, com a contagem.
+
+    P3.1: a run de 2h53min em produção (07/07) iterava TODOS os 307 posts da
+    conexão para analisar 10. Mesma seleção do task_daily_sync (join com
+    Comment.status == 'pending'), mas com a contagem por post para projetar
+    o consumo de créditos antes de despachar cada wave paralela.
+    """
+    from sqlalchemy import func as sa_func
+
+    from app.models.comment import Comment
+
+    rows = (
+        db.query(Comment.post_id, sa_func.count(Comment.id))
+        .join(Post, Post.id == Comment.post_id)
+        .filter(
+            Post.connection_id == connection_id,
+            Comment.status == "pending",
+        )
+        .group_by(Comment.post_id)
+        .all()
+    )
+    return [(post_id, int(count)) for post_id, count in rows]
+
+
+def _analyze_post_job(post_id):
+    """Analisa um post numa thread worker, com sessão própria.
+
+    Sessões SQLAlchemy NÃO são thread-safe — cada worker abre a sua via
+    SessionLocal(). Imports resolvidos em tempo de chamada para respeitar
+    monkeypatch nos testes (mesmo padrão do resto do módulo).
+    """
+    from app.services.analysis_service import analyze_post_comments, generate_post_summary
+
+    worker_db = SessionLocal()
+    try:
+        stats = analyze_post_comments(worker_db, post_id)
+        if stats.get("analyzed", 0) > 0:
+            generate_post_summary(worker_db, post_id)
+        return stats
+    except Exception as exc:
+        logger.exception("Analysis worker failed for post %s: %s", post_id, exc)
+        return {"attempted": 0, "analyzed": 0, "errors": 1, "llm_calls": 0, "cost_usd": 0.0}
+    finally:
+        worker_db.close()
+
+
+def _run_analysis_waves(db, run, user_id, connection, posts_pending, source: str, step_cb) -> dict:
+    """Analisa posts com pendências em waves paralelas (P3.1).
+
+    Regras:
+    - Cada worker usa a própria sessão de DB (_analyze_post_job).
+    - Débito de créditos, steps de progresso e contadores da run só na thread
+      principal, após cada wave.
+    - ADR-011 (análise nunca roda sem cobrança): o tamanho da wave é limitado
+      pela projeção de saldo — um post só entra se o saldo projetado ainda for
+      positivo, então o overshoot fica igual ao do fluxo sequencial (dentro de
+      um post), não workers × post.
+    - Posts com 0 processados não geram step (o resumo de pulados fica a cargo
+      do chamador, que conhece o total de posts da conexão).
+    """
+    from app.core.config import settings
+    from app.services.credit_service import get_available_credits
+
+    totals = {"analyzed": 0, "llm_calls": 0, "errors": 0, "cost_usd": 0.0, "posts_processed": 0}
+    skipped_reasons: set[str] = set()
+    max_workers = max(1, settings.ANALYSIS_MAX_WORKERS)
+    queue = list(posts_pending)
+    total_targets = len(posts_pending)
+    interrupted = False
+
+    while queue and not interrupted:
+        if _out_of_credits(db, user_id):
+            skipped_reasons.add(OUT_OF_CREDITS_REASON)
+            step_cb("Análise interrompida: créditos esgotados")
+            break
+
+        # Monta a wave projetando o consumo: para de encher quando o saldo
+        # projetado zera (o débito real acontece após a wave, por post).
+        projected_balance = get_available_credits(db, user_id)
+        wave = []
+        while queue and len(wave) < max_workers and projected_balance > 0:
+            post_id, n_pending = queue.pop(0)
+            wave.append(post_id)
+            projected_balance -= max(n_pending, 1)
+
+        if not wave:
+            break
+        if len(wave) == 1:
+            results = [_analyze_post_job(wave[0])]
+        else:
+            with ThreadPoolExecutor(max_workers=len(wave)) as executor:
+                results = list(executor.map(_analyze_post_job, wave))
+
+        for stats in results:
+            totals["posts_processed"] += 1
+            analyzed = stats.get("analyzed", 0)
+            errors = stats.get("errors", 0)
+            totals["analyzed"] += analyzed
+            totals["llm_calls"] += stats.get("llm_calls", 0)
+            totals["errors"] += errors
+            totals["cost_usd"] += stats.get("cost_usd", 0.0)
+            if stats.get("skipped_reason"):
+                skipped_reasons.add(stats["skipped_reason"])
+
+            run.comments_analyzed = totals["analyzed"]
+            # Notes legíveis: só reporta posts que processaram algo
+            if analyzed > 0 or errors > 0:
+                suffix = f", {errors} falha{'s' if errors > 1 else ''}" if errors else ""
+                step_cb(
+                    f"Post {totals['posts_processed']}/{total_targets}: "
+                    f"{analyzed} comentários analisados{suffix}"
+                )
+
+            if not _debit_analyzed_credits(db, run, user_id, connection, analyzed, source):
+                if not interrupted:
+                    skipped_reasons.add(OUT_OF_CREDITS_REASON)
+                    step_cb("Análise interrompida: créditos esgotados")
+                    interrupted = True
+
+    try:
+        db.commit()  # persiste run.comments_analyzed mesmo sem step no fim
+    except Exception as exc:
+        logger.error("_run_analysis_waves final commit failed: %s", exc)
+        db.rollback()
+
+    totals["skipped_reasons"] = skipped_reasons
+    return totals
 
 
 def _do_ingest(db, connection, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None, is_incremental: bool = False, mode: str = "full", progress_callback=None, step_callback=None, use_apify_comments: bool = False, comment_sample_mode: str = "all") -> dict:
@@ -162,7 +397,7 @@ def _do_ingest(db, connection, max_posts: int = 10, max_comments_per_post: int =
         return {"error": f"Unsupported platform: {connection.platform}"}
 
 
-@celery_app.task(bind=True)
+@celery_app.task(bind=True, soft_time_limit=7200, time_limit=7500)
 def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str | None = None) -> dict:
     """Analyze-only: run sentiment analysis on existing pending comments (no ingestion)."""
     db = SessionLocal()
@@ -189,7 +424,14 @@ def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str 
         run.celery_task_id = self.request.id
         run.status = "running"
         _set_collection_metadata(run, mode="analysis_only")
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            logger.warning("Analyze skipped for %s — another run is already running", connection_id)
+            return {"error": "pipeline already running for this connection"}
+
+        _set_stage(db, run, "analyzing")
 
         def step_cb(msg):
             _append_step(db, run, msg)
@@ -217,36 +459,40 @@ def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str 
 
         step_cb(f"Iniciando análise de {pending_count} comentários pendentes...")
 
-        posts = db.query(Post).filter(Post.connection_id == conn_uuid).all()
-        run.posts_fetched = len(posts)
+        total_posts = (
+            db.query(sa_func.count(Post.id))
+            .filter(Post.connection_id == conn_uuid)
+            .scalar()
+            or 0
+        )
+        run.posts_fetched = total_posts
         total_comments = (
             db.query(sa_func.count(Comment.id))
             .filter(Comment.connection_id == conn_uuid)
             .scalar()
         )
         run.comments_fetched = total_comments
-        run.target_posts = len(posts)
+        run.target_posts = total_posts
         run.target_comments = pending_count
         db.commit()
 
-        from app.services.analysis_service import analyze_post_comments, generate_post_summary
+        # P3.1: itera SÓ posts com comentários pendentes (mesma seleção do
+        # daily_sync) e analisa em waves paralelas.
+        posts_pending = _pending_posts_for_connection(db, conn_uuid)
+        if posts_pending:
+            step_cb(f"Analisando {len(posts_pending)} posts com comentários pendentes")
 
-        total_analyzed = 0
-        total_llm_calls = 0
-        total_errors = 0
+        wave_totals = _run_analysis_waves(
+            db, run, user_uuid, connection, posts_pending, "analyze", step_cb
+        )
+        total_analyzed = wave_totals["analyzed"]
+        total_llm_calls = wave_totals["llm_calls"]
+        total_errors = wave_totals["errors"]
+        skipped_reasons: set[str] = wave_totals["skipped_reasons"]
 
-        for idx, post in enumerate(posts, 1):
-            stats = analyze_post_comments(db, post.id)
-            analyzed = stats.get("analyzed", 0)
-            total_analyzed += analyzed
-            total_llm_calls += stats.get("llm_calls", 0)
-            total_errors += stats.get("errors", 0)
-
-            if analyzed > 0:
-                generate_post_summary(db, post.id)
-
-            run.comments_analyzed = total_analyzed
-            step_cb(f"Post {idx}/{len(posts)}: {analyzed} comentários analisados")
+        posts_no_pending = total_posts - len(posts_pending)
+        if posts_no_pending > 0:
+            step_cb(f"{posts_no_pending} posts sem comentários pendentes pulados")
 
         # Sync comment counts
         post_counts = (
@@ -263,12 +509,11 @@ def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str 
         run.comments_analyzed = total_analyzed
         run.llm_calls = total_llm_calls
         run.errors_count = total_errors
-        run.status = "completed" if total_errors == 0 else "partial"
-        run.ended_at = datetime.now(timezone.utc)
+        _finalize_run_status(db, run, total_analyzed, total_errors, skipped_reasons)
         if total_errors == 0:
-            step_cb(f"Análise concluída: {total_analyzed} comentários processados")
+            step_cb(f"Análise concluída: {total_analyzed} análises válidas")
         else:
-            step_cb(f"Análise concluída com {total_errors} erro{'s' if total_errors > 1 else ''}: {total_analyzed} comentários processados")
+            step_cb(f"Análise concluída: {total_analyzed} análises válidas, {total_errors} falha{'s' if total_errors > 1 else ''}")
 
         _capture_terminal_snapshot(db, run)
 
@@ -281,7 +526,7 @@ def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str 
             pass
 
         return {
-            "posts_fetched": len(posts),
+            "posts_fetched": total_posts,
             "comments_fetched": total_comments,
             "comments_analyzed": total_analyzed,
             "llm_calls": total_llm_calls,
@@ -291,6 +536,7 @@ def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str 
     except Exception as e:
         logger.exception("Analyze-only failed for connection %s", connection_id)
         try:
+            db.rollback()
             run.status = "failed"
             run.ended_at = datetime.now(timezone.utc)
             _append_step(db, run, f"Erro: {str(e)[:200]}")
@@ -302,11 +548,13 @@ def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str 
         db.close()
 
 
-@celery_app.task(bind=True)
-def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None, use_apify_comments: bool = False, comment_sample_mode: str = "all", run_id: str | None = None) -> dict:
+@celery_app.task(bind=True, soft_time_limit=7200, time_limit=7500)
+def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 10, max_comments_per_post: int = 100, since_date: str | None = None, use_apify_comments: bool = False, comment_sample_mode: str = "all", run_id: str | None = None, include_demographics: bool = False) -> dict:
     """Run the full pipeline: ingest + analyze for all posts."""
     db = SessionLocal()
     try:
+        from sqlalchemy import func as sa_func
+
         conn_uuid = uuid.UUID(connection_id)
         user_uuid = uuid.UUID(user_id)
 
@@ -339,7 +587,12 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
             since_date=since_date,
             use_apify_comments=use_apify_comments,
         )
-        db.commit()
+        try:
+            db.commit()
+        except IntegrityError:
+            db.rollback()
+            logger.warning("Full pipeline skipped for %s — another run is already running", connection_id)
+            return {"error": "pipeline already running for this connection"}
 
         connection = db.get(SocialConnection, conn_uuid)
         if not connection:
@@ -369,6 +622,9 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         def step_cb(msg):
             _append_step(db, run, msg)
 
+        from app.core.apify_cost_tracker import reset_run_cost, get_run_cost
+        reset_run_cost()
+        _set_stage(db, run, "ingesting")
         _append_step(db, run, "Iniciando extração de dados...")
         ingest_result = _do_ingest(db, connection, max_posts=max_posts, max_comments_per_post=max_comments_per_post, since_date=since_date, mode="full", progress_callback=update_progress, step_callback=step_cb, use_apify_comments=use_apify_comments, comment_sample_mode=comment_sample_mode)
         if "error" in ingest_result:
@@ -399,103 +655,93 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         except Exception as usage_exc:
             logger.warning("Failed to log usage for full_pipeline: %s", usage_exc)
 
-        # Step 2: Analyze each post
-        posts = (
-            db.query(Post)
+        # Step 2: Analyze — P3.1: SÓ posts com comentários pendentes (mesma
+        # seleção do daily_sync), em waves paralelas. Antes: TODOS os posts da
+        # conexão eram iterados (307 posts para analisar 10 → run de 2h53min).
+        total_posts = (
+            db.query(sa_func.count(Post.id))
             .filter(Post.connection_id == conn_uuid)
-            .all()
+            .scalar()
+            or 0
         )
+        posts_pending = _pending_posts_for_connection(db, conn_uuid)
 
-        total_analyzed = 0
-        total_llm_calls = 0
-        total_errors = 0
-        total_cost = 0.0
-
-        from app.services.analysis_service import (
-            analyze_post_comments,
-            generate_post_summary,
+        logger.info(
+            "Starting analysis for %d posts with pending comments (of %d total) on connection %s",
+            len(posts_pending), total_posts, connection_id,
         )
-
-        total_posts = len(posts)
-        logger.info(f"Starting analysis for {total_posts} posts on connection {connection_id}")
+        _set_stage(db, run, "analyzing")
         _append_step(db, run, "Iniciando análise de sentimento...")
+        if posts_pending:
+            _append_step(db, run, f"Analisando {len(posts_pending)} posts com comentários pendentes")
 
-        for idx, post in enumerate(posts, 1):
-            logger.info(f"Analyzing post {idx}/{total_posts}: {post.platform_post_id}")
+        def step_analysis(msg):
+            _append_step(db, run, msg)
 
-            stats = analyze_post_comments(db, post.id)
-            analyzed_count = stats.get("analyzed", 0)
-            total_analyzed += analyzed_count
-            total_llm_calls += stats.get("llm_calls", 0)
-            total_errors += stats.get("errors", 0)
-            total_cost += stats.get("cost_usd", 0.0)
+        wave_totals = _run_analysis_waves(
+            db, run, user_uuid, connection, posts_pending, "full_pipeline", step_analysis
+        )
+        total_analyzed = wave_totals["analyzed"]
+        total_llm_calls = wave_totals["llm_calls"]
+        total_errors = wave_totals["errors"]
+        total_cost = wave_totals["cost_usd"]
+        skipped_reasons: set[str] = wave_totals["skipped_reasons"]
 
-            if analyzed_count > 0:
-                generate_post_summary(db, post.id)
-
-            # Inform SSE continuously
-            run.comments_analyzed = total_analyzed
-            _append_step(db, run, f"Analisado post {idx}/{total_posts}: {analyzed_count} comentários processados")
-            logger.info(f"Post {idx}/{total_posts} done. Total analyzed: {total_analyzed}")
+        posts_no_pending = total_posts - len(posts_pending)
+        if posts_no_pending > 0:
+            _append_step(db, run, f"{posts_no_pending} posts sem comentários pendentes pulados")
 
         db.commit()
 
-        # Stage 3: Demographics (disabled by default)
+        # Stage 3: Demographics — opt-in (P3.0): custa 5 créd/perfil + Apify,
+        # então só roda quando o usuário marcou no preflight.
+        _set_stage(db, run, "demographics")
         try:
-            from app.services.demographics_service import run_demographics_pipeline
-            demo_result = run_demographics_pipeline(
-                db, conn_uuid, enabled=True,
-                platform=connection.platform or "instagram",
-                max_usernames=DEMOGRAPHICS_MAX_PROFILES_PER_RUN,
-            )
-            if not demo_result.get("skipped"):
-                profiles_enriched = demo_result.get("profiles_enriched", demo_result.get("enrichments_saved", 0))
-                _append_step(db, run, f"Demographics: {profiles_enriched} perfis enriquecidos")
-                # Consume credits for demographics (5 credits per profile — ADR-011)
-                if profiles_enriched > 0:
-                    try:
-                        from app.services.credit_service import consume, DEMOGRAPHIC_CREDIT_COST
-                        consume(
-                            db, user_uuid, profiles_enriched * DEMOGRAPHIC_CREDIT_COST,
-                            type="consume_demographic",
-                            source="full_pipeline",
-                            description=f"Demographics @{connection.username}: {profiles_enriched} perfis × {DEMOGRAPHIC_CREDIT_COST} créd",
-                            metadata={"pipeline_run_id": str(run.id), "profiles": profiles_enriched},
-                        )
-                        db.commit()
-                    except Exception as credit_exc:
-                        logger.warning("Failed to consume credits for demographics: %s", credit_exc)
+            if not include_demographics:
+                _append_step(db, run, "Demographics: não solicitado nesta análise")
+            elif _out_of_credits(db, user_uuid):
+                # Enrichment hits Apify (real money) — never run it unbilled.
+                _append_step(db, run, "Demographics: pulado (créditos esgotados)")
+            else:
+                from app.services.demographics_service import run_demographics_pipeline
+                demo_result = run_demographics_pipeline(
+                    db, conn_uuid, enabled=True,
+                    platform=connection.platform or "instagram",
+                    max_usernames=DEMOGRAPHICS_MAX_PROFILES_PER_RUN,
+                )
+                if not demo_result.get("skipped"):
+                    profiles_enriched = demo_result.get("profiles_enriched", demo_result.get("enrichments_saved", 0))
+                    _append_step(db, run, f"Demographics: {profiles_enriched} perfis enriquecidos")
+                    # Consume credits for demographics (5 credits per profile — ADR-011)
+                    if profiles_enriched > 0:
+                        try:
+                            from app.services.credit_service import consume_up_to, DEMOGRAPHIC_CREDIT_COST
+                            consume_up_to(
+                                db, user_uuid, profiles_enriched * DEMOGRAPHIC_CREDIT_COST,
+                                type="consume_demographic",
+                                source="full_pipeline",
+                                description=f"Demographics @{connection.username}: {profiles_enriched} perfis × {DEMOGRAPHIC_CREDIT_COST} créd",
+                                metadata={"pipeline_run_id": str(run.id), "profiles": profiles_enriched},
+                            )
+                            db.commit()
+                        except Exception as credit_exc:
+                            logger.warning("Failed to consume credits for demographics: %s", credit_exc)
         except Exception as e:
             logger.warning("Demographics pipeline error for %s: %s", connection_id, e)
 
-        # Consume credits for actually analyzed comments (ADR-011)
-        try:
-            from app.services.credit_service import consume, InsufficientCreditsError
-            if total_analyzed > 0:
-                consume(
-                    db, user_uuid, total_analyzed,
-                    type="consume_comment",
-                    source="full_pipeline",
-                    description=f"Sync @{connection.username}: {total_analyzed} comentários analisados",
-                    metadata={"pipeline_run_id": str(run.id), "platform": connection.platform},
-                )
-                db.commit()
-        except InsufficientCreditsError:
-            logger.warning("Insufficient credits for user %s after analysis", user_uuid)
-        except Exception as credit_exc:
-            logger.warning("Failed to consume credits for full_pipeline: %s", credit_exc)
+        # Comment credits already debited per post inside the analysis loop.
 
         # Update run
+        run.apify_cost_usd = round(get_run_cost(), 6)
         run.comments_analyzed = total_analyzed
         run.llm_calls = total_llm_calls
         run.errors_count = total_errors
         run.total_cost_usd = total_cost
-        run.status = "completed" if total_errors == 0 else "partial"
-        run.ended_at = datetime.now(timezone.utc)
+        _finalize_run_status(db, run, total_analyzed, total_errors, skipped_reasons)
         if total_errors == 0:
-            _append_step(db, run, "Pipeline concluído sem erros")
+            _append_step(db, run, f"Pipeline concluído: {total_analyzed} análises válidas")
         else:
-            _append_step(db, run, f"Pipeline concluído com {total_errors} erro{'s' if total_errors > 1 else ''} de análise")
+            _append_step(db, run, f"Pipeline concluído: {total_analyzed} análises válidas, {total_errors} falha{'s' if total_errors > 1 else ''}")
 
         _capture_terminal_snapshot(db, run)
 
@@ -511,6 +757,7 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         if total_analyzed > 0:
             try:
                 from app.routers.dashboard import _build_health_report
+                _set_stage(db, run, "report")
                 _append_step(db, run, "Gerando diagnóstico de IA...")
                 report = _build_health_report(db, user_uuid)
                 if report and report.get("report_text"):
@@ -531,6 +778,9 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         else:
             _append_step(db, run, "Diagnóstico de IA não gerado: nenhum comentário foi analisado")
 
+        # O health report roda após o finalize — garantir stage terminal correto
+        _set_stage(db, run, "done")
+
         return {
             "posts_fetched": run.posts_fetched,
             "comments_fetched": run.comments_fetched,
@@ -542,6 +792,7 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
     except Exception as e:
         logger.exception("Full pipeline failed for connection %s", connection_id)
         try:
+            db.rollback()
             run.status = "failed"
             run.ended_at = datetime.now(timezone.utc)
             _append_step(db, run, f"Erro: {str(e)[:200]}")
@@ -553,7 +804,7 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         db.close()
 
 
-@celery_app.task(bind=True)
+@celery_app.task(bind=True, soft_time_limit=10800, time_limit=11100)
 def task_daily_sync(self, frequency_filter: str = None) -> dict:
     """Scheduled ETL: ingest new posts + comments, enrich via Apify, analyze, for all active connections.
     frequency_filter: 'weekly' or 'daily' — filters connections by plan sync_frequency."""
@@ -610,6 +861,12 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                         results[conn.username] = {"skipped": "frequency_mismatch"}
                         continue
 
+                # Never spend Apify money for a user who can't pay for the analysis
+                if _out_of_credits(db, conn.user_id):
+                    logger.info("Skipping @%s — user %s has no credits", conn.username, conn.user_id)
+                    results[conn.username] = {"skipped": "no_credits"}
+                    continue
+
                 logger.info("Daily sync starting for @%s [platform=%s, priority=%d]",
                             conn.username, conn.platform, PLATFORM_PRIORITY.get(conn.platform, 99))
 
@@ -633,7 +890,14 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 )
                 run.celery_task_id = self.request.id
                 db.add(run)
-                db.commit()
+                try:
+                    db.commit()
+                except IntegrityError:
+                    db.rollback()
+                    run = None
+                    logger.info("Skipping @%s — pipeline already running (unique index)", conn.username)
+                    results[conn.username] = {"skipped": "already_running"}
+                    continue
 
                 def step_cb(msg, _run=run):
                     _append_step(db, _run, msg)
@@ -649,7 +913,7 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 # Use plan limits for max_posts
                 plan_limits = get_plan_limits(user.plan) if user else get_plan_limits("free")
                 max_posts = 5  # Daily sync: only check last 5 posts for new comments
-                max_comments = plan_limits["max_comments_per_post"]
+                max_comments = min(plan_limits["max_comments_per_post"], DAILY_SYNC_MAX_COMMENTS_PER_POST)
 
                 # Use last_sync_at to only fetch new posts since last sync
                 if conn.last_sync_at:
@@ -666,7 +930,10 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                     since_date=since_date,
                     use_apify_comments=False,
                 )
-                _append_step(db, run, f"Sync semanal iniciado para @{conn.username}")
+                from app.core.apify_cost_tracker import reset_run_cost, get_run_cost
+                reset_run_cost()
+                _set_stage(db, run, "ingesting")
+                _append_step(db, run, f"Sync automático ({frequency_filter or 'geral'}) iniciado para @{conn.username}")
                 ingest_result = _do_ingest(
                     db, conn,
                     max_posts=max_posts,
@@ -708,55 +975,63 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 # Analyze only posts with pending comments
                 from app.services.analysis_service import analyze_post_comments, generate_post_summary
                 from app.models.comment import Comment
-                posts_with_pending = (
-                    db.query(Post)
-                    .join(Comment, Comment.post_id == Post.id)
+                # DISTINCT sobre Post inteiro quebra no Postgres (media_urls é
+                # JSON, sem operador de igualdade) — distinct só nos ids.
+                pending_post_ids = [
+                    row[0]
+                    for row in db.query(Comment.post_id)
+                    .join(Post, Post.id == Comment.post_id)
                     .filter(
                         Post.connection_id == conn.id,
                         Comment.status == "pending",
                     )
                     .distinct()
                     .all()
+                ]
+                posts_with_pending = (
+                    db.query(Post).filter(Post.id.in_(pending_post_ids)).all()
+                    if pending_post_ids
+                    else []
                 )
                 total_analyzed = 0
                 total_llm_calls = 0
                 total_errors = 0
                 total_cost = 0.0
+                skipped_reasons: set[str] = set()
+                _set_stage(db, run, "analyzing")
                 if posts_with_pending:
                     _append_step(db, run, f"Analisando {len(posts_with_pending)} posts com comentários pendentes")
                 for idx, post in enumerate(posts_with_pending, 1):
+                    if _out_of_credits(db, conn.user_id):
+                        skipped_reasons.add(OUT_OF_CREDITS_REASON)
+                        _append_step(db, run, "Análise interrompida: créditos esgotados")
+                        break
                     stats = analyze_post_comments(db, post.id)
                     analyzed = stats.get("analyzed", 0)
                     total_analyzed += analyzed
                     total_llm_calls += stats.get("llm_calls", 0)
                     total_errors += stats.get("errors", 0)
                     total_cost += stats.get("cost_usd", 0.0)
+                    if stats.get("skipped_reason"):
+                        skipped_reasons.add(stats["skipped_reason"])
                     if analyzed > 0:
                         generate_post_summary(db, post.id)
                         _append_step(db, run, f"Analisado post {idx}/{len(posts_with_pending)}: {analyzed} novos comentários")
 
-                # Consume credits for actually analyzed comments (ADR-011)
-                try:
-                    from app.services.credit_service import consume, InsufficientCreditsError
-                    if total_analyzed > 0:
-                        consume(
-                            db, conn.user_id, total_analyzed,
-                            type="consume_comment",
-                            source="daily_sync",
-                            description=f"Daily sync @{conn.username}: {total_analyzed} comentários analisados",
-                            metadata={"pipeline_run_id": str(run.id), "platform": conn.platform},
-                        )
-                        db.commit()
-                except InsufficientCreditsError:
-                    logger.warning("Insufficient credits for user %s during daily_sync @%s", conn.user_id, conn.username)
-                except Exception as credit_exc:
-                    logger.warning("Failed to consume credits for daily_sync @%s: %s", conn.username, credit_exc)
+                    if not _debit_analyzed_credits(db, run, conn.user_id, conn, analyzed, "daily_sync"):
+                        skipped_reasons.add(OUT_OF_CREDITS_REASON)
+                        _append_step(db, run, "Análise interrompida: créditos esgotados")
+                        break
 
                 # Stage 3: Demographics (only if enough new usernames)
+                _set_stage(db, run, "demographics")
                 try:
                     from app.services.demographics_service import extract_new_usernames, run_demographics_pipeline
                     if not plan_limits.get("demographics", False):
                         _append_step(db, run, "Demographics: não disponível no plano atual")
+                    elif _out_of_credits(db, conn.user_id):
+                        # Enrichment hits Apify (real money) — never run it unbilled.
+                        _append_step(db, run, "Demographics: pulado (créditos esgotados)")
                     else:
                         new_count = len(extract_new_usernames(db, conn.id, platform=conn.platform or "instagram"))
                         if new_count >= 10:
@@ -773,8 +1048,8 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                                 # Consume credits for demographics (5 credits per profile — ADR-011)
                                 if profiles_enriched > 0:
                                     try:
-                                        from app.services.credit_service import consume, DEMOGRAPHIC_CREDIT_COST
-                                        consume(
+                                        from app.services.credit_service import consume_up_to, DEMOGRAPHIC_CREDIT_COST
+                                        consume_up_to(
                                             db, conn.user_id, profiles_enriched * DEMOGRAPHIC_CREDIT_COST,
                                             type="consume_demographic",
                                             source="daily_sync",
@@ -793,13 +1068,13 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
 
                 db.commit()
 
+                run.apify_cost_usd = round(get_run_cost(), 6)
                 run.comments_analyzed = total_analyzed
                 run.llm_calls = total_llm_calls
                 run.errors_count = total_errors
                 run.total_cost_usd = total_cost
-                run.status = "partial" if total_errors > 0 else "completed"
-                run.ended_at = datetime.now(timezone.utc)
-                _append_step(db, run, f"Sync concluído: {run.posts_fetched} posts, {total_analyzed} analisados, {total_llm_calls} LLM calls, custo ${total_cost:.4f}")
+                _finalize_run_status(db, run, total_analyzed, total_errors, skipped_reasons)
+                _append_step(db, run, f"Sync concluído: {run.posts_fetched} posts, {total_analyzed} análises válidas, {total_errors} falhas, {total_llm_calls} LLM calls, custo ${total_cost:.4f}")
                 _capture_terminal_snapshot(db, run)
 
                 # Invalidate cache
@@ -834,6 +1109,10 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 logger.error("Weekly sync failed for @%s: %s", conn.username, exc)
                 if run is not None:
                     try:
+                        # Sessão pode estar abortada (ex.: erro de SQL) — sem o
+                        # rollback, marcar failed falha e a run fica presa em
+                        # running até o reconcile (visto em produção 08/07).
+                        db.rollback()
                         run.status = "failed"
                         run.ended_at = datetime.now(timezone.utc)
                         _append_step(db, run, f"Erro: {str(exc)[:200]}")
@@ -843,6 +1122,21 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 results[conn.username] = {"error": str(exc)}
 
         return results
+    finally:
+        db.close()
+
+
+@celery_app.task(bind=True, soft_time_limit=120, time_limit=180)
+def task_reconcile_stale_runs(self) -> dict:
+    """Beat independente: marca como failed runs presas em 'running'.
+
+    Antes essa reconciliação só rodava de carona no task_daily_sync — uma run
+    presa às 00:15 ficava 'RODANDO' o dia inteiro na UI.
+    """
+    db = SessionLocal()
+    try:
+        reconciled = _mark_stale_running_runs(db, max_age_hours=4)
+        return {"reconciled": reconciled}
     finally:
         db.close()
 

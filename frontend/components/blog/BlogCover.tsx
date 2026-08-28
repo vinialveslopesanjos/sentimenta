@@ -9,7 +9,7 @@ type BlogCoverProps = {
 };
 
 export function BlogCover({ src, alt, priority, sizes, className = "" }: BlogCoverProps) {
-  if (src.startsWith("/")) {
+  if (src.startsWith("/") && !src.startsWith("/api/")) {
     return (
       <Image
         src={src}

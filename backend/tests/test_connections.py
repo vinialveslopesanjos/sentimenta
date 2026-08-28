@@ -155,6 +155,11 @@ def test_instagram_auth_url(client, auth_headers):
 
 
 def test_analyze_returns_pipeline_run_id(client, auth_headers, test_connection, db):
+    # Analysis now requires credits upfront (P0 jul/2026)
+    from app.services.credit_service import grant_pack
+    grant_pack(db, test_connection.user_id, 100)
+    db.commit()
+
     with patch("app.tasks.pipeline_tasks.task_analyze_connection.delay") as delay:
         delay.return_value.id = "celery-task-id"
         res = client.post(
@@ -216,6 +221,7 @@ def test_sync_honors_requested_comment_limit_with_apify(
         use_apify_comments=True,
         comment_sample_mode="all",
         run_id=response.json()["run_id"],
+        include_demographics=False,
     )
 
     run = db.get(PipelineRun, uuid.UUID(response.json()["run_id"]))

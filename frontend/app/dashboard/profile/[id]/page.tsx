@@ -20,6 +20,10 @@ import { SentimentBar } from "@/components/ds/SentimentBar";
 import { chartColors, getScoreStyle } from "@/components/ds/tokens";
 import { useTheme } from "@/components/ThemeContext";
 import { Heatmap, FeaturedComments, CommentsTable } from "@/components/SocialSharedSections";
+import { toast } from "sonner";
+import PreflightModal from "@/components/PreflightModal";
+import { useActiveRuns } from "@/components/ActiveRunsContext";
+import type { PreflightEstimate } from "@/lib/types";
 import type { CommentRow } from "@/components/SocialSharedSections";
 import {
   GapAnalysis, PostLifecycle, AmbassadorsVsDetractors, TopicTreemap,
@@ -794,15 +798,36 @@ export default function ProfileDetailPage() {
     .map(([key, value]) => ({ date: String(row.date), key, value: Number(value) })));
   const topicPeak = [...topicCells].sort((a, b) => b.value - a.value)[0] ?? null;
 
-  // ── handle analyze ──
+  // ── handle analyze (com preflight de créditos) ──
+  const { refresh: refreshRuns } = useActiveRuns();
+  const [preflight, setPreflight] = useState<{ open: boolean; estimate: PreflightEstimate | null; loading: boolean; confirming: boolean; error: string }>({ open: false, estimate: null, loading: false, confirming: false, error: "" });
+
   const handleAnalyze = async () => {
     const token = getToken();
     if (!token) return;
+    setPreflight({ open: true, estimate: null, loading: true, confirming: false, error: "" });
+    try {
+      const est = await connectionsApi.preflight(token, id, "analyze");
+      setPreflight(p => ({ ...p, estimate: est, loading: false }));
+    } catch (err) {
+      setPreflight(p => ({ ...p, open: false }));
+      toast.error(err instanceof Error ? err.message : "Erro ao calcular estimativa");
+    }
+  };
+
+  const confirmAnalyze = async () => {
+    const token = getToken();
+    if (!token) return;
+    setPreflight(p => ({ ...p, confirming: true }));
     try {
       await connectionsApi.analyze(token, id);
+      refreshRuns();
       fetchData();
     } catch (err) {
       console.error("Analyze failed:", err);
+      toast.error(err instanceof Error ? err.message : "Erro ao iniciar análise");
+    } finally {
+      setPreflight(p => ({ ...p, open: false, confirming: false }));
     }
   };
 
@@ -1566,6 +1591,16 @@ export default function ProfileDetailPage() {
       {commentsTableRows.length > 0 && (
         <CommentsTable comments={commentsTableRows} platformName={platformLabel} />
       )}
+      <PreflightModal
+        open={preflight.open}
+        mode="analyze"
+        targetLabel={username ? `@${username}` : ""}
+        estimate={preflight.estimate}
+        loading={preflight.loading}
+        confirming={preflight.confirming}
+        onConfirm={confirmAnalyze}
+        onClose={() => setPreflight(p => ({ ...p, open: false }))}
+      />
     </div>
   );
 }

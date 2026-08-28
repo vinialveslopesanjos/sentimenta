@@ -79,8 +79,11 @@ test.describe("Registration and data health through real QA accounts", () => {
       expect(nextScheduledAt).not.toBe("not_scheduled");
 
       if (account.health === "stale") {
-        expect(lastAttemptAt).toMatch(/^2026-07-08T/);
-        expect(lastSuccessAt).toMatch(/^2026-07-08T/);
+        for (const timestamp of [lastAttemptAt, lastSuccessAt]) {
+          const ageDays = (Date.now() - Date.parse(timestamp!)) / 86_400_000;
+          expect(ageDays).toBeGreaterThan(48);
+          expect(ageDays).toBeLessThan(50);
+        }
         await expect(row).toContainText(/49 dias/);
       }
 

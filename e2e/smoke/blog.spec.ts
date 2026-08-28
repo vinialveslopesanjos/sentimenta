@@ -9,11 +9,11 @@ test.describe("Public blog", () => {
     await expect(page).toHaveURL(/\/blog\/.+/);
     await expect(page.getByRole("heading").first()).toBeVisible();
     await expect(page.getByRole("link", { name: /Voltar para o blog/i })).toBeVisible();
-    await expect(
-      page.getByRole("link", {
-        name: /Fazer um diagn[oó]stico|Ver como ficaria|Come[cç]ar pelo diagn[oó]stico/i,
-      }),
-    ).toBeVisible();
+    // The CTA label is editable from the blog admin. Its destination and
+    // accessible name are the stable public contract.
+    const articleCta = page.locator('a[href^="/diagnostico"]').first();
+    await expect(articleCta).toBeVisible();
+    await expect(articleCta).not.toHaveAccessibleName("");
 
     await page.getByRole("link", { name: /Voltar para o blog/i }).click();
     await expect(page).toHaveURL(/\/blog$/);

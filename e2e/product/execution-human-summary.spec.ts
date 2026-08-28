@@ -43,7 +43,7 @@ test("the 53-comment failure can be understood and acted on from the human summa
 
   await loginThroughTheProduct(page);
   await page.goto("/dashboard/logs");
-  await expect(page.getByRole("heading", { name: "Logs de Pipeline" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Atividade" })).toBeVisible();
 
   const summary = page.locator('[data-testid^="execution-human-summary-"]').first();
   const runCard = page.locator('[data-testid^="pipeline-run-"]').first();

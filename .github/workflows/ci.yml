@@ -65,7 +65,11 @@ jobs:
         run: python -m pytest
 
       - name: Python dependency audit
-        run: pip-audit -r requirements.txt
+        # PYSEC-2026-1325 (ecdsa, transitiva de python-jose): sem fix upstream —
+        # o projeto ecdsa declara side-channel fora de escopo. Nosso JWT usa
+        # HS256 (config.ALGORITHM); os caminhos ES* do ecdsa nunca são exercidos.
+        # Remover o ignore ao migrar python-jose -> PyJWT (issue de follow-up).
+        run: pip-audit -r requirements.txt --ignore-vuln PYSEC-2026-1325
 
   infra:
     name: Infra config
@@ -237,7 +241,10 @@ jobs:
           npx playwright install chromium --with-deps
 
       - name: Seed isolated product QA database
-        run: python scripts/dev/qa_seed.py > product-trust-seed.log
+        # Freshness and rolling 24-hour ops checks must be evaluated relative
+        # to the gate execution time. Fixed anchors remain available for exact
+        # fixture reproduction and the deterministic backend seed tests.
+        run: python scripts/dev/qa_seed.py --anchor now > product-trust-seed.log
 
       - name: Start isolated read-only QA backend
         run: python scripts/dev/qa_server.py --port 8000 > product-trust-api.log 2>&1 &

@@ -14,6 +14,10 @@ test.describe("API health", () => {
     expect(response.status()).toBe(200);
     const body = await response.json();
     expect(Array.isArray(body.plans)).toBe(true);
-    expect(body.plans.find((plan: { slug: string }) => plan.slug === "free")).toBeTruthy();
+    const slugs = body.plans.map((plan: { slug: string }) => plan.slug);
+    expect(slugs).toEqual(expect.arrayContaining(["starter", "pro", "enterprise"]));
+    expect(slugs).not.toContain("free");
+    expect(body.plans.find((plan: { slug: string; price_brl: number }) => plan.slug === "starter")?.price_brl).toBe(197);
+    expect(body.plans.find((plan: { slug: string; price_brl: number }) => plan.slug === "pro")?.price_brl).toBe(497);
   });
 });

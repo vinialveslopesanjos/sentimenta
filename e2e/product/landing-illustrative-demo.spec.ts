@@ -61,7 +61,7 @@ test("public previews and interactions cannot be mistaken for live monitoring", 
   await demo.getByRole("textbox").fill("Comentário criado somente para validar o exemplo");
   await demo.getByRole("button", { name: "Gerar exemplo ilustrativo", exact: true }).click();
   await expect(page.getByTestId("landing-demo-result-label")).toHaveText("RESULTADO ILUSTRATIVO");
-  await expect(demo).toContainText("valor ilustrativo, não medido");
+  await expect(demo).toContainText("classificação ilustrativa, sem precisão medida");
   await demo.screenshot({ path: `${evidenceDir}/after-result-still-illustrative.png`, animations: "disabled" });
 
   await page.getByRole("button", { name: "EN", exact: true }).click();

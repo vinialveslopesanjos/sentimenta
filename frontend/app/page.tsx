@@ -148,10 +148,9 @@ export default function LandingPage() {
   const emotionList = ["joy", "anger", "sadness", "neutral", "love", "disgust", "surprise", "fear"];
 
   const plans = [
-    { name: t("pricing.freePlan"), price: t("pricing.freePlanPrice"), desc: t("pricing.freePlanDesc"), features: [t("pricing.freePlanFeature1"), t("pricing.freePlanFeature2"), t("pricing.freePlanFeature3"), t("pricing.freePlanFeature4")], popular: false },
-    { name: t("pricing.starterPlan"), price: t("pricing.starterPlanPrice"), desc: t("pricing.starterPlanDesc"), features: [t("pricing.starterPlanFeature1"), t("pricing.starterPlanFeature2"), t("pricing.starterPlanFeature3"), t("pricing.starterPlanFeature4"), t("pricing.starterPlanFeature5")], popular: false },
-    { name: t("pricing.proPlan"), price: t("pricing.proPlanPrice"), desc: t("pricing.proPlanDesc"), features: [t("pricing.proPlanFeature1"), t("pricing.proPlanFeature2"), t("pricing.proPlanFeature3"), t("pricing.proPlanFeature4"), t("pricing.proPlanFeature5")], popular: true },
-    { name: t("pricing.businessPlan"), price: t("pricing.businessPlanPrice"), desc: t("pricing.businessPlanDesc"), features: [t("pricing.businessPlanFeature1"), t("pricing.businessPlanFeature2"), t("pricing.businessPlanFeature3"), t("pricing.businessPlanFeature4"), t("pricing.businessPlanFeature5")], popular: false },
+    { name: t("pricing.starterPlan"), price: t("pricing.starterPlanPrice"), desc: t("pricing.starterPlanDesc"), features: [t("pricing.starterPlanFeature1"), t("pricing.starterPlanFeature2"), t("pricing.starterPlanFeature3"), t("pricing.starterPlanFeature4"), t("pricing.starterPlanFeature5")], popular: false, contactSales: false },
+    { name: t("pricing.proPlan"), price: t("pricing.proPlanPrice"), desc: t("pricing.proPlanDesc"), features: [t("pricing.proPlanFeature1"), t("pricing.proPlanFeature2"), t("pricing.proPlanFeature3"), t("pricing.proPlanFeature4"), t("pricing.proPlanFeature5")], popular: true, contactSales: false },
+    { name: t("pricing.enterprisePlan"), price: null, desc: t("pricing.enterprisePlanDesc"), features: [t("pricing.enterprisePlanFeature1"), t("pricing.enterprisePlanFeature2"), t("pricing.enterprisePlanFeature3"), t("pricing.enterprisePlanFeature4"), t("pricing.enterprisePlanFeature5")], popular: false, contactSales: true },
   ];
 
   const creditExplanation = t("pricing.creditExplanation");
@@ -290,6 +289,11 @@ export default function LandingPage() {
               <motion.div initial={{ opacity: 0.9, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.38, delay: 0.18 }} className="flex items-center gap-3 mt-10 flex-wrap">
                 <Link href="/login"><Button variant="pill" size="lg" iconRight={<ArrowRight className="w-4 h-4" />}>{t("hero.ctaPrimary")}</Button></Link>
                 <a href="#demo"><Button variant="pill-glass" size="lg" icon={<Play className="w-3.5 h-3.5" />}>{t("hero.ctaSecondary")}</Button></a>
+              </motion.div>
+              <motion.div initial={{ opacity: 0.9 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }} className="mt-5">
+                <Link href="/diagnostico" style={{ fontSize: "0.85rem", color: "var(--primary)", fontWeight: 500, textDecoration: "underline", textUnderlineOffset: 4 }}>
+                  {t("hero.ctaDiagnostic")} →
+                </Link>
               </motion.div>
               <motion.div data-testid="landing-hero-evidence-stats" initial={{ opacity: 0.9 }} animate={{ opacity: 1 }} transition={{ delay: 0.22 }} className="flex items-center gap-6 mt-8 flex-wrap">
                 {[{ v: "12K+", l: t("hero.statsComments") }, { v: "8", l: t("hero.statsEmotions") }, { v: t("hero.statsForecastValue"), l: t("hero.statsFirstRead") }].map(s => (
@@ -694,7 +698,7 @@ export default function LandingPage() {
               <p className="mt-3" style={{ fontSize: "0.92rem", color: "var(--text-muted)" }}>{t("pricing.subtitle")}</p>
             </div>
           </FadeIn>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-5 max-w-[1080px] mx-auto">
             {plans.map((plan, i) => (
               <FadeIn key={plan.name} delay={i * 0.08} className="h-full">
                 <div className="relative h-full">
@@ -704,11 +708,17 @@ export default function LandingPage() {
                     <div className="relative z-10 flex flex-col h-full p-8">
                       <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: plan.popular ? "white" : "var(--text-primary)" }}>{plan.name}</h3>
                       <p className="mt-1.5" style={{ fontSize: "0.78rem", color: plan.popular ? "rgba(255,255,255,0.7)" : "var(--text-muted)" }}>{plan.desc}</p>
-                      <div className="flex items-baseline gap-0.5 mt-6 mb-8">
-                        <span style={{ fontSize: "0.82rem", color: plan.popular ? "rgba(255,255,255,0.6)" : "var(--text-faint)" }}>R$</span>
-                        <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "3rem", fontWeight: 800, lineHeight: 1, color: plan.popular ? "white" : "var(--text-primary)" }}>{plan.price}</span>
-                        <span style={{ fontSize: "0.82rem", color: plan.popular ? "rgba(255,255,255,0.6)" : "var(--text-faint)" }}>{tc("perMonth")}</span>
-                      </div>
+                      {plan.contactSales ? (
+                        <div className="flex items-baseline mt-6 mb-8">
+                          <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.9rem", fontWeight: 800, lineHeight: "3rem", color: "var(--text-primary)" }}>{t("pricing.customPrice")}</span>
+                        </div>
+                      ) : (
+                        <div className="flex items-baseline gap-0.5 mt-6 mb-8">
+                          <span style={{ fontSize: "0.82rem", color: plan.popular ? "rgba(255,255,255,0.6)" : "var(--text-faint)" }}>R$</span>
+                          <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "3rem", fontWeight: 800, lineHeight: 1, color: plan.popular ? "white" : "var(--text-primary)" }}>{plan.price}</span>
+                          <span style={{ fontSize: "0.82rem", color: plan.popular ? "rgba(255,255,255,0.6)" : "var(--text-faint)" }}>{tc("perMonth")}</span>
+                        </div>
+                      )}
                       <div className="space-y-3.5 mb-8 flex-1">
                         {plan.features.map(f => (
                           <div key={f} className="flex items-start gap-2.5">
@@ -717,9 +727,18 @@ export default function LandingPage() {
                           </div>
                         ))}
                       </div>
-                      <Link href="/login" className="w-full py-3.5 rounded-xl transition-all text-center block" style={plan.popular ? { backgroundColor: "white", color: "#0e2325", fontSize: "0.88rem", fontWeight: 600, boxShadow: `0 4px 16px -4px rgba(255,255,255,0.3)` } : { backgroundColor: "var(--primary)", color: "white", fontSize: "0.88rem", fontWeight: 600, boxShadow: "0 4px 16px -4px rgba(57,184,198,0.4)" }}>
-                        {t("pricing.startFree")}
-                      </Link>
+                      {plan.contactSales ? (
+                        <a href="mailto:contato@mazylabs.com.br?subject=Sentimenta%20Enterprise" className="w-full py-3.5 rounded-xl transition-all text-center block" style={{ border: "1px solid var(--primary)", color: "var(--primary)", fontSize: "0.88rem", fontWeight: 600 }}>
+                          {t("pricing.contactCta")}
+                        </a>
+                      ) : (
+                        <>
+                          <Link href="/login" className="w-full py-3.5 rounded-xl transition-all text-center block" style={plan.popular ? { backgroundColor: "white", color: "#0e2325", fontSize: "0.88rem", fontWeight: 600, boxShadow: `0 4px 16px -4px rgba(255,255,255,0.3)` } : { backgroundColor: "var(--primary)", color: "white", fontSize: "0.88rem", fontWeight: 600, boxShadow: "0 4px 16px -4px rgba(57,184,198,0.4)" }}>
+                            {t("pricing.trialCta")}
+                          </Link>
+                          <p className="text-center mt-2.5" style={{ fontSize: "0.68rem", color: plan.popular ? "rgba(255,255,255,0.55)" : "var(--text-faint)" }}>{t("pricing.trialNote")}</p>
+                        </>
+                      )}
                     </div>
                   </GlassCard>
                 </div>
@@ -729,6 +748,12 @@ export default function LandingPage() {
           <FadeIn>
             <p className="text-center mt-8" style={{ fontSize: "0.82rem", color: "var(--text-muted)", maxWidth: 600, margin: "2rem auto 0" }}>
               {creditExplanation}
+            </p>
+            <p className="text-center mt-4" style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
+              {t("pricing.diagnosticNote")} {" "}
+              <Link href="/diagnostico" style={{ color: "var(--primary)", fontWeight: 500, textDecoration: "underline", textUnderlineOffset: 4 }}>
+                {t("pricing.diagnosticCta")}
+              </Link>
             </p>
           </FadeIn>
         </div>

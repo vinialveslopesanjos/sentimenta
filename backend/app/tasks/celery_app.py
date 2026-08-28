@@ -1,3 +1,9 @@
+import logging
+
+# httpx loga a URL completa das requests (incluindo ?token=...) no nível INFO.
+# WARNING evita vazar o token do Apify nos logs do worker/api.
+logging.getLogger("httpx").setLevel(logging.WARNING)
+
 from celery import Celery
 from celery.schedules import crontab
 from app.core.config import settings
@@ -49,6 +55,11 @@ celery_app.conf.beat_schedule = {
         "task": "app.tasks.pipeline_tasks.task_daily_sync",
         "schedule": crontab(hour=DAILY_SYNC_HOUR_UTC, minute=DAILY_SYNC_MINUTE_UTC),
         "kwargs": {"frequency_filter": "daily"},
+    },
+    "reconcile-stale-runs": {
+        "task": "app.tasks.pipeline_tasks.task_reconcile_stale_runs",
+        "schedule": crontab(minute="*/30"),  # runs presas nunca ficam >4h30 na UI
+        "options": {"soft_time_limit": 120, "time_limit": 180},
     },
 }
 

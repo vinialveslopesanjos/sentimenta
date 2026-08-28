@@ -22,7 +22,16 @@ function formatSyncTime(iso: string | null): string {
   return d.toLocaleDateString("pt-BR", { day: "numeric", month: "short", year: "numeric" });
 }
 
-function statusBadge(status: string) {
+function statusBadge(status: string, platform?: string) {
+  if (platform === "twitter") {
+    // Coleta do Twitter está desligada no pipeline (twitter_disabled)
+    return {
+      bg: "bg-slate-50",
+      dot: "bg-slate-400",
+      text: "text-slate-500",
+      label: "Indisponível",
+    };
+  }
   if (status === "active") {
     return {
       bg: "bg-emerald-50",
@@ -387,7 +396,7 @@ export function ConnectScreen() {
           ) : (
             <div className="space-y-3">
               {connections.map((conn) => {
-                const badge = statusBadge(conn.status);
+                const badge = statusBadge(conn.status, conn.platform);
                 return (
                   <DreamCard key={conn.id} className="p-4">
                     <div className="flex items-center gap-3 mb-3">

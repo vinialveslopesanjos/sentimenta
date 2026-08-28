@@ -2049,8 +2049,14 @@ def get_youtube_stats(
     total_videos = len(posts)
     avg_views = round(total_views / total_videos) if total_videos > 0 else 0
 
-    # Average engagement rate from posts
-    engagement_rates = [p.engagement_rate for p in posts if p.engagement_rate is not None]
+    # Average engagement rate from posts. Fallback: o ingest nem sempre
+    # popula engagement_rate — calcula (likes+comentários)/views por vídeo.
+    engagement_rates = []
+    for p in posts:
+        if p.engagement_rate is not None and p.engagement_rate > 0:
+            engagement_rates.append(p.engagement_rate)
+        elif (p.view_count or 0) > 0:
+            engagement_rates.append(((p.like_count or 0) + (p.comment_count or 0)) / p.view_count)
     avg_engagement = round(sum(engagement_rates) / len(engagement_rates), 4) if engagement_rates else 0.0
 
     channel_stats = {

@@ -41,7 +41,9 @@ test("score provenance opens in one click and returns without losing context", a
   await expect(drawer).toHaveAttribute("data-coverage-status", "complete");
   await expect(drawer).toHaveAttribute("data-collection-mode", "all");
   await expect(drawer.getByRole("heading", { name: "Como este score foi calculado" })).toBeVisible();
-  await expect(drawer).toContainText("20 de ago. de 2026 a 25 de ago. de 2026");
+  await expect(drawer).toContainText(
+    /\d{2} de [a-zç]+\. de \d{4} a \d{2} de [a-zç]+\. de \d{4}/i,
+  );
   await expect(drawer).toContainText("YouTube · @qa-healthy_recent");
   await expect(drawer).toContainText("Todos os itens elegíveis");
   await expect(drawer).toContainText("Completa");

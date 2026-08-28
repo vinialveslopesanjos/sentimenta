@@ -186,6 +186,8 @@ async function installFixture(page: Page) {
     } else if (path.endsWith("/dashboard/trends")) {
       const points = url.searchParams.get("connection_id") === connectionAId ? trendA : trendB;
       body = { data_points: points, granularity: "week", timezone: "UTC" };
+    } else if (path.endsWith("/pipeline/runs")) {
+      body = [];
     } else {
       await route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ detail: "Fixture route not defined" }) });
       return;

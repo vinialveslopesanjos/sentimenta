@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 import { ResponsiveContainer, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, BarChart, Bar, RadarChart, Radar, PolarGrid, PolarAngleAxis, AreaChart, Area } from "recharts";
 import { dashboardApi, connectionsApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
@@ -67,11 +68,13 @@ export default function AnalysisPage() {
     const token = getToken();
     if (!token) return;
     setLoading(true);
+    // "Tudo" usa days=0 no estado, mas a API exige >= 7.
+    const effectiveDays = days > 0 ? days : 3650;
     setRadarData([]);
     setInsights(null);
     Promise.all([
-      dashboardApi.compareConnections(token, ids, days),
-      ids.length >= 2 ? dashboardApi.compareRadar(token, ids, days).catch(() => null) : null,
+      dashboardApi.compareConnections(token, ids, effectiveDays),
+      ids.length >= 2 ? dashboardApi.compareRadar(token, ids, effectiveDays).catch(() => null) : null,
       ids.length >= 2 ? dashboardApi.insights(token, ids).catch(() => null) : null,
     ]).then(([compareRes, radarRes, insightsRes]) => {
       setData(compareRes.connections.map(series => {
@@ -106,6 +109,9 @@ export default function AnalysisPage() {
         setRadarData(radarFormatted);
       }
       if (insightsRes) setInsights(insightsRes);
+    }).catch(() => {
+      setData([]);
+      toast.error(ta("loadError"));
     }).finally(() => setLoading(false));
   }, [selectedA, selectedB, days]);
 
@@ -120,12 +126,13 @@ export default function AnalysisPage() {
       return;
     }
 
+    const effectiveDays = days > 0 ? days : 3650;
     let cancelled = false;
     setTrendLoadState("loading");
     Promise.all([
-      dashboardApi.trends(token, { connection_id: selectedA, granularity: "week", days }),
+      dashboardApi.trends(token, { connection_id: selectedA, granularity: "week", days: effectiveDays }),
       selectedB
-        ? dashboardApi.trends(token, { connection_id: selectedB, granularity: "week", days })
+        ? dashboardApi.trends(token, { connection_id: selectedB, granularity: "week", days: effectiveDays })
         : Promise.resolve(empty),
     ]).then(([nextA, nextB]) => {
       if (cancelled) return;
@@ -313,7 +320,7 @@ export default function AnalysisPage() {
 
       {!loading && activeConns.length === 0 && (
         <div className="rounded-2xl p-12 text-center" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
-          <h3 style={{ fontSize: "1rem", fontWeight: 500, color: "var(--text-muted)" }}>{ta("selectAtLeastOne")}</h3>
+          <h3 style={{ fontSize: "1rem", fontWeight: 500, color: "var(--text-muted)" }}>{selectedA || selectedB ? ta("noDataForProfile") : ta("selectAtLeastOne")}</h3>
           <p className="mt-1" style={{ fontSize: "0.82rem", color: "var(--text-faint)" }}>{ta("selectAbove")}</p>
         </div>
       )}

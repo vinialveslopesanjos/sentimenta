@@ -9,6 +9,7 @@ daily counter. Before each call, the counter is checked against the limit.
 """
 
 import logging
+import threading
 from datetime import date
 
 import httpx
@@ -19,6 +20,26 @@ from app.core.config import settings
 logger = logging.getLogger(__name__)
 
 REDIS_KEY_PREFIX = "apify:cost"
+
+# ── Acumulador por run de pipeline (P2.1) ────────────────────────────
+# Processo prefork do Celery executa 1 task por vez, então um acumulador
+# de processo é seguro; o lock cobre as threads do ThreadPoolExecutor
+# usadas na coleta de comentários.
+_run_cost_lock = threading.Lock()
+_run_cost_total = 0.0
+
+
+def reset_run_cost() -> None:
+    """Zera o acumulador no início de uma run de pipeline."""
+    global _run_cost_total
+    with _run_cost_lock:
+        _run_cost_total = 0.0
+
+
+def get_run_cost() -> float:
+    """Custo Apify acumulado desde o último reset_run_cost()."""
+    with _run_cost_lock:
+        return _run_cost_total
 
 
 def _today_key() -> str:
@@ -42,6 +63,12 @@ def add_cost(cost_usd: float) -> float:
     """Add cost to today's Apify spend counter. Returns new total."""
     if cost_usd <= 0:
         return get_daily_spend()
+
+    # Acumula no custo da run atual mesmo se o Redis estiver fora
+    global _run_cost_total
+    with _run_cost_lock:
+        _run_cost_total += cost_usd
+
     r = get_redis()
     if not r:
         return 0.0

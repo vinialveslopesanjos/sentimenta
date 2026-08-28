@@ -36,8 +36,10 @@ const tabItems: { icon: React.ElementType; key: Tab }[] = [
 ];
 
 const PLAN_ORDER = ["free", "starter", "pro", "business", "enterprise"];
+// Só starter e pro são compráveis via checkout; enterprise é "sob consulta"
+const PURCHASABLE_PLANS = ["starter", "pro"];
 const PLAN_FALLBACK_PRICES: Record<string, number> = {
-  free: 0, starter: 97, pro: 247, business: 597, enterprise: 0, admin: 0, creator: 97, agency: 597,
+  free: 0, starter: 197, pro: 497, business: 597, enterprise: 0, admin: 0, creator: 197, agency: 597,
 };
 const PLAN_FALLBACK_SLUGS: Record<string, string> = {
   free: "free", starter: "starter", pro: "pro", business: "business", enterprise: "enterprise", admin: "admin", creator: "starter", agency: "business",
@@ -191,7 +193,7 @@ function SettingsPageInner() {
   }, [billingPlans]);
   const currentPlan = planMap[user?.plan || "free"] || PLAN_FALLBACK[user?.plan || "free"] || PLAN_FALLBACK.free;
   const currentPlanIndex = PLAN_ORDER.indexOf(user?.plan || "free");
-  const nextPlanSlug = currentPlanIndex >= 0 ? PLAN_ORDER[currentPlanIndex + 1] : null;
+  const nextPlanSlug = PURCHASABLE_PLANS.find(slug => PLAN_ORDER.indexOf(slug) > currentPlanIndex) || null;
   const nextPlan = nextPlanSlug ? planMap[nextPlanSlug] || PLAN_FALLBACK[nextPlanSlug] : null;
 
   async function handleSaveProfile() {
@@ -544,7 +546,7 @@ function SettingsPageInner() {
                     <h4 className="mb-4" style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)" }}>{t("billing.availablePlans")}</h4>
                     <div className="space-y-3">
                       {billingPlans
-                        .filter(p => PLAN_ORDER.indexOf(p.slug) > currentPlanIndex && p.slug !== "enterprise")
+                        .filter(p => PURCHASABLE_PLANS.includes(p.slug) && PLAN_ORDER.indexOf(p.slug) > currentPlanIndex)
                         .sort((a, b) => PLAN_ORDER.indexOf(a.slug) - PLAN_ORDER.indexOf(b.slug))
                         .map(plan => (
                           <div key={plan.slug} className="flex items-center justify-between p-4 rounded-xl" style={{ backgroundColor: "var(--bg-subtle)" }}>
@@ -575,6 +577,17 @@ function SettingsPageInner() {
                             </Button>
                           </div>
                         ))}
+                      {!["enterprise", "admin"].includes(user?.plan || "") && (
+                        <div className="flex items-center justify-between p-4 rounded-xl" style={{ backgroundColor: "var(--bg-subtle)" }}>
+                          <div>
+                            <p style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)" }}>Enterprise</p>
+                            <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>{t("billing.enterpriseUpsell")}</p>
+                          </div>
+                          <a href="mailto:contato@mazylabs.com.br?subject=Sentimenta%20Enterprise">
+                            <Button variant="outline" size="sm">{t("billing.contactSales")}</Button>
+                          </a>
+                        </div>
+                      )}
                     </div>
                   </>
                 )}

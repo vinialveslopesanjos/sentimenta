@@ -21,11 +21,12 @@ from app.models.user import User
 
 logger = logging.getLogger(__name__)
 
-# ─── Credit Allocations per Plan ────────────────────────────────────
+# ─── Credit Allocations per Plan (Pricing Jul/2026) ─────────────────
+# "free" = estado sem assinatura (0 créditos); "business" é legado.
 PLAN_CREDITS = {
-    "free": 200,
-    "starter": 5_000,
-    "pro": 20_000,
+    "free": 0,
+    "starter": 10_000,
+    "pro": 40_000,
     "business": 40_000,
     "enterprise": 999_999,
     "admin": 999_999,
@@ -33,11 +34,15 @@ PLAN_CREDITS = {
 
 DEMOGRAPHIC_CREDIT_COST = 5  # 1 profile = 5 credits
 
+# Teto de créditos durante o trial de 14 dias (qualquer plano)
+TRIAL_CREDITS = 1_000
+
 # ─── Credit Pack Definitions ────────────────────────────────────────
+# Preço por crédito nunca abaixo do excedente do plano superior
 CREDIT_PACKS = {
-    "2500": {"credits": 2_500, "price_brl": 49},
-    "5000": {"credits": 5_000, "price_brl": 89},
-    "10000": {"credits": 10_000, "price_brl": 159},
+    "2500": {"credits": 2_500, "price_brl": 99},
+    "5000": {"credits": 5_000, "price_brl": 179},
+    "10000": {"credits": 10_000, "price_brl": 299},
 }
 
 LEGACY_PLAN_MAP = {
@@ -176,6 +181,80 @@ def consume(
     return remaining
 
 
+def consume_up_to(
+    db: Session,
+    user_id,
+    amount: int,
+    type: str,
+    source: str = "sync",
+    description: str = None,
+    metadata: dict = None,
+) -> int:
+    """
+    Atomically consume at most `amount` credits, draining whatever is available
+    (plan credits first, then pack credits).
+
+    Unlike consume(), never raises InsufficientCreditsError: returns how many
+    credits were actually consumed (0..amount). Callers compare the return
+    value against `amount` to detect depletion and stop further work.
+    """
+    if amount <= 0:
+        return 0
+
+    bal = (
+        db.query(CreditBalance)
+        .filter(CreditBalance.user_id == user_id)
+        .with_for_update()
+        .first()
+    )
+    if bal is None:
+        bal = get_or_create_balance(db, user_id)
+        bal = (
+            db.query(CreditBalance)
+            .filter(CreditBalance.user_id == user_id)
+            .with_for_update()
+            .one()
+        )
+
+    total = bal.plan_credits + bal.pack_credits
+    to_consume = min(total, amount)
+    if to_consume <= 0:
+        return 0
+
+    from_plan = min(bal.plan_credits, to_consume)
+    from_pack = to_consume - from_plan
+    bal.plan_credits -= from_plan
+    bal.pack_credits -= from_pack
+
+    remaining = bal.plan_credits + bal.pack_credits
+
+    _record_transaction(
+        db, bal, -to_consume, type, source,
+        description or f"Consumo: {to_consume} créditos",
+        metadata,
+    )
+
+    logger.info(
+        "Credits consumed (up_to): user=%s requested=%d consumed=%d type=%s remaining=%d",
+        user_id, amount, to_consume, type, remaining,
+    )
+
+    from app.core.analytics import capture
+    capture(str(user_id), "credits_consumed", {
+        "amount": to_consume, "type": type, "remaining": remaining,
+    })
+    if remaining <= 0:
+        capture(str(user_id), "credits_depleted", {"type": type})
+
+    return to_consume
+
+
+def get_available_credits(db: Session, user_id) -> int:
+    """Total credits (plan + pack) currently available, without locking."""
+    bal = get_or_create_balance(db, user_id)
+    return bal.plan_credits + bal.pack_credits
+
+
 def grant_monthly(db: Session, user_id, plan: str = None) -> int:
     """
     Reset plan credits for a new billing cycle.
@@ -219,6 +298,49 @@ def grant_monthly(db: Session, user_id, plan: str = None) -> int:
         user_id, plan, new_credits, old_credits,
     )
     return new_credits
+
+
+def grant_trial(db: Session, user_id, plan: str = None) -> int:
+    """
+    Grant trial credits when a subscription starts in `trialing` status.
+    Caps at TRIAL_CREDITS regardless of plan; full plan credits only come
+    with the first real invoice.paid (see billing webhook).
+    Returns new plan_credits value.
+    """
+    bal = (
+        db.query(CreditBalance)
+        .filter(CreditBalance.user_id == user_id)
+        .with_for_update()
+        .first()
+    )
+
+    if bal is None:
+        bal = get_or_create_balance(db, user_id)
+        bal = (
+            db.query(CreditBalance)
+            .filter(CreditBalance.user_id == user_id)
+            .with_for_update()
+            .one()
+        )
+
+    if plan is None:
+        user = db.get(User, user_id)
+        plan = user.plan if user else "free"
+
+    trial_credits = min(TRIAL_CREDITS, get_credits_for_plan(plan))
+    bal.plan_credits = trial_credits
+    bal.cycle_start = datetime.now(timezone.utc)
+
+    _record_transaction(
+        db, bal, trial_credits, "grant_trial", "trial_start",
+        f"Trial de 14 dias iniciado: {trial_credits:,} créditos ({plan}).",
+    )
+
+    logger.info(
+        "Trial credits granted: user=%s plan=%s credits=%d",
+        user_id, plan, trial_credits,
+    )
+    return trial_credits
 
 
 def grant_pack(

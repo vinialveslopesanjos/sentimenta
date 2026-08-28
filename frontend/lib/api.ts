@@ -179,6 +179,8 @@ export const authApi = {
       name: string | null;
       avatar_url: string | null;
       plan: string;
+      subscription_status: string | null;
+      plan_changed_at: string | null;
       email_verified: boolean;
       onboarding_data: Record<string, string> | null;
     }>("/auth/me", { token }),
@@ -348,10 +350,21 @@ export const connectionsApi = {
   sync: (
     token: string,
     connectionId: string,
-    params?: { max_posts?: number; max_comments_per_post?: number; since_date?: string; use_apify_comments?: boolean; comment_sample_mode?: string }
+    params?: { max_posts?: number; max_comments_per_post?: number; since_date?: string; use_apify_comments?: boolean; comment_sample_mode?: string; include_demographics?: boolean }
   ) =>
     apiFetch<{ connection_id: string; task_id: string; run_id?: string; message: string }>(
       `/connections/${connectionId}/sync`,
+      { method: "POST", token, body: params ? JSON.stringify(params) : undefined }
+    ),
+
+  preflight: (
+    token: string,
+    connectionId: string,
+    mode: "sync" | "analyze",
+    params?: { max_posts?: number; max_comments_per_post?: number; since_date?: string; use_apify_comments?: boolean; comment_sample_mode?: string; include_demographics?: boolean }
+  ) =>
+    apiFetch<import("./types").PreflightEstimate>(
+      `/connections/${connectionId}/preflight?mode=${mode}`,
       { method: "POST", token, body: params ? JSON.stringify(params) : undefined }
     ),
 
@@ -831,6 +844,13 @@ export type BlogSettingsInput = Partial<{
   article_cta_description: string;
 }>;
 
+export type BlogMediaUploadResponse = {
+  filename: string;
+  url: string;
+  content_type: string;
+  size_bytes: number;
+};
+
 export const blogAdminApi = {
   getSettings: async (token: string): Promise<BlogSettings> => {
     const settings = await apiFetch<ApiBlogSettingsResponse>("/admin/blog/settings", { token });
@@ -885,6 +905,37 @@ export const blogAdminApi = {
     });
     return normalizeBlogPost(post);
   },
+
+  uploadMedia: async (token: string, file: File): Promise<BlogMediaUploadResponse> => {
+    const { COOKIE_AUTH_SENTINEL } = await import("./auth");
+    const headers: Record<string, string> = {};
+    if (token && token !== COOKIE_AUTH_SENTINEL) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+
+    const body = new FormData();
+    body.append("file", file);
+
+    const response = await fetch(`${API_URL}/admin/blog/media`, {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body,
+    });
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: response.statusText }));
+      throw new Error(formatApiErrorDetail(error.detail, `API error: ${response.status}`));
+    }
+    return response.json();
+  },
+};
+
+export const publicApi = {
+  preview: (platform: "youtube" | "instagram", handle: string) =>
+    apiFetch<import("./types").PreviewResult>("/public/preview", {
+      method: "POST",
+      body: JSON.stringify({ platform, handle }),
+    }),
 };
 
 export type OperationalTrustAlert = {

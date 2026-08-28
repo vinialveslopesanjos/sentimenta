@@ -75,7 +75,7 @@ test("all main product routes resolve against the isolated QA account", async ({
   const routes: Array<{ path: string; ready: () => Locator }> = [
     { path: "/dashboard", ready: () => page.getByTestId("dashboard-reputation-summary") },
     { path: "/dashboard/connect", ready: () => page.getByRole("heading", { name: "Conectar Perfis" }) },
-    { path: "/dashboard/logs", ready: () => page.getByRole("heading", { name: "Logs de Pipeline" }) },
+    { path: "/dashboard/logs", ready: () => page.getByRole("heading", { name: "Atividade" }) },
     { path: "/dashboard/analysis", ready: () => page.getByRole("heading", { name: "Análise Comparativa" }) },
     { path: "/dashboard/alerts", ready: () => page.getByTestId("alerts-evaluation") },
     { path: "/dashboard/settings", ready: () => page.getByRole("heading", { name: "Configurações da Conta" }) },

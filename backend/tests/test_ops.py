@@ -35,7 +35,6 @@ def test_ops_health_requires_admin(client, auth_headers):
     assert trust.status_code == 403
     assert trust.json()["detail"] == "admin_required"
 
-
 def test_ops_health_returns_async_sli_snapshot(client, db, monkeypatch):
     monkeypatch.setattr(
         "app.routers.ops._celery_status",
@@ -55,8 +54,6 @@ def test_ops_health_returns_async_sli_snapshot(client, db, monkeypatch):
     assert data["celery"]["workers"] == 1
     assert data["celery"]["queue_depth"] == 0
     assert data["pipeline"]["stale_running"] == 0
-
-
 def test_ops_trust_returns_all_minimum_metrics_and_internal_alerts(client, db):
     now = datetime.now(timezone.utc)
     headers = _admin_headers(db)

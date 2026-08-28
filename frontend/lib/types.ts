@@ -9,6 +9,7 @@ export interface PipelineRun {
   connection_username: string | null;
   run_type: string;
   status: string; // running | completed | failed | partial
+  stage?: string | null; // queued | ingesting | analyzing | demographics | report | done
   posts_fetched: number;
   comments_fetched: number;
   comments_analyzed: number;
@@ -19,13 +20,34 @@ export interface PipelineRun {
   snapshot?: SnapshotReference | null;
   human_summary?: PipelineRunHumanSummary;
   total_cost_usd: number;
+  apify_cost_usd?: number;
+  credits_consumed?: number;
   started_at: string;
   ended_at: string | null;
   notes: string | null;
 }
 
+export interface PreflightEstimate {
+  mode: "sync" | "analyze";
+  estimated_posts: number;
+  estimated_comments: number;
+  estimated_credits: number;
+  available_credits: number;
+  fits: boolean;
+  missing_credits: number;
+  estimated_minutes_min: number;
+  estimated_minutes_max: number;
+  avg_comments_per_post: number | null;
+  pending_comments: number | null;
+  pending_backlog?: number;
+  demographics_available?: boolean;
+  demographics_cost_per_profile?: number;
+  last_sync_at?: string | null;
+}
+
 export interface PipelineStatus {
   status: string;
+  stage?: string | null;
   posts_fetched: number;
   comments_fetched: number;
   comments_analyzed: number;
@@ -207,4 +229,28 @@ export interface HealthReport {
   generated_at: string | null;
   data_summary: Record<string, unknown>;
   has_new_data: boolean;
+}
+
+// --- Prévia Mágica (público) ---
+export interface PreviewPost {
+  caption: string;
+  thumbnail_url: string | null;
+  analyzed_comments: number;
+  avg_score: number;
+  top_emotion: string | null;
+  sentiment_split: { positive: number; neutral: number; negative: number };
+}
+
+export interface PreviewResult {
+  platform: "youtube" | "instagram";
+  handle: string;
+  profile: {
+    display_name: string | null;
+    profile_image_url: string | null;
+    followers_count: number;
+  };
+  overall_score: number | null;
+  posts: PreviewPost[];
+  generated_at: string;
+  cached?: boolean;
 }

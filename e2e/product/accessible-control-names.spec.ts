@@ -118,7 +118,7 @@ test.describe("Accessible names and switch state", () => {
     await expect(autoSync).toHaveAttribute("aria-checked", "true");
 
     await page.goto("/dashboard/logs");
-    await expect(page.getByRole("heading", { name: "Logs de Pipeline", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Atividade", exact: true })).toBeVisible();
     await expectVisibleControlsNamed(page, "pipeline logs");
     await expect(page.getByRole("button", { name: /^Excluir execução #[a-f0-9]{8}$/ })).toBeVisible();
 

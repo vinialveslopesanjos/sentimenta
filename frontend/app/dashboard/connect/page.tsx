@@ -32,7 +32,11 @@ import {
   type SyncSettings,
 } from "@/lib/syncSettings";
 import { track } from "@/lib/tracking";
+import { toast } from "sonner";
 import { Button } from "@/components/ds/Button";
+import PreflightModal, { type PreflightConfirmOptions } from "@/components/PreflightModal";
+import { useActiveRuns } from "@/components/ActiveRunsContext";
+import type { PreflightEstimate } from "@/lib/types";
 import { Badge } from "@/components/ds/Badge";
 import { GlassSocialIcon } from "@/components/GlassSocialIcons";
 import {
@@ -169,6 +173,16 @@ export default function ConnectPage() {
   const [syncParams, setSyncParams] = useState<SyncSettings>(DEFAULT_SYNC_SETTINGS);
   const [syncEstimate, setSyncEstimate] = useState<{ show: boolean; minMinutes: number; maxMinutes: number; username: string }>({ show: false, minMinutes: 0, maxMinutes: 0, username: "" });
   const [userPlan, setUserPlan] = useState("free");
+  const { activeRuns, refresh: refreshRuns } = useActiveRuns();
+  const [preflight, setPreflight] = useState<{
+    open: boolean;
+    target: "one" | "all";
+    connId: string | null;
+    label: string;
+    estimate: PreflightEstimate | null;
+    loading: boolean;
+    confirming: boolean;
+  }>({ open: false, target: "one", connId: null, label: "", estimate: null, loading: false, confirming: false });
   const [creditBalance, setCreditBalance] = useState<{ total: number; plan_credits: number; plan_allocation: number } | null>(null);
   const [collectionLimits, setCollectionLimits] = useState<CollectionLimits | null>(null);
   const [limitsStatus, setLimitsStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -344,36 +358,90 @@ export default function ConnectPage() {
     };
   }, []);
 
-  const handleSync = async (connId: string) => {
-    if (!collectionLimits) {
-      openSyncConfiguration(connId);
-      return;
+  const requestSync = async (connId: string) => {
+    const token = getToken();
+    if (!token) return;
+    const conn = connections.find(c => c.id === connId);
+    setPreflight({ open: true, target: "one", connId, label: conn ? `@${conn.username}` : "", estimate: null, loading: true, confirming: false });
+    try {
+      const est = await connectionsApi.preflight(token, connId, "sync", toSyncPayload(syncParams));
+      setPreflight(p => ({ ...p, estimate: est, loading: false }));
+    } catch (err) {
+      setPreflight(p => ({ ...p, open: false }));
+      const msg = err instanceof Error ? err.message : t("syncError");
+      setErrors(e => ({ ...e, [connId]: msg }));
+      toast.error(msg);
     }
+  };
+
+  const requestSyncAll = async () => {
+    const token = getToken();
+    if (!token || connections.length === 0) return;
+    setPreflight({ open: true, target: "all", connId: null, label: t("multipleProfiles", { count: connections.length }), estimate: null, loading: true, confirming: false });
+    try {
+      const payload = toSyncPayload(syncParams);
+      const estimates = await Promise.all(
+        connections.map(c => connectionsApi.preflight(token, c.id, "sync", payload).catch(() => null))
+      );
+      const valid = estimates.filter((e): e is PreflightEstimate => e !== null);
+      if (valid.length !== connections.length) throw new Error(t("syncError"));
+      const sum = valid.reduce((acc, e) => ({
+        ...acc,
+        estimated_posts: acc.estimated_posts + e.estimated_posts,
+        estimated_comments: acc.estimated_comments + e.estimated_comments,
+        estimated_credits: acc.estimated_credits + e.estimated_credits,
+        estimated_minutes_min: acc.estimated_minutes_min + e.estimated_minutes_min,
+        estimated_minutes_max: acc.estimated_minutes_max + e.estimated_minutes_max,
+      }), { ...valid[0], estimated_posts: 0, estimated_comments: 0, estimated_credits: 0, estimated_minutes_min: 0, estimated_minutes_max: 0 });
+      sum.fits = sum.available_credits >= sum.estimated_credits;
+      sum.missing_credits = Math.max(0, sum.estimated_credits - sum.available_credits);
+      setPreflight(p => ({ ...p, estimate: sum, loading: false }));
+    } catch (err) {
+      setPreflight(p => ({ ...p, open: false }));
+      const msg = err instanceof Error ? err.message : t("syncError");
+      setErrors(e => ({ ...e, all: msg }));
+      toast.error(msg);
+    }
+  };
+
+  const confirmPreflight = async (options: PreflightConfirmOptions) => {
+    setPreflight(p => ({ ...p, confirming: true }));
+    try {
+      if (preflight.target === "one" && preflight.connId) {
+        await handleSync(preflight.connId, options);
+      } else {
+        await handleSyncAll(options);
+      }
+    } finally {
+      setPreflight(p => ({ ...p, open: false, confirming: false }));
+      refreshRuns();
+    }
+  };
+
+  const handleSync = async (connId: string, options?: PreflightConfirmOptions) => {
     const token = getToken()!;
     setSyncing(s => ({ ...s, [connId]: true }));
     setErrors(e => ({ ...e, [connId]: "" }));
     track("sync_triggered", { connection_id: connId });
     try {
-      await connectionsApi.sync(token, connId, toSyncPayload(syncParams));
+      await connectionsApi.sync(token, connId, { ...toSyncPayload(syncParams), include_demographics: options?.includeDemographics ?? false });
       const conn = connections.find(c => c.id === connId);
       const est = estimateSyncTime(syncParams);
       setSyncEstimate({ show: true, ...est, username: conn?.username || "" });
     } catch (err) {
-      setErrors(e => ({ ...e, [connId]: err instanceof Error ? err.message : t("syncError") }));
+      const msg = err instanceof Error ? err.message : t("syncError");
+      setErrors(e => ({ ...e, [connId]: msg }));
+      toast.error(msg);
     } finally {
       setTimeout(() => setSyncing(s => ({ ...s, [connId]: false })), 2500);
     }
   };
 
-  const handleSyncAll = async () => {
-    if (!collectionLimits) {
-      openSyncConfiguration("all");
-      return;
-    }
+  const handleSyncAll = async (options?: PreflightConfirmOptions) => {
     const token = getToken();
     if (!token || connections.length === 0) return;
     track("sync_all_triggered", { count: connections.length });
-    const payload = toSyncPayload(syncParams);
+    const payload = { ...toSyncPayload(syncParams), include_demographics: options?.includeDemographics ?? false };
     for (const conn of connections) {
       setSyncing(s => ({ ...s, [conn.id]: true }));
       try {
@@ -395,10 +463,10 @@ export default function ConnectPage() {
   const handlePreparedSync = async () => {
     if (limitsStatus !== "ready" || !collectionLimits) return;
     if (preparedConnectionId === "all") {
-      await handleSyncAll();
+      await requestSyncAll();
       return;
     }
-    await handleSync(preparedConnectionId);
+    await requestSync(preparedConnectionId);
   };
 
   const handleDelete = async (connId: string) => {
@@ -1077,7 +1145,10 @@ export default function ConnectPage() {
                       </dl>
                     </td>
                     <td className="px-5 py-4">
-                      <div
+                      {conn.platform === "twitter" ? (
+                        <Badge variant="muted" dot>{t("statusLabels.unavailable")}</Badge>
+                      ) : (
+                        <div
                         className="flex max-w-[290px] flex-col items-start gap-1.5"
                         role="status"
                         aria-label={`${t(healthLabelKey)}. ${t(reasonKey)}`}
@@ -1112,7 +1183,8 @@ export default function ConnectPage() {
                             {isSyncing ? t("health.syncing") : t("configureCollection")}
                           </button>
                         )}
-                      </div>
+                        </div>
+                      )}
                     </td>
                     <td className="px-5 py-4">
                       <button
@@ -1120,13 +1192,13 @@ export default function ConnectPage() {
                         role="switch"
                         aria-checked={conn.auto_sync}
                         onClick={() => handleToggleAutoSync(conn.id, conn.auto_sync)}
-                        disabled={togglingSync[conn.id]}
+                        disabled={togglingSync[conn.id] || conn.platform === "twitter"}
                         aria-label={conn.auto_sync ? `Pausar sync automática de @${conn.username}` : `Ativar sync automática de @${conn.username}`}
                         title={conn.auto_sync ? "Pausar sync automática" : "Ativar sync automática"}
                         className="w-10 rounded-full relative transition-colors disabled:opacity-50"
-                        style={{ height: 22, backgroundColor: conn.auto_sync ? "var(--primary)" : "var(--bg-subtle)", border: conn.auto_sync ? "none" : "1px solid var(--border)" }}
+                        style={{ height: 22, backgroundColor: conn.auto_sync && conn.platform !== "twitter" ? "var(--primary)" : "var(--bg-subtle)", border: conn.auto_sync && conn.platform !== "twitter" ? "none" : "1px solid var(--border)" }}
                       >
-                        <div className={`absolute top-0.5 w-[18px] h-[18px] rounded-full transition-all ${conn.auto_sync ? "left-[20px]" : "left-0.5"}`} style={{ backgroundColor: "var(--bg-card)" }} />
+                        <div className={`absolute top-0.5 w-[18px] h-[18px] rounded-full transition-all ${conn.auto_sync && conn.platform !== "twitter" ? "left-[20px]" : "left-0.5"}`} style={{ backgroundColor: "var(--bg-card)" }} />
                       </button>
                     </td>
                     <td className="px-5 py-4">
@@ -1137,7 +1209,7 @@ export default function ConnectPage() {
                         <button
                           type="button"
                           onClick={() => openSyncConfiguration(conn.id)}
-                          disabled={syncing[conn.id]}
+                          disabled={syncing[conn.id] || conn.platform === "twitter" || activeRuns.some(r => r.connection_id === conn.id)}
                           className="p-1.5 rounded-lg transition-colors disabled:opacity-50"
                           aria-label={t("configureCollectionFor", { username: conn.username })}
                           title={t("configureCollection")}
@@ -1157,6 +1229,17 @@ export default function ConnectPage() {
           </div>
         )}
       </div>
+
+      <PreflightModal
+        open={preflight.open}
+        mode="sync"
+        targetLabel={preflight.label}
+        estimate={preflight.estimate}
+        loading={preflight.loading}
+        confirming={preflight.confirming}
+        onConfirm={confirmPreflight}
+        onClose={() => setPreflight(p => ({ ...p, open: false }))}
+      />
 
       {/* Sync estimate banner */}
       {syncEstimate.show && (

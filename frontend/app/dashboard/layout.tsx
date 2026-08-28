@@ -12,8 +12,10 @@ import { Bell, Plus, Moon, Sun } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import OnboardingModal from "@/components/OnboardingModal";
+import { ActiveRunsProvider, ActiveRunPill } from "@/components/ActiveRunsContext";
 import { CreditDepletedBanner } from "@/components/CreditBalance";
 import { GlobalDataStatus } from "@/components/data/GlobalDataStatus";
+import { SubscriptionBanner } from "@/components/SubscriptionBanner";
 
 const ANALYTIC_ROUTE_PREFIXES = [
   "/dashboard/analysis",
@@ -41,6 +43,8 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const [dataSnapshot, setDataSnapshot] = useState<DataSnapshot | null>(null);
   const [dataStatusLoadState, setDataStatusLoadState] = useState<"loading" | "ready" | "error">("loading");
   const [dataStatusRetry, setDataStatusRetry] = useState(0);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<string | null>(null);
+  const [planChangedAt, setPlanChangedAt] = useState<string | null>(null);
   const { theme, toggleTheme } = useTheme();
   const tl = useTranslations("layout");
   const tc = useTranslations("common");
@@ -61,6 +65,8 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         }
         identifyUser(user.id, { email: user.email, name: user.name, plan: user.plan });
         setUserPlan(user.plan);
+        setSubscriptionStatus(user.subscription_status ?? null);
+        setPlanChangedAt(user.plan_changed_at ?? null);
         if (!user.onboarding_data) {
           setShowOnboarding(true);
         }
@@ -87,6 +93,14 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     let cancelled = false;
     setDataStatusLoadState((current) => current === "ready" ? "ready" : "loading");
     dataSnapshotsApi.latest(token)
+      .catch(async (firstError) => {
+        // This read is the trust boundary for every analytical screen. A
+        // single transient proxy/JSON failure should be retried once before
+        // asking the user to recover it manually.
+        await new Promise((resolve) => window.setTimeout(resolve, 250));
+        if (cancelled) throw firstError;
+        return dataSnapshotsApi.latest(token);
+      })
       .then((snapshot) => {
         if (cancelled) return;
         setDataSnapshot(snapshot);
@@ -119,6 +133,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   }
 
   return (
+    <ActiveRunsProvider>
     <div className="min-h-screen" style={{ backgroundColor: "var(--bg-page)" }}>
       {showOnboarding && <OnboardingModal onComplete={() => setShowOnboarding(false)} />}
       <SidebarNew />
@@ -133,6 +148,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           }}
         >
           <div className="flex items-center gap-3">
+            <ActiveRunPill />
           </div>
           <div className="flex items-center gap-2 md:gap-3">
             <LanguageSwitcher />
@@ -180,7 +196,10 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         )}
         <main className="p-4 md:p-6 lg:p-8">
           <div className="max-w-[1320px] mx-auto">
-            {creditsDepleted && (
+            <div className="empty:hidden mb-0 [&>*]:mb-6">
+              <SubscriptionBanner plan={userPlan} subscriptionStatus={subscriptionStatus} planChangedAt={planChangedAt} />
+            </div>
+            {creditsDepleted && userPlan !== "free" && (
               <div className="mb-6">
                 <CreditDepletedBanner plan={userPlan} />
               </div>
@@ -190,6 +209,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         </main>
       </div>
     </div>
+    </ActiveRunsProvider>
   );
 }
 

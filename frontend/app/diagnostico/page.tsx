@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, CheckCircle2, Loader2, Send, ShieldCheck } from "lucide-react";
+import { ArrowLeft, BarChart3, CheckCircle2, Loader2, MessageSquareText, Send, ShieldCheck } from "lucide-react";
 import { Button } from "@/components/ds/Button";
 import { Logo } from "@/components/ds/Logo";
-import { getAttribution, track } from "@/lib/tracking";
+import { currentAttributionPath, getAttribution, trackDiagnosticLead } from "@/lib/tracking";
 
 type DiagnosticForm = {
   name: string;
@@ -53,7 +53,7 @@ export default function DiagnosticoPage() {
           role: form.role,
           profile_or_post: form.profileOrPost,
           context: form.context || null,
-          source_path: window.location.pathname,
+          source_path: currentAttributionPath(),
           attribution,
           website: "",
         }),
@@ -64,7 +64,7 @@ export default function DiagnosticoPage() {
         throw new Error(payload.detail || "Não foi possível enviar agora.");
       }
 
-      track("diagnostic_request_submitted", {
+      await trackDiagnosticLead({
         role: form.role,
         attribution,
       });
@@ -103,18 +103,18 @@ export default function DiagnosticoPage() {
             Diagnóstico gratuito
           </span>
           <h1 className="mt-5" style={{ color: "var(--text-primary)", fontFamily: "'Outfit', sans-serif", fontSize: "clamp(2rem, 5vw, 3.4rem)", fontWeight: 800, letterSpacing: "0", lineHeight: 1.04 }}>
-            Me mande um perfil ou post público. Eu devolvo 3 achados práticos.
+            Envie um perfil ou post público. Receba 3 achados práticos.
           </h1>
           <p className="mt-5 text-lg leading-8" style={{ color: "var(--text-muted)" }}>
-            A ideia é simples: olhar comentários reais e mostrar sentimento geral, temas que aparecem e pontos
-            que merecem resposta ou atenção.
+            O Sentimenta analisa comentários reais e mostra o sentimento geral, os temas que aparecem e os
+            pontos que merecem resposta ou atenção.
           </p>
 
           <div className="mt-8 space-y-3">
             {[
               "Não precisa conectar conta para pedir a amostra.",
               "Use um @ público ou link de post de Instagram/YouTube.",
-              "Você recebe uma resposta manual, sem promessa inventada.",
+              "A amostra é preparada manualmente, sem simular uma análise automática.",
               "Eu respondo em até 24h úteis com uma leitura curta e acionável.",
             ].map((item) => (
               <div key={item} className="flex gap-3">
@@ -135,7 +135,8 @@ export default function DiagnosticoPage() {
                 Pedido recebido
               </h2>
               <p className="mx-auto mt-3 max-w-[420px] leading-7" style={{ color: "var(--text-muted)" }}>
-                Vou olhar o perfil/post e responder com os achados. Se faltar contexto, respondo pedindo o link certo.
+                Nossa equipe vai analisar o perfil/post e responder com os achados. Se faltar contexto,
+                pedimos o link certo por e-mail.
               </p>
               <button
                 type="button"
@@ -153,7 +154,7 @@ export default function DiagnosticoPage() {
                   Pedir diagnóstico
                 </h2>
                 <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-muted)" }}>
-                  Preencha o mínimo necessário para eu saber o que analisar.
+                  Preencha o mínimo necessário para sabermos o que analisar.
                 </p>
               </div>
 
@@ -249,6 +250,55 @@ export default function DiagnosticoPage() {
               </Button>
             </form>
           )}
+        </div>
+      </section>
+
+      <section className="px-4 pb-14 md:px-8" style={{ backgroundColor: "var(--bg-subtle)" }}>
+        <div className="mx-auto max-w-[1040px] py-12">
+          <span className="inline-flex rounded-full px-3 py-1 text-xs font-semibold" style={{ color: "var(--primary)", backgroundColor: "var(--primary-bg)" }}>
+            O que é o Sentimenta
+          </span>
+          <h2 className="mt-4 max-w-[720px] text-3xl font-bold" style={{ color: "var(--text-primary)", fontFamily: "'Outfit', sans-serif" }}>
+            A plataforma que transforma comentários em sinais de sentimento, emoção e risco
+          </h2>
+          <p className="mt-4 max-w-[680px] text-lg leading-8" style={{ color: "var(--text-muted)" }}>
+            O diagnóstico gratuito usa o mesmo motor do painel: coleta de comentários públicos de
+            Instagram e YouTube, classificação por IA e leitura clara do que está ajudando ou
+            prejudicando a sua imagem.
+          </p>
+
+          <div className="mt-8 grid grid-cols-1 gap-4 md:grid-cols-3">
+            {[
+              ["Score de sentimento", "Positivo, neutro e negativo em um número acompanhável no tempo."],
+              ["Mapa de emoções", "Alegria, raiva, tristeza e surpresa para entender o porquê da reação."],
+              ["Sinais de risco", "Críticas recorrentes e alertas antes de virarem crise pública."],
+            ].map(([title, description]) => (
+              <div key={title} className="rounded-lg border p-5" style={{ borderColor: "var(--border)", backgroundColor: "var(--bg-card)" }}>
+                <div className="mb-3 flex items-center gap-2">
+                  <BarChart3 className="h-5 w-5" style={{ color: "var(--primary)" }} />
+                  <h3 className="font-semibold" style={{ color: "var(--text-primary)" }}>{title}</h3>
+                </div>
+                <p className="text-sm leading-6" style={{ color: "var(--text-muted)" }}>{description}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-8 flex flex-col items-start gap-4 rounded-lg border p-6 md:flex-row md:items-center md:justify-between" style={{ borderColor: "var(--border)", backgroundColor: "var(--bg-card)" }}>
+            <div className="flex items-start gap-3">
+              <MessageSquareText className="mt-1 h-5 w-5 shrink-0" style={{ color: "var(--primary)" }} />
+              <p className="max-w-[560px] leading-7" style={{ color: "var(--text-secondary)" }}>
+                Prefere explorar por conta própria? Inicie um trial de 14 dias com cartão e use
+                1.000 créditos de teste para analisar comentários reais no painel.
+              </p>
+            </div>
+            <Link
+              href="/login"
+              className="inline-flex shrink-0 items-center justify-center rounded-xl px-6 py-3 text-sm font-semibold"
+              style={{ color: "white", backgroundColor: "var(--primary)" }}
+            >
+              Iniciar trial de 14 dias
+            </Link>
+          </div>
         </div>
       </section>
     </main>

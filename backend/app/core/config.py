@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     API_PREFIX: str = "/api/v1"
     READ_ONLY_MODE: bool = os.getenv("READ_ONLY_MODE", "false").lower() == "true"
     QA_LOCAL_MODE: bool = os.getenv("QA_LOCAL_MODE", "false").lower() == "true"
+    BLOG_MEDIA_DIR: str = os.getenv("BLOG_MEDIA_DIR", str(BASE_DIR / "output" / "blog_media"))
+    BLOG_MEDIA_MAX_BYTES: int = int(os.getenv("BLOG_MEDIA_MAX_BYTES", str(10 * 1024 * 1024)))
 
     # Database
     DATABASE_URL: str = os.getenv(
@@ -83,11 +85,15 @@ class Settings(BaseSettings):
     OPENROUTER_API_KEY: str = os.getenv("OPENROUTER_API_KEY", "")
     LLM_MODEL: str = os.getenv("LLM_MODEL", "google/gemini-2.5-flash")
     LLM_BASE_URL: str = os.getenv("LLM_BASE_URL", "https://openrouter.ai/api/v1")
+    INTERNAL_ANALYSIS_API_KEY: str = os.getenv("INTERNAL_ANALYSIS_API_KEY", "")
 
     # LLM daily cost limit per user (USD)
     LLM_DAILY_LIMIT_USD: float = float(os.getenv("LLM_DAILY_LIMIT_USD", "1.0"))
 
     # Pipeline
+    # P3.1: análise paralela entre posts (cada worker usa a própria sessão de DB).
+    # 4 workers × ~25 comentários/min por worker ≈ 100/min — meta: 500 em <5 min.
+    ANALYSIS_MAX_WORKERS: int = int(os.getenv("ANALYSIS_MAX_WORKERS", "4"))
     DEFAULT_MAX_COMMENTS: int = int(os.getenv("DEFAULT_MAX_COMMENTS", "500"))
     DEFAULT_BATCH_SIZE: int = int(os.getenv("DEFAULT_BATCH_SIZE", "30"))
     PROMPT_VERSION: str = os.getenv("PROMPT_VERSION", "v1")

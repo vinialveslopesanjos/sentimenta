@@ -26,8 +26,8 @@ desenvolvimento e QA local; não deve ser apontado para produção.
 Na raiz do repositório:
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\dev\qa_seed.py
-.\.venv\Scripts\python.exe scripts\dev\qa_seed.py --verify-only
+.\.venv\Scripts\python.exe scripts\dev\qa_seed.py --anchor now
+.\.venv\Scripts\python.exe scripts\dev\qa_seed.py --anchor now --verify-only
 ```
 
 Para gerar apenas cenários específicos:
@@ -38,8 +38,10 @@ Para gerar apenas cenários específicos:
   --scenario partial_run
 ```
 
-O anchor padrão é `2026-08-26T12:00:00+00:00`. Outro anchor pode ser passado
-com `--anchor`, mas testes comparativos devem fixar o mesmo valor.
+O anchor padrão é `2026-08-26T12:00:00+00:00`. Use `--anchor now` para QA de
+produto em tempo real, pois saúde, frescor e a janela operacional de 24 horas
+dependem do relógio atual. Testes comparativos e reprodução de evidências devem
+usar um timestamp ISO fixo e repetir exatamente o mesmo valor.
 
 Determinismo aqui significa:
 

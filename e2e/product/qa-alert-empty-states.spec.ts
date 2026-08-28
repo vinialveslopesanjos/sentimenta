@@ -82,7 +82,9 @@ test.describe("Alert empty states through real synthetic QA accounts", () => {
       if (scenario.productState === "monitoring_interrupted") {
         await expect(diagnosisEvidence).toHaveAttribute("data-recommendation-mode", "historical_only");
         await expect(diagnosisEvidence).toHaveAttribute("data-report-source", "none");
-        await expect(diagnosisEvidence).toContainText("02 de jul. de 2026 a 07 de jul. de 2026");
+        await expect(diagnosisEvidence).toContainText(
+          /\d{2} de [a-zç]+\. de \d{4} a \d{2} de [a-zç]+\. de \d{4}/i,
+        );
         await expect(page.getByRole("heading", { name: "Leitura histórica do período observado." })).toBeVisible();
         await expect(page.getByText(/o momento favorece/i)).toHaveCount(0);
         await diagnosisEvidence.scrollIntoViewIfNeeded();

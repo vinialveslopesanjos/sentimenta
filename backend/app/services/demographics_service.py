@@ -223,7 +223,7 @@ def _scrape_profile_batch(usernames: list[str], token: str) -> list[dict]:
 
     try:
         with httpx.Client(timeout=PROFILE_TIMEOUT) as client:
-            resp = client.post(run_url, params={"token": token}, json=payload)
+            resp = client.post(run_url, params={"token": token, "maxTotalChargeUsd": "2"}, json=payload)
             resp.raise_for_status()
             items = resp.json()
 

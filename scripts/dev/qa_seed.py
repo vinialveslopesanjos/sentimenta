@@ -102,6 +102,8 @@ OPS_ADMIN_EMAIL = f"qa.ops_admin@{QA_EMAIL_DOMAIN}"
 
 
 def _parse_anchor(value: str) -> datetime:
+    if value.strip().lower() == "now":
+        return datetime.now(timezone.utc).replace(microsecond=0)
     parsed = datetime.fromisoformat(value.replace("Z", "+00:00"))
     if parsed.tzinfo is None:
         parsed = parsed.replace(tzinfo=timezone.utc)
@@ -784,7 +786,11 @@ def verify_database(db_path: Path, anchor: datetime, scenario_slugs: list[str]) 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--db-path", default=str(DEFAULT_DB_PATH))
-    parser.add_argument("--anchor", default=DEFAULT_ANCHOR)
+    parser.add_argument(
+        "--anchor",
+        default=DEFAULT_ANCHOR,
+        help="ISO-8601 timestamp for reproducible fixtures, or 'now' for live freshness checks.",
+    )
     parser.add_argument("--scenario", action="append", choices=sorted(SCENARIO_BY_SLUG), help="Repeat to seed a subset; default is all eight.")
     parser.add_argument("--verify-only", action="store_true")
     args = parser.parse_args()

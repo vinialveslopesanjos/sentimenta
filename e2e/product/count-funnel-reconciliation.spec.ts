@@ -39,7 +39,7 @@ test("one canonical funnel reconciles dashboard, profile, comparison, and logs",
     { name: "dashboard", path: "/dashboard", ready: page.getByTestId("dashboard-reputation-summary") },
     { name: "profile", path: `/dashboard/profile/${connectionId}`, ready: page.getByTestId("profile-reputation-summary") },
     { name: "comparison", path: "/dashboard/analysis", ready: page.getByRole("heading", { name: "Análise Comparativa" }) },
-    { name: "logs", path: "/dashboard/logs", ready: page.getByRole("heading", { name: "Logs de Pipeline" }) },
+    { name: "logs", path: "/dashboard/logs", ready: page.getByRole("heading", { name: "Atividade" }) },
   ];
   const observed: Array<Record<string, string | null>> = [];
 

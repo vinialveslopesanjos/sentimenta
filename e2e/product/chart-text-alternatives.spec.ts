@@ -69,7 +69,7 @@ test("decisions and exact chart values remain available without reading color or
   await expect(page.getByTestId("dashboard-score-trend-text-alternative")).toBeVisible();
 
   const trendSummary = page.getByTestId("dashboard-score-trend-summary");
-  await expect(trendSummary).toContainText("caiu 3,2 pontos, de 7,1 para 4");
+  await expect(trendSummary).toContainText(/caiu \d+(?:,\d+)? pontos, de \d+(?:,\d+)? para \d+(?:,\d+)?/);
   await expectEveryVisibleChartHasTextData(page, 7);
   await expect(page.getByTestId("dashboard-emotion-radar-summary")).toContainText("Maior valor no período: Confiança, com 100%.");
   await expect(page.getByTestId("dashboard-activity-heatmap-summary")).toContainText("1 comentário");
@@ -78,20 +78,33 @@ test("decisions and exact chart values remain available without reading color or
   await expect(trendTable.getByRole("columnheader", { name: "Período" })).toBeVisible();
   await expect(trendTable.getByRole("columnheader", { name: "Score" })).toBeVisible();
   await expect(trendTable.locator("tbody tr")).toHaveCount(2);
-  await expect(trendTable.locator("tbody tr").first()).toContainText("7,1");
-  await expect(trendTable.locator("tbody tr").last()).toContainText("4");
+  const firstScore = Number(
+    (await trendTable.locator("tbody tr").first().locator("td").nth(1).innerText()).replace(",", "."),
+  );
+  const lastScore = Number(
+    (await trendTable.locator("tbody tr").last().locator("td").nth(1).innerText()).replace(",", "."),
+  );
+  const scoreDrop = firstScore - lastScore;
+  expect(scoreDrop).toBeGreaterThan(0);
+  const ptNumber = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 1 });
+  const enNumber = new Intl.NumberFormat("en-US", { maximumFractionDigits: 1 });
+  await expect(trendSummary).toContainText(
+    `caiu ${ptNumber.format(scoreDrop)} pontos, de ${ptNumber.format(firstScore)} para ${ptNumber.format(lastScore)}`,
+  );
 
   await page.getByRole("button", { name: "EN", exact: true }).click();
-  await expect(trendSummary).toContainText("fell 3.2 points, from 7.1 to 4");
+  await expect(trendSummary).toContainText(
+    `fell ${enNumber.format(scoreDrop)} points, from ${enNumber.format(firstScore)} to ${enNumber.format(lastScore)}`,
+  );
   await page.getByRole("button", { name: "PT", exact: true }).click();
-  await expect(trendSummary).toContainText("caiu 3,2 pontos");
+  await expect(trendSummary).toContainText(`caiu ${ptNumber.format(scoreDrop)} pontos`);
 
   const profileHref = await page.locator('a[href*="/dashboard/profile/"]').first().getAttribute("href");
   expect(profileHref).toBeTruthy();
 
   await page.goto("/dashboard/analysis");
   await expect(page.getByTestId("comparison-score-trend-text-alternative")).toBeVisible();
-  await expect(page.getByTestId("comparison-score-trend-summary")).toContainText("caiu 3,2 pontos");
+  await expect(page.getByTestId("comparison-score-trend-summary")).toContainText(`caiu ${ptNumber.format(scoreDrop)} pontos`);
   await expectEveryVisibleChartHasTextData(page, 2);
 
   await page.goto(profileHref!);
@@ -100,7 +113,7 @@ test("decisions and exact chart values remain available without reading color or
 
   const temporalCard = page.getByRole("heading", { name: "Análise Temporal", exact: true }).locator("xpath=../../..");
   await temporalCard.getByRole("button", { name: "Score", exact: true }).click();
-  await expect(page.getByTestId("profile-temporal-score-summary")).toContainText("caiu 3,2 pontos");
+  await expect(page.getByTestId("profile-temporal-score-summary")).toContainText(`caiu ${ptNumber.format(scoreDrop)} pontos`);
   await temporalCard.getByRole("button", { name: "Sentimento", exact: true }).click();
   await expect(page.getByTestId("profile-temporal-sentiment-data-table")).toHaveCount(1);
   await temporalCard.getByRole("button", { name: "Emoções", exact: true }).click();

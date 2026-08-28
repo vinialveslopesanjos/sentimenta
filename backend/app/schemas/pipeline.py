@@ -36,12 +36,15 @@ class PipelineRunResponse(BaseModel):
     connection_username: str | None = None
     run_type: str
     status: str
+    stage: str | None = None
     posts_fetched: int
     comments_fetched: int
     comments_analyzed: int
     llm_calls: int
     errors_count: int
     total_cost_usd: float
+    apify_cost_usd: float = 0.0
+    credits_consumed: int = 0
     started_at: datetime
     ended_at: datetime | None
     notes: str | None
@@ -55,6 +58,7 @@ class PipelineRunResponse(BaseModel):
 
 class PipelineStatusResponse(BaseModel):
     status: str
+    stage: str | None = None
     posts_fetched: int
     comments_fetched: int
     comments_analyzed: int

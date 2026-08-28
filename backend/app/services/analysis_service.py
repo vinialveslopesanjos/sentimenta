@@ -78,8 +78,14 @@ def analyze_post_comments(
     post_id: uuid.UUID,
     batch_size: int = 50,
     prompt_version: str = "v1",
+    skip_vision: bool = False,
 ) -> dict:
-    """Analyze pending comments for a post, skipping already-analyzed rows."""
+    """Analyze pending comments for a post, skipping already-analyzed rows.
+
+    skip_vision=True pula a geração de contexto visual (Vision LLM, ~8s/post) —
+    usado pela Prévia Mágica anônima, onde a legenda já dá contexto suficiente
+    e velocidade importa mais que a análise da imagem.
+    """
     analysis_exists = _analysis_exists_expression(db, prompt_version)
 
     # Repair stale pending rows: if analysis exists, mark processed.
@@ -139,7 +145,7 @@ def analyze_post_comments(
 
     llm = LLMClient()
 
-    stats = {"attempted": 0, "analyzed": 0, "errors": 0, "llm_calls": 0}
+    stats = {"attempted": 0, "analyzed": 0, "errors": 0, "llm_calls": 0, "cost_usd": 0.0}
 
     post_context = {}
     persona_text = None
@@ -149,7 +155,7 @@ def analyze_post_comments(
             post_context["post_caption"] = post.content_text
         
         # Auto-generate image context via Vision LLM if missing
-        if not post.image_context and isinstance(post.media_urls, dict):
+        if not skip_vision and not post.image_context and isinstance(post.media_urls, dict):
             image_url = post.media_urls.get("url") or post.media_urls.get("thumbnail_url")
             if image_url:
                 logger.info("Generating visual context for post %s using Vision LLM...", str(post.id))
@@ -159,8 +165,9 @@ def analyze_post_comments(
                         post.image_context = generated_context
                         db.commit()
                         logger.info("Visual context successfully generated and saved.")
-                        # Delay after image API call to respect Gemini rate limits
-                        time.sleep(5)
+                        # P3.1: sem sleep fixo aqui. A chamada Vision (~8s) já
+                        # auto-limita o ritmo e o OpenRouter aguenta 200+ RPM —
+                        # o sleep(5) por post custava ~25 min numa run de 300 posts.
                     else:
                         logger.warning("Failed to generate useful visual context: %s", generated_context)
                 except Exception as e:
@@ -287,6 +294,7 @@ def analyze_post_comments(
                     )
 
                 stats["attempted"] += 1
+                stats["cost_usd"] += result.get("cost_estimate_usd") or 0.0
                 if is_error:
                     stats["errors"] += 1
                 else:

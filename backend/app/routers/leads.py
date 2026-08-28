@@ -1,7 +1,9 @@
 """Public lead capture endpoints."""
 
+import hashlib
 import logging
 from datetime import datetime, timezone
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, EmailStr, Field
@@ -9,6 +11,7 @@ from sqlalchemy.orm import Session
 
 from app.db.session import get_db
 from app.models.diagnostic_lead import DiagnosticLead
+from app.core.analytics import capture
 from app.services.email_service import send_support_contact_email
 
 logger = logging.getLogger(__name__)
@@ -25,6 +28,30 @@ class DiagnosticLeadRequest(BaseModel):
     source_path: str | None = Field(default=None, max_length=2000)
     attribution: dict | None = None
     website: str | None = Field(default=None, max_length=255)
+
+
+def _safe_attribution(attribution: dict | None) -> dict[str, Any]:
+    if not attribution:
+        return {}
+    clean: dict[str, Any] = {}
+    for key, value in list(attribution.items())[:30]:
+        safe_key = "".join(ch for ch in str(key) if ch.isalnum() or ch in "_-$:.")[:80]
+        if not safe_key:
+            continue
+        if value is None or isinstance(value, (bool, int, float)):
+            clean[safe_key] = value
+        else:
+            clean[safe_key] = str(value)[:200]
+    return clean
+
+
+def _lead_distinct_id(lead: DiagnosticLead) -> str:
+    attribution = lead.attribution if isinstance(lead.attribution, dict) else {}
+    client_id = attribution.get("client_telemetry_id")
+    if client_id:
+        digest = hashlib.sha256(str(client_id).encode("utf-8")).hexdigest()[:32]
+        return f"web:{digest}"
+    return f"lead:{lead.id}"
 
 
 @router.post("/diagnostic")
@@ -56,6 +83,23 @@ def create_diagnostic_lead(
     db.add(lead)
     db.commit()
     db.refresh(lead)
+
+    safe_attribution = _safe_attribution(lead.attribution)
+    capture(
+        _lead_distinct_id(lead),
+        "diagnostic_request_submitted",
+        {
+            "source": "sentimenta_backend",
+            "tracking_mode": "first_party_server",
+            "event_type": "conversion",
+            "conversion_name": "diagnostic_request",
+            "lead_id": str(lead.id),
+            "role": lead.role,
+            "source_path": lead.source_path or request.headers.get("referer") or "not_informed",
+            "email_domain": lead.email.split("@", 1)[1] if "@" in lead.email else "",
+            **{f"attr_{key}": value for key, value in safe_attribution.items()},
+        },
+    )
 
     message = "\n".join(
         [
