@@ -280,7 +280,7 @@ export default function LogsPage() {
                     ))}
                   </div>
 
-                  {run.comments_analyzed > run.comments_fetched && run.comments_fetched > 0 && (
+                  {run.comments_analyzed > run.comments_fetched && (
                     <div className="mt-3 px-4 py-2.5 rounded-xl flex items-center gap-2" style={{ backgroundColor: "var(--bg-subtle)" }}>
                       <Clock className="w-4 h-4" style={{ color: "var(--text-muted)" }} />
                       <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>

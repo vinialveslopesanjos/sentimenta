@@ -43,6 +43,7 @@ def test_completed_collection_with_zero_valid_analysis_is_an_effective_failure()
             "saved_count": 53,
             "valid_count": 0,
             "remaining_count": 53,
+            "minimum_backlog_count": 0,
             "errors_count": 0,
             "historical_valid_count": 0,
         },
@@ -92,6 +93,20 @@ def test_partial_run_points_to_its_technical_log():
         "priority": "high",
         "target": "technical_log",
     }
+
+
+def test_partial_run_with_backlog_never_presents_analysis_as_a_collection_ratio():
+    run = _run(status="partial", comments_fetched=0, comments_analyzed=150, errors_count=1)
+
+    summary = build_pipeline_run_human_summary(run)
+
+    assert summary["contract_version"] == 2
+    assert summary["effective_status"] == "attention"
+    assert summary["reason_code"] == "analysis_includes_backlog"
+    assert summary["happened"]["code"] == "analysis_includes_backlog"
+    assert summary["happened"]["parameters"]["minimum_backlog_count"] == 150
+    assert summary["impact"]["code"] == "backlog_scope_explained"
+    assert summary["next_action"]["target"] == "technical_log"
 
 
 def test_running_success_empty_and_cancelled_states_stay_explicit():
@@ -177,7 +192,7 @@ def test_runs_endpoint_preserves_raw_status_and_adds_the_human_interpretation(
     assert detail_response.status_code == 200, detail_response.text
     for payload in (list_response.json()[0], detail_response.json()):
         assert payload["status"] == "completed"
-        assert payload["human_summary"]["contract_version"] == 1
+        assert payload["human_summary"]["contract_version"] == 2
         assert payload["human_summary"]["effective_status"] == "failed"
         assert payload["human_summary"]["reason_code"] == "zero_valid_analyses"
         assert payload["human_summary"]["happened"]["parameters"]["saved_count"] == 53

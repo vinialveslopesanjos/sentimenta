@@ -1570,7 +1570,8 @@
         "collected_without_valid_analysis": "{saved_count, plural, one {The collection saved # comment, but it did not produce a valid analysis.} other {The collection saved # comments, but none produced a valid analysis.}}",
         "execution_failed_after_collection": "The update failed after saving {saved_count} comments and completing {valid_count} analyses.",
         "execution_failed_before_collection": "The update failed before saving new comments.",
-        "partial_analysis": "The run ended partially: {valid_count} out of {saved_count} comments produced a valid analysis.",
+        "analysis_includes_backlog": "The run collected {saved_count} new comments and produced {valid_count} valid analyses. At least {minimum_backlog_count} came from items saved before this collection.",
+        "partial_analysis": "The run ended partially: it collected {saved_count} comments and produced {valid_count} valid analyses during this processing.",
         "no_new_comments": "The run ended without saving new comments.",
         "analysis_completed": "The run completed {valid_count} valid analyses on previously saved data.",
         "collection_completed": "The update completed {valid_count} valid analyses from {saved_count} saved comments.",
@@ -1581,7 +1582,8 @@
         "historical_data_preserved": "This attempt did not replace the previous reading. The dashboard keeps only {historical_valid_count} historical valid analyses and does not represent the current moment.",
         "evaluation_unavailable": "The run did not leave a valid basis for scores, trends, or alerts.",
         "collected_data_unusable": "{saved_count, plural, one {The saved comment is not included in scores, trends, or alerts. The dashboard cannot assess reputation from this update.} other {The # saved comments are not included in scores, trends, or alerts. The dashboard cannot assess reputation from this update.}}",
-        "partial_basis": "The dashboard considers only {valid_count} valid analyses from this run; {remaining_count} comments are outside the reading.",
+        "backlog_scope_explained": "The {valid_count} valid analyses are included in the reading. New collection and backlog analysis use different scopes and must not be treated as a ratio.",
+        "partial_basis": "Only the {valid_count} valid analyses are included in the reading. Use the log to identify pending items; the product does not infer that total from the difference between collection and analysis.",
         "no_new_evidence": "No new evidence was added. The previous basis is preserved when available; this does not prove there were no comments on the network.",
         "valid_data_available": "This run produced {valid_count} valid analyses for the recorded reading.",
         "evaluation_unconfirmed": "Avoid interpreting reputation until the result is confirmed or the data is restored."
@@ -1625,7 +1627,7 @@
     "recentScopeNote": "Totals refer to the last 50 runs, not the full period.",
     "deleteConfirm": "Delete this run record? History is your audit trail.",
     "pendingAnalysis": "fetched comments awaiting analysis",
-    "backlogNote": "{count} analyses in this run were backlog from previous collections."
+    "backlogNote": "At least {count} analyses in this run came from items saved before this collection."
   },
   "analysis": {
     "title": "Comparative Analysis",
@@ -1849,7 +1851,9 @@
       "historicalTitle": "Historical reading — update required",
       "qualifiedTitle": "Reading limited by coverage",
       "unavailableTitle": "No valid basis to interpret this screen",
-      "denominators": "Verified basis: {valid} valid analyses out of {saved} saved items."
+      "denominators": "Verified basis: {valid} valid analyses out of {saved} saved items.",
+      "legacyHistoricalDescription": "This screen contains historical analyses, but no snapshot records the collection period, coverage, and denominators. Refresh the data before interpreting the present.",
+      "legacyDenominators": "Displayed historical basis: {valid} valid analyses out of {saved} saved items; scope is not yet verified by a snapshot."
     },
     "funnel": {
       "ariaLabel": "Reconciled count funnel",
@@ -1989,8 +1993,9 @@
       "retry": "Try again",
       "errorTitle": "Data status unavailable",
       "errorDescription": "Freshness and coverage could not be confirmed. Avoid interpreting insights until this status is restored.",
-      "noSnapshotTitle": "There is no data basis yet",
-      "noSnapshotDescription": "Connect a profile and complete the first collection before interpreting reputation.",
+      "noSnapshotTitle": "No verified collection snapshot",
+      "noSnapshotDescription": "There is no collection with a recorded period, coverage, and denominators yet. If historical data already exists, treat it only as historical and refresh it before interpreting the present.",
+      "noSnapshotAction": "Review profiles and collect",
       "states": {
         "healthy": "Data is up to date",
         "healthyNoAnalysis": "Recent collection, no valid analysis",

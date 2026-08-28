@@ -8,15 +8,23 @@ import type { SnapshotReference, TrustLanguageMode } from "@sentimenta/types";
 interface SurfaceEvidenceNoticeProps {
   snapshot: SnapshotReference | null;
   surface: "profile" | "comparison";
+  legacyEvidence?: {
+    validCount: number;
+    savedCount: number;
+  };
 }
 
-function evidenceMode(snapshot: SnapshotReference | null): TrustLanguageMode {
-  return snapshot?.language_policy.mode ?? "unavailable";
+function evidenceMode(
+  snapshot: SnapshotReference | null,
+  legacyEvidence?: SurfaceEvidenceNoticeProps["legacyEvidence"],
+): TrustLanguageMode {
+  if (snapshot) return snapshot.language_policy.mode;
+  return legacyEvidence && legacyEvidence.validCount > 0 ? "historical" : "unavailable";
 }
 
-export function SurfaceEvidenceNotice({ snapshot, surface }: SurfaceEvidenceNoticeProps) {
+export function SurfaceEvidenceNotice({ snapshot, surface, legacyEvidence }: SurfaceEvidenceNoticeProps) {
   const t = useTranslations("snapshot");
-  const mode = evidenceMode(snapshot);
+  const mode = evidenceMode(snapshot, legacyEvidence);
 
   if (mode === "current") return null;
 
@@ -30,20 +38,24 @@ export function SurfaceEvidenceNotice({ snapshot, surface }: SurfaceEvidenceNoti
       : t("surface.unavailableTitle");
   const policyMessage = snapshot
     ? t(`language.${snapshot.language_policy.message_key}`)
-    : t("global.noSnapshotDescription");
+    : legacyEvidence
+      ? t("surface.legacyHistoricalDescription")
+      : t("global.noSnapshotDescription");
   const denominators = snapshot?.valid_count != null && snapshot.saved_count != null
     ? t("surface.denominators", { valid: snapshot.valid_count, saved: snapshot.saved_count })
-    : t("denominatorsUnknown");
+    : legacyEvidence
+      ? t("surface.legacyDenominators", { valid: legacyEvidence.validCount, saved: legacyEvidence.savedCount })
+      : t("denominatorsUnknown");
   const action = snapshot?.language_policy.next_action;
 
   return (
     <section
       data-testid={`${surface}-evidence-status`}
       data-evidence-state={mode}
-      data-snapshot-health={snapshot?.health ?? "never_synced"}
-      data-snapshot-reason={snapshot?.reason_code ?? "no_snapshot"}
-      data-snapshot-valid-count={snapshot?.valid_count ?? "unknown"}
-      data-snapshot-saved-count={snapshot?.saved_count ?? "unknown"}
+      data-snapshot-health={snapshot?.health ?? (legacyEvidence ? "legacy_unverified" : "never_synced")}
+      data-snapshot-reason={snapshot?.reason_code ?? (legacyEvidence ? "legacy_without_snapshot" : "no_snapshot")}
+      data-snapshot-valid-count={snapshot?.valid_count ?? legacyEvidence?.validCount ?? "unknown"}
+      data-snapshot-saved-count={snapshot?.saved_count ?? legacyEvidence?.savedCount ?? "unknown"}
       role="status"
       aria-label={title}
       className="rounded-2xl p-4 md:p-5"

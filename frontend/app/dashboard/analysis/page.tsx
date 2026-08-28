@@ -160,9 +160,19 @@ export default function AnalysisPage() {
   const connA = data.find(d => d.connection_id === selectedA);
   const connB = data.find(d => d.connection_id === selectedB);
   const activeConns = [connA, connB].filter(Boolean) as ConnectionComparison[];
-  const comparisonEvidenceMode = comparisonSnapshot?.language_policy.mode ?? "unavailable";
+  const legacyComparisonEvidence = !comparisonSnapshot
+    ? activeConns.reduce(
+        (totals, connection) => ({
+          validCount: totals.validCount + connection.valid_count,
+          savedCount: totals.savedCount + connection.saved_count,
+        }),
+        { validCount: 0, savedCount: 0 },
+      )
+    : null;
+  const comparisonEvidenceMode = comparisonSnapshot?.language_policy.mode
+    ?? ((legacyComparisonEvidence?.validCount ?? 0) > 0 ? "historical" : "unavailable");
   const comparisonHasEvidence = comparisonEvidenceMode !== "unavailable"
-    && (comparisonSnapshot?.valid_count ?? 0) > 0;
+    && ((comparisonSnapshot?.valid_count ?? legacyComparisonEvidence?.validCount ?? 0) > 0);
   const trendChartData = useMemo(
     () => buildComparisonTimeline(trendsA.data_points, trendsB.data_points),
     [trendsA.data_points, trendsB.data_points],
@@ -326,7 +336,13 @@ export default function AnalysisPage() {
       )}
 
       {!loading && selectedA && comparisonEvidenceMode !== "current" && (
-        <SurfaceEvidenceNotice snapshot={comparisonSnapshot} surface="comparison" />
+        <SurfaceEvidenceNotice
+          snapshot={comparisonSnapshot}
+          surface="comparison"
+          legacyEvidence={legacyComparisonEvidence?.validCount
+            ? legacyComparisonEvidence
+            : undefined}
+        />
       )}
 
       {!loading && selectedA && (

@@ -451,7 +451,9 @@ export default function DashboardPage() {
   const positivePct = Math.round((positive / totalSentiment) * 100);
   const neutralPct = Math.round((neutral / totalSentiment) * 100);
   const negativePct = 100 - positivePct - neutralPct;
-  const summaryLanguageMode = summary?.snapshot?.language_policy.mode ?? "unavailable";
+  const hasLegacyEvidenceWithoutSnapshot = !summary?.snapshot && hasAnalyzedData;
+  const summaryLanguageMode = summary?.snapshot?.language_policy.mode
+    ?? (hasLegacyEvidenceWithoutSnapshot ? "historical" : "unavailable");
   const currentEvidenceAllowed = summaryLanguageMode === "current";
   const repBadge = !hasAnalyzedData
     ? {
