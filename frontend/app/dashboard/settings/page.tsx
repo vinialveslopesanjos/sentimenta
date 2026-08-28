@@ -11,6 +11,17 @@ import { Button } from "@/components/ds/Button";
 import { Badge } from "@/components/ds/Badge";
 import { GlassSocialIcon } from "@/components/GlassSocialIcons";
 import { CreditBalance } from "@/components/CreditBalance";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  PlatformCapabilityBadge,
+  PlatformCapabilityMatrix,
+} from "@/components/PlatformCapabilityMatrix";
 
 type Tab = "profile" | "billing" | "notifications" | "security" | "integrations";
 type UserData = { id: string; email: string; name: string | null; avatar_url: string | null; plan: string };
@@ -34,10 +45,18 @@ const PLAN_FALLBACK_SLUGS: Record<string, string> = {
   free: "free", starter: "starter", pro: "pro", business: "business", enterprise: "enterprise", admin: "admin", creator: "starter", agency: "business",
 };
 
-function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
+function Toggle({ on, onChange, label }: { on: boolean; onChange: () => void; label: string }) {
   return (
-    <button onClick={onChange} className="relative rounded-full transition-colors" style={{ width: 40, height: 22, backgroundColor: on ? "var(--primary)" : "var(--border)" }}>
-      <div className={`absolute top-0.5 w-[18px] h-[18px] rounded-full transition-all shadow-sm ${on ? "left-[20px]" : "left-0.5"}`} style={{ backgroundColor: "var(--bg-card)" }} />
+    <button
+      type="button"
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      onClick={onChange}
+      className="relative rounded-full transition-colors"
+      style={{ width: 40, height: 22, backgroundColor: on ? "var(--primary)" : "var(--border)" }}
+    >
+      <span aria-hidden="true" className={`absolute top-0.5 w-[18px] h-[18px] rounded-full transition-all shadow-sm ${on ? "left-[20px]" : "left-0.5"}`} style={{ backgroundColor: "var(--bg-card)" }} />
     </button>
   );
 }
@@ -298,7 +317,14 @@ function SettingsPageInner() {
                     <div className="w-16 h-16 rounded-full flex items-center justify-center" style={{ background: "linear-gradient(135deg, var(--secondary), var(--primary))" }}>
                       <span className="text-white" style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.5rem", fontWeight: 600 }}>{(firstName || user?.email || "U")[0].toUpperCase()}</span>
                     </div>
-                    <button className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center transition-colors" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
+                    <button
+                      type="button"
+                      disabled
+                      aria-label={t("profile.avatarUnavailable")}
+                      title={t("profile.avatarUnavailable")}
+                      className="absolute -bottom-1 -right-1 w-7 h-7 rounded-full flex items-center justify-center transition-colors disabled:cursor-not-allowed"
+                      style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}
+                    >
                       <Camera className="w-3.5 h-3.5" style={{ color: "var(--primary)" }} />
                     </button>
                   </div>
@@ -334,7 +360,7 @@ function SettingsPageInner() {
                     <p style={{ fontSize: "0.82rem", fontWeight: 500, color: "var(--text-primary)" }}>{t("dangerZone.deleteAccount")}</p>
                     <p style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>{t("dangerZone.deleteDescription")}</p>
                   </div>
-                  <Button variant="danger" size="sm" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setShowDeleteModal(true)}>{t("dangerZone.deleteAccount")}</Button>
+                  <Button id="delete-account-trigger" variant="danger" size="sm" icon={<Trash2 className="w-3.5 h-3.5" />} onClick={() => setShowDeleteModal(true)}>{t("dangerZone.deleteAccount")}</Button>
                 </div>
               </div>
             </>
@@ -581,7 +607,7 @@ function SettingsPageInner() {
                   ].map(ch => (
                     <div key={ch.label} className="flex items-center justify-between p-4 rounded-xl" style={{ backgroundColor: "var(--bg-subtle)" }}>
                       <div className="flex items-center gap-3"><ch.icon className="w-5 h-5" style={{ color: "var(--primary)" }} /><div><p style={{ fontSize: "0.82rem", fontWeight: 500, color: "var(--text-primary)" }}>{ch.label}</p><p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>{ch.desc}</p></div></div>
-                      <Toggle on={ch.on} onChange={ch.set} />
+                      <Toggle on={ch.on} onChange={ch.set} label={ch.label} />
                     </div>
                   ))}
                 </div>
@@ -602,7 +628,7 @@ function SettingsPageInner() {
                         <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0" style={{ backgroundColor: "var(--primary-bg)" }}><n.icon className="w-4 h-4" style={{ color: "var(--primary)" }} /></div>
                         <div><p style={{ fontSize: "0.82rem", fontWeight: 500, color: "var(--text-primary)" }}>{n.label}</p><p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>{n.desc}</p></div>
                       </div>
-                      <Toggle on={n.on} onChange={n.set} />
+                      <Toggle on={n.on} onChange={n.set} label={n.label} />
                     </div>
                   ))}
                 </div>
@@ -619,14 +645,14 @@ function SettingsPageInner() {
                     <label className="block mb-1.5" style={{ fontSize: "0.65rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>{t("security.currentPassword")}</label>
                     <div className="relative">
                       <input type={showCurrentPass ? "text" : "password"} value={currentPwd} onChange={e => setCurrentPwd(e.target.value)} placeholder="********" className={inputClass + " pr-10"} style={inputStyle} />
-                      <button type="button" onClick={() => setShowCurrentPass(!showCurrentPass)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-faint)" }}>{showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
+                      <button type="button" aria-label={showCurrentPass ? t("security.hideCurrentPassword") : t("security.showCurrentPassword")} onClick={() => setShowCurrentPass(!showCurrentPass)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-faint)" }}>{showCurrentPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
                     </div>
                   </div>
                   <div>
                     <label className="block mb-1.5" style={{ fontSize: "0.65rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>{t("security.newPassword")}</label>
                     <div className="relative">
                       <input type={showNewPass ? "text" : "password"} value={newPwd} onChange={e => setNewPwd(e.target.value)} placeholder="********" className={inputClass + " pr-10"} style={inputStyle} />
-                      <button type="button" onClick={() => setShowNewPass(!showNewPass)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-faint)" }}>{showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
+                      <button type="button" aria-label={showNewPass ? t("security.hideNewPassword") : t("security.showNewPassword")} onClick={() => setShowNewPass(!showNewPass)} className="absolute right-3 top-1/2 -translate-y-1/2" style={{ color: "var(--text-faint)" }}>{showNewPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}</button>
                     </div>
                   </div>
                   <div>
@@ -645,7 +671,7 @@ function SettingsPageInner() {
                     <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: "var(--primary-bg)" }}><Key className="w-5 h-5" style={{ color: "var(--primary)" }} /></div>
                     <div><p style={{ fontSize: "0.82rem", fontWeight: 500, color: "var(--text-primary)" }}>{t("security.appAuth")}</p><p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>{t("security.appAuthDesc")}</p></div>
                   </div>
-                  <Toggle on={twoFactor} onChange={() => setTwoFactor(!twoFactor)} />
+                  <Toggle on={twoFactor} onChange={() => setTwoFactor(!twoFactor)} label={t("security.appAuth")} />
                 </div>
               </div>
             </>
@@ -670,6 +696,7 @@ function SettingsPageInner() {
                           <div className="flex items-center gap-2">
                             <p style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--text-primary)" }}>{c.platform.charAt(0).toUpperCase() + c.platform.slice(1)}</p>
                             <Badge variant="positive">{tc("active")}</Badge>
+                            <PlatformCapabilityBadge platform={c.platform} />
                           </div>
                           <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>@{c.username}</p>
                         </div>
@@ -681,6 +708,7 @@ function SettingsPageInner() {
                   )}
                 </div>
               </div>
+              <PlatformCapabilityMatrix surface="settings" />
               {!igConnected && (
                 <div className="rounded-2xl p-5 md:p-6" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
                   <h3 className="mb-2" style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1rem", fontWeight: 600, color: "var(--text-primary)" }}>{t("integrations.instagramGraphAPI")}</h3>
@@ -695,23 +723,53 @@ function SettingsPageInner() {
         </div>
       </div>
 
-      {showDeleteModal && (
-        <div className="fixed inset-0 flex items-center justify-center p-4 z-50" style={{ backgroundColor: "rgba(0,0,0,0.3)", backdropFilter: "blur(4px)" }}>
-          <div className="rounded-2xl p-8 w-full max-w-md space-y-4" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
-            <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1rem", fontWeight: 600, color: "var(--text-primary)" }}>{t("dangerZone.confirmTitle")}</h3>
-            <p style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>{t("dangerZone.confirmInstruction")}</p>
+      <Dialog
+        open={showDeleteModal}
+        onOpenChange={(open) => {
+          setShowDeleteModal(open);
+          if (!open) {
+            setDeleteConfirmText("");
+            setDeletePassword("");
+            setDeleteMsg(null);
+          }
+        }}
+      >
+        <DialogContent
+          data-testid="delete-account-dialog"
+          aria-modal="true"
+          closeLabel={t("dangerZone.cancel")}
+          overlayClassName="bg-black/30 backdrop-blur-sm"
+          className="w-full max-w-md gap-4 rounded-2xl p-8"
+          style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            document.getElementById("delete-account-trigger")?.focus();
+          }}
+        >
+          <DialogHeader className="gap-2 pr-7 text-left">
+            <DialogTitle style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1rem", fontWeight: 600, color: "var(--text-primary)" }}>
+              {t("dangerZone.confirmTitle")}
+            </DialogTitle>
+            <DialogDescription style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
+              {t("dangerZone.confirmInstruction")}
+            </DialogDescription>
+          </DialogHeader>
             <input value={deleteConfirmText} onChange={e => setDeleteConfirmText(e.target.value)} placeholder={t("dangerZone.confirmPlaceholder")} className={inputClass} style={{ ...inputStyle, borderColor: "var(--sentiment-negative)" }} />
             <input type="password" value={deletePassword} onChange={e => setDeletePassword(e.target.value)} placeholder={t("dangerZone.currentPasswordPlaceholder")} className={inputClass} style={{ ...inputStyle, borderColor: "var(--sentiment-negative)" }} />
             {deleteMsg && <p style={{ fontSize: "0.78rem", color: "var(--sentiment-negative)" }}>{deleteMsg}</p>}
             <div className="grid grid-cols-2 gap-3">
-              <Button variant="secondary" onClick={() => { setShowDeleteModal(false); setDeleteConfirmText(""); setDeletePassword(""); setDeleteMsg(null); }}>{t("dangerZone.cancel")}</Button>
+              <Button variant="secondary" onClick={() => {
+                setShowDeleteModal(false);
+                setDeleteConfirmText("");
+                setDeletePassword("");
+                setDeleteMsg(null);
+              }}>{t("dangerZone.cancel")}</Button>
               <Button variant="danger" onClick={handleDeleteAccount} disabled={deleteConfirmText !== "DELETAR" || deletingAccount}>
                 {deletingAccount ? t("dangerZone.deleting") : t("dangerZone.deletePermanently")}
               </Button>
             </div>
-          </div>
-        </div>
-      )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

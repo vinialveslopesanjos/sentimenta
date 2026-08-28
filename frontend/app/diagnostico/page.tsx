@@ -114,8 +114,8 @@ export default function DiagnosticoPage() {
             {[
               "Não precisa conectar conta para pedir a amostra.",
               "Use um @ público ou link de post de Instagram/YouTube.",
-              "Análise feita pelo motor do Sentimenta, com revisão humana.",
-              "Resposta em até 24h úteis, com uma leitura curta e acionável.",
+              "A amostra é preparada manualmente, sem simular uma análise automática.",
+              "Eu respondo em até 24h úteis com uma leitura curta e acionável.",
             ].map((item) => (
               <div key={item} className="flex gap-3">
                 <CheckCircle2 className="mt-1 h-5 w-5 shrink-0" style={{ color: "var(--sentiment-positive)" }} />

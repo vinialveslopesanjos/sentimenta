@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, type ReactNode } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
+import Link from "next/link";
 import { useRouter, useParams } from "next/navigation";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import {
   ArrowLeft, Heart, MessageCircle, Eye, RefreshCw, ChevronRight,
 } from "lucide-react";
@@ -32,10 +33,15 @@ import { DemographicsOverview, SentimentByAge, SentimentByGender, EmotionsByGend
 import EmotionRadarCard from "@/components/EmotionRadarCard";
 import { GlassHeartIcon, GlassZapIcon, GlassPeopleIcon, GlassShieldIcon } from "@/components/GlassIcons";
 import { GlassSocialIcon } from "@/components/GlassSocialIcons";
+import { SurfaceEvidenceNotice } from "@/components/data/SurfaceEvidenceNotice";
+import { CountFunnel } from "@/components/data/CountFunnel";
+import { ProvenanceDrawer } from "@/components/data/ProvenanceDrawer";
 import WordCloudChart from "@/components/charts/WordCloudChart";
+import { ChartTextAlternative } from "@/components/charts/ChartTextAlternative";
 import YouTubeStats from "@/components/YouTubeStats";
 
 import { getToken } from "@/lib/auth";
+import { formatChartNumber, getPeakFact, getPeriodRange, getTrendFact } from "@/lib/chartAccessibility";
 import {
   dashboardApi, connectionsApi, postsApi, commentsApi, demographicsApi, authApi,
 } from "@/lib/api";
@@ -195,9 +201,12 @@ export default function ProfileDetailPage() {
   const params = useParams();
   const id = params.id as string;
   const { t } = useTheme();
+  const locale = useLocale();
   const ti = useTranslations("profile");
   const tc = useTranslations("common");
   const td = useTranslations("dashboard");
+  const tca = useTranslations("charts.accessibility");
+  const snapshotProvenance = useTranslations("snapshot.provenance");
 
   // ── state ──
   const [activeTab, setActiveTab] = useState("Volume");
@@ -205,9 +214,16 @@ export default function ProfileDetailPage() {
   const [granularity, setGranularity] = useState("week");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [provenanceOpen, setProvenanceOpen] = useState(false);
+  const provenanceTriggerRef = useRef<HTMLButtonElement>(null);
   const [postSort, setPostSort] = useState<"recent" | "score">("recent");
   const [postLimit, setPostLimit] = useState<number>(10);
   const [sentimentTemporalMode, setSentimentTemporalMode] = useState<"grouped" | "stacked100">("grouped");
+
+  const closeProvenance = useCallback(() => {
+    setProvenanceOpen(false);
+    requestAnimationFrame(() => provenanceTriggerRef.current?.focus());
+  }, []);
 
   // ── data ──
   const [dashboard, setDashboard] = useState<ConnectionDashboard | null>(null);
@@ -380,14 +396,29 @@ export default function ProfileDetailPage() {
   const score = dashboard?.avg_score ?? dashboard?.weighted_avg_score ?? 0;
   const totalComments = dashboard?.total_comments ?? 0;
   const totalAnalyzed = dashboard?.total_analyzed ?? 0;
+  const profileSnapshot = dashboard?.snapshot ?? null;
+  const profileLanguageMode = profileSnapshot?.language_policy.mode ?? "unavailable";
+  const snapshotValidCount = profileSnapshot?.valid_count;
+  const hasProfileEvidence = totalAnalyzed > 0 && (snapshotValidCount == null || snapshotValidCount > 0);
+  const profileNeverSynced = profileSnapshot?.health === "never_synced";
+  const profileConnectedWithoutAnalysis = !hasProfileEvidence && profileSnapshot?.health === "healthy";
+  const profileEvidenceIsCurrent = profileLanguageMode === "current";
+  const profileEvidenceIsHistorical = profileLanguageMode === "historical" || profileLanguageMode === "qualified";
+
+  useEffect(() => {
+    if (!hasProfileEvidence && activeTab !== "Volume") {
+      setActiveTab("Volume");
+    }
+  }, [activeTab, hasProfileEvidence]);
+
   const sentDist = dashboard?.sentiment_distribution;
   const positive = sentDist?.positive ?? 0;
   const neutral = sentDist?.neutral ?? 0;
   const negative = sentDist?.negative ?? 0;
-  const totalSent = positive + neutral + negative || 1;
-  const posPct = Math.round((positive / totalSent) * 100);
-  const neuPct = Math.round((neutral / totalSent) * 100);
-  const negPct = 100 - posPct - neuPct;
+  const totalSent = positive + neutral + negative;
+  const posPct = totalSent > 0 ? Math.round((positive / totalSent) * 100) : 0;
+  const neuPct = totalSent > 0 ? Math.round((neutral / totalSent) * 100) : 0;
+  const negPct = totalSent > 0 ? 100 - posPct - neuPct : 0;
 
   const engagementTotals = dashboard?.engagement_totals;
   const totalLikes = engagementTotals?.total_likes ?? 0;
@@ -395,17 +426,25 @@ export default function ProfileDetailPage() {
   const totalCommentsEng = engagementTotals?.total_comments ?? totalComments;
   const engagementRate = followersCount > 0 ? ((totalCommentsEng / followersCount) * 100).toFixed(2) : "0.00";
 
-  const polarizationLabel = negPct >= 40 ? ti("polarizationLevels.high") : negPct >= 25 ? ti("polarizationLevels.moderate") : ti("polarizationLevels.low");
-  const polarizationSub = `${negPct}% neg. vs ${posPct}% pos.`;
+  const polarizationLabel = hasProfileEvidence
+    ? negPct >= 40
+      ? ti("polarizationLevels.high")
+      : negPct >= 25
+        ? ti("polarizationLevels.moderate")
+        : ti("polarizationLevels.low")
+    : ti("notAvailable");
+  const polarizationSub = hasProfileEvidence
+    ? `${negPct}% neg. vs ${posPct}% pos.`
+    : ti("notAvailableWithoutAnalysis");
 
   // ── emotions for radar ──
   const radarData = useMemo(() => {
-    if (!dashboard?.emotions_distribution) return [];
+    if (!hasProfileEvidence || !dashboard?.emotions_distribution) return [];
     return Object.entries(dashboard.emotions_distribution).map(([emotion, value]) => ({
       emotion,
       value,
     }));
-  }, [dashboard?.emotions_distribution]);
+  }, [dashboard?.emotions_distribution, hasProfileEvidence]);
 
   // ── word cloud — handled by WordCloudChart component ──
 
@@ -454,29 +493,63 @@ export default function ProfileDetailPage() {
     });
   }, [sentimentTemporalData]);
 
-  const profileScorePercent = Math.min(100, Math.max(0, score * 10));
+  const profileScorePercent = hasProfileEvidence ? Math.min(100, Math.max(0, score * 10)) : 0;
   const firstTrendScore = scoreTemporalData.find(point => point.score > 0)?.score ?? null;
   const lastTrendScore = scoreTemporalData.length > 0 ? scoreTemporalData[scoreTemporalData.length - 1].score : null;
   const profileTrendDelta = firstTrendScore != null && lastTrendScore != null ? Number((lastTrendScore - firstTrendScore).toFixed(1)) : null;
-  const dominantProfileEmotion = [...radarData].sort((a, b) => b.value - a.value)[0]?.emotion ?? td("diagnosticHero.noEmotion");
-  const profileSentimentDriver = negPct >= 35
-    ? td("diagnosticHero.driverNegative", { pct: negPct })
-    : posPct >= 50
-      ? td("diagnosticHero.driverPositive", { pct: posPct })
-      : td("diagnosticHero.driverMixed", { positive: posPct, negative: negPct });
-  const profileTrendNarrative = profileTrendDelta == null
-    ? td("diagnosticHero.trendUnknown")
-    : profileTrendDelta > 0.2
-      ? td("diagnosticHero.trendUp", { delta: profileTrendDelta.toFixed(1) })
-      : profileTrendDelta < -0.2
-        ? td("diagnosticHero.trendDown", { delta: Math.abs(profileTrendDelta).toFixed(1) })
-        : td("diagnosticHero.trendStable");
-  const profileDiagnosticTitle = score >= 7
-    ? td("diagnosticHero.titleGood")
-    : score >= 4
-      ? td("diagnosticHero.titleAttention")
-      : td("diagnosticHero.titleCritical");
-  const profileReputationVariant: "positive" | "warning" | "negative" = score >= 7 ? "positive" : score >= 4 ? "warning" : "negative";
+  const dominantProfileEmotion = hasProfileEvidence && [...radarData].sort((a, b) => b.value - a.value)[0]?.value > 0
+    ? [...radarData].sort((a, b) => b.value - a.value)[0].emotion
+    : td("diagnosticHero.noEmotion");
+  const profileSentimentDriver = !hasProfileEvidence
+    ? profileNeverSynced
+      ? td("diagnosticHero.neverSyncedDriver")
+      : profileConnectedWithoutAnalysis
+        ? td("diagnosticHero.connectedEmptyDriver")
+        : td("diagnosticHero.unavailableDriver", { saved: profileSnapshot?.saved_count ?? totalComments })
+    : !profileEvidenceIsCurrent
+      ? negPct >= 35
+        ? td("diagnosticHero.historicalDriverNegative", { pct: negPct })
+        : posPct >= 50
+          ? td("diagnosticHero.historicalDriverPositive", { pct: posPct })
+          : td("diagnosticHero.historicalDriverMixed", { positive: posPct, negative: negPct })
+      : negPct >= 35
+        ? td("diagnosticHero.driverNegative", { pct: negPct })
+        : posPct >= 50
+          ? td("diagnosticHero.driverPositive", { pct: posPct })
+          : td("diagnosticHero.driverMixed", { positive: posPct, negative: negPct });
+  const profileTrendNarrative = profileNeverSynced
+    ? td("diagnosticHero.neverSyncedBoundary")
+    : !profileEvidenceIsCurrent
+      ? td("diagnosticHero.nonCurrentBoundary")
+    : profileTrendDelta == null
+      ? td("diagnosticHero.trendUnknown")
+      : profileTrendDelta > 0.2
+        ? td("diagnosticHero.trendUp", { delta: profileTrendDelta.toFixed(1) })
+        : profileTrendDelta < -0.2
+          ? td("diagnosticHero.trendDown", { delta: Math.abs(profileTrendDelta).toFixed(1) })
+          : td("diagnosticHero.trendStable");
+  const profileDiagnosticTitle = !hasProfileEvidence
+    ? profileNeverSynced
+      ? td("diagnosticHero.titleNeverSynced")
+      : profileConnectedWithoutAnalysis
+        ? td("diagnosticHero.titleConnectedEmpty")
+        : td("diagnosticHero.titleUnavailable")
+    : !profileEvidenceIsCurrent
+      ? td("diagnosticHero.titleHistorical")
+      : score >= 7
+        ? td("diagnosticHero.titleGood")
+        : score >= 4
+          ? td("diagnosticHero.titleAttention")
+          : td("diagnosticHero.titleCritical");
+  const profileReputationVariant: "primary" | "positive" | "warning" | "negative" = !hasProfileEvidence
+    ? "primary"
+    : profileEvidenceIsHistorical
+      ? "warning"
+      : score >= 7
+        ? "positive"
+        : score >= 4
+          ? "warning"
+          : "negative";
 
   const emotionTemporalData = useMemo(() => {
     if (!trendsDetailed?.data_points) return [];
@@ -535,14 +608,14 @@ export default function ProfileDetailPage() {
           comments: p.comment_count,
           date: formatDate(p.published_at),
           dateRaw: p.published_at || "",
-          score: p.summary?.avg_score ?? 0,
+          score: (p.summary?.total_analyzed ?? 0) > 0 && typeof p.summary?.avg_score === "number" ? p.summary.avg_score : null,
           platform: p.platform,
           imageUrl,
         };
       });
     // Sort
     if (postSort === "score") {
-      allPosts.sort((a, b) => b.score - a.score);
+      allPosts.sort((a, b) => (b.score ?? -1) - (a.score ?? -1));
     } else {
       allPosts.sort((a, b) => (b.dateRaw > a.dateRaw ? 1 : -1));
     }
@@ -553,7 +626,7 @@ export default function ProfileDetailPage() {
 
   // ── gap analysis posts ──
   const gapPosts = useMemo(() => {
-    if (!gapData?.posts) return [];
+    if (!hasProfileEvidence || !gapData?.posts) return [];
     const rawRates = gapData.posts.map((p) => Math.max(0, p.engagement ?? 0));
     const minRate = Math.min(...rawRates);
     const maxRate = Math.max(...rawRates);
@@ -571,11 +644,11 @@ export default function ProfileDetailPage() {
       sentiment: p.sentiment,
       comments: p.comments,
     }));
-  }, [gapData]);
+  }, [gapData, hasProfileEvidence]);
 
   // ── ambassadors / detractors ──
   const ambassadorsList = useMemo(() => {
-    if (!ambassadorsData?.ambassadors) return [];
+    if (!hasProfileEvidence || !ambassadorsData?.ambassadors) return [];
     return ambassadorsData.ambassadors.map((a: any) => ({
       username: a.username,
       comments: a.count,
@@ -586,10 +659,10 @@ export default function ProfileDetailPage() {
       age_band: a.age_band,
       location_state: a.location_state,
     }));
-  }, [ambassadorsData]);
+  }, [ambassadorsData, hasProfileEvidence]);
 
   const detractorsList = useMemo(() => {
-    if (!ambassadorsData?.detractors) return [];
+    if (!hasProfileEvidence || !ambassadorsData?.detractors) return [];
     return ambassadorsData.detractors.map((d: any) => ({
       username: d.username,
       comments: d.count,
@@ -600,11 +673,12 @@ export default function ProfileDetailPage() {
       age_band: d.age_band,
       location_state: d.location_state,
     }));
-  }, [ambassadorsData]);
+  }, [ambassadorsData, hasProfileEvidence]);
 
   // ── topic treemap from topics_frequency ──
   const topicNodes = useMemo(() => {
     const MAX_TOPICS = 10;
+    if (!hasProfileEvidence) return [];
     // Prefer topics_with_scores from enriched endpoint
     const topicsWithScores = (dashboard as any)?.topics_with_scores;
     if (topicsWithScores && Array.isArray(topicsWithScores) && topicsWithScores.length > 0) {
@@ -629,7 +703,7 @@ export default function ProfileDetailPage() {
         count,
         avgScore: score,
       }));
-  }, [dashboard, score]);
+  }, [dashboard, hasProfileEvidence, score]);
 
   // ── heatmap (empty placeholder if API didn't return) ──
   const [heatmapData, setHeatmapData] = useState<number[][] | null>(null);
@@ -646,11 +720,11 @@ export default function ProfileDetailPage() {
     return comments.map((c) => ({
       user: c.author_username || c.author_name || "unknown",
       text: c.text_original,
-      emotion: c.analysis?.emotions?.[0] ?? "N/A",
-      score: c.analysis?.score_0_10 ?? 5,
+      emotion: c.analysis?.emotions?.[0] ?? "",
+      score: c.analysis?.score_0_10 ?? null,
       date: c.published_at ? formatDate(c.published_at) : "",
       post: "",
-      sentiment: getSentimentLabel(c.analysis?.score_0_10 ?? 5),
+      sentiment: c.analysis?.score_0_10 != null ? getSentimentLabel(c.analysis.score_0_10) : "Pendente",
     }));
   }, [comments]);
 
@@ -673,6 +747,56 @@ export default function ProfileDetailPage() {
     }));
     return [...topPositive, ...topNegative];
   }, [comments]);
+
+  const describeScoreTrend = (series: string, fact: ReturnType<typeof getTrendFact>) => {
+    if (!fact) return "";
+    if (fact.start === fact.end) {
+      return tca("singlePoint", {
+        series,
+        value: formatChartNumber(fact.to, locale),
+        unit: tca("units.scoreShort"),
+        period: fact.end,
+      });
+    }
+    const values = {
+      series,
+      delta: formatChartNumber(Math.abs(fact.delta), locale),
+      unit: tca("units.scoreShort"),
+      from: formatChartNumber(fact.from, locale),
+      to: formatChartNumber(fact.to, locale),
+      start: fact.start,
+      end: fact.end,
+    };
+    if (fact.direction === "up") return tca("trendUp", values);
+    if (fact.direction === "down") return tca("trendDown", values);
+    return tca("trendStable", values);
+  };
+  const volumePeak = getPeakFact(volumeData, point => point.date, point => point.volume);
+  const scoreTrendFact = getTrendFact(scoreTemporalData, point => point.date, point => point.score);
+  const sentimentTotals = sentimentTemporalData.reduce(
+    (totals, point) => ({
+      positivo: totals.positivo + point.positivo,
+      neutro: totals.neutro + point.neutro,
+      negativo: totals.negativo + point.negativo,
+    }),
+    { positivo: 0, neutro: 0, negativo: 0 },
+  );
+  const sentimentTotal = sentimentTotals.positivo + sentimentTotals.neutro + sentimentTotals.negativo;
+  const dominantSentiment = (Object.entries(sentimentTotals) as Array<[keyof typeof sentimentTotals, number]>)
+    .sort((a, b) => b[1] - a[1])[0];
+  const sentimentLabels = {
+    positivo: tc("positive"),
+    neutro: tc("neutral"),
+    negativo: tc("negative"),
+  };
+  const emotionCells = emotionTemporalData.flatMap(row => Object.entries(row)
+    .filter(([key, value]) => key !== "date" && Number.isFinite(Number(value)))
+    .map(([key, value]) => ({ date: String(row.date), key, value: Number(value) })));
+  const emotionPeak = [...emotionCells].sort((a, b) => b.value - a.value)[0] ?? null;
+  const topicCells = topicTemporalData.flatMap(row => Object.entries(row)
+    .filter(([key, value]) => key !== "date" && Number.isFinite(Number(value)))
+    .map(([key, value]) => ({ date: String(row.date), key, value: Number(value) })));
+  const topicPeak = [...topicCells].sort((a, b) => b.value - a.value)[0] ?? null;
 
   // ── handle analyze (com preflight de créditos) ──
   const { refresh: refreshRuns } = useActiveRuns();
@@ -712,99 +836,258 @@ export default function ProfileDetailPage() {
     switch (activeTab) {
       case "Volume":
         return (
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={volumeData} margin={CHART_MARGIN}>
-              <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
-              <XAxis dataKey="date" {...COMPACT_X_AXIS} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: `0 4px 16px ${t.primary}15`, fontSize: "0.78rem", backgroundColor: t.bgCard }} />
-              <Bar dataKey="volume" fill={t.primary} radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <>
+            <div data-chart-visual="profile-temporal-volume">
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={volumeData} margin={CHART_MARGIN} accessibilityLayer={false}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
+                  <XAxis dataKey="date" {...COMPACT_X_AXIS} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
+                  <Tooltip contentStyle={{ borderRadius: 12, border: "none", boxShadow: `0 4px 16px ${t.primary}15`, fontSize: "0.78rem", backgroundColor: t.bgCard }} />
+                  <Bar dataKey="volume" fill={t.primary} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            {volumeData.length > 0 && (
+              <ChartTextAlternative
+                chartId="profile-temporal-volume"
+                title={`${ti("temporalAnalysis")} — ${td("tabs.volume")}`}
+                summary={volumePeak ? tca("peak", {
+                  value: formatChartNumber(volumePeak.value, locale, 0),
+                  unit: volumePeak.value === 1 ? tca("units.commentSingular") : tca("units.commentsShort"),
+                  period: volumePeak.period,
+                }) : ""}
+                period={getPeriodRange(volumeData, point => point.date, tca("currentSlice"))}
+                unit={tca("units.comments")}
+                columns={[
+                  { key: "date", label: tca("columns.date") },
+                  { key: "volume", label: tca("columns.comments"), numeric: true },
+                ]}
+                rows={volumeData.map(point => ({
+                  date: point.date,
+                  volume: formatChartNumber(point.volume, locale, 0),
+                }))}
+              />
+            )}
+          </>
         );
       case "Score":
         return (
-          <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={scoreTemporalData} margin={CHART_MARGIN}>
-              <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
-              <XAxis dataKey="date" {...COMPACT_X_AXIS} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
-              <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
-              <Area type="monotone" dataKey="score" stroke={t.primary} fill={t.primary} fillOpacity={0.1} strokeWidth={2.5} dot={{ r: 3, fill: t.primary, strokeWidth: 0 }} />
-            </AreaChart>
-          </ResponsiveContainer>
+          <>
+            <div data-chart-visual="profile-temporal-score">
+              <ResponsiveContainer width="100%" height={240}>
+                <AreaChart data={scoreTemporalData} margin={CHART_MARGIN} accessibilityLayer={false}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
+                  <XAxis dataKey="date" {...COMPACT_X_AXIS} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+                  <YAxis domain={[0, 10]} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
+                  <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
+                  <Area type="monotone" dataKey="score" stroke={t.primary} fill={t.primary} fillOpacity={0.1} strokeWidth={2.5} dot={{ r: 3, fill: t.primary, strokeWidth: 0 }} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+            {scoreTemporalData.length > 0 && (
+              <ChartTextAlternative
+                chartId="profile-temporal-score"
+                title={`${ti("temporalAnalysis")} — ${td("tabs.score")}`}
+                summary={describeScoreTrend(td("tabs.score"), scoreTrendFact)}
+                period={getPeriodRange(scoreTemporalData, point => point.date, tca("currentSlice"))}
+                unit={tca("units.score")}
+                columns={[
+                  { key: "date", label: tca("columns.date") },
+                  { key: "score", label: tca("columns.score"), numeric: true },
+                ]}
+                rows={scoreTemporalData.map(point => ({
+                  date: point.date,
+                  score: formatChartNumber(point.score, locale),
+                }))}
+              />
+            )}
+          </>
         );
       case "Sentimento":
         if (sentimentTemporalMode === "stacked100") {
           return (
-            <ResponsiveContainer width="100%" height={280}>
-              <BarChart data={sentimentTemporalPctData} barGap={2} margin={CHART_MARGIN}>
-                <CartesianGrid strokeDasharray="3 3" stroke="color-mix(in srgb, var(--accent) 28%, transparent)" vertical={false} />
-                <XAxis dataKey="date" {...COMPACT_X_AXIS} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
-                <YAxis
-                  domain={[0, 100]}
-                  ticks={[0, 25, 50, 75, 100]}
-                  tickFormatter={(value) => `${value}%`}
-                  tick={{ fontSize: 10, fill: t.textFaint }}
-                  axisLine={false}
-                  tickLine={false}
-                  width={36}
+            <>
+              <div data-chart-visual="profile-temporal-sentiment">
+                <ResponsiveContainer width="100%" height={280}>
+                  <BarChart data={sentimentTemporalPctData} barGap={2} margin={CHART_MARGIN} accessibilityLayer={false}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="color-mix(in srgb, var(--accent) 28%, transparent)" vertical={false} />
+                    <XAxis dataKey="date" {...COMPACT_X_AXIS} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+                    <YAxis
+                      domain={[0, 100]}
+                      ticks={[0, 25, 50, 75, 100]}
+                      tickFormatter={(value) => `${value}%`}
+                      tick={{ fontSize: 10, fill: t.textFaint }}
+                      axisLine={false}
+                      tickLine={false}
+                      width={36}
+                    />
+                    <Tooltip
+                      contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }}
+                      formatter={(value, name) => [`${Number(value ?? 0)}%`, String(name)]}
+                    />
+                    <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
+                    <Bar dataKey="positivo" name={tc("positive")} fill={t.sentimentPositive} stackId="sentiment" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="neutro" name={tc("neutral")} fill={t.sentimentNeutral} stackId="sentiment" radius={[0, 0, 0, 0]} />
+                    <Bar dataKey="negativo" name={tc("negative")} fill={t.sentimentNegative} stackId="sentiment" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+              {sentimentTemporalPctData.length > 0 && dominantSentiment && (
+                <ChartTextAlternative
+                  chartId="profile-temporal-sentiment"
+                  title={`${ti("temporalAnalysis")} — ${td("tabs.sentiment")}`}
+                  summary={tca("dominantPercent", {
+                    category: sentimentLabels[dominantSentiment[0]],
+                    value: sentimentTotal > 0 ? Math.round((dominantSentiment[1] / sentimentTotal) * 100) : 0,
+                  })}
+                  period={getPeriodRange(sentimentTemporalPctData, point => point.date, tca("currentSlice"))}
+                  unit={tca("units.percentage")}
+                  columns={[
+                    { key: "date", label: tca("columns.date") },
+                    { key: "negative", label: tc("negative"), numeric: true },
+                    { key: "neutral", label: tc("neutral"), numeric: true },
+                    { key: "positive", label: tc("positive"), numeric: true },
+                  ]}
+                  rows={sentimentTemporalPctData.map(point => ({
+                    date: point.date,
+                    negative: `${point.negativo}%`,
+                    neutral: `${point.neutro}%`,
+                    positive: `${point.positivo}%`,
+                  }))}
                 />
-                <Tooltip
-                  contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }}
-                  formatter={(value, name) => [`${Number(value ?? 0)}%`, String(name)]}
-                />
-                <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
-                <Bar dataKey="positivo" name={tc("positive")} fill={t.sentimentPositive} stackId="sentiment" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="neutro" name={tc("neutral")} fill={t.sentimentNeutral} stackId="sentiment" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="negativo" name={tc("negative")} fill={t.sentimentNegative} stackId="sentiment" radius={[4, 4, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+              )}
+            </>
           );
         }
         return (
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={sentimentTemporalData} barGap={4} margin={CHART_MARGIN}>
-              <CartesianGrid strokeDasharray="3 3" stroke="color-mix(in srgb, var(--accent) 28%, transparent)" vertical={false} />
-              <XAxis dataKey="date" {...COMPACT_X_AXIS} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
-              <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
-              <Bar dataKey="negativo" name={tc("negative")} fill={t.sentimentNegative} radius={[4, 4, 0, 0]} />
-              <Bar dataKey="neutro" name={tc("neutral")} fill={t.sentimentNeutral} radius={[4, 4, 0, 0]} />
-              <Bar dataKey="positivo" name={tc("positive")} fill={t.sentimentPositive} radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
+          <>
+            <div data-chart-visual="profile-temporal-sentiment">
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={sentimentTemporalData} barGap={4} margin={CHART_MARGIN} accessibilityLayer={false}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="color-mix(in srgb, var(--accent) 28%, transparent)" vertical={false} />
+                  <XAxis dataKey="date" {...COMPACT_X_AXIS} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
+                  <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
+                  <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
+                  <Bar dataKey="negativo" name={tc("negative")} fill={t.sentimentNegative} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="neutro" name={tc("neutral")} fill={t.sentimentNeutral} radius={[4, 4, 0, 0]} />
+                  <Bar dataKey="positivo" name={tc("positive")} fill={t.sentimentPositive} radius={[4, 4, 0, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            {sentimentTemporalData.length > 0 && dominantSentiment && (
+              <ChartTextAlternative
+                chartId="profile-temporal-sentiment"
+                title={`${ti("temporalAnalysis")} — ${td("tabs.sentiment")}`}
+                  summary={tca("dominant", {
+                    category: sentimentLabels[dominantSentiment[0]],
+                    value: formatChartNumber(dominantSentiment[1], locale, 0),
+                    unit: dominantSentiment[1] === 1 ? tca("units.commentSingular") : tca("units.commentsShort"),
+                  })}
+                period={getPeriodRange(sentimentTemporalData, point => point.date, tca("currentSlice"))}
+                unit={tca("units.comments")}
+                columns={[
+                  { key: "date", label: tca("columns.date") },
+                  { key: "negative", label: tc("negative"), numeric: true },
+                  { key: "neutral", label: tc("neutral"), numeric: true },
+                  { key: "positive", label: tc("positive"), numeric: true },
+                ]}
+                rows={sentimentTemporalData.map(point => ({
+                  date: point.date,
+                  negative: formatChartNumber(point.negativo, locale, 0),
+                  neutral: formatChartNumber(point.neutro, locale, 0),
+                  positive: formatChartNumber(point.positivo, locale, 0),
+                }))}
+              />
+            )}
+          </>
         );
       case "Emocoes":
         return (
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={emotionTemporalData} margin={CHART_MARGIN}>
-              <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
-              <XAxis dataKey="date" {...COMPACT_X_AXIS} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
-              <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
-              {emotionKeys.map((key, i) => (
-                <Bar key={key} dataKey={key} name={key.charAt(0).toUpperCase() + key.slice(1)} fill={t.chart[i % t.chart.length]} stackId="emotions" radius={i === emotionKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
-              ))}
-            </BarChart>
-          </ResponsiveContainer>
+          <>
+            <div data-chart-visual="profile-temporal-emotions">
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={emotionTemporalData} margin={CHART_MARGIN} accessibilityLayer={false}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
+                  <XAxis dataKey="date" {...COMPACT_X_AXIS} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
+                  <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
+                  <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
+                  {emotionKeys.map((key, i) => (
+                    <Bar key={key} dataKey={key} name={key.charAt(0).toUpperCase() + key.slice(1)} fill={t.chart[i % t.chart.length]} stackId="emotions" radius={i === emotionKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            {emotionTemporalData.length > 0 && emotionPeak && (
+              <ChartTextAlternative
+                chartId="profile-temporal-emotions"
+                title={`${ti("temporalAnalysis")} — ${td("tabs.emotions")}`}
+                summary={tca("dominant", {
+                  category: `${emotionPeak.key} · ${emotionPeak.date}`,
+                  value: formatChartNumber(emotionPeak.value, locale, 0),
+                  unit: tca("units.occurrences"),
+                })}
+                period={getPeriodRange(emotionTemporalData, point => String(point.date), tca("currentSlice"))}
+                unit={tca("units.occurrences")}
+                columns={[
+                  { key: "date", label: tca("columns.date") },
+                  ...emotionKeys.map(key => ({ key, label: key.charAt(0).toUpperCase() + key.slice(1), numeric: true })),
+                ]}
+                rows={emotionTemporalData.map(point => ({
+                  date: String(point.date),
+                  ...Object.fromEntries(emotionKeys.map(key => [
+                    key,
+                    typeof point[key] === "number" ? formatChartNumber(Number(point[key]), locale, 0) : null,
+                  ])),
+                }))}
+              />
+            )}
+          </>
         );
       case "Topicos":
         return (
-          <ResponsiveContainer width="100%" height={240}>
-            <BarChart data={topicTemporalData} margin={CHART_MARGIN}>
-              <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
-              <XAxis dataKey="date" {...COMPACT_X_AXIS} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
-              <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
-              <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
-              {topicKeys.map((key, i) => (
-                <Bar key={key} dataKey={key} name={key.charAt(0).toUpperCase() + key.slice(1)} fill={t.chart[i % t.chart.length]} stackId="topics" radius={i === topicKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
-              ))}
-            </BarChart>
-          </ResponsiveContainer>
+          <>
+            <div data-chart-visual="profile-temporal-topics">
+              <ResponsiveContainer width="100%" height={240}>
+                <BarChart data={topicTemporalData} margin={CHART_MARGIN} accessibilityLayer={false}>
+                  <CartesianGrid strokeDasharray="3 3" stroke={t.border} vertical={false} />
+                  <XAxis dataKey="date" {...COMPACT_X_AXIS} tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: t.textFaint }} axisLine={false} tickLine={false} width={30} />
+                  <Tooltip contentStyle={{ borderRadius: 12, border: "none", fontSize: "0.78rem", backgroundColor: t.bgCard }} />
+                  <Legend iconType="circle" iconSize={6} wrapperStyle={{ fontSize: "0.72rem" }} />
+                  {topicKeys.map((key, i) => (
+                    <Bar key={key} dataKey={key} name={key.charAt(0).toUpperCase() + key.slice(1)} fill={t.chart[i % t.chart.length]} stackId="topics" radius={i === topicKeys.length - 1 ? [4, 4, 0, 0] : [0, 0, 0, 0]} />
+                  ))}
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+            {topicTemporalData.length > 0 && topicPeak && (
+              <ChartTextAlternative
+                chartId="profile-temporal-topics"
+                title={`${ti("temporalAnalysis")} — ${td("tabs.topics")}`}
+                summary={tca("dominant", {
+                  category: `${topicPeak.key} · ${topicPeak.date}`,
+                  value: formatChartNumber(topicPeak.value, locale, 0),
+                  unit: tca("units.occurrences"),
+                })}
+                period={getPeriodRange(topicTemporalData, point => String(point.date), tca("currentSlice"))}
+                unit={tca("units.occurrences")}
+                columns={[
+                  { key: "date", label: tca("columns.date") },
+                  ...topicKeys.map(key => ({ key, label: key.charAt(0).toUpperCase() + key.slice(1), numeric: true })),
+                ]}
+                rows={topicTemporalData.map(point => ({
+                  date: String(point.date),
+                  ...Object.fromEntries(topicKeys.map(key => [
+                    key,
+                    typeof point[key] === "number" ? formatChartNumber(Number(point[key]), locale, 0) : null,
+                  ])),
+                }))}
+              />
+            )}
+          </>
         );
       default:
         return null;
@@ -840,7 +1123,7 @@ export default function ProfileDetailPage() {
     <div className="space-y-8">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <button onClick={() => router.push("/dashboard")} className="p-1.5 rounded-xl transition-colors shrink-0">
+        <button type="button" aria-label={ti("backToDashboard")} onClick={() => router.push("/dashboard")} className="p-1.5 rounded-xl transition-colors shrink-0">
           <ArrowLeft className="w-4 h-4" style={{ color: "var(--primary)" }} />
         </button>
         <GlassSocialIcon platform={platform} size={36} />
@@ -848,8 +1131,8 @@ export default function ProfileDetailPage() {
           <h1 className="truncate" style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>
             {username.startsWith("@") ? username : `@${username}`}
           </h1>
-          <Badge variant={connectionStatus === "active" ? "positive" : "muted"} dot>
-            {connectionStatus === "active" ? tc("active") : connectionStatus.toUpperCase()}
+          <Badge variant="muted">
+            {connectionStatus === "active" ? ti("registrationConnected") : ti("registrationNeedsAttention")}
           </Badge>
         </div>
         <Button variant="primary" size="sm" icon={<RefreshCw className="w-3.5 h-3.5" />} onClick={handleAnalyze} className="shrink-0">
@@ -857,16 +1140,33 @@ export default function ProfileDetailPage() {
         </Button>
       </div>
 
+      <SurfaceEvidenceNotice snapshot={profileSnapshot} surface="profile" />
+      <CountFunnel snapshot={profileSnapshot} surface="profile" />
+      <ProvenanceDrawer snapshot={profileSnapshot} open={provenanceOpen} onClose={closeProvenance} />
+
       <ProfileQuestionGroup
-        eyebrow="Resumo"
-        title="Como está a reputação agora?"
-        description="Uma leitura inicial do humor da audiência antes dos recortes por público, tópico e post."
+        eyebrow={ti("reputationSummary.eyebrow")}
+        title={profileEvidenceIsCurrent
+          ? ti("reputationSummary.currentTitle")
+          : profileEvidenceIsHistorical
+            ? ti("reputationSummary.historicalTitle")
+            : ti("reputationSummary.unavailableTitle")}
+        description={profileEvidenceIsCurrent
+          ? ti("reputationSummary.currentDescription")
+          : profileEvidenceIsHistorical
+            ? ti("reputationSummary.historicalDescription")
+            : profileNeverSynced
+              ? ti("reputationSummary.neverSyncedDescription")
+              : ti("reputationSummary.unavailableDescription")}
       >
         <div className="space-y-4">
           <div
             className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.22fr)_minmax(260px,0.78fr)] gap-4 ui-reveal"
           >
             <div
+              data-testid="profile-reputation-summary"
+              data-evidence-state={profileLanguageMode}
+              data-snapshot-health={profileSnapshot?.health ?? "unknown"}
               className="rounded-2xl p-5 md:p-6"
               style={{
                 background: "linear-gradient(135deg, color-mix(in srgb, var(--primary-bg) 60%, var(--bg-card)) 0%, color-mix(in srgb, var(--accent-bg) 78%, var(--bg-card)) 100%)",
@@ -875,7 +1175,15 @@ export default function ProfileDetailPage() {
               }}
             >
               <Badge variant={profileReputationVariant} dot>
-                {score >= 7 ? td("goodReputation") : score >= 4 ? td("attentionNeeded") : td("criticalReputation")}
+                {!hasProfileEvidence
+                  ? td("noValidAnalysis")
+                  : profileEvidenceIsHistorical
+                    ? td("diagnosticHero.historicalBadge")
+                    : score >= 7
+                      ? td("goodReputation")
+                      : score >= 4
+                        ? td("attentionNeeded")
+                        : td("criticalReputation")}
               </Badge>
               <h2 className="mt-4" style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.35rem", fontWeight: 850, color: "var(--text-primary)", lineHeight: 1.18 }}>
                 {profileDiagnosticTitle}
@@ -887,7 +1195,7 @@ export default function ProfileDetailPage() {
                 {[
                   { label: td("diagnosticHero.trendLabel"), value: profileTrendDelta == null ? td("diagnosticHero.noTrendShort") : `${profileTrendDelta > 0 ? "+" : ""}${profileTrendDelta.toFixed(1)}` },
                   { label: td("diagnosticHero.mainEmotion"), value: dominantProfileEmotion },
-                  { label: ti("stats.total"), value: fmtNum(totalAnalyzed || totalComments) },
+                  { label: ti("stats.totalAnalyzed"), value: fmtNum(totalAnalyzed) },
                 ].map(item => (
                   <div key={item.label} className="min-w-0">
                     <p style={{ fontSize: "0.65rem", fontWeight: 800, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.06em" }}>{item.label}</p>
@@ -910,19 +1218,38 @@ export default function ProfileDetailPage() {
                   <p style={{ fontSize: "0.72rem", fontWeight: 800, color: "var(--text-muted)", letterSpacing: "0.08em", textTransform: "uppercase" }}>{ti("stats.score")}</p>
                   <p className="mt-1" style={{ fontSize: "0.78rem", color: "var(--text-faint)" }}>{td("outOf10")}</p>
                 </div>
-                <div className="relative w-24 h-24 shrink-0">
-                  <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
-                    <circle cx="50" cy="50" r="41" fill="none" stroke="color-mix(in srgb, var(--primary) 14%, var(--bg-subtle))" strokeWidth="8" />
-                    <circle cx="50" cy="50" r="41" fill="none" stroke={score >= 7 ? t.sentimentPositive : score >= 4 ? t.primary : t.sentimentNegative} strokeWidth="8" strokeLinecap="round" strokeDasharray={`${profileScorePercent * 2.58} ${258 - profileScorePercent * 2.58}`} />
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.65rem", fontWeight: 850, color: "var(--text-primary)" }}>{score.toFixed(1)}</span>
-                  </div>
+                <button
+                  ref={provenanceTriggerRef}
+                  type="button"
+                  data-testid="profile-score-provenance-trigger"
+                  aria-label={snapshotProvenance(hasProfileEvidence ? "open" : "openUnavailable")}
+                  disabled={!profileSnapshot}
+                  onClick={() => setProvenanceOpen(true)}
+                  className="group shrink-0 rounded-2xl p-1 text-center disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  <span className="relative block h-24 w-24">
+                    <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90 transition-transform group-hover:scale-[1.03]">
+                      <circle cx="50" cy="50" r="41" fill="none" stroke="color-mix(in srgb, var(--primary) 14%, var(--bg-subtle))" strokeWidth="8" />
+                      <circle cx="50" cy="50" r="41" fill="none" stroke={hasProfileEvidence ? (score >= 7 ? t.sentimentPositive : score >= 4 ? t.primary : t.sentimentNegative) : "var(--text-faint)"} strokeWidth="8" strokeLinecap="round" strokeDasharray={`${profileScorePercent * 2.58} ${258 - profileScorePercent * 2.58}`} />
+                    </svg>
+                    <span className="absolute inset-0 flex flex-col items-center justify-center">
+                      <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.65rem", fontWeight: 850, color: "var(--text-primary)" }}>{hasProfileEvidence ? score.toFixed(1) : "—"}</span>
+                    </span>
+                  </span>
+                  <span className="mt-1 inline-flex rounded-full px-2 py-1" style={{ backgroundColor: "var(--primary-bg)", color: "var(--primary)", fontSize: "0.6rem", fontWeight: 800 }}>
+                    {snapshotProvenance(hasProfileEvidence ? "openShort" : "openShortUnavailable")}
+                  </span>
+                </button>
+              </div>
+              {hasProfileEvidence ? (
+                <div className="mt-5">
+                  <SentimentBar positive={positive} neutral={neutral} negative={negative} height={10} showLabels />
                 </div>
-              </div>
-              <div className="mt-5">
-                <SentimentBar positive={positive} neutral={neutral} negative={negative} height={10} showLabels />
-              </div>
+              ) : (
+                <p className="mt-5" style={{ color: "var(--text-muted)", fontSize: "0.75rem", lineHeight: 1.55 }}>
+                  {ti("notAvailableWithoutAnalysis")}
+                </p>
+              )}
             </div>
           </div>
 
@@ -933,7 +1260,7 @@ export default function ProfileDetailPage() {
               tintBg="var(--primary-bg)"
               icon={<GlassHeartIcon size={32} />}
               label={ti("stats.score")}
-              value={score.toFixed(1)}
+              value={hasProfileEvidence ? score.toFixed(1) : "—"}
               sub="/10"
             />
             <StatCard
@@ -1014,7 +1341,7 @@ export default function ProfileDetailPage() {
         <FeaturedComments comments={featuredComments} />
       )}
 
-      {hasDemographics && ((demoOverview && demoOverview.enrichment_coverage.enriched > 0) || sentimentByAge || sentimentByGender || emotionsByGender) && (
+      {hasProfileEvidence && hasDemographics && ((demoOverview && demoOverview.enrichment_coverage.enriched > 0) || sentimentByAge || sentimentByGender || emotionsByGender) && (
         <ProfileQuestionHeader
           eyebrow="Públicos"
           title="Quais públicos explicam o sentimento?"
@@ -1023,7 +1350,7 @@ export default function ProfileDetailPage() {
       )}
 
       {/* Demographics Overview */}
-      {hasDemographics && demoOverview && demoOverview.enrichment_coverage.enriched > 0 && (
+      {hasProfileEvidence && hasDemographics && demoOverview && demoOverview.enrichment_coverage.enriched > 0 && (
         <DemographicsOverview
           genderDist={demoOverview.gender_distribution}
           ageDist={demoOverview.age_distribution}
@@ -1034,7 +1361,7 @@ export default function ProfileDetailPage() {
       )}
 
       {/* Sentiment by Age + Gender side by side */}
-      {hasDemographics && (sentimentByAge || sentimentByGender) && (
+      {hasProfileEvidence && hasDemographics && (sentimentByAge || sentimentByGender) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           {sentimentByAge && sentimentByAge.length > 0 && (
             <SentimentByAge data={sentimentByAge} />
@@ -1046,16 +1373,27 @@ export default function ProfileDetailPage() {
       )}
 
       {(gapPosts.length > 0 || ambassadorsList.length > 0 || detractorsList.length > 0) && (
-        <ProfileQuestionHeader
-          eyebrow="Prioridades"
-          title="Onde investigar primeiro?"
-          description="Posts extremos e pessoas recorrentes mostram onde a reação merece leitura mais próxima."
-        />
+        <>
+          {profileEvidenceIsHistorical && (
+            <aside
+              data-testid="profile-historical-boundary"
+              className="rounded-2xl px-4 py-3"
+              style={{ backgroundColor: "var(--accent-bg)", border: "1px solid color-mix(in srgb, var(--accent) 32%, var(--border))", color: "var(--text-primary)", fontSize: "0.78rem", lineHeight: 1.6 }}
+            >
+              {ti("historicalBoundary")}
+            </aside>
+          )}
+          <ProfileQuestionHeader
+            eyebrow="Prioridades"
+            title={ti(`evidenceSections.priorities.${profileEvidenceIsHistorical ? "historicalTitle" : "currentTitle"}`)}
+            description={ti(`evidenceSections.priorities.${profileEvidenceIsHistorical ? "historicalDescription" : "currentDescription"}`)}
+          />
+        </>
       )}
 
       {/* Gap Analysis */}
       {gapPosts.length > 0 && (
-        <GapAnalysis posts={gapPosts} platformLabel={platformLabel} />
+        <GapAnalysis posts={gapPosts} platformLabel={platformLabel} historical={profileEvidenceIsHistorical} />
       )}
 
       {/* Ambassadors vs Detractors */}
@@ -1063,11 +1401,11 @@ export default function ProfileDetailPage() {
         <AmbassadorsVsDetractors ambassadors={ambassadorsList} detractors={detractorsList} platformLabel={platformLabel} />
       )}
 
-      {(topicNodes.length > 0 || (topicEmotionData && topicEmotionData.topics.length > 0)) && (
+      {hasProfileEvidence && (topicNodes.length > 0 || (topicEmotionData && topicEmotionData.topics.length > 0)) && (
         <ProfileQuestionHeader
           eyebrow="Tópicos"
-          title="Quais temas estão puxando a conversa?"
-          description="Temas com volume e emoção forte revelam o que está dando forma ao sentimento."
+          title={ti(`evidenceSections.topics.${profileEvidenceIsHistorical ? "historicalTitle" : "currentTitle"}`)}
+          description={ti(`evidenceSections.topics.${profileEvidenceIsHistorical ? "historicalDescription" : "currentDescription"}`)}
         />
       )}
 
@@ -1077,11 +1415,11 @@ export default function ProfileDetailPage() {
       )}
 
       {/* Topic x Emotion Matrix */}
-      {topicEmotionData && topicEmotionData.topics.length > 0 && (
+      {hasProfileEvidence && topicEmotionData && topicEmotionData.topics.length > 0 && (
         <TopicEmotionHeatmap matrix={{ topics: topicEmotionData.topics, emotions: topicEmotionData.emotions, data: topicEmotionData.matrix }} platformLabel={platformLabel} />
       )}
 
-      {(hasEmotionsByGender || radarData.length > 0 || (dashboard?.word_frequency && Object.keys(dashboard.word_frequency).length > 0) || (heatmapData && heatmapData.length > 0)) && (
+      {hasProfileEvidence && (hasEmotionsByGender || radarData.length > 0 || (dashboard?.word_frequency && Object.keys(dashboard.word_frequency).length > 0) || (heatmapData && heatmapData.length > 0)) && (
         <ProfileQuestionHeader
           eyebrow="Contexto"
           title="Que sinais dão textura para a leitura?"
@@ -1097,39 +1435,61 @@ export default function ProfileDetailPage() {
               <EmotionsByGender data={emotionsByGender} />
             )}
             {radarData.length > 0 && (
-              <EmotionRadarCard title={ti("emotionRadar")} data={radarData} compact />
+              <EmotionRadarCard title={ti("emotionRadar")} data={radarData} compact chartId="profile-emotion-radar" />
             )}
           </div>
         )}
-        {dashboard?.word_frequency && Object.keys(dashboard.word_frequency).length > 0 && (
+        {hasProfileEvidence && dashboard?.word_frequency && Object.keys(dashboard.word_frequency).length > 0 && (
           <Section title={ti("wordCloud")} subtitle={ti("wordCloudSub")}>
-            <WordCloudChart topics={dashboard.word_frequency} maxWords={30} height={220} />
+            <WordCloudChart
+              topics={dashboard.word_frequency}
+              maxWords={30}
+              height={220}
+              title={ti("wordCloud")}
+              chartId="profile-word-cloud"
+            />
           </Section>
         )}
       </div>
 
       {/* Heatmap — above temporal and posts */}
-      {heatmapData && heatmapData.length > 0 && (
-        <Heatmap data={heatmapData} />
+      {hasProfileEvidence && heatmapData && heatmapData.length > 0 && (
+        <Heatmap data={heatmapData} chartId="profile-activity-heatmap" />
       )}
 
       <ProfileQuestionHeader
         eyebrow="Evidência"
-        title="Como a reputação se moveu ao longo do tempo?"
-        description="A evolução temporal, os posts e os comentários deixam a leitura auditável."
+        title={profileEvidenceIsCurrent
+          ? td("sections.reputation.title")
+          : profileEvidenceIsHistorical
+            ? td("sections.reputation.historicalTitle")
+            : td("sections.reputation.unavailableTitle")}
+        description={profileEvidenceIsCurrent
+          ? td("sections.reputation.description")
+          : profileEvidenceIsHistorical
+            ? td("sections.reputation.historicalDescription")
+            : td("sections.reputation.unavailableDescription")}
       />
 
       {/* Temporal */}
-      <Section title={ti("temporalAnalysis")} subtitle={ti("temporalSub")}>
+      <Section
+        title={hasProfileEvidence ? ti("temporalAnalysis") : ti("collectionTimeline")}
+        subtitle={hasProfileEvidence ? ti("temporalSub") : ti("collectionTimelineSub")}
+      >
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <div className="flex items-center gap-1 rounded-xl p-1" style={{ backgroundColor: "color-mix(in srgb, var(--bg-card) 60%, transparent)", border: "0.5px solid var(--border)", backdropFilter: "blur(12px)", boxShadow: "0 2px 10px -2px rgba(0,0,0,0.05)" }}>
-            {(["Volume", "Score", "Sentimento", "Emocoes", "Topicos"] as const).map((tab) => {
-              const tabLabels: Record<string, string> = { Volume: td("tabs.volume"), Score: td("tabs.score"), Sentimento: td("tabs.sentiment"), Emocoes: td("tabs.emotions"), Topicos: td("tabs.topics") };
-              return (
-              <button key={tab} onClick={() => setActiveTab(tab)} className="px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap" style={{ fontSize: "0.72rem", fontWeight: 500, backgroundColor: activeTab === tab ? "var(--primary)" : "transparent", color: activeTab === tab ? "var(--primary-foreground)" : "var(--text-muted)", boxShadow: activeTab === tab ? "0 4px 16px -4px var(--primary)" : "none" }}>
-                {tabLabels[tab]}
-              </button>);
-            })}
+          <div className="min-w-0 w-full overflow-x-auto rounded-xl sm:w-auto" style={{ backgroundColor: "color-mix(in srgb, var(--bg-card) 60%, transparent)", border: "0.5px solid var(--border)", backdropFilter: "blur(12px)", boxShadow: "0 2px 10px -2px rgba(0,0,0,0.05)" }}>
+            <div className="flex w-max items-center gap-1 p-1">
+              {(hasProfileEvidence
+                ? (["Volume", "Score", "Sentimento", "Emocoes", "Topicos"] as const)
+                : (["Volume"] as const)
+              ).map((tab) => {
+                const tabLabels: Record<string, string> = { Volume: td("tabs.volume"), Score: td("tabs.score"), Sentimento: td("tabs.sentiment"), Emocoes: td("tabs.emotions"), Topicos: td("tabs.topics") };
+                return (
+                <button key={tab} type="button" aria-pressed={activeTab === tab} onClick={() => setActiveTab(tab)} className="px-3 py-1.5 rounded-lg transition-all duration-200 whitespace-nowrap" style={{ fontSize: "0.72rem", fontWeight: 500, backgroundColor: activeTab === tab ? "var(--primary)" : "transparent", color: activeTab === tab ? "var(--primary-foreground)" : "var(--text-muted)", boxShadow: activeTab === tab ? "0 4px 16px -4px var(--primary)" : "none" }}>
+                  {tabLabels[tab]}
+                </button>);
+              })}
+            </div>
           </div>
           <div className="flex items-center gap-2">
             {activeTab === "Sentimento" && (
@@ -1190,9 +1550,14 @@ export default function ProfileDetailPage() {
         }>
           <div className="space-y-0.5">
             {posts.map((post, i) => {
-              const ss = getScoreStyle(post.score);
+              const ss = post.score != null ? getScoreStyle(post.score) : null;
               return (
-                <div key={post.id || i} onClick={() => router.push(`/dashboard/post/${post.id}`)} className="flex items-center gap-4 p-3 rounded-xl cursor-pointer transition-colors group">
+                <Link
+                  key={post.id || i}
+                  href={`/dashboard/post/${post.id}?from=profile&connection_id=${id}`}
+                  data-testid={`profile-post-${post.id}`}
+                  className="flex items-center gap-4 p-3 rounded-xl cursor-pointer transition-colors group"
+                >
                   <div className="w-10 h-10 rounded-lg shrink-0 overflow-hidden flex items-center justify-center" style={{ backgroundColor: "var(--bg-subtle)" }}>
                     {post.imageUrl ? (
                       <img src={`/api/v1/posts/thumbnail?url=${encodeURIComponent(post.imageUrl)}&post_id=${encodeURIComponent(post.shortcode)}`} alt="" className="w-full h-full object-cover" onError={e => { const el = e.target as HTMLImageElement; el.style.display = "none"; el.parentElement!.querySelector("span")?.removeAttribute("style"); }} />
@@ -1205,11 +1570,17 @@ export default function ProfileDetailPage() {
                     <p className="truncate" style={{ fontSize: "0.82rem", fontWeight: 500, color: "var(--text-primary)" }}>{post.title}</p>
                     <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>{platformLabel} &middot; {post.comments} com. &middot; {post.date}</p>
                   </div>
-                  <span className="px-2 py-0.5 rounded-lg" style={{ fontSize: "0.72rem", fontWeight: 600, color: ss.color, backgroundColor: ss.bg }}>
-                    {post.score.toFixed(1)}
-                  </span>
+                  {post.score != null && ss ? (
+                    <span className="px-2 py-0.5 rounded-lg" style={{ fontSize: "0.72rem", fontWeight: 600, color: ss.color, backgroundColor: ss.bg }}>
+                      {post.score.toFixed(1)}
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-lg" style={{ fontSize: "0.68rem", fontWeight: 700, color: "var(--primary)", backgroundColor: "var(--primary-bg)" }}>
+                      Aguardando análise
+                    </span>
+                  )}
                   <ChevronRight className="w-4 h-4" style={{ color: "var(--text-faint)" }} />
-                </div>
+                </Link>
               );
             })}
           </div>

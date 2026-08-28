@@ -47,11 +47,13 @@
     "month": "mês",
     "perMonth": "/mês",
     "connectProfile": "Conectar perfil",
-    "status": "Status"
+    "status": "Status",
+    "notAvailable": "N/D"
   },
   "layout": {
     "darkMode": "Modo escuro",
-    "lightMode": "Modo claro"
+    "lightMode": "Modo claro",
+    "openAlerts": "Abrir alertas"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -66,38 +68,46 @@
     "startFree": "Teste 14 dias grátis",
     "connect": "Conectar",
     "logs": "Atividade",
-    "config": "Config"
+    "config": "Config",
+    "expand": "Expandir",
+    "showProfiles": "Mostrar perfis do Dashboard",
+    "hideProfiles": "Ocultar perfis do Dashboard",
+    "openMenu": "Abrir menu de navegação",
+    "closeMenu": "Fechar menu de navegação"
   },
   "landing": {
-    "liveTag": "AO VIVO",
+    "liveTag": "EXEMPLO ILUSTRATIVO",
     "nav": {
-      "liveTest": "Teste ao vivo",
+      "liveTest": "Exemplo ilustrativo",
       "howItWorks": "Como funciona",
       "pricing": "Preços",
       "login": "Login",
       "startFree": "Teste 14 dias grátis",
-      "diagnostic": "Diagnóstico grátis",
-      "enter": "Entrar"
+      "enter": "Entrar",
+      "diagnostic": "Diagnóstico grátis"
     },
     "hero": {
       "title": "Sua reputação aparece",
       "titleBreak": "primeiro nos comentários.",
       "titleHighlight": "",
       "subtitle": "O Sentimenta transforma comentários das suas redes em sinais claros de <strong>sentimento</strong>, <strong>emoção</strong> e <strong>risco</strong> para você entender o que está ajudando ou prejudicando sua <strong>imagem</strong>.",
-      "live": "AO VIVO",
+      "live": "EXEMPLO ILUSTRATIVO",
       "cta": "Teste grátis por 14 dias",
       "ctaPrimary": "Teste grátis por 14 dias",
-      "ctaDemo": "Testar ao vivo",
-      "ctaSecondary": "Testar ao vivo",
-      "ctaDiagnostic": "Prefere ver antes? Peça um diagnóstico grátis do seu perfil",
+      "ctaDemo": "Ver exemplo",
+      "ctaSecondary": "Ver exemplo",
       "statsComments": "comentários analisados",
       "statsEmotions": "emoções mapeadas",
-      "statsFirstRead": "primeira leitura",
+      "statsFirstRead": "antes da coleta",
       "stats": {
         "commentsAnalyzed": "comentários analisados",
         "emotionsMapped": "emoções mapeadas",
         "firstReading": "primeira leitura"
-      }
+      },
+      "previewDisclosureTitle": "Exemplo ilustrativo — não é monitoramento ao vivo",
+      "previewDisclosureMeta": "Perfil fictício · Período simulado · Fonte: dados criados para demonstrar a interface",
+      "statsForecastValue": "Prévia",
+      "ctaDiagnostic": "Prefere ver antes? Peça um diagnóstico grátis do seu perfil"
     },
     "heroCards": {
       "emotionMapTitle": "Mapa de Emoções",
@@ -127,21 +137,26 @@
       "fear": "Medo"
     },
     "demo": {
-      "badge": "TESTE AO VIVO",
-      "title": "Digite um comentário.",
-      "titleLine2": "Veja a IA analisar.",
-      "titleBreak": "Veja a IA analisar.",
+      "badge": "EXEMPLO INTERATIVO",
+      "title": "Digite um comentário de exemplo.",
+      "titleLine2": "Veja como o resultado seria exibido.",
+      "titleBreak": "Veja como o resultado seria exibido.",
       "inputPlaceholder": "Escreva algo... ex: 'Parabéns pelo trabalho incrível!'",
       "placeholder": "Escreva algo... ex: 'Parabéns pelo trabalho incrível!'",
-      "trySuggestions": "Experimente:",
-      "analyzingWithAI": "Analisando com IA...",
+      "trySuggestions": "Sugestões fictícias:",
+      "analyzingWithAI": "Preparando resultado ilustrativo...",
       "detectedEmotion": "emoção detectada",
       "scoreOutOf10": "score de 10",
-      "classification": "classificação",
-      "aiConfidence": "confiança da IA",
-      "emotionDetected": "emoção detectada",
-      "scoreOf10": "score de 10",
-      "analyzeButton": "Analisar comentário"
+      "classification": "classificação ilustrativa",
+      "aiConfidence": "classificação ilustrativa, sem precisão medida",
+      "emotionDetected": "emoção ilustrativa",
+      "scoreOf10": "score ilustrativo de 10",
+      "analyzeButton": "Gerar exemplo ilustrativo",
+      "disclosureTitle": "Simulação local, sem consulta às redes",
+      "disclosureDescription": "Esta área usa resultados pré-configurados e regras locais para demonstrar a interface. Ela não chama a IA de produção nem monitora um perfil real.",
+      "disclosureScope": "Perfil: nenhum · Período: não se aplica · Fonte: texto digitado ou sugestões fictícias",
+      "resultLabel": "RESULTADO ILUSTRATIVO",
+      "exampleValue": "Exemplo"
     },
     "configure": {
       "title": "Configure seu\nmonitoramento.",
@@ -240,7 +255,7 @@
       "q1": "Preciso de login no Instagram para conectar?",
       "a1": "Não! Funciona com perfis públicos. Basta informar o @ e nós fazemos o resto.",
       "q2": "Quanto tempo leva para analisar uma conta?",
-      "a2": "Primeira análise completa em menos de 2 minutos. Sincronizações diárias levam segundos.",
+      "a2": "O tempo varia conforme a rede, o período, o volume e a disponibilidade do provedor. Antes de iniciar, mostramos uma faixa estimada; durante a execução, mostramos o estágio e eventuais falhas.",
       "q3": "Meus dados ficam seguros?",
       "a3": "Criptografia ponta a ponta, servidores brasileiros, compliance LGPD.",
       "q4": "O que acontece se eu exceder meus créditos?",
@@ -252,7 +267,7 @@
         },
         {
           "q": "Quanto tempo leva para analisar uma conta?",
-          "a": "Primeira análise completa em menos de 2 minutos. Sincronizações diárias levam segundos."
+          "a": "O tempo varia conforme a rede, o período, o volume e a disponibilidade do provedor. Antes de iniciar, mostramos uma faixa estimada; durante a execução, mostramos o estágio e eventuais falhas."
         },
         {
           "q": "Meus dados ficam seguros?",
@@ -268,7 +283,7 @@
       "title": "Pare de adivinhar.",
       "titleLine2": "Comece a sentir.",
       "titleBreak": "Comece a sentir.",
-      "subtitle": "14 dias grátis com cartão. Setup em 2 minutos.",
+      "subtitle": "Teste por 14 dias com cart?o. Veja a previs?o antes de iniciar e acompanhe cada etapa.",
       "button": "Teste grátis por 14 dias",
       "diagnosticLink": "ou peça um diagnóstico grátis, sem cadastro"
     },
@@ -336,10 +351,12 @@
     "stats": {
       "emotionsTracked": "Emoções rastreadas",
       "platforms": "Plataformas",
-      "aiAccuracy": "Precisão da IA"
+      "aiAccuracy": "Precisão da IA",
+      "dataOrigin": "Origem dos dados",
+      "oneClick": "1 clique"
     },
-    "testimonial": "Conectei meu perfil e em 2 minutos já tinha um diagnóstico completo.",
-    "testimonialAuthor": "— Usuário beta",
+    "testimonial": "Período, cobertura e origem dos dados aparecem junto aos resultados.",
+    "testimonialAuthor": "— Transparência por padrão",
     "welcomeBack": "Bem-vindo de volta",
     "createAccount": "Crie sua conta",
     "accessDashboard": "Acesse seu dashboard de sentimento.",
@@ -378,14 +395,16 @@
     },
     "termsConsent": "Ao continuar, você concorda com nossos",
     "terms": "Termos",
-    "privacy": "Privacidade"
+    "privacy": "Privacidade",
+    "showPassword": "Mostrar senha",
+    "hidePassword": "Ocultar senha"
   },
   "dashboard": {
     "title": "Dashboard",
     "loading": "Carregando dashboard...",
     "errorLoading": "Não foi possível carregar o dashboard. Tente novamente.",
     "errorGeneric": "Erro ao carregar dados do dashboard.",
-    "lastSync": "Última sync: {time}",
+    "lastSuccess": "Último sucesso: {time}",
     "refresh": "Atualizar",
     "reputation": {
       "good": "Boa reputação",
@@ -503,6 +522,7 @@
     "noProfileYet": "Nenhum perfil conectado ainda.",
     "connectFirstProfile": "Conectar primeiro perfil",
     "synchronized": "Sincronizado",
+    "registrationStatus": "Cadastro",
     "recentPosts": "Posts recentes",
     "recentPostsSub": "Clique para ver a análise completa",
     "noPostFound": "Nenhum post encontrado.",
@@ -510,18 +530,64 @@
     "dashboardLoadError": "Erro ao carregar dados do dashboard.",
     "generatedAt": "Gerado em {date}",
     "generatingDiagnosis": "Gerando diagnóstico...",
+    "diagnosisEvidence": {
+      "dataPeriod": "Dados observados: {period}",
+      "periodRange": "{start} a {end}",
+      "periodUnknown": "Período não comprovado",
+      "coverage": {
+        "complete": "Completa",
+        "partial": "Parcial",
+        "none": "Sem cobertura",
+        "unknown": "Não comprovada"
+      },
+      "coverageWithRatio": "{label} ({ratio}%)",
+      "notGenerated": "Ainda não gerado",
+      "noReference": "Sem snapshot vinculado",
+      "restoreData": "Restaurar dados",
+      "currentTitle": "Evidência atual verificada",
+      "currentDescription": "O diagnóstico está ligado a um snapshot saudável e com cobertura integral. Recomendações atuais só podem usar este recorte.",
+      "historicalTitle": "Leitura histórica — ação atual suspensa",
+      "historicalDescription": "O texto descreve somente o período observado. Recomendações para o presente ficam suspensas até os dados serem restaurados.",
+      "blockedTitle": "Diagnóstico sem base confiável",
+      "blockedDescription": "Não há análises válidas suficientes para gerar ou exibir uma recomendação com segurança.",
+      "observedData": "Dados observados",
+      "coverageLabel": "Cobertura",
+      "generatedLabel": "Diagnóstico gerado",
+      "referenceLabel": "Snapshot do relatório",
+      "generateHistorical": "Gerar leitura histórica",
+      "refreshHistorical": "Atualizar leitura histórica",
+      "newerData": "Há dados posteriores a este snapshot. Gere novamente para não misturar períodos.",
+      "blockedBody": "O diagnóstico não será gerado até existir um snapshot com análises válidas. A data de geração nunca será usada como substituta da data dos dados.",
+      "historicalNotGenerated": "Há uma base histórica disponível. Gere uma leitura limitada ao período ou atualize os dados antes de tomar uma decisão."
+    },
     "noDataYet": "Sem dados ainda",
+    "noValidAnalysis": "Sem análise válida",
     "noWordData": "Sem dados de palavras",
     "refreshing": "Atualizando...",
     "diagnosticHero": {
       "titleEmpty": "Conecte e sincronize um perfil para começar a leitura.",
+      "titleConnectedEmpty": "Perfil conectado, ainda sem uma leitura disponível.",
+      "titleNeverSynced": "Perfil conectado, aguardando a primeira coleta.",
+      "titleUnavailable": "A atualização não produziu uma leitura de reputação.",
       "titleGood": "A reputação está saudável, com sinais para sustentar.",
       "titleAttention": "A reputação pede atenção: há energia, mas o sentimento está misto.",
       "titleCritical": "A reputação está crítica e precisa de leitura imediata.",
+      "titleHistorical": "Leitura histórica do período observado.",
+      "titleQualified": "Leitura do recorte disponível, com cobertura limitada.",
+      "historicalBadge": "Leitura histórica",
+      "qualifiedBadge": "Cobertura limitada",
       "emptyDriver": "Ainda não há comentários analisados. Faça uma sincronização para ver score, tendências e diagnóstico.",
+      "connectedEmptyDriver": "O perfil já está conectado. Siga a próxima ação indicada para produzir uma base analisável.",
+      "neverSyncedDriver": "A primeira coleta ainda não foi concluída; nenhum dado de reputação foi produzido.",
+      "neverSyncedBoundary": "Sem uma primeira coleta concluída, ainda não existe um recorte para interpretar.",
+      "unavailableDriver": "Foram salvos {saved} comentários, mas nenhum gerou uma análise válida. Não há score, sentimento ou emoção que possam ser interpretados.",
       "driverNegative": "{pct}% dos comentários estão negativos, então o risco principal vem do tom da conversa.",
       "driverPositive": "{pct}% dos comentários estão positivos, então o momento favorece reforçar o que já funciona.",
       "driverMixed": "O público está dividido: {positive}% positivo contra {negative}% negativo.",
+      "historicalDriverNegative": "No período observado, {pct}% dos comentários foram negativos.",
+      "historicalDriverPositive": "No período observado, {pct}% dos comentários foram positivos.",
+      "historicalDriverMixed": "No período observado, a distribuição foi {positive}% positiva e {negative}% negativa.",
+      "nonCurrentBoundary": "O recorte não sustenta conclusões ou recomendações para o presente.",
       "trendUp": "A tendência subiu {delta} ponto no período analisado.",
       "trendDown": "A tendência caiu {delta} ponto no período analisado.",
       "trendStable": "A tendência está praticamente estável no período.",
@@ -534,19 +600,33 @@
       "noTrendShort": "Sem série",
       "volumeSub": "base para o diagnóstico",
       "postsSub": "conteúdos com leitura",
+      "postsWithoutAnalysisSub": "conteúdos coletados; sem leitura válida",
       "profilesSub": "fontes monitoradas",
-      "emotionsSub": "vozes emocionais"
+      "emotionsSub": "vozes emocionais",
+      "emotionsWithoutAnalysisSub": "não calculadas sem análise válida"
     },
     "sections": {
       "reputation": {
         "eyebrow": "Tendência",
         "title": "Minha reputação está melhorando ou piorando?",
-        "description": "A leitura temporal vem logo depois do diagnóstico para mostrar se o quadro é pontual ou persistente."
+        "description": "A leitura temporal vem logo depois do diagnóstico para mostrar se o quadro é pontual ou persistente.",
+        "historicalTitle": "Como a reputação variou no período observado?",
+        "historicalDescription": "A série descreve somente o período preservado e não representa a tendência atual.",
+        "qualifiedTitle": "O que o recorte disponível sugere sobre a variação?",
+        "qualifiedDescription": "A leitura usa somente os pontos observados; a cobertura limitada não sustenta uma tendência atual.",
+        "unavailableTitle": "Há dados suficientes para observar uma variação?",
+        "unavailableDescription": "Sem análises válidas, não é possível calcular evolução ou tendência."
       },
       "drivers": {
         "eyebrow": "Explicação",
         "title": "Quais sinais explicam o sentimento?",
-        "description": "Emoções, palavras e horários dão contexto para entender por que a reputação se moveu."
+        "description": "Emoções, palavras e horários dão contexto para entender por que a reputação se moveu.",
+        "historicalTitle": "Quais sinais explicaram o sentimento no período observado?",
+        "historicalDescription": "Emoções, palavras e horários contextualizam somente o recorte histórico preservado.",
+        "qualifiedTitle": "Quais sinais aparecem no recorte disponível?",
+        "qualifiedDescription": "Os sinais abaixo descrevem apenas os dados observados, sem extrapolar a cobertura.",
+        "unavailableTitle": "Há sinais suficientes para explicar o sentimento?",
+        "unavailableDescription": "Sem análises válidas, emoção, vocabulário e atividade permanecem indisponíveis."
       }
     }
   },
@@ -556,12 +636,42 @@
     "errorUnknown": "Erro desconhecido",
     "retry": "Tentar novamente",
     "analyze": "Analisar",
+    "registrationConnected": "Perfil conectado",
+    "registrationNeedsAttention": "Conexão requer atenção",
+    "notAvailable": "N/D",
+    "notAvailableWithoutAnalysis": "Não calculado porque não há análise válida.",
+    "reputationSummary": {
+      "eyebrow": "Resumo",
+      "currentTitle": "Como está a reputação agora?",
+      "historicalTitle": "Como estava a reputação no período observado?",
+      "unavailableTitle": "Há base válida para avaliar a reputação?",
+      "currentDescription": "Uma leitura atual do humor da audiência antes dos recortes por público, tópico e post.",
+      "historicalDescription": "Esta leitura descreve somente o período preservado; não representa o momento atual.",
+      "unavailableDescription": "A coleta existe, mas não produziu análises válidas para calcular reputação, sentimento ou emoção.",
+      "neverSyncedDescription": "O perfil está conectado, mas a primeira coleta ainda não foi concluída."
+    },
+    "historicalBoundary": "Leitura histórica: os sinais abaixo descrevem somente o período preservado e não são recomendações para o presente.",
+    "evidenceSections": {
+      "priorities": {
+        "currentTitle": "Onde investigar primeiro?",
+        "currentDescription": "Posts extremos e pessoas recorrentes mostram onde a reação merece leitura mais próxima.",
+        "historicalTitle": "Onde estavam os sinais mais extremos no período observado?",
+        "historicalDescription": "Os sinais abaixo pertencem somente ao recorte histórico preservado. Atualize os dados antes de agir no presente."
+      },
+      "topics": {
+        "currentTitle": "Quais temas estão puxando a conversa?",
+        "currentDescription": "Temas com volume e emoção forte revelam o que está dando forma ao sentimento.",
+        "historicalTitle": "Quais temas puxaram a conversa no período observado?",
+        "historicalDescription": "Os temas abaixo descrevem somente o recorte histórico preservado."
+      }
+    },
     "backToDashboard": "Voltar ao dashboard",
     "stats": {
       "score": "Score",
       "engagementRate": "Taxa de Engajamento",
       "polarization": "Polarização",
       "total": "Total",
+      "totalAnalyzed": "Análises válidas",
       "commentsPerFollower": "comentários/seguidor"
     },
     "polarizationLevels": {
@@ -594,6 +704,8 @@
     "wordCloudSub": "Termos mais mencionados nos comentários",
     "temporalAnalysis": "Análise Temporal",
     "temporalSub": "Distribuição por período",
+    "collectionTimeline": "Volume coletado ao longo do tempo",
+    "collectionTimelineSub": "Contagem de comentários salvos; não representa sentimento, score ou análise.",
     "insightPremium": "Insight Premium",
     "eachDotOnePost": "Cada ponto = 1 post",
     "intensityMentionVolume": "Intensidade = volume de menções",
@@ -619,12 +731,17 @@
   },
   "post": {
     "backToProfile": "Voltar ao perfil",
+    "backToDashboard": "Voltar ao dashboard",
     "post": "Post",
     "noText": "Post sem texto",
     "notFound": "Post não encontrado",
+    "loadError": "Não foi possível abrir este post",
+    "loadErrorSub": "Os dados do post não foram confirmados. Tente novamente antes de interpretar os comentários.",
+    "retry": "Tentar novamente",
     "viewMore": "Ver mais",
     "viewLess": "Ver menos",
     "viewOnPlatform": "Ver no {platform}",
+    "openComments": "Ver {count} comentários",
     "stats": {
       "score": "Score",
       "positivity": "Positividade",
@@ -632,6 +749,7 @@
       "positive": "Positivo"
     },
     "sentimentDistribution": "Distribuição de Sentimento",
+    "analysisUnavailable": "Ainda não há análise válida para este post. Emoções, tópicos e score permanecem indisponíveis; os comentários coletados continuam visíveis como evidência.",
     "emotions": "Emoções",
     "topics": "Tópicos",
     "emotionRadar": "Radar de Emoções",
@@ -639,6 +757,7 @@
     "wordCloud": "Nuvem de Palavras",
     "wordCloudSub": "Palavras mais faladas",
     "comments": "Comentários",
+    "commentsEvidenceSub": "{count} comentários coletados vinculados a este post",
     "commentFilter": {
       "all": "Todos",
       "positive": "Positivo",
@@ -672,6 +791,7 @@
     },
     "profile": {
       "title": "Informações do Perfil",
+      "avatarUnavailable": "Alteração de foto indisponível nesta versão",
       "firstName": "NOME",
       "lastName": "SOBRENOME",
       "email": "ENDEREÇO DE EMAIL",
@@ -749,6 +869,10 @@
       "passwordChanged": "Senha alterada com sucesso.",
       "passwordMismatch": "As senhas não coincidem.",
       "passwordChangeError": "Não foi possível alterar a senha.",
+      "showCurrentPassword": "Mostrar senha atual",
+      "hideCurrentPassword": "Ocultar senha atual",
+      "showNewPassword": "Mostrar nova senha",
+      "hideNewPassword": "Ocultar nova senha",
       "twoFactorTitle": "Autenticação de Dois Fatores (2FA)",
       "twoFactorDesc": "Adicione uma camada extra de segurança à sua conta.",
       "appAuth": "Autenticação por App",
@@ -823,28 +947,28 @@
     "platforms": {
       "instagram": {
         "name": "Instagram",
-        "desc": "Perfis públicos funcionam sem login",
+        "desc": "Disponível para posts e comentários públicos",
         "placeholder": "@nomedeusuário",
-        "button": "Verificar Perfil",
+        "button": "Conectar perfil",
         "oauthButton": "Conectar via OAuth (Business)"
       },
       "youtube": {
         "name": "YouTube",
-        "desc": "Análise de comentários em vídeos",
+        "desc": "Disponível para vídeos e comentários públicos",
         "placeholder": "@canal ou URL",
-        "button": "Conectar"
+        "button": "Conectar perfil"
       },
       "twitter": {
         "name": "Twitter / X",
-        "desc": "Tweets e respostas",
+        "desc": "Planejado; conexão e coleta ainda indisponíveis",
         "placeholder": "@nomedeusuário",
-        "button": "Conectar"
+        "button": "Conectar perfil"
       },
       "tiktok": {
         "name": "TikTok",
-        "desc": "Análise de sentimento dos seus vídeos no TikTok",
+        "desc": "Beta para vídeos e comentários públicos",
         "placeholder": "@nomedeusuário",
-        "button": "Verificar perfil"
+        "button": "Conectar perfil"
       }
     },
     "verifying": "Verificando...",
@@ -855,20 +979,16 @@
     "checkProfileError": "Falha ao verificar perfil.",
     "connectError": "Falha ao conectar.",
     "oauthError": "Falha ao iniciar OAuth.",
-    "analysisSettings": "Configurações de Análise",
-    "analysisSettingsSub": "— posts, comentários e período",
-    "postsToAnalyze": "POSTS PARA ANALISAR",
+    "analysisSettings": "Configurar próxima coleta",
+    "analysisSettingsSub": "— escolha o recorte antes de iniciar",
+    "postsToAnalyze": "LIMITE DE POSTS POR PERFIL",
     "postsOptions": {
       "1": "1 post (teste)"
     },
-    "commentsPerPost": "COMENTÁRIOS POR POST",
-    "since": "DESDE",
-    "collectionMode": "MODO DE COLETA",
-    "collectionFull": "Completo",
-    "collectionSample": "Amostra inteligente",
-    "sampleRecommendation": "Com amostragem inteligente, recomendamos \"Todos\" — o algoritmo calcula o tamanho ideal automaticamente.",
-    "sampleDesc": "Coleta uma amostra representativa (80% confiança, 5% margem) priorizando comentários com maior engajamento.",
-    "addNewData": "Adicionar novos dados",
+    "commentsPerPost": "LIMITE DE COMENTÁRIOS POR POST",
+    "since": "DATA INICIAL (OPCIONAL)",
+    "collectionMode": "COMO SELECIONAR OS COMENTÁRIOS",
+    "collectionFull": "Todos dentro do limite",
     "lastOptions": {
       "last10": "Últimos 10",
       "last50": "Últimos 50",
@@ -881,10 +1001,12 @@
       "all": "Todos"
     },
     "table": {
+      "ariaLabel": "Perfis conectados e saúde dos dados",
       "profile": "PERFIL",
       "followers": "SEGUIDORES",
-      "lastSync": "ÚLTIMA SYNC",
-      "status": "STATUS",
+      "lastSync": "ÚLTIMO SUCESSO",
+      "executions": "EXECUÇÕES E AGENDA",
+      "status": "SAÚDE DOS DADOS",
       "autoSync": "SYNC AUTOMÁTICA",
       "actions": "AÇÕES"
     },
@@ -898,7 +1020,7 @@
     "removeProfile": "Remover perfil?",
     "removeWarning": "Todos os dados de análise serão excluídos permanentemente.",
     "remove": "Remover",
-    "syncStarted": "Análise iniciada! Seus dados serão processados em aproximadamente 2 minutos.",
+    "syncStarted": "Análise iniciada. O tempo varia conforme a rede e o volume; acompanhe o estágio e a estimativa atualizada.",
     "syncEstimate": {
       "title": "Análise iniciada!",
       "description": "Estamos processando os dados de @{username}. Você pode navegar normalmente enquanto isso.",
@@ -908,7 +1030,149 @@
     "freePlanNote": "Sem assinatura ativa: inicie o trial de 14 dias com cartão para analisar comentários.",
     "comingSoon": "Em breve",
     "syncError": "Erro ao sincronizar",
-    "multipleProfiles": "{count} perfis"
+    "multipleProfiles": "{count} perfis",
+    "postsOption": "Até {count} posts",
+    "postsPlanLimit": "Até {count} posts (limite do plano)",
+    "commentsPlanLimit": "Até {count} (limite do plano)",
+    "sinceDescription": "Aplicada ao Instagram nesta versão. Sem data, a origem retorna os posts mais recentes até o limite escolhido.",
+    "collectionEngagement": "Priorizar engajamento (não representativo)",
+    "collectionFullDesc": "Tenta obter todos os comentários elegíveis disponibilizados pela origem, na ordem entregue por ela, até o limite acima por post. “Todos” não significa acesso irrestrito nem garante o total publicado na rede.",
+    "collectionEngagementDesc": "No Instagram público, a origem primeiro devolve candidatos até o limite escolhido. A Sentimenta ordena esse conjunto por curtidas e analisa no máximo 200 por post. Isso favorece comentários populares: não é amostra estatística e não representa a conversa inteira. Em Instagram OAuth, YouTube e TikTok, este modo não muda a seleção nesta versão.",
+    "startCollection": "Iniciar coleta com estes limites",
+    "startingCollection": "Iniciando coleta...",
+    "configureCollection": "Configurar coleta",
+    "configureCollectionFor": "Configurar coleta para {username}",
+    "planCredits": "Seu plano inclui {credits} créditos/mês",
+    "remainingCredits": " ({credits} restantes)",
+    "creditRule": "1 crédito = 1 comentário analisado.",
+    "demographicRule": "Demografia: 5 créditos por perfil enriquecido.",
+    "planCollectionLimits": "Limites confirmados no servidor: até {posts} posts por perfil e {comments} comentários por post; automação {frequency}.",
+    "upgradePlan": "Fazer upgrade para ampliar os limites",
+    "manageCredits": "Gerenciar créditos e pacotes",
+    "frequencies": {
+      "daily": "diária",
+      "weekly": "semanal",
+      "notDeclared": "não declarada"
+    },
+    "limits": {
+      "loading": "Confirmando no servidor os limites do seu plano...",
+      "errorTitle": "Não foi possível confirmar os limites do plano.",
+      "errorDescription": "A coleta manual foi bloqueada para evitar uma execução diferente do que a tela promete.",
+      "blocked": "Recarregue a página para confirmar os limites antes de iniciar uma coleta."
+    },
+    "scope": {
+      "title": "Antes de iniciar",
+      "subtitle": "Este é o recorte que será enviado ao servidor.",
+      "allProfiles": "{count, plural, one {1 perfil conectado} other {# perfis conectados}}",
+      "oneProfile": "{username}",
+      "targetLabel": "Destino",
+      "postsLabel": "Posts",
+      "commentsLabel": "Comentários",
+      "periodLabel": "Período",
+      "upToPosts": "No máximo {count} por perfil",
+      "upToComments": "No máximo {count} por post",
+      "sinceDate": "Desde {date} (Instagram)",
+      "noStartDate": "Sem data inicial; posts mais recentes",
+      "modeLabel": "Modo",
+      "maximum": "No máximo, esta solicitação pode incluir até {count} comentários.",
+      "allOutcome": "O total real pode ser menor por disponibilidade, permissões, deduplicação ou falha da origem.",
+      "engagementOutcome": "O teto de candidatos continua sendo o limite acima. A priorização pode reduzir análise e créditos, mas não garante menor custo de coleta.",
+      "confirmation": "Nada será iniciado até você confirmar."
+    },
+    "forecast": {
+      "title": "Previsão antes da coleta",
+      "loading": "Recalculando com a última observação salva...",
+      "error": "A previsão não pôde ser confirmada. Os limites continuam visíveis, mas não trate o máximo como volume provável.",
+      "confidence": {
+        "low": "Confiança baixa · há dados desconhecidos ou antigos",
+        "medium": "Confiança média · baseada em contagem salva recente"
+      },
+      "foundLabel": "Encontrados",
+      "foundUnknown": "Ainda desconhecido até consultar a origem",
+      "found": {
+        "complete": "{comments} na última contagem ({knownPosts}/{posts} posts)",
+        "partial": "Ao menos {comments} conhecidos ({knownPosts}/{posts} posts)"
+      },
+      "candidatesLabel": "Candidatos à coleta",
+      "analyzedLabel": "Estimativa analisada",
+      "coverageLabel": "Cobertura estimada",
+      "costLabel": "Custo operacional variável",
+      "durationLabel": "Tempo aproximado",
+      "upToComments": "até {count} comentários",
+      "coverageUnknown": "Não calculável antes de confirmar a contagem",
+      "coverageValue": "~{value}% da última contagem conhecida",
+      "durationValue": "{min}–{max} min · não é SLA",
+      "engagementApplied": "Em {count, plural, one {1 perfil público do Instagram} other {# perfis públicos do Instagram}}, serão priorizados por curtidas no máximo {limit} comentários por post dentre os candidatos devolvidos pela origem.",
+      "engagementNotApplied": "Nenhum perfil deste recorte usa o Instagram público; escolher priorização não altera a seleção nestas origens.",
+      "allApplied": "O modo Todos tenta analisar cada candidato devolvido dentro dos limites e dos créditos disponíveis.",
+      "periodApplied": "A data inicial pode reduzir os posts do Instagram; outras redes ignoram esse campo nesta versão.",
+      "periodOpen": "Sem data inicial, a origem tenta os posts mais recentes dentro do limite.",
+      "costDisclosure": "A faixa é custo interno estimado, não cobrança. Exclui plano mensal da Apify, VPS, banco, filas e demografia.",
+      "unknownDisclosure": "A rede pode mudar depois da última observação; permissões, duplicatas, falhas e créditos disponíveis podem reduzir o realizado."
+    },
+    "registration": {
+      "connected": "Perfil conectado",
+      "needsAttention": "Conexão requer atenção"
+    },
+    "health": {
+      "states": {
+        "healthy": {
+          "label": "Saudável"
+        },
+        "healthyWithoutAnalysis": {
+          "label": "Concluída · sem dados"
+        },
+        "degraded": {
+          "label": "Degradada"
+        },
+        "stale": {
+          "label": "Desatualizada"
+        },
+        "failed": {
+          "label": "Falhou"
+        },
+        "never_synced": {
+          "label": "Nunca sincronizada"
+        }
+      },
+      "reasons": {
+        "healthy": "Última coleta e análise concluídas dentro do prazo.",
+        "healthy_without_analysis": "A execução terminou dentro do prazo, mas não encontrou dados analisáveis.",
+        "connection_not_active": "O cadastro da conexão não está ativo.",
+        "auto_sync_disabled": "A sincronização automática está pausada.",
+        "latest_attempt_failed": "A última tentativa falhou; o último dado válido foi preservado.",
+        "latest_attempt_partial": "A última tentativa terminou parcialmente; os dados podem estar incompletos.",
+        "sync_stuck": "A sincronização não terminou no tempo esperado.",
+        "zero_valid_analyses": "A coleta não produziu nenhuma análise válida.",
+        "last_success_outside_sla": "O último dado válido está fora do prazo de atualização.",
+        "legacy_sync_unverified": "A sincronização anterior não confirma uma análise completa.",
+        "first_sync_in_progress": "A primeira sincronização ainda está em andamento.",
+        "never_synced": "Ainda não há uma coleta e análise concluídas."
+      },
+      "actions": {
+        "viewData": "Ver dados",
+        "reviewAndSync": "Revisar e sincronizar",
+        "syncNow": "Sincronizar agora",
+        "tryAgain": "Tentar novamente",
+        "firstSync": "Fazer primeira sincronização"
+      },
+      "syncing": "Sincronizando",
+      "freshnessSummary": "Frescor dos dados de @{username}",
+      "freshnessLastSuccess": "Frescor · último sucesso",
+      "noSuccessfulSync": "Nenhum sucesso registrado",
+      "lastAttempt": "Última tentativa",
+      "lastSuccess": "Último sucesso",
+      "nextExecution": "Próxima execução automática",
+      "noAttempt": "Nenhuma tentativa",
+      "notScheduled": "Não agendada",
+      "attemptStatuses": {
+        "completed": "Finalizada",
+        "partial": "Parcial",
+        "failed": "Falhou",
+        "cancelled": "Cancelada",
+        "running": "Em andamento"
+      }
+    }
   },
   "alerts": {
     "title": "Alertas",
@@ -928,12 +1192,6 @@
     "viewDetails": "Ver detalhes",
     "dismiss": "Dispensar",
     "errorLoading": "Erro ao carregar alertas.",
-    "allClear": {
-      "unreadTitle": "Nenhum alerta não lido!",
-      "unreadSub": "Você está em dia com todos os alertas.",
-      "allTitle": "Tudo limpo!",
-      "allSub": "Nenhum alerta encontrado nos últimos {days} dias."
-    },
     "config": {
       "scoreThreshold": "Limite de Score",
       "scoreThresholdSub": "Receba um alerta quando o score cair abaixo deste valor",
@@ -955,6 +1213,7 @@
       "keywordLabel": "Alertar quando palavras-chave > {value}% dos comentários",
       "monitoredWords": "PALAVRAS MONITORADAS",
       "addKeywordPlaceholder": "Adicionar palavra-chave...",
+      "removeKeyword": "Remover palavra-chave {keyword}",
       "addButton": "Adicionar",
       "saveSettings": "Salvar Configurações"
     },
@@ -962,6 +1221,45 @@
       "high": "Alta",
       "medium": "Média",
       "low": "Baixa"
+    },
+    "filterEmpty": {
+      "title": "Nenhum alerta neste filtro",
+      "sub": "Os alertas existentes continuam disponíveis nos outros filtros."
+    },
+    "evaluation": {
+      "foundTitle": "Alertas encontrados",
+      "foundSub": "Nos dados avaliados, {count} perfil(is) ultrapassaram os limites configurados.",
+      "noneTitle": "Nenhum alerta com cobertura válida",
+      "noneSub": "Avaliamos {count} análises válidas em toda a janela de {days} dias.",
+      "noCoverageTitle": "Cobertura insuficiente para avaliar",
+      "interruptedTitle": "Monitoramento interrompido",
+      "interruptedSub": "A coleta ou a análise não concluiu de forma saudável. Os alertas não representam a janela solicitada.",
+      "errorTitle": "Não foi possível carregar Alertas",
+      "errorSub": "A consulta falhou. Ainda não sabemos se existem alertas nesta janela.",
+      "requestedWindowLabel": "Janela solicitada",
+      "evaluatedWindowLabel": "Janela avaliada",
+      "requestedWindow": "Últimos {days} dias",
+      "observedPeriodLabel": "Dados observados",
+      "observedPeriod": "{start} a {end}",
+      "observedPeriodUnknown": "Período não comprovado",
+      "continueMonitoring": "Continuar monitorando",
+      "restoreMonitoring": "Restaurar monitoramento",
+      "retry": "Tentar novamente",
+      "reasons": {
+        "no_snapshot": "Ainda não existe uma fotografia de dados para esta avaliação.",
+        "no_profiles": "Nenhum perfil está disponível para monitoramento.",
+        "data_health_not_healthy": "A saúde dos dados não permite concluir esta avaliação.",
+        "expected_window_not_recorded": "A janela esperada de coleta não foi registrada; ausência de alerta não significa ausência de risco.",
+        "no_saved_items": "Nenhum dado foi salvo na janela; não há base suficiente para avaliar.",
+        "coverage_not_verified": "A cobertura da janela não pôde ser verificada.",
+        "no_verified_intervals": "Não há intervalos de coleta verificados para toda a janela.",
+        "analysis_denominator_unknown": "O total elegível para análise é desconhecido.",
+        "analysis_incomplete": "Parte dos dados elegíveis ainda não possui análise válida.",
+        "profiles_not_fully_covered": "Nem todos os perfis foram cobertos durante toda a janela.",
+        "time_window_not_fully_covered": "A coleta não cobriu todo o período selecionado.",
+        "insufficient_valid_analyses": "Não há análises válidas suficientes em todos os perfis para aplicar os limites.",
+        "language_policy_blocks_current_claim": "A evidência só permite uma leitura histórica, não uma conclusão atual."
+      }
     },
     "activeCount": "{count} alerta(s) ativo(s)"
   },
@@ -974,6 +1272,65 @@
     "sentimentScore": "Score de Sentimento",
     "engagementRate": "Taxa de Engajamento",
     "commentVolume": "Vol. comentários",
+    "accessibility": {
+      "quickRead": "Leitura rápida",
+      "dataDetails": "Dados do gráfico",
+      "periodLabel": "Período",
+      "unitLabel": "Unidade",
+      "currentSlice": "Período observado",
+      "wordCloudTitle": "Nuvem de palavras",
+      "emotionRadarTitle": "Radar de emoções",
+      "tableCaption": "Dados de {title}. Período: {period}. Unidade: {unit}.",
+      "notAvailable": "Não disponível",
+      "trendUp": "{series} subiu {delta} {unit}, de {from} para {to}, entre {start} e {end}.",
+      "trendDown": "{series} caiu {delta} {unit}, de {from} para {to}, entre {start} e {end}.",
+      "trendStable": "{series} permaneceu em {to} {unit} entre {start} e {end}.",
+      "singlePoint": "{series} registrou {value} {unit} em {period}.",
+      "peak": "O maior valor foi {value} {unit} em {period}.",
+      "dominant": "Maior valor no período: {category}, com {value} {unit}.",
+      "dominantPercent": "Maior valor no período: {category}, com {value}%.",
+      "topTerms": "Termos mais frequentes no período: {terms}.",
+      "gapRisk": "Maior risco no período: {post}, com força relativa {engagement}/100, score {score} e {comments} comentários.",
+      "gapOpportunity": "Principal oportunidade no período: {post}, com força relativa {engagement}/100, score {score} e {comments} comentários.",
+      "topicLead": "Maior frequência no período: {topic}, com {count} ocorrências e score {score}.",
+      "columns": {
+        "period": "Período",
+        "date": "Data",
+        "day": "Dia",
+        "hour": "Horário",
+        "platform": "Plataforma",
+        "series": "Série",
+        "metric": "Métrica",
+        "emotion": "Emoção",
+        "topic": "Tópico",
+        "term": "Termo",
+        "post": "Post",
+        "value": "Valor",
+        "score": "Score",
+        "volume": "Volume",
+        "occurrences": "Ocorrências",
+        "percentage": "Percentual",
+        "relativePercentage": "% do máximo",
+        "comments": "Comentários",
+        "subscribers": "Inscritos",
+        "relativeEngagement": "Força relativa",
+        "realEngagement": "Taxa real"
+      },
+      "units": {
+        "score": "pontos de score (0 a 10)",
+        "scoreShort": "pontos",
+        "comments": "comentários",
+        "commentsShort": "comentários",
+        "commentSingular": "comentário",
+        "subscribers": "inscritos",
+        "occurrences": "ocorrências",
+        "occurrencesAndPercentage": "ocorrências e percentual",
+        "occurrencesAndRelativePercentage": "ocorrências e percentual relativo ao máximo",
+        "percentage": "percentual",
+        "relativeIndex": "índice relativo (0 a 100)",
+        "mixedMetrics": "valores nas unidades indicadas"
+      }
+    },
     "heatmapDays": [
       "Seg",
       "Ter",
@@ -1009,6 +1366,8 @@
       "rawEngagementLabel": "Taxa real",
       "priorityRisk": "Risco para investigar",
       "priorityOpportunity": "Oportunidade para amplificar",
+      "historicalPriorityRisk": "Risco observado no período",
+      "historicalPriorityOpportunity": "Sinal positivo observado no período",
       "noPrioritySignal": "Sem sinal prioritário neste recorte",
       "engagement": "Engajamento",
       "sentiment": "Sentimento"
@@ -1179,6 +1538,7 @@
       "analyzed": "ANÁLISES VÁLIDAS",
       "duration": "DURAÇÃO",
       "cost": "CUSTO",
+      "collected": "COLETADOS / ALVO",
       "failures": "FALHAS",
       "credits": "Créditos"
     },
@@ -1189,6 +1549,79 @@
     "cancel": "Cancelar",
     "pipeline": "Pipeline",
     "system": "Sistema",
+    "humanSummary": {
+      "eyebrow": "Resumo para decisão",
+      "title": "Entenda esta execução sem ler o log",
+      "effectiveStatus": {
+        "running": "Em andamento",
+        "success": "Dados utilizáveis",
+        "attention": "Requer atenção",
+        "failed": "Falha efetiva",
+        "cancelled": "Cancelada"
+      },
+      "sections": {
+        "happened": "O que aconteceu",
+        "impact": "Impacto nos dados",
+        "next": "O que fazer agora"
+      },
+      "happened": {
+        "execution_running": "A atualização ainda está coletando ou analisando dados.",
+        "execution_cancelled": "A execução foi cancelada antes de terminar.",
+        "collected_without_valid_analysis": "{saved_count, plural, one {A coleta salvou # comentário, mas ele não produziu uma análise válida.} other {A coleta salvou # comentários, mas nenhum produziu uma análise válida.}}",
+        "execution_failed_after_collection": "A atualização falhou depois de salvar {saved_count} comentários e concluir {valid_count} análises.",
+        "execution_failed_before_collection": "A atualização falhou antes de salvar novos comentários.",
+        "partial_analysis": "A execução terminou parcialmente: {valid_count} de {saved_count} comentários produziram análise válida.",
+        "no_new_comments": "A execução terminou sem salvar novos comentários.",
+        "analysis_completed": "A execução concluiu {valid_count} análises válidas sobre dados já salvos.",
+        "collection_completed": "A atualização concluiu {valid_count} análises válidas a partir de {saved_count} comentários salvos.",
+        "execution_state_unknown": "O estado final desta execução não pôde ser confirmado."
+      },
+      "impact": {
+        "data_pending": "Os novos dados ainda não fazem parte da leitura do dashboard.",
+        "historical_data_preserved": "Esta tentativa não substituiu a leitura anterior. O dashboard mantém somente {historical_valid_count} análises válidas históricas e não representa o momento atual.",
+        "evaluation_unavailable": "A execução não deixou uma base válida para calcular score, tendências ou alertas.",
+        "collected_data_unusable": "{saved_count, plural, one {O comentário salvo não entra no score, nas tendências nem nos alertas. O dashboard não consegue avaliar a reputação com esta atualização.} other {Os # comentários salvos não entram no score, nas tendências nem nos alertas. O dashboard não consegue avaliar a reputação com esta atualização.}}",
+        "partial_basis": "O dashboard considera somente {valid_count} análises válidas desta execução; {remaining_count} comentários ficaram fora da leitura.",
+        "no_new_evidence": "Nenhuma evidência nova foi adicionada. A base anterior é preservada, se existir; isso não prova ausência de comentários na rede.",
+        "valid_data_available": "Esta execução produziu {valid_count} análises válidas para a leitura registrada.",
+        "evaluation_unconfirmed": "Evite interpretar a reputação até confirmar o resultado ou recuperar os dados."
+      },
+      "actionDescriptions": {
+        "wait_for_completion": "Aguarde a conclusão antes de interpretar os números.",
+        "retry_sync": "Tente sincronizar novamente. Se a falha se repetir, use o log técnico para identificar a etapa interrompida.",
+        "review_partial_run": "Revise o log técnico para ver o que ficou de fora antes de executar novamente.",
+        "review_collection": "Revise o perfil e o recorte de coleta antes de tentar novamente.",
+        "keep_monitoring": "Nenhuma correção é necessária para esta execução; continue monitorando.",
+        "review_coverage": "Confira a cobertura antes de tratar esta leitura como representativa.",
+        "sync_now": "Atualize os dados antes de tomar uma decisão atual.",
+        "start_first_sync": "Inicie a primeira coleta para formar uma base de análise.",
+        "run_analysis": "Execute a análise dos comentários que já foram salvos."
+      },
+      "actions": {
+        "wait_for_completion": "Aguardar conclusão",
+        "retry_sync": "Tentar sincronizar novamente",
+        "review_partial_run": "Revisar log técnico",
+        "review_collection": "Revisar coleta",
+        "keep_monitoring": "Voltar ao dashboard",
+        "review_coverage": "Revisar cobertura",
+        "sync_now": "Atualizar dados",
+        "start_first_sync": "Iniciar primeira coleta",
+        "run_analysis": "Executar análise"
+      },
+      "technicalLog": {
+        "open": "Ver log técnico",
+        "close": "Ocultar log técnico"
+      }
+    },
+    "technicalLog": {
+      "title": "Log técnico · execução #{id}",
+      "unstructuredDetails": "Foi registrado um evento técnico não estruturado. Informe a referência da execução ao suporte; o conteúdo bruto não é exibido nesta tela.",
+      "noDetails": "Nenhum evento técnico adicional foi registrado para esta execução."
+    },
+    "emptyConnectedTitle": "Perfil conectado, ainda sem execuções",
+    "emptyConnectedSubtitle": "Inicie a primeira coleta para registrar aqui o que aconteceu, o impacto nos dados e a próxima ação.",
+    "operationalScope": "Contagens operacionais somente desta execução. Para o recorte analítico reconciliado, use o funil do snapshot acima.",
+    "deleteRun": "Excluir execução #{id}",
     "recentScopeNote": "Totais referentes às últimas 50 execuções, não ao período completo.",
     "deleteConfirm": "Apagar este registro de execução? O histórico é sua trilha de auditoria.",
     "pendingAnalysis": "comentários coletados aguardando análise",
@@ -1220,10 +1653,32 @@
     "selectProfile": "Selecione um perfil...",
     "all": "Tudo",
     "1y": "1a",
+    "scoreTrendTimeBasis": "Cada ponto representa o início da semana (segunda-feira), em UTC. As datas avançam da esquerda para a direita.",
+    "scoreTrendError": "Não foi possível confirmar a ordem e o fuso da série temporal. O gráfico foi ocultado para evitar uma comparação incorreta.",
+    "series": {
+      "line": "Série {role}",
+      "denominator": "{valid, plural, =0 {Nenhuma análise válida} one {# análise válida} other {# análises válidas}} de {saved, plural, one {# comentário salvo} other {# comentários salvos}} neste período.",
+      "observedPeriod": "Dados observados: {start} a {end} (UTC).",
+      "observedPeriodUnknown": "Período observado não comprovado.",
+      "lastSuccess": "Último sucesso de coleta e análise: {date} UTC.",
+      "lastSuccessNever": "Nenhum sucesso de coleta e análise comprovado.",
+      "freshnessUnknown": "Frescor desta série não confirmado pela resposta.",
+      "scoreDefinition": "Score semanal = média das análises válidas publicadas em cada semana. Ausência em uma série permanece como lacuna, não zero.",
+      "differentBases": "As séries usam bases diferentes. Uma linha com menos análises válidas pode oscilar mais; compare direção e score sem presumir amostras equivalentes.",
+      "health": {
+        "healthy": "Dados em dia",
+        "degraded": "Requer atenção",
+        "stale": "Desatualizada",
+        "failed": "Falhou",
+        "never_synced": "Sem sucesso",
+        "unknown": "Frescor não confirmado"
+      }
+    },
     "noDataForProfile": "Sem dados analisados para este perfil no período. Rode uma análise em Conectar Perfis.",
     "loadError": "Erro ao carregar a comparação. Tente novamente."
   },
   "onboarding": {
+    "close": "Fechar introdução",
     "profileTitle": "Qual seu perfil?",
     "profileSubtitle": "Isso nos ajuda a personalizar sua experiência.",
     "profiles": {
@@ -1271,10 +1726,10 @@
     "subtitle": "Estamos aqui para ajudar",
     "emailTitle": "E-mail",
     "emailAddress": "suporte@sentimenta.com.br",
-    "emailResponseTime": "Resposta em ate 24h uteis",
+    "emailResponseTime": "Resposta em até 24h úteis",
     "chatTitle": "Chat",
-    "chatAvailability": "Disponivel no dashboard",
-    "chatHours": "Seg-Sex, 9h as 18h",
+    "chatAvailability": "Em breve",
+    "chatHours": "Atendimento por e-mail, seg-sex, 9h às 18h",
     "faqTitle": "Perguntas frequentes",
     "faq1": {
       "q": "Como conectar meu perfil do Instagram?",
@@ -1282,7 +1737,7 @@
     },
     "faq2": {
       "q": "Quanto tempo leva a primeira análise?",
-      "a": "A primeira análise completa leva menos de 2 minutos. Após isso, as sincronizações são automáticas e levam segundos."
+      "a": "O tempo varia conforme a rede, o período, o volume e a disponibilidade do provedor. A previsão aparece antes da coleta e o progresso fica visível durante a execução."
     },
     "faq3": {
       "q": "Posso monitorar perfis de concorrentes?",
@@ -1301,9 +1756,9 @@
       "a": "Sim. Sem multas ou burocracia. Ao cancelar, sua conta fica pausada e você pode reativar quando quiser."
     },
     "formTitle": "Envie uma mensagem",
-    "formSubtitle": "Preencha o formulario abaixo e retornaremos o mais breve possivel.",
-    "sentTitle": "Mensagem enviada!",
-    "sentSubtitle": "Retornaremos em ate 24h uteis.",
+    "formSubtitle": "Preencha o formulário abaixo e retornaremos o mais breve possível.",
+    "sentTitle": "Mensagem recebida!",
+    "sentSubtitle": "Seu pedido foi registrado. Retornaremos em até 24h úteis.",
     "sendAnother": "Enviar outra mensagem",
     "labelName": "Nome",
     "labelEmail": "E-mail",
@@ -1311,7 +1766,7 @@
     "labelMessage": "Mensagem",
     "placeholderName": "Seu nome",
     "placeholderEmail": "seu@email.com",
-    "placeholderSubject": "Resumo do seu problema ou duvida",
+    "placeholderSubject": "Resumo do seu problema ou dúvida",
     "placeholderMessage": "Descreva em detalhes como podemos ajudar...",
     "sending": "Enviando...",
     "sendMessage": "Enviar mensagem",
@@ -1320,7 +1775,256 @@
     "footerTerms": "Termos",
     "footerSupport": "Suporte",
     "footerBlog": "Blog",
-    "footerCopyright": "© 2026 Sentimenta"
+    "footerCopyright": "© 2026 Sentimenta",
+    "labelCategory": "Sobre o que você precisa de ajuda?",
+    "categoryPlaceholder": "Selecione uma categoria",
+    "categoryHint": "Essa classificação ajuda a equipe a detectar problemas recorrentes de coleta e confiança.",
+    "categories": {
+      "dataTrust": "Origem, score ou confiança nos dados",
+      "collectionSync": "Coleta ou sincronização",
+      "accountAccess": "Conta ou acesso",
+      "billing": "Planos, créditos ou cobrança",
+      "other": "Outro assunto"
+    }
+  },
+  "platformCapabilities": {
+    "title": "Capacidade por plataforma",
+    "subtitle": "O que a coleta atual realmente suporta para posts, comentários, histórico e automação.",
+    "headers": {
+      "platform": "Plataforma",
+      "status": "Estado",
+      "posts": "Posts",
+      "comments": "Comentários",
+      "history": "Histórico",
+      "frequency": "Frequência"
+    },
+    "statuses": {
+      "available": "Disponível",
+      "beta": "Beta",
+      "unavailable": "Indisponível",
+      "planned": "Planejado"
+    },
+    "support": {
+      "supported": "Disponível",
+      "beta": "Beta",
+      "unavailable": "Indisponível"
+    },
+    "history": {
+      "start_date": "Data inicial + limite de posts",
+      "recent_only": "Mais recentes até o limite",
+      "unavailable": "Indisponível"
+    },
+    "frequency": {
+      "plan_schedule": "Semanal ou diária, conforme o plano",
+      "unavailable": "Indisponível"
+    },
+    "platforms": {
+      "instagram": {
+        "name": "Instagram",
+        "note": "Perfis públicos e contas oficiais"
+      },
+      "youtube": {
+        "name": "YouTube",
+        "note": "Canais e vídeos públicos"
+      },
+      "tiktok": {
+        "name": "TikTok",
+        "note": "Coleta pública em validação"
+      },
+      "twitter": {
+        "name": "X / Twitter",
+        "note": "Conexão e coleta desativadas nesta versão"
+      }
+    },
+    "footnote": "Os limites numéricos e a frequência efetiva dependem do plano. “Beta” indica que a coleta funciona, mas ainda pode variar por mudanças da origem."
+  },
+  "snapshot": {
+    "ariaLabel": "Base de dados do score",
+    "basis": "Base de dados do score",
+    "period": "{start} a {end}",
+    "periodUnknown": "Período não registrado",
+    "denominators": "{valid} válidos de {saved} salvos",
+    "denominatorsUnknown": "Denominadores não registrados",
+    "surface": {
+      "historicalTitle": "Leitura histórica — atualização necessária",
+      "qualifiedTitle": "Leitura limitada pela cobertura",
+      "unavailableTitle": "Sem base válida para interpretar esta tela",
+      "denominators": "Base comprovada: {valid} análises válidas de {saved} itens salvos."
+    },
+    "funnel": {
+      "ariaLabel": "Funil reconciliado de contagens",
+      "eyebrow": "Rastreabilidade das contagens",
+      "title": "Do que a rede mostrou ao que virou análise válida",
+      "scope": "Todos os números usam o mesmo snapshot, ref. {id}.",
+      "notAvailable": "N/D",
+      "status": {
+        "complete": "Funil reconciliado",
+        "partial": "Parcial, sem estimativas",
+        "invalid": "Contagens inconsistentes"
+      },
+      "stages": {
+        "found": {
+          "label": "Encontrados",
+          "definition": "Itens informados pela origem antes dos critérios de elegibilidade."
+        },
+        "eligible": {
+          "label": "Elegíveis",
+          "definition": "Itens que passaram pelos filtros de período, perfil e política de coleta."
+        },
+        "collected": {
+          "label": "Coletados",
+          "definition": "Itens efetivamente obtidos da origem dentro deste mesmo recorte."
+        },
+        "saved": {
+          "label": "Salvos",
+          "definition": "Itens únicos persistidos e vinculados ao snapshot."
+        },
+        "analyzed": {
+          "label": "Analisados",
+          "definition": "Itens salvos que tiveram ao menos uma tentativa de análise."
+        },
+        "valid": {
+          "label": "Válidos",
+          "definition": "Itens cuja análise mais recente produziu um resultado utilizável."
+        },
+        "ignored": {
+          "label": "Ignorados",
+          "definition": "Itens encontrados que ficaram fora dos critérios de elegibilidade."
+        }
+      },
+      "differences": {
+        "foundEligible": "{count} itens encontrados ficaram fora dos critérios de elegibilidade.",
+        "eligibleCollected": "{count} itens elegíveis não foram coletados neste recorte.",
+        "collectedSaved": "{count} itens coletados não viraram registros únicos salvos.",
+        "savedAnalyzed": "{count} itens salvos ainda não tiveram tentativa de análise.",
+        "analyzedValid": "{count} tentativas não produziram uma análise válida."
+      },
+      "noDifferences": "As etapas disponíveis mantêm o mesmo denominador.",
+      "unknownExplanation": "N/D significa que a etapa não foi instrumentada neste mesmo escopo; o produto não estima o valor.",
+      "invalidExplanation": "Este snapshot não forma um funil monotônico. As métricas analíticas devem ser tratadas como não reconciliadas.",
+      "detailsLabel": "Como cada etapa é calculada"
+    },
+    "provenance": {
+      "open": "Ver origem do score",
+      "openShort": "Ver origem",
+      "openUnavailable": "Ver origem dos dados",
+      "openShortUnavailable": "Ver origem dos dados",
+      "eyebrow": "Proveniência e cobertura",
+      "title": "Como este score foi calculado",
+      "titleUnavailable": "Por que não há score disponível?",
+      "description": "Esta é a trilha de evidência do recorte exibido. Ela não inicia coleta nem altera os dados.",
+      "descriptionUnavailable": "A trilha abaixo mostra por que os dados não produziram uma análise válida. Ela não inicia coleta nem altera os dados.",
+      "close": "Fechar proveniência",
+      "backToScore": "Voltar ao score",
+      "backToData": "Voltar à leitura",
+      "notRecorded": "Não registrado",
+      "unknownSource": "Origem não registrada",
+      "unknownProfile": "Perfil não registrado",
+      "period": "Período observado",
+      "periodValue": "{start} a {end}",
+      "periodHelp": "O score e as contagens abaixo se limitam a este recorte.",
+      "freshness": "Execuções e frescor",
+      "lastAttempt": "Última tentativa",
+      "lastSuccess": "Último sucesso",
+      "origin": "Origem e perfis",
+      "collectionMode": "Modo da execução",
+      "collectionLimits": "Limites registrados: {posts} posts, {comments} comentários por post, desde {since}.",
+      "collection": {
+        "all": {
+          "label": "Todos os itens elegíveis",
+          "description": "A execução pediu todos os itens elegíveis até os limites registrados. Isso não significa acesso irrestrito à rede."
+        },
+        "sample": {
+          "label": "Seleção legada sem método comprovado",
+          "description": "Esta execução antiga registrou o modo ‘sample’. Não há evidência suficiente para tratá-lo como amostra estatística ou representativa."
+        },
+        "engagement": {
+          "label": "Priorização por engajamento",
+          "description": "No Instagram público, a execução ordenou por curtidas os candidatos devolvidos pela origem e limitou a análise. É uma seleção enviesada e não representa a conversa inteira."
+        },
+        "incremental": {
+          "label": "Atualização incremental",
+          "description": "A execução buscou conteúdo novo desde o último marco registrado."
+        },
+        "analysis_only": {
+          "label": "Somente análise",
+          "description": "Não houve nova coleta; a execução analisou itens que já estavam salvos."
+        },
+        "not_recorded": {
+          "label": "Modo não registrado",
+          "description": "Não há evidência suficiente para afirmar como a coleta foi configurada."
+        }
+      },
+      "coverage": "Cobertura comprovada",
+      "coverageStatus": "Estado",
+      "coverageRatio": "Cobertura",
+      "profilesEvaluated": "Perfis avaliados",
+      "coverageStates": {
+        "complete": "Completa",
+        "partial": "Parcial",
+        "unknown": "Não comprovada",
+        "none": "Sem cobertura"
+      },
+      "coverageReasons": {
+        "complete_window": "Período, perfis e análises atendem aos critérios registrados para esta janela.",
+        "analysis_incomplete": "Parte dos itens salvos ainda não possui análise válida.",
+        "latest_attempt_failed": "A tentativa mais recente falhou; a cobertura atual não pode ser confirmada.",
+        "no_saved_items": "Nenhum item foi salvo no recorte, portanto não há base para avaliar.",
+        "expected_window_not_recorded": "A janela esperada não foi registrada; o produto não presume cobertura integral."
+      },
+      "technicalReference": "Referência técnica imutável"
+    },
+    "score": "Score congelado:",
+    "id": "snapshot {id}",
+    "global": {
+      "ariaLabel": "Status global dos dados",
+      "eyebrow": "Status dos dados",
+      "periodLabel": "Período",
+      "lastSuccessLabel": "Último sucesso",
+      "lastSuccessNever": "Nenhum sucesso registrado",
+      "basisLabel": "Base",
+      "scoreLabel": "Score",
+      "snapshotId": "ref. {id}",
+      "notAvailable": "N/D",
+      "retry": "Tentar novamente",
+      "errorTitle": "Status dos dados indisponível",
+      "errorDescription": "Não foi possível confirmar o frescor e a cobertura. Evite interpretar os insights até recuperar este status.",
+      "noSnapshotTitle": "Ainda não há uma base de dados",
+      "noSnapshotDescription": "Conecte um perfil e conclua a primeira coleta antes de interpretar a reputação.",
+      "states": {
+        "healthy": "Dados em dia",
+        "healthyNoAnalysis": "Coleta recente, sem análise válida",
+        "degraded": "Dados exigem atenção",
+        "partial": "Execução parcial",
+        "failedAttempt": "A última atualização falhou",
+        "stale": "Dados desatualizados",
+        "failed": "Sem uma atualização válida",
+        "never_synced": "Sem coleta concluída"
+      }
+    },
+    "language": {
+      "current": "Janela válida: esta leitura pode representar o momento monitorado.",
+      "healthy_limited_coverage": "Dados recentes, mas a cobertura ainda não permite afirmar o momento atual.",
+      "healthy_without_valid_data": "A conexão está recente, mas ainda não há análises válidas para interpretar.",
+      "partial": "Execução parcial: esta leitura considera somente os dados válidos preservados.",
+      "partial_without_history": "A execução foi parcial e não deixou uma base válida para avaliar.",
+      "degraded": "Leitura histórica preservada; a atualização mais recente precisa ser verificada.",
+      "degraded_without_history": "A atualização está degradada e não há base válida preservada para avaliar.",
+      "stale": "Leitura histórica: os dados estão fora do prazo de atualização.",
+      "stale_without_history": "Os dados estão fora do prazo e não há base válida para interpretar.",
+      "failed_with_history": "A atualização falhou; esta é somente a última leitura histórica válida.",
+      "failed_without_history": "A atualização falhou e ainda não existe uma base válida para avaliar.",
+      "never_synced": "Ainda não existe uma coleta concluída para avaliar este perfil."
+    },
+    "actions": {
+      "keep_monitoring": "Continuar monitorando",
+      "review_coverage": "Revisar cobertura",
+      "review_partial_run": "Revisar execução parcial",
+      "sync_now": "Atualizar dados",
+      "retry_sync": "Tentar sincronizar novamente",
+      "start_first_sync": "Iniciar primeira coleta",
+      "run_analysis": "Executar análise"
+    }
   },
   "preflight": {
     "titleSync": "Confirmar sincronização",

@@ -42,8 +42,7 @@ test.describe("Auth and dashboard smoke", () => {
     expect(errors).toEqual([]);
   });
 
-  test("protected dashboard can render with seeded token", async ({ page, request }) => {
-    await login(request);
+  test("protected dashboard can render after product login", async ({ page }) => {
     await page.goto("/login");
     await page.locator("input[type='email']").first().fill(email);
     await page.locator("input[type='password']").first().fill(password);

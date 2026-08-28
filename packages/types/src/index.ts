@@ -9,6 +9,7 @@
 
 export * from "./user";
 export * from "./connection";
+export * from "./data-snapshot";
 export * from "./post";
 export * from "./comment";
 export * from "./dashboard";

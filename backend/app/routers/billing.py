@@ -13,7 +13,15 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_user
 from app.db.session import get_db
 from app.models.user import User
-from app.services.plan_service import PLAN_LIMITS, calculate_overage, estimate_sync_cost_brl, get_user_usage
+from app.services.plan_service import (
+    PLAN_LIMITS,
+    SYNC_REQUEST_MAX_COMMENTS_PER_POST,
+    SYNC_REQUEST_MAX_POSTS,
+    calculate_overage,
+    estimate_sync_cost_brl,
+    get_plan_limits,
+    get_user_usage,
+)
 from app.services.stripe_service import (
     construct_event,
     create_checkout_session,
@@ -142,11 +150,23 @@ def get_credits(
     from app.services.credit_service import get_balance, get_credits_for_plan, CREDIT_PACKS, DEMOGRAPHIC_CREDIT_COST
     balance = get_balance(db, current_user.id)
     plan_allocation = get_credits_for_plan(current_user.plan)
+    plan_limits = get_plan_limits(current_user.plan)
     available_packs = _configured_pack_ids()
     return {
         **balance,
         "plan": current_user.plan,
         "plan_allocation": plan_allocation,
+        "collection_limits": {
+            "max_posts_per_sync": min(
+                plan_limits["max_posts_per_sync"],
+                SYNC_REQUEST_MAX_POSTS,
+            ),
+            "max_comments_per_post": min(
+                plan_limits["max_comments_per_post"],
+                SYNC_REQUEST_MAX_COMMENTS_PER_POST,
+            ),
+            "sync_frequency": plan_limits["sync_frequency"],
+        },
         "demographic_cost": DEMOGRAPHIC_CREDIT_COST,
         "packs": [
             {"id": k, "credits": v["credits"], "price_brl": v["price_brl"]}

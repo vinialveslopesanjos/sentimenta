@@ -29,6 +29,7 @@ Documentos sobre desenho técnico, fluxos e integração.
 
 Documentos sobre usuário, mercado e experiência.
 
+- [Economia unitária por 1.000 comentários](./produto/UNIT_ECONOMICS.md)
 - [Personas](./produto/USER_PERSONAS.md)
 - [Jornada do usuário](./produto/USER_JOURNEY.md)
 - [Análise competitiva](./produto/COMPETITIVE_ANALYSIS.md)

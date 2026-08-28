@@ -55,6 +55,7 @@ engine = create_engine(
     poolclass=StaticPool,
 )
 TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+app.state.operational_session_factory = TestSessionLocal
 
 
 def override_get_db():

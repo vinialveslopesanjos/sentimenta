@@ -3,20 +3,31 @@ export interface SyncSettings {
   max_comments_per_post: number;
   since_date: string;
   use_apify_comments: boolean;
-  comment_sample_mode: "all" | "sample";
+  comment_sample_mode: "all" | "engagement";
 }
 
-const STORAGE_KEY = "sentimenta.sync.settings.v3";
+export interface CollectionLimits {
+  max_posts_per_sync: number;
+  max_comments_per_post: number;
+  sync_frequency: string;
+}
+
+const STORAGE_KEY = "sentimenta.sync.settings.v4";
+const LEGACY_STORAGE_KEY = "sentimenta.sync.settings.v3";
 
 export const DEFAULT_SYNC_SETTINGS: SyncSettings = {
   max_posts: 10,
   max_comments_per_post: 200,
   since_date: "",
   use_apify_comments: true,
-  comment_sample_mode: "sample",
+  comment_sample_mode: "engagement",
 };
 
-function normalize(settings: Partial<SyncSettings>): SyncSettings {
+type StoredSyncSettings = Omit<Partial<SyncSettings>, "comment_sample_mode"> & {
+  comment_sample_mode?: string;
+};
+
+function normalize(settings: StoredSyncSettings): SyncSettings {
   const maxPosts = Number(settings.max_posts);
   const maxComments = Number(settings.max_comments_per_post);
   const sinceDate = typeof settings.since_date === "string" ? settings.since_date : "";
@@ -28,7 +39,22 @@ function normalize(settings: Partial<SyncSettings>): SyncSettings {
       : DEFAULT_SYNC_SETTINGS.max_comments_per_post,
     since_date: sinceDate,
     use_apify_comments: settings.use_apify_comments !== false,
-    comment_sample_mode: settings.comment_sample_mode === "all" ? "all" : "sample",
+    comment_sample_mode: settings.comment_sample_mode === "all" ? "all" : "engagement",
+  };
+}
+
+export function constrainSyncSettings(
+  settings: Partial<SyncSettings>,
+  limits: CollectionLimits,
+): SyncSettings {
+  const normalized = normalize(settings);
+  return {
+    ...normalized,
+    max_posts: Math.min(normalized.max_posts, limits.max_posts_per_sync),
+    max_comments_per_post: Math.min(
+      normalized.max_comments_per_post,
+      limits.max_comments_per_post,
+    ),
   };
 }
 
@@ -38,10 +64,13 @@ export function loadSyncSettings(): SyncSettings {
   }
 
   try {
-    const raw = window.localStorage.getItem(STORAGE_KEY);
+    const raw = window.localStorage.getItem(STORAGE_KEY)
+      ?? window.localStorage.getItem(LEGACY_STORAGE_KEY);
     if (!raw) return { ...DEFAULT_SYNC_SETTINGS };
-    const parsed = JSON.parse(raw) as Partial<SyncSettings>;
-    return normalize(parsed);
+    const parsed = JSON.parse(raw) as StoredSyncSettings;
+    const normalized = normalize(parsed);
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+    return normalized;
   } catch {
     return { ...DEFAULT_SYNC_SETTINGS };
   }

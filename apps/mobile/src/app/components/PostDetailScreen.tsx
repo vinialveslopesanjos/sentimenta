@@ -82,7 +82,7 @@ export function PostDetailScreen() {
     return (
       <div className="min-h-screen bg-[#FDFBFF] flex items-center justify-center">
         <StatusBar />
-        <p className="text-slate-400" style={{ fontSize: "14px" }}>Post nao encontrado</p>
+        <p className="text-slate-400" style={{ fontSize: "14px" }}>Post não encontrado</p>
       </div>
     );
   }
@@ -114,14 +114,14 @@ export function PostDetailScreen() {
   // Summary data
   const avgScore = summary?.avg_score ?? null;
   const avgPolarity = summary?.avg_polarity ?? null;
-  const totalAnalyzed = summary?.total_analyzed ?? comments.length;
+  const totalAnalyzed = summary?.total_analyzed ?? analysis.length;
 
   // Sentiment distribution from summary
   const sentDist = summary?.sentiment_distribution;
   const totalSent = sentDist ? (sentDist.positive || 0) + (sentDist.neutral || 0) + (sentDist.negative || 0) : 0;
   const positivePercent = totalSent > 0 ? Math.round(((sentDist?.positive || 0) / totalSent) * 100) : 0;
   const neutralPercent = totalSent > 0 ? Math.round(((sentDist?.neutral || 0) / totalSent) * 100) : 0;
-  const negativePercent = totalSent > 0 ? Math.round(((sentDist?.negative || 0) / totalSent) * 100) : 0;
+  const negativePercent = totalSent > 0 ? Math.max(0, Math.min(100, 100 - positivePercent - neutralPercent)) : 0;
 
   // Emotions from summary or analysis
   const emotionsDist = summary?.emotions_distribution as Record<string, number> | undefined;
@@ -209,7 +209,7 @@ export function PostDetailScreen() {
             </div>
             <div className="flex items-center gap-1 text-slate-400">
               <MessageSquare size={14} className="text-cyan-400" />
-              <span style={{ fontSize: "12px" }}>{commentCount} comentarios</span>
+              <span style={{ fontSize: "12px" }}>{commentCount} comentários</span>
             </div>
           </div>
 
@@ -236,7 +236,7 @@ export function PostDetailScreen() {
             <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "22px", fontWeight: 500, color: "#06B6D4" }}>
               {avgScore !== null ? avgScore.toFixed(1) : "—"}
             </p>
-            <p className="text-slate-400" style={{ fontSize: "10px" }}>Score medio</p>
+            <p className="text-slate-400" style={{ fontSize: "10px" }}>Score médio</p>
           </DreamCard>
 
           <DreamCard className="p-4">
@@ -277,7 +277,7 @@ export function PostDetailScreen() {
               style={{ fontFamily: "'Outfit', sans-serif", fontSize: "15px", fontWeight: 500, color: "#334155" }}
               className="mb-3"
             >
-              Distribuicao de Sentimento
+              Distribuição de sentimento
             </p>
             <div className="flex rounded-xl overflow-hidden h-4 mb-3">
               <div
@@ -322,7 +322,7 @@ export function PostDetailScreen() {
             <div className="flex items-center gap-1.5 mb-3">
               <span style={{ fontSize: "14px" }}>😊</span>
               <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", fontWeight: 500, color: "#334155" }}>
-                Emocoes
+                Emoções
               </span>
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -344,7 +344,7 @@ export function PostDetailScreen() {
             <div className="flex items-center gap-1.5 mb-3">
               <span style={{ fontSize: "14px" }}>🏷️</span>
               <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", fontWeight: 500, color: "#334155" }}>
-                Topicos
+                Tópicos
               </span>
             </div>
             <div className="flex flex-wrap gap-1.5">
@@ -369,14 +369,14 @@ export function PostDetailScreen() {
             style={{ fontFamily: "'Outfit', sans-serif", fontSize: "17px", fontWeight: 500, color: "#334155" }}
             className="mb-3"
           >
-            Comentarios
+            Comentários
           </p>
 
           <div className="flex gap-2 mb-3">
             <div className="flex-1 flex items-center gap-2 bg-slate-50 rounded-xl px-3 py-2">
               <Search size={14} className="text-slate-300" />
               <input
-                placeholder="Buscar comentarios..."
+                placeholder="Buscar comentários..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="flex-1 bg-transparent text-slate-600 placeholder-slate-300 outline-none"
@@ -390,12 +390,24 @@ export function PostDetailScreen() {
           </div>
 
           <div className="space-y-2">
-            {filteredComments.slice(0, 20).map((c) => {
-              const score = c.analysis?.score_0_10 ?? c.score_0_10 ?? 0;
-              const scoreNum = typeof score === "number" ? score : 0;
+            {filteredComments.length === 0 ? (
+              <DreamCard className="p-5 text-center">
+                <p style={{ fontSize: "13px", fontWeight: 600, color: "#334155" }}>
+                  {commentCount > 0 ? "Comentários aguardando análise" : "Nenhum comentário encontrado"}
+                </p>
+                <p className="mt-1" style={{ fontSize: "12px", color: "#94A3B8", lineHeight: 1.5 }}>
+                  {commentCount > 0
+                    ? "Assim que a análise terminar, scores e emoções aparecem aqui."
+                    : "Quando houver comentários coletados, eles aparecem nesta lista."}
+                </p>
+              </DreamCard>
+            ) : filteredComments.slice(0, 20).map((c) => {
+              const score = c.analysis?.score_0_10 ?? c.score_0_10 ?? null;
+              const hasScore = typeof score === "number" && Number.isFinite(score);
+              const scoreNum = hasScore ? score : null;
               const aiNote = c.analysis?.summary_pt || c.summary_pt || "";
-              const emotion = c.analysis?.emotions?.[0] || c.emotions?.[0] || "—";
-              const author = c.author_username || c.author_name || "Anonimo";
+              const emotion = c.analysis?.emotions?.[0] || c.emotions?.[0] || "";
+              const author = c.author_username || c.author_name || "Anônimo";
               const likes = c.like_count || 0;
               const text = c.text_original || "";
               const date = c.published_at ? fmtDate(c.published_at) : "";
@@ -403,17 +415,26 @@ export function PostDetailScreen() {
               return (
                 <DreamCard key={c.id} className="p-3">
                   <div className="flex items-start gap-3">
-                    <span
-                      className={`flex-shrink-0 mt-0.5 ${scoreNum >= 9
-                          ? "text-emerald-500"
-                          : scoreNum >= 7
-                            ? "text-cyan-500"
-                            : "text-amber-500"
-                        }`}
-                      style={{ fontFamily: "'Outfit', sans-serif", fontSize: "14px", fontWeight: 600 }}
-                    >
-                      {scoreNum.toFixed(1)}
-                    </span>
+                    {scoreNum !== null ? (
+                      <span
+                        className={`flex-shrink-0 mt-0.5 ${scoreNum >= 9
+                            ? "text-emerald-500"
+                            : scoreNum >= 7
+                              ? "text-cyan-500"
+                              : "text-amber-500"
+                          }`}
+                        style={{ fontFamily: "'Outfit', sans-serif", fontSize: "14px", fontWeight: 600 }}
+                      >
+                        {scoreNum.toFixed(1)}
+                      </span>
+                    ) : (
+                      <span
+                        className="flex-shrink-0 mt-0.5 px-2 py-1 rounded-full"
+                        style={{ fontSize: "10px", fontWeight: 600, color: "#7C3AED", background: "rgba(139,92,246,0.1)" }}
+                      >
+                        Aguardando análise
+                      </span>
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 mb-0.5">
                         <span className="text-slate-600 truncate" style={{ fontSize: "12px", fontWeight: 500 }}>
@@ -434,14 +455,16 @@ export function PostDetailScreen() {
                           IA: {aiNote}
                         </p>
                       )}
-                      <div className="flex gap-1">
-                        <span
-                          className="px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-600"
-                          style={{ fontSize: "9px", fontWeight: 500 }}
-                        >
-                          {emotion}
-                        </span>
-                      </div>
+                      {emotion && (
+                        <div className="flex gap-1">
+                          <span
+                            className="px-2 py-0.5 rounded-full bg-cyan-50 text-cyan-600"
+                            style={{ fontSize: "9px", fontWeight: 500 }}
+                          >
+                            {emotion}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </DreamCard>

@@ -9,6 +9,9 @@ import {
   ResponsiveContainer,
   Tooltip,
 } from "recharts";
+import { useLocale, useTranslations } from "next-intl";
+import { ChartTextAlternative } from "@/components/charts/ChartTextAlternative";
+import { formatChartNumber } from "@/lib/chartAccessibility";
 
 const EMOTION_LABELS: Record<string, string> = {
   joy: "Alegria",
@@ -54,6 +57,8 @@ interface Props {
   distribution: Record<string, number> | null;
   height?: number;
   maxItems?: number;
+  title?: string;
+  chartId?: string;
 }
 
 function RadarTooltip({ active, payload }: { active?: boolean; payload?: Array<{ value: number; payload: { axis: string; count: number } }> }) {
@@ -77,7 +82,9 @@ function RadarTooltip({ active, payload }: { active?: boolean; payload?: Array<{
   );
 }
 
-export default function SentimentRadar({ distribution, height = 280, maxItems = 8 }: Props) {
+export default function SentimentRadar({ distribution, height = 280, maxItems = 8, title, chartId = "sentiment-radar" }: Props) {
+  const locale = useLocale();
+  const ta = useTranslations("charts.accessibility");
   if (!distribution || Object.keys(distribution).length === 0) {
     return (
       <div className="flex flex-col items-center justify-center gap-2" style={{ height, color: "var(--text-faint)" }}>
@@ -99,32 +106,59 @@ export default function SentimentRadar({ distribution, height = 280, maxItems = 
     count,
   }));
 
+  const chartTitle = title ?? ta("emotionRadarTitle");
+
   return (
-    <ResponsiveContainer width="100%" height={height}>
-      <RadarChart data={data} margin={{ top: 10, right: 30, bottom: 10, left: 30 }}>
-        <PolarGrid stroke="color-mix(in srgb, var(--accent) 24%, transparent)" />
-        <PolarAngleAxis
-          dataKey="axis"
-          tick={{ fill: "var(--text-muted)", fontSize: 11, fontFamily: "Outfit, sans-serif" }}
-        />
-        <PolarRadiusAxis
-          angle={90}
-          domain={[0, 100]}
-          tick={false}
-          axisLine={false}
-          tickCount={4}
-        />
-        <Radar
-          name="Emocoes"
-          dataKey="value"
-          stroke="var(--primary)"
-          fill="var(--primary)"
-          fillOpacity={0.16}
-          strokeWidth={2}
-          dot={{ r: 3, fill: "var(--primary)" }}
-        />
-        <Tooltip content={<RadarTooltip />} />
-      </RadarChart>
-    </ResponsiveContainer>
+    <div>
+      <div data-chart-visual={chartId} aria-hidden="true">
+        <ResponsiveContainer width="100%" height={height}>
+          <RadarChart data={data} margin={{ top: 10, right: 30, bottom: 10, left: 30 }} accessibilityLayer={false}>
+            <PolarGrid stroke="color-mix(in srgb, var(--accent) 24%, transparent)" />
+            <PolarAngleAxis
+              dataKey="axis"
+              tick={{ fill: "var(--text-muted)", fontSize: 11, fontFamily: "Outfit, sans-serif" }}
+            />
+            <PolarRadiusAxis
+              angle={90}
+              domain={[0, 100]}
+              tick={false}
+              axisLine={false}
+              tickCount={4}
+            />
+            <Radar
+              name="Emoções"
+              dataKey="value"
+              stroke="var(--primary)"
+              fill="var(--primary)"
+              fillOpacity={0.16}
+              strokeWidth={2}
+              dot={{ r: 3, fill: "var(--primary)" }}
+            />
+            <Tooltip content={<RadarTooltip />} />
+          </RadarChart>
+        </ResponsiveContainer>
+      </div>
+      <ChartTextAlternative
+        chartId={chartId}
+        title={chartTitle}
+        summary={ta("dominant", {
+          category: data[0].axis,
+          value: formatChartNumber(data[0].count, locale, 0),
+          unit: ta("units.occurrences"),
+        })}
+        period={ta("currentSlice")}
+        unit={ta("units.occurrencesAndRelativePercentage")}
+        columns={[
+          { key: "emotion", label: ta("columns.emotion") },
+          { key: "occurrences", label: ta("columns.occurrences"), numeric: true },
+          { key: "relative", label: ta("columns.relativePercentage"), numeric: true },
+        ]}
+        rows={data.map(item => ({
+          emotion: item.axis,
+          occurrences: formatChartNumber(item.count, locale, 0),
+          relative: `${item.value}%`,
+        }))}
+      />
+    </div>
   );
 }

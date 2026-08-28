@@ -194,7 +194,7 @@ First Dashboard (KPIs, sentiment donut, recent posts)
 | 3 | Navigate to Connect page | User clicks "Conectar rede social" button. | Smooth. Clear options for YouTube and Instagram. |
 | 4 | Enter YouTube handle or authenticate Instagram | YouTube: enter channel handle. Instagram: OAuth flow. | YouTube flow is frictionless. Instagram OAuth can feel complex for non-technical users. |
 | 5 | Trigger first sync | User clicks "Sync" on the connection card. | Good. Could auto-trigger first sync after connection. |
-| 6 | Wait for data processing | Loading state while pipeline runs (scrape + analyze). | Add estimated time ("Analyzing 120 comments... about 2 minutes"). |
+| 6 | Wait for data processing | Loading state while pipeline runs (scrape + analyze). | Show an honest range tied to network and volume ("Analyzing up to 120 comments; current estimate: 2–5 minutes") and update the stage without treating the range as an SLA. |
 | 7 | See first results | Dashboard populates with KPIs, charts, sentiment donut. | This is the "aha!" moment. Must feel instant and impressive. |
 
 ### Emotions During Onboarding

@@ -6,7 +6,6 @@ Optionally uses a comment-specific actor for full comment data (dates, likes, pr
 """
 
 import logging
-import math
 import os
 import threading
 import time
@@ -392,19 +391,6 @@ def enrich_posts_apify(shortcodes: list[str]) -> dict[str, dict]:
 
 # ── Comment scraping functions ──────────────────────────────────────────
 
-_Z_SCORES = {0.80: 1.28, 0.90: 1.645, 0.95: 1.96}
-
-
-def _calc_sample_size(population: int, confidence: float = 0.80, margin: float = 0.05) -> int:
-    """Calculate statistically representative sample size with finite population correction."""
-    if population <= 0:
-        return 0
-    z = _Z_SCORES.get(confidence, 1.28)
-    n = (z ** 2 * 0.25) / (margin ** 2)
-    n_adj = n / (1 + (n - 1) / population)
-    return min(math.ceil(n_adj), population)
-
-
 def _parse_apify_comment(item: dict) -> Optional[dict]:
     """Parse a single Apify comment item.
 
@@ -469,34 +455,24 @@ def _fetch_comments_for_post(post_url: str, max_items: int, token: str) -> list[
             raise
 
 
-def _apply_smart_sample(
+def prioritize_comments_by_engagement(
     comments: list[dict],
-    population: int,
-    reserve_top_pct: float = 0.10,
+    max_items: int,
 ) -> list[dict]:
-    """Sample comments preserving top-liked ones.
+    """Rank the provider-returned candidate set by likes, deterministically.
 
-    Reserves `reserve_top_pct` of the sample for the highest-liked comments,
-    fills the rest randomly from the remaining pool.
+    This is deliberately not described as statistical sampling: the provider
+    can already have truncated or ordered the candidate set before Sentimenta
+    receives it.
     """
-    import random
-
-    sample_size = _calc_sample_size(population)
-    if len(comments) <= sample_size:
-        return comments
-
-    top_count = max(1, math.ceil(sample_size * reserve_top_pct))
-    remaining_count = max(0, sample_size - top_count)
-
-    sorted_by_likes = sorted(
-        comments, key=lambda c: c.get("like_count", 0) or 0, reverse=True
-    )
-    top_comments = sorted_by_likes[:top_count]
-    rest_pool = sorted_by_likes[top_count:]
-
-    sampled_rest = random.sample(rest_pool, min(remaining_count, len(rest_pool)))
-
-    return top_comments + sampled_rest
+    return sorted(
+        comments,
+        key=lambda comment: (
+            -(comment.get("like_count", 0) or 0),
+            str(comment.get("timestamp") or ""),
+            str(comment.get("platform_comment_id") or ""),
+        ),
+    )[:max(0, max_items)]
 
 
 def fetch_comments_apify(
@@ -515,9 +491,9 @@ def fetch_comments_apify(
 
     Args:
         post_urls: List of Instagram post URLs
-        max_per_post: Max comments per post (for "all" mode)
-        sample_mode: "all" or "sample" (statistical sampling at 80% confidence)
-        comment_counts: {url: estimated_comment_count} for sampling calculation
+        max_per_post: Maximum provider candidates requested per post
+        sample_mode: "all" or "engagement" (legacy "sample" is accepted by callers)
+        comment_counts: Kept for backwards-compatible callers; no statistical claim is made
         step_callback: Progress callback (thread-safe)
 
     Returns:
@@ -551,8 +527,6 @@ def fetch_comments_apify(
     for url in post_urls:
         if per_post_limits and url in per_post_limits:
             limits[url] = per_post_limits[url]
-        elif sample_mode == "sample" and url in comment_counts and comment_counts[url] > 0:
-            limits[url] = _calc_sample_size(comment_counts[url])
         else:
             limits[url] = max_per_post
         limits[url] = max(1, min(limits[url], HARD_MAX_COMMENTS_PER_POST))

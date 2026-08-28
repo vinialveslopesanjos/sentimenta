@@ -70,6 +70,35 @@ def _set_stage(db, run, stage: str) -> None:
         db.rollback()
 
 
+def _capture_terminal_snapshot(db, run: PipelineRun | None):
+    """Persist a user snapshot without changing the pipeline's terminal outcome."""
+    if run is None or run.status not in {"completed", "partial", "failed"}:
+        return None
+    try:
+        from app.services.data_snapshot_service import capture_user_data_snapshot
+
+        snapshot = capture_user_data_snapshot(
+            db,
+            user_id=run.user_id,
+            trigger_run=run,
+        )
+        db.commit()
+        logger.info(
+            "Captured data snapshot %s for terminal pipeline run %s (%s)",
+            snapshot.id,
+            run.id,
+            run.status,
+        )
+        return snapshot
+    except Exception:
+        db.rollback()
+        logger.exception(
+            "Failed to capture data snapshot for terminal pipeline run %s",
+            getattr(run, "id", None),
+        )
+        return None
+
+
 def _mark_stale_running_runs(db, max_age_hours: int = 6) -> int:
     cutoff = datetime.now(timezone.utc) - timedelta(hours=max_age_hours)
     stale_runs = (
@@ -84,6 +113,7 @@ def _mark_stale_running_runs(db, max_age_hours: int = 6) -> int:
         run.status = "failed"
         run.ended_at = datetime.now(timezone.utc)
         _append_step(db, run, "Execucao reconciliada automaticamente apos ficar presa em running")
+        _capture_terminal_snapshot(db, run)
     if stale_runs:
         db.commit()
         logger.warning("Reconciled %d stale pipeline runs", len(stale_runs))
@@ -106,6 +136,33 @@ def _append_step(db, run, message: str):
     except Exception as exc:
         logger.error("_append_step commit failed (msg=%s): %s", message, exc)
         db.rollback()
+
+
+def _set_collection_metadata(
+    run: PipelineRun,
+    *,
+    mode: str,
+    max_posts: int | None = None,
+    max_comments_per_post: int | None = None,
+    since_date: str | None = None,
+    use_apify_comments: bool | None = None,
+) -> None:
+    """Persist only non-secret collection inputs alongside an operational run."""
+    try:
+        notes = json.loads(run.notes) if run.notes else {}
+    except (json.JSONDecodeError, TypeError):
+        notes = {"old_notes": run.notes} if run.notes else {}
+    if not isinstance(notes, dict):
+        notes = {}
+    notes["collection"] = {
+        "mode": mode,
+        "run_type": run.run_type,
+        "max_posts": max_posts,
+        "max_comments_per_post": max_comments_per_post,
+        "since_date": since_date,
+        "use_apify_comments": use_apify_comments,
+    }
+    run.notes = json.dumps(notes, ensure_ascii=False, sort_keys=True)
 
 
 def _finalize_run_status(db, run, total_analyzed: int, total_errors: int, skipped_reasons=None) -> None:
@@ -366,6 +423,7 @@ def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str 
             db.add(run)
         run.celery_task_id = self.request.id
         run.status = "running"
+        _set_collection_metadata(run, mode="analysis_only")
         try:
             db.commit()
         except IntegrityError:
@@ -457,6 +515,8 @@ def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str 
         else:
             step_cb(f"Análise concluída: {total_analyzed} análises válidas, {total_errors} falha{'s' if total_errors > 1 else ''}")
 
+        _capture_terminal_snapshot(db, run)
+
         # Invalidate cache
         try:
             from app.core.cache import invalidate_pattern
@@ -480,6 +540,7 @@ def task_analyze_connection(self, connection_id: str, user_id: str, run_id: str 
             run.status = "failed"
             run.ended_at = datetime.now(timezone.utc)
             _append_step(db, run, f"Erro: {str(e)[:200]}")
+            _capture_terminal_snapshot(db, run)
         except Exception:
             pass
         return {"error": str(e)}
@@ -518,6 +579,14 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
 
         run.celery_task_id = self.request.id
         run.status = "running"
+        _set_collection_metadata(
+            run,
+            mode=comment_sample_mode,
+            max_posts=max_posts,
+            max_comments_per_post=max_comments_per_post,
+            since_date=since_date,
+            use_apify_comments=use_apify_comments,
+        )
         try:
             db.commit()
         except IntegrityError:
@@ -531,6 +600,7 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
             run.notes = f"Connection {connection_id} not found"
             run.ended_at = datetime.now(timezone.utc)
             db.commit()
+            _capture_terminal_snapshot(db, run)
             return {"error": run.notes}
 
         # Step 1: Ingest (uses shared logic, no separate PipelineRun)
@@ -562,6 +632,7 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
             _append_step(db, run, f"Erro: {ingest_result['error']}")
             run.ended_at = datetime.now(timezone.utc)
             db.commit()
+            _capture_terminal_snapshot(db, run)
             return ingest_result
 
         run.posts_fetched = ingest_result.get("posts_fetched", 0)
@@ -672,6 +743,8 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
         else:
             _append_step(db, run, f"Pipeline concluído: {total_analyzed} análises válidas, {total_errors} falha{'s' if total_errors > 1 else ''}")
 
+        _capture_terminal_snapshot(db, run)
+
         # Invalidate dashboard cache for this user
         try:
             from app.core.cache import invalidate_pattern
@@ -723,6 +796,7 @@ def task_full_pipeline(self, connection_id: str, user_id: str, max_posts: int = 
             run.status = "failed"
             run.ended_at = datetime.now(timezone.utc)
             _append_step(db, run, f"Erro: {str(e)[:200]}")
+            _capture_terminal_snapshot(db, run)
         except Exception:
             pass
         return {"error": str(e)}
@@ -848,6 +922,14 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                     # First sync: fetch last 7 days
                     since_date = (datetime.now(timezone.utc) - timedelta(days=7)).date().isoformat()
 
+                _set_collection_metadata(
+                    run,
+                    mode="incremental",
+                    max_posts=max_posts,
+                    max_comments_per_post=max_comments,
+                    since_date=since_date,
+                    use_apify_comments=False,
+                )
                 from app.core.apify_cost_tracker import reset_run_cost, get_run_cost
                 reset_run_cost()
                 _set_stage(db, run, "ingesting")
@@ -868,6 +950,7 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                     _append_step(db, run, f"Erro: {ingest_result['error']}")
                     run.ended_at = datetime.now(timezone.utc)
                     db.commit()
+                    _capture_terminal_snapshot(db, run)
                     results[conn.username] = {"error": ingest_result["error"]}
                     continue
 
@@ -992,6 +1075,7 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                 run.total_cost_usd = total_cost
                 _finalize_run_status(db, run, total_analyzed, total_errors, skipped_reasons)
                 _append_step(db, run, f"Sync concluído: {run.posts_fetched} posts, {total_analyzed} análises válidas, {total_errors} falhas, {total_llm_calls} LLM calls, custo ${total_cost:.4f}")
+                _capture_terminal_snapshot(db, run)
 
                 # Invalidate cache
                 try:
@@ -1032,6 +1116,7 @@ def task_daily_sync(self, frequency_filter: str = None) -> dict:
                         run.status = "failed"
                         run.ended_at = datetime.now(timezone.utc)
                         _append_step(db, run, f"Erro: {str(exc)[:200]}")
+                        _capture_terminal_snapshot(db, run)
                     except Exception:
                         db.rollback()
                 results[conn.username] = {"error": str(exc)}

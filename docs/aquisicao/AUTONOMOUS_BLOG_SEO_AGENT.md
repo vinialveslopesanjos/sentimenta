@@ -1,528 +1,702 @@
-# Agente autonomo de blog para SEO, GEO e AEO
+# Autonomous Blog CEO Agent
 
-Data: 2026-06-30
+Data: 2026-07-01
 
-Objetivo: criar um fluxo diario que encontre pautas com demanda real, escreva
-materias uteis para o publico do Sentimenta, gere imagem de capa no padrao do
-blog, rode QA e publique ou deixe rascunhos prontos no admin sem precisar dar
-commit.
+Objetivo: rodar um agente autonomo de conteudo para o blog do Sentimenta sem
+abrir PR, sem GitHub Actions, sem deploy e sem mexer no repositorio. O agente
+atua como um operador humano com navegador: pesquisa, escolhe pauta, escreve,
+gera imagem, entra no admin do Sentimenta, publica e valida o resultado.
 
-Este documento e um plano de arquitetura. Ele nao deve conter senhas, tokens ou
-cookies. Credenciais ficam em GitHub Actions Secrets, variaveis da VPS ou em um
-cofre de secrets.
+Este arquivo foi escrito para ser usado como prompt/base de uma automacao
+agendada do Codex/agent. Ele descreve o contexto, os links, os logins que devem
+existir como secrets, o fluxo de trabalho e os criterios de QA.
 
 ## Resposta curta
 
-O melhor caminho nao e um robo abrindo o Chrome todo dia para postar. Isso e
-fragil.
+Para postar artigo novo no blog, nao precisa de Git.
 
-O fluxo profissional deve ser:
+O blog do Sentimenta salva posts no banco via admin. Entao o agente precisa
+apenas:
 
-1. GitHub Actions roda todo dia em horario fixo.
-2. Um script pesquisa tendencias e palavras-chave usando APIs confiaveis.
-3. O agente escolhe pautas com uma regra de pontuacao.
-4. O agente escreve o artigo com fontes citadas e checagens anti-alucinacao.
-5. A imagem e gerada por API, salva em storage publico e vinculada ao post.
-6. O post e criado como rascunho via API admin do Sentimenta.
-7. Um teste Playwright abre o admin e a pagina publica para validar que tudo renderiza.
-8. No inicio, um humano aprova. Depois, temas evergreen podem ser publicados automaticamente.
+1. pesquisar temas;
+2. olhar o que ja foi publicado;
+3. escolher uma pauta nao repetida;
+4. escrever o artigo;
+5. revisar a formatacao do corpo;
+6. gerar uma imagem de capa nova e especifica do artigo;
+7. entrar no admin;
+8. criar e publicar o artigo;
+9. abrir o post publicado e conferir se esta certo.
 
-Computer Use ou Playwright entram como fallback para testar a tela e cobrir
-fluxos que ainda nao tenham API. Para publicar, a API admin e mais estavel.
+GitHub, PR, CI e deploy so entram quando a gente quiser mudar codigo do site.
+Para materia nova, o caminho e admin do blog.
 
-## Por que isso importa
+## Links fixos
 
-SEO e o Google encontrar o blog.
-
-GEO e o conteudo ser facil de ser citado por respostas de IA, como AI Overviews,
-ChatGPT, Perplexity e outros mecanismos generativos.
-
-AEO e o conteudo responder perguntas diretamente, de um jeito que possa virar
-snippet, FAQ ou resposta curta.
-
-Para o Sentimenta, o ganho esperado e criar uma biblioteca de paginas que
-respondem duvidas reais de social medias, agencias, founders e times de marca:
-
-- como analisar comentarios do Instagram;
-- como detectar crise de reputacao;
-- como transformar comentario em relatorio para cliente;
-- como medir sentimento alem de curtidas;
-- como priorizar resposta quando um post viraliza mal;
-- como provar se uma campanha foi bem recebida.
-
-## Arquitetura recomendada
+Site publico:
 
 ```text
-GitHub Actions cron
-  -> scripts/research-blog-topics.mjs
-  -> scripts/generate-blog-article.mjs
-  -> scripts/generate-blog-cover.mjs
-  -> scripts/qa-blog-draft.mjs
-  -> POST /api/v1/admin/blog/posts
-  -> opcional: POST /api/v1/admin/blog/posts/{id}/publish
-  -> Playwright smoke em /dashboard/admin/blog e /blog/{slug}
-  -> relatorio como artifact + comentario em issue
+https://sentimenta.com.br
 ```
 
-Componentes:
-
-- GitHub Actions: agenda diaria, logs, artifacts e secrets.
-- APIs de pesquisa: Google Search Console, Google Trends/SerpAPI/DataForSEO,
-  Google Ads Keyword Planner quando disponivel, Reddit API, YouTube Data API e
-  fontes editoriais confiaveis.
-- LLM de texto: gera pauta, outline, artigo e metadados.
-- OpenRouter/GPT Image 2: gera a capa no estilo visual do blog.
-- API admin do Sentimenta: cria, edita, publica e despublica posts.
-- Playwright: testa login/admin/blog/renderizacao.
-
-## Onde rodar
-
-Preferencia: GitHub Actions.
-
-Motivo: nao precisa entrar na VPS, tem historico de execucoes, secrets
-centralizados, logs, artifacts e permissao controlada.
-
-Cron sugerido:
-
-```yaml
-schedule:
-  - cron: "0 10 * * *"
-```
-
-Isso roda as 10:00 UTC, que corresponde a 07:00 no horario de Sao Paulo.
-
-## Secrets necessarios
-
-Nunca colocar estes valores em arquivo `.md`, commit ou log:
-
-- `SENTIMENTA_API_URL`
-- `SENTIMENTA_ADMIN_EMAIL`
-- `SENTIMENTA_ADMIN_PASSWORD`
-- `SENTIMENTA_ADMIN_TOKEN`, se adotarmos token de servico
-- `OPENROUTER_API_KEY`
-- `GOOGLE_SEARCH_CONSOLE_CLIENT_ID`
-- `GOOGLE_SEARCH_CONSOLE_CLIENT_SECRET`
-- `GOOGLE_SEARCH_CONSOLE_REFRESH_TOKEN`
-- `SERPAPI_API_KEY` ou `DATAFORSEO_*`, se usarmos uma dessas opcoes
-- `REDDIT_CLIENT_ID`
-- `REDDIT_CLIENT_SECRET`
-- `YOUTUBE_API_KEY`, se usarmos YouTube como fonte
-- credenciais de storage para imagens, se nao forem servidas pelo proprio backend
-
-## Fontes de pesquisa
-
-Prioridade 1: fontes proprias e de intencao real.
-
-- Google Search Console do `sentimenta.com.br`.
-- Consultas do Google Ads que trouxeram cliques ou impressoes.
-- Termos pesquisados no site/blog, se houver analytics interno.
-- Posts e comentarios reais analisados pelo Sentimenta, agregados e sem expor PII.
-
-Prioridade 2: demanda externa.
-
-- Google Trends.
-- Keyword Planner do Google Ads.
-- SerpAPI/DataForSEO para SERP, People Also Ask e autocomplete.
-- Reddit, usando comunidades relevantes e sem copiar conteudo.
-- YouTube, para perguntas recorrentes sobre social media, reputacao e analytics.
-
-Prioridade 3: fontes de autoridade.
-
-- Google Search Central.
-- Meta Business Help Center.
-- Think with Google.
-- HubSpot, Sprout Social, Hootsuite, Buffer e similares quando o assunto for
-  marketing/social media.
-- Artigos academicos ou relatorios publicos quando falar de sentimento, NLP ou
-  reputacao.
-
-Evitar:
-
-- copiar conteudo de concorrente;
-- publicar dado sem fonte;
-- citar estatistica sem link;
-- usar Reddit como verdade absoluta;
-- transformar rumor em fato.
-
-## Como escolher pauta
-
-Cada pauta recebe uma nota de 0 a 100.
-
-Formula inicial:
+Blog publico:
 
 ```text
-nota =
-  25% intencao de busca
-  20% encaixe com o produto
-  15% volume ou crescimento recente
-  15% facilidade de ranquear
-  10% potencial de conversao
-  10% confiabilidade das fontes
-   5% novidade ou urgencia
+https://sentimenta.com.br/blog
 ```
 
-Regra pratica:
+Login:
 
-- 80 a 100: pode virar artigo.
-- 60 a 79: vira rascunho ou entra no backlog.
-- abaixo de 60: descartar.
+```text
+https://sentimenta.com.br/login
+```
 
-Temas que provavelmente convertem melhor:
+Admin do blog:
 
-- dor operacional: "como analisar muitos comentarios";
-- dor de agencia: "como provar resultado para cliente";
-- dor de risco: "como saber se um post virou crise";
-- dor de decisao: "o que fazer quando comentarios negativos aumentam";
-- comparativos: "analise de sentimento vs social listening";
-- guias: "como montar relatorio de reputacao digital".
+```text
+https://sentimenta.com.br/dashboard/admin/blog
+```
+
+API publica de posts:
+
+```text
+https://sentimenta.com.br/api/v1/blog/posts
+https://sentimenta.com.br/api/v1/blog/posts/{slug}
+```
+
+## Login e credenciais
+
+Nao escrever senha no prompt, no codigo ou neste documento.
+
+O agente deve receber as credenciais por secret/variavel segura:
+
+```text
+SENTIMENTA_ADMIN_EMAIL
+SENTIMENTA_ADMIN_PASSWORD
+OPENROUTER_API_KEY
+```
+
+Conta esperada: uma conta do Sentimenta com permissao `admin`. Contas comuns nao
+conseguem acessar `/dashboard/admin/blog`.
+
+Se a sessao ja estiver logada no Chrome, o agente pode usar a sessao existente.
+Se nao estiver logada, deve acessar `/login` e autenticar usando os secrets.
+
+## Ordem de ferramentas
+
+O agente deve tentar as ferramentas nesta ordem:
+
+1. Computer Use
+2. Chrome controlado pelo Codex
+3. Playwright
+
+Regra:
+
+- se Computer Use conseguir navegar, clicar e postar, use Computer Use;
+- se Computer Use falhar, use Chrome com a sessao real do usuario;
+- se Chrome tambem falhar, use Playwright com navegador automatizado;
+- se as tres opcoes falharem por captcha, login quebrado ou bloqueio visual,
+  pare e gere um relatorio dizendo exatamente onde travou.
+
+Importante: Playwright e melhor para validacao repetivel. Chrome/Computer Use e
+melhor quando precisamos aproveitar sessao ja logada.
+
+## Contexto do produto
+
+Sentimenta e um SaaS de analise de reputacao digital.
+
+Ele transforma comentarios publicos em:
+
+- sentimento;
+- emocoes;
+- temas;
+- sinais de crise;
+- score de reputacao;
+- relatorios para marcas, social medias, agencias e criadores.
+
+Promessa central:
+
+```text
+Entender o que o publico realmente esta sentindo sem ler comentario por comentario.
+```
+
+O blog deve atrair pessoas que buscam resolver dores reais de reputacao,
+social media, comentarios e relatorios.
+
+## Assuntos que queremos cobrir
+
+Prioridade alta:
+
+- analise de sentimento em comentarios;
+- reputacao digital;
+- comentarios negativos no Instagram;
+- crise de imagem;
+- social listening;
+- relatorio para cliente de agencia;
+- como medir percepcao de campanha;
+- como transformar comentarios em decisao;
+- como priorizar respostas em posts com muitas criticas;
+- como descobrir temas recorrentes nos comentarios;
+- como usar IA para analisar comentarios publicos;
+- diferenca entre curtidas, engajamento e sentimento;
+- como provar resultado de conteudo para cliente;
+- sinais de que um post esta virando crise.
+
+Prioridade media:
+
+- monitoramento de marca;
+- atendimento em redes sociais;
+- comunidades e reputacao;
+- relatorios de social media;
+- dashboards para agencias;
+- inteligencia de audiencia;
+- analise de comentarios de YouTube, Instagram, TikTok e X/Twitter.
+
+Evitar, a menos que haja conexao direta com Sentimenta:
+
+- tutoriais genericos de Google Ads;
+- tutoriais genericos de Meta Ads;
+- noticias politicas;
+- assuntos juridicos;
+- promessas de ganho financeiro;
+- textos sobre IA generica sem ligacao com reputacao/comentarios.
+
+## Como pesquisar todo dia
+
+O agente deve usar uma combinacao de fontes:
+
+1. Google Search
+2. Google Trends, se disponivel
+3. Google autocomplete e People Also Ask
+4. Reddit
+5. YouTube
+6. blogs confiaveis de marketing/social media
+7. artigos ja publicados no blog do Sentimenta
+
+Consultas iniciais sugeridas:
+
+```text
+analise de sentimento comentarios instagram
+como analisar comentarios negativos instagram
+como saber se post virou crise
+relatorio de sentimento para cliente
+social listening para agencias
+monitoramento de reputacao digital
+como medir reputacao nas redes sociais
+como responder comentarios negativos
+analise de comentarios com IA
+como transformar comentarios em insights
+```
+
+Consultas em ingles, quando quiser encontrar fontes melhores:
+
+```text
+sentiment analysis social media comments
+brand reputation monitoring social media
+social listening sentiment analysis
+instagram comments sentiment analysis
+customer sentiment analysis examples
+```
+
+## Como evitar repeticao
+
+Antes de escrever, o agente deve abrir:
+
+```text
+https://sentimenta.com.br/blog
+```
+
+Tambem pode consultar:
+
+```text
+https://sentimenta.com.br/api/v1/blog/posts
+```
+
+Checklist anti-repeticao:
+
+- listar titulos existentes;
+- listar slugs existentes;
+- identificar temas ja cobertos;
+- nao criar artigo com mesmo angulo;
+- se o tema ja existir, criar um angulo novo.
+
+Exemplo:
+
+- ja existe: "Como saber se comentarios do Instagram estao virando crise";
+- novo angulo permitido: "Checklist de 15 minutos para priorizar comentarios negativos";
+- novo angulo ruim: "Como saber se comentarios negativos viraram crise".
+
+## Como escolher a pauta
+
+Escolha uma pauta com base em:
+
+- dor clara;
+- intencao de busca real;
+- conexao com o produto;
+- chance de virar cadastro;
+- baixa repeticao com posts existentes;
+- fontes suficientes para sustentar o artigo.
+
+Nota simples:
+
+```text
+0 a 2 pontos: dor clara
+0 a 2 pontos: busca provavel no Google
+0 a 2 pontos: encaixe com Sentimenta
+0 a 2 pontos: nao repetido no blog
+0 a 2 pontos: fontes boas
+```
+
+So publicar se a pauta fizer pelo menos 7/10.
 
 ## Formato do artigo
 
-Todo artigo deve sair com:
+Tamanho ideal:
 
-- `title`
-- `slug`
-- `excerpt`
-- `seo_title`
-- `seo_description`
-- `category`
-- `persona`
-- `tags`
-- `cover_image_url`
-- `cover_image_alt`
-- `cta_label`
-- `cta_href`
-- `read_time_minutes`
-- `body_markdown`
+```text
+800 a 1400 palavras
+```
 
-Estrutura recomendada do Markdown:
+Campos obrigatorios no admin:
+
+- titulo;
+- slug;
+- resumo;
+- categoria;
+- persona;
+- tags;
+- URL da capa;
+- alt da capa;
+- CTA;
+- link do CTA;
+- SEO title;
+- SEO description;
+- corpo em Markdown.
+
+Categorias recomendadas:
+
+```text
+Analise de Sentimento
+Gestao de Reputacao
+Social Media
+Agencias
+IA para Reputacao
+```
+
+Personas disponiveis:
+
+```text
+agencias
+social-media
+criadores
+fundadores
+```
+
+CTA padrao:
+
+```text
+Fazer diagnostico gratuito
+```
+
+Link de CTA padrao:
+
+```text
+/diagnostico?utm_source=blog&utm_medium=organic&utm_campaign={slug}
+```
+
+## Estrutura de escrita
+
+Usar este esqueleto:
 
 ```markdown
-# Titulo claro com a dor principal
+# [Titulo com a dor principal]
 
-Resposta curta em 2 ou 3 frases.
+Resposta curta: explique em 2 ou 3 frases o que a pessoa precisa saber.
 
 ## Por que isso importa
 
-Contexto pratico.
+Mostre a dor pratica. Exemplo: perder sinais importantes porque olha so curtidas
+e alcance.
 
 ## Como identificar o problema
 
-Lista ou tabela simples.
+Liste sinais objetivos.
 
 ## O que fazer na pratica
 
-Passo a passo.
+Passo a passo simples.
+
+## Exemplo aplicado
+
+Mostre uma situacao realista de social media, agencia ou marca.
 
 ## Como o Sentimenta ajuda
 
-Conexao com o produto sem parecer propaganda vazia.
+Conecte com sentimento, emocoes, temas, score e sinais de crise.
 
 ## Perguntas frequentes
 
-### Pergunta real pesquisada
+### [Pergunta pesquisada]
+
+Resposta direta.
+
+### [Outra pergunta pesquisada]
 
 Resposta direta.
 
 ## Proximo passo
 
-CTA unico.
+Convite para testar com comentarios reais.
 ```
 
-Regras de escrita:
+Tom de voz:
 
-- escrever em portugues brasileiro correto;
-- usar linguagem simples, mas nao infantil;
-- abrir com resposta direta;
-- explicar termos tecnicos;
-- incluir exemplos praticos;
-- nao inventar numeros;
-- nao fazer promessa que o produto ainda nao cumpre;
-- usar negrito em trechos-chave, mas sem exagero;
-- preferir frases curtas;
-- sempre terminar com um CTA unico.
+- claro;
+- humano;
+- direto;
+- sem exagero de marketing;
+- sem prometer milagre;
+- sem jargao vazio;
+- com exemplos praticos;
+- com negrito em partes importantes.
 
-## SEO, GEO e AEO na pratica
+Regra de ouro:
+
+```text
+O artigo precisa fazer a pessoa pensar: "isso resolve uma dor que eu tenho agora".
+```
+
+## Formatacao do corpo
+
+O blog publico atualmente renderiza Markdown basico. Tabelas em pipe Markdown
+podem aparecer quebradas como texto corrido se o renderizador nao estiver com
+GFM habilitado.
+
+Regra obrigatoria:
+
+- nao publicar tabelas em pipe Markdown (`| coluna | coluna |`);
+- se uma comparacao parecer pedir tabela, transformar em lista escaneavel,
+  blocos com subtitulos ou bullets por prioridade;
+- evitar HTML de tabela no Markdown, porque o render publico pode nao processar
+  HTML bruto;
+- conferir o preview do admin e a pagina publica procurando caracteres `|`
+  visiveis, linhas `---` soltas ou conteudo tabular sem quebra;
+- se uma tabela for indispensavel e o preview nao renderizar corretamente,
+  salvar como rascunho e relatar que o blog precisa de suporte a tabelas/GFM.
+
+Padrao recomendado no lugar de tabela:
+
+```markdown
+### Prioridade alta
+
+- Quando entra aqui: critica forte, tema sensivel, repeticao ou muitas respostas.
+- Acao recomendada: responder rapido, alinhar internamente e acompanhar evolucao.
+
+### Prioridade media
+
+- Quando entra aqui: reclamacao real, duvida com tom negativo ou frustracao isolada.
+- Acao recomendada: responder com clareza e levar detalhes para DM se necessario.
+```
+
+## Regras de SEO, GEO e AEO
 
 SEO:
 
-- palavra-chave principal no titulo, slug, primeiro paragrafo e meta description;
-- links internos para `/`, `/login`, `/blog` e artigos relacionados;
-- imagem com alt text descritivo;
-- headings claros;
-- sitemap atualizado pela pagina publicada;
-- schema `BlogPosting` quando suportado pela pagina.
+- palavra-chave principal no titulo;
+- palavra-chave no primeiro paragrafo;
+- slug limpo;
+- meta description com promessa clara;
+- subtitulos escaneaveis;
+- links internos para `/blog`, `/diagnostico` e, quando fizer sentido, `/login`.
 
 GEO:
 
-- resumo inicial com resposta direta;
-- definicoes claras de entidades como "analise de sentimento" e "reputacao digital";
-- listas e tabelas que modelos de IA conseguem resumir;
-- fontes citadas;
-- exemplos concretos;
-- evitar texto generico que poderia ser de qualquer SaaS.
+- abrir com resposta direta;
+- explicar conceitos com definicoes claras;
+- usar listas e blocos escaneaveis quando ajudarem;
+- citar fontes quando usar dados externos;
+- deixar o texto facil de ser resumido por IA.
 
 AEO:
 
-- secoes em formato pergunta/resposta;
-- FAQ no final;
-- respostas curtas antes de explicacoes longas;
-- perguntas baseadas em People Also Ask, Search Console, Reddit e comentarios reais.
+- incluir perguntas frequentes;
+- responder perguntas em 2 ou 3 frases antes de aprofundar;
+- usar perguntas que aparecem em Google, Reddit e YouTube;
+- evitar enrolacao antes da resposta.
 
-## Imagens de capa
+## Fontes e confiabilidade
 
-O objetivo e manter consistencia com as capas existentes, nao criar imagem solta
-com cara de banco de imagem.
+Antes de escrever, o agente deve coletar pelo menos 3 fontes quando o artigo
+usar afirmacoes externas.
+
+Fontes boas:
+
+- Google Search Central;
+- Meta Business Help Center;
+- Think with Google;
+- Sprout Social;
+- Hootsuite;
+- Buffer;
+- HubSpot;
+- pesquisas academicas;
+- documentacao de plataformas;
+- discussoes do Reddit apenas como sinal de dor, nao como prova absoluta.
+
+Regras:
+
+- nao copiar texto de fonte;
+- nao inventar estatistica;
+- nao usar dado sem link;
+- nao publicar noticia sem data;
+- se uma afirmacao for interpretacao, escrever como interpretacao.
+
+## Imagem de capa com OpenRouter
+
+O agente deve gerar imagem usando OpenRouter com `OPENROUTER_API_KEY`.
+
+Ordem obrigatoria:
+
+1. escrever e revisar o artigo primeiro;
+2. extrair do artigo o tema, a dor, a cena e os elementos visuais principais;
+3. consultar as capas ja publicadas no blog e listar os `cover_image_url`;
+4. gerar uma capa nova baseada no contexto final do artigo;
+5. validar visualmente a imagem antes de preencher o admin.
+
+Antes de implementar, confirmar o model id atual disponivel no OpenRouter para
+geracao de imagem. A intencao do usuario e usar GPT Image 2 via OpenRouter, mas
+o nome exato do modelo pode mudar.
+
+Estilo visual desejado:
+
+- capa editorial SaaS;
+- estetica limpa;
+- cores do Sentimenta: teal, off-white, rose suave, amber quente;
+- elementos de dashboard;
+- bolhas de comentarios;
+- graficos discretos;
+- sensacao premium e B2B;
+- sem texto pequeno na imagem;
+- sem logo falso;
+- sem UI inventada com marca fake.
+- imagem nova, diferente das capas ja publicadas;
+- composicao conectada ao assunto do artigo, nao uma capa generica de dashboard.
 
 Prompt base:
 
 ```text
 Clean editorial SaaS blog cover for Sentimenta, a digital reputation analytics
-product. Show [visual metaphor] with subtle dashboard elements, comment bubbles,
-sentiment signals, and calm strategic decision-making. Use a refined palette with
-teal, soft rose, warm amber, off-white, and dark text accents. Modern B2B SaaS
-style, premium, minimal, no readable text, no fake logos, no brand names.
+product. Article title: [title]. Core reader pain: [pain]. Main idea: [one-line
+thesis]. Show [specific visual scene from the article], subtle dashboard
+elements, public comment bubbles, sentiment signals, reputation score, and a calm
+strategic decision-making environment. Premium modern B2B SaaS style. Refined
+palette with teal, off-white, soft rose, warm amber, and dark text accents. New
+composition distinct from existing Sentimenta blog covers. No readable text, no
+fake logos, no brand names, no watermark.
 ```
 
-Variações por tema:
-
-- crise: alertas discretos, comentarios agrupados, painel de risco;
-- agencia: relatorio, dashboard e apresentacao para cliente;
-- social media: feed, comentarios e priorizacao;
-- marca: reputacao, tendencia e sentimento ao longo do tempo.
-
-Saidas esperadas:
-
-- 16:9 para capa do artigo;
-- 1:1 opcional para social;
-- alt text gerado junto com a imagem;
-- nome de arquivo baseado no slug;
-- imagem salva em storage publico ou endpoint de midia do backend.
-
-Observacao: antes da implementacao, confirmar o `model id` exato do GPT Image 2
-no OpenRouter. O documento nao deve assumir nome de modelo sem verificar a
-documentacao atual.
-
-## Publicacao
-
-O Sentimenta ja tem API admin de blog:
+Tamanhos:
 
 ```text
-POST /api/v1/admin/blog/posts
-PATCH /api/v1/admin/blog/posts/{id}
-POST /api/v1/admin/blog/posts/{id}/publish
-POST /api/v1/admin/blog/posts/{id}/unpublish
-GET /api/v1/admin/blog/posts
+16:9 para capa do blog
+1:1 opcional para Instagram/LinkedIn
 ```
 
-Fluxo recomendado:
-
-1. Criar rascunho via API.
-2. Rodar QA de conteudo.
-3. Rodar QA visual com Playwright.
-4. Se o modo for `draft`, parar.
-5. Se o modo for `publish_with_approval`, abrir issue/PR/checklist para humano aprovar.
-6. Se o modo for `auto_publish`, publicar apenas se todos os criterios passarem.
-
-Nao usar browser automation para publicar como primeira opcao. Browser automation
-deve ser fallback quando a API nao cobre alguma acao.
-
-## QA obrigatorio
-
-QA de conteudo:
-
-- pelo menos 3 fontes confiaveis quando o artigo fizer afirmacoes externas;
-- nenhuma estatistica sem fonte;
-- nenhum paragrafo copiado de uma fonte;
-- sem assunto desalinhado ao Sentimenta;
-- slug unico;
-- titulo com acentos corretos;
-- CTA funcionando;
-- sem materia sobre Meta Ads/Google Ads quando nao houver conexao clara com Sentimenta;
-- sem promessa de resultado garantido.
-
-QA tecnico:
-
-- criar rascunho com sucesso;
-- listar rascunho no admin;
-- validar Markdown renderizado;
-- validar que imagem carrega;
-- validar que links internos retornam 200;
-- se publicar, abrir `/blog/{slug}`;
-- checar title/meta description;
-- rodar screenshot desktop e mobile;
-- falhar se houver erro de console relevante.
-
-QA com Playwright:
+Alt text:
 
 ```text
-login -> dashboard/admin/blog -> localizar post -> abrir preview/publicado
+Ilustracao editorial sobre [tema] com elementos de comentarios, reputacao digital e analise de sentimento.
 ```
 
-Computer Use:
+Se a automacao nao conseguir subir imagem gerada no admin:
 
-- usar apenas quando Playwright nao conseguir lidar com uma tela externa;
-- nunca depender de sessao manual do Chrome como unica forma de publicacao diaria;
-- registrar screenshot e acao executada.
+1. gerar imagem;
+2. salvar localmente em uma pasta de outputs;
+3. tentar obter uma URL publica propria da imagem por um caminho aprovado no
+   admin/runbook;
+4. se so houver capa antiga como fallback, nao publicar automaticamente;
+5. salvar como rascunho e registrar que falta hospedar/subir a imagem nova.
 
-## Modos de operacao
+## Como postar no admin
 
-Modo 1: `research_only`
+Fluxo no navegador:
 
-- pesquisa pautas;
-- gera relatorio;
-- nao cria post.
+1. Abrir `https://sentimenta.com.br/login`.
+2. Se ja estiver logado, seguir para o admin.
+3. Se nao estiver logado, preencher email e senha dos secrets.
+4. Abrir `https://sentimenta.com.br/dashboard/admin/blog`.
+5. Clicar em `Novo rascunho`.
+6. Preencher:
+   - Titulo;
+   - Slug;
+   - Resumo;
+   - Categoria;
+   - Persona;
+   - Tags;
+   - URL da capa;
+   - Alt da capa;
+   - CTA;
+   - Link do CTA;
+   - SEO title;
+   - SEO description;
+   - Corpo em Markdown.
+7. Conferir preview.
+8. Clicar em `Criar e publicar` ou `Salvar e publicar`.
+9. Esperar mensagem de sucesso.
+10. Abrir o post publicado.
 
-Uso: primeira semana, para validar qualidade das pautas.
+Observacao: o corpo em Markdown precisa ter no minimo 80 caracteres. Se o botao
+de publicar estiver desabilitado, conferir os campos obrigatorios.
 
-Modo 2: `draft_only`
+## Validacao depois de publicar
 
-- pesquisa;
-- escreve;
-- gera imagem;
-- cria rascunho no admin;
-- nao publica.
+Depois de publicar, o agente deve:
 
-Uso recomendado no inicio.
+1. abrir o artigo publicado;
+2. confirmar que a URL responde;
+3. confirmar que o titulo aparece;
+4. confirmar que a imagem carrega;
+5. confirmar que o resumo/corpo aparecem;
+6. clicar no CTA;
+7. voltar e verificar se o artigo aparece em `/blog`;
+8. tirar screenshot ou registrar evidencia textual.
 
-Modo 3: `publish_with_approval`
+Checklist final:
 
-- cria rascunho;
-- abre issue com resumo, fontes, imagem e link do admin;
-- publica somente depois de aprovacao manual.
-
-Uso recomendado quando o fluxo ja estiver bom.
-
-Modo 4: `auto_publish`
-
-- publica automaticamente apenas temas evergreen e de baixo risco.
-
-Uso somente depois de varias execucoes boas.
-
-## Relatorio diario
-
-Cada execucao deve salvar um artifact JSON:
-
-```json
-{
-  "date": "2026-06-30",
-  "mode": "draft_only",
-  "topics_found": 24,
-  "topics_selected": 1,
-  "selected_topic": "como analisar comentarios negativos no Instagram",
-  "score": 86,
-  "sources": [
-    { "title": "Fonte", "url": "https://..." }
-  ],
-  "post": {
-    "id": "uuid",
-    "slug": "como-analisar-comentarios-negativos-instagram",
-    "status": "draft",
-    "admin_url": "https://sentimenta.com.br/dashboard/admin/blog"
-  },
-  "qa": {
-    "content": "passed",
-    "playwright": "passed"
-  }
-}
+```text
+[ ] artigo publicado
+[ ] link publico abriu
+[ ] titulo correto
+[ ] imagem carregou
+[ ] corpo renderizou
+[ ] CTA funciona
+[ ] artigo aparece na listagem do blog
+[ ] assunto nao duplicado
+[ ] fontes registradas
 ```
 
-Tambem deve atualizar uma issue fixa chamada `Blog Automation Inbox` com:
+## Relatorio final do agente
 
-- pauta escolhida;
-- motivo da escolha;
-- fontes usadas;
-- link do rascunho;
-- imagem gerada;
-- pendencias;
-- metricas da execucao.
+Ao terminar, responder com:
 
-## Metricas de sucesso
+```text
+Publicado: sim/nao
+Titulo:
+Slug:
+URL publica:
+Pauta escolhida:
+Por que escolhi:
+Fontes usadas:
+Imagem:
+Validacao:
+Problemas encontrados:
+Proxima sugestao de pauta:
+```
 
-Medir semanalmente:
+Se falhar, responder:
 
-- novos artigos publicados;
-- impressoes no Search Console;
-- cliques organicos;
-- consultas que geraram impressao;
-- posicao media;
-- CTR;
-- visitas ao CTA;
-- cadastros completos vindos do blog;
-- artigos que aparecem em respostas/AI Overviews, quando observavel;
-- termos que geram conversao ou lead qualificado.
+```text
+Nao publiquei.
+Onde parou:
+Ferramenta usada:
+Erro observado:
+Print/evidencia:
+O que precisa de intervencao humana:
+```
 
-O objetivo nao e publicar muito. O objetivo e publicar paginas que respondem
-perguntas reais e aproximam a pessoa de testar o Sentimenta.
+## Prompt operacional para colar no agente
 
-## Plano de implementacao
+```text
+Voce e o Autonomous Blog CEO Agent do Sentimenta.
 
-Fase 0: consolidar base atual
+Seu objetivo e publicar um artigo novo no blog do Sentimenta sem abrir PR, sem
+deploy e sem mexer no repositorio.
 
-- manter `scripts/generate-blog-brief.mjs`;
-- manter `scripts/create-blog-draft.mjs`;
-- documentar secrets;
-- garantir que admin API cria rascunho em producao;
-- adicionar script de QA Playwright para admin/blog.
+Contexto:
+- Sentimenta e um SaaS de analise de reputacao digital.
+- O produto transforma comentarios publicos em sentimento, emocoes, temas,
+  score e sinais de crise.
+- O publico principal e social media, agencias, marcas, criadores e fundadores.
+- O blog fica em https://sentimenta.com.br/blog.
+- O admin fica em https://sentimenta.com.br/dashboard/admin/blog.
+- O login fica em https://sentimenta.com.br/login.
+- Use SENTIMENTA_ADMIN_EMAIL e SENTIMENTA_ADMIN_PASSWORD para entrar.
+- Use OPENROUTER_API_KEY para gerar a imagem de capa.
 
-Fase 1: pesquisa diaria
+Ferramentas:
+1. Tente Computer Use.
+2. Se falhar, tente Chrome controlado pelo Codex.
+3. Se falhar, tente Playwright.
+4. Se nenhuma funcionar, pare e explique exatamente onde travou.
 
-- criar `scripts/research-blog-topics.mjs`;
-- integrar Search Console;
-- integrar uma fonte de SERP/Trends;
-- gerar backlog de pautas com nota;
-- nao escrever artigo ainda.
+Tarefa:
+1. Abra o blog publico e leia os artigos ja publicados.
+2. Pesquise no Google, Reddit, YouTube e fontes confiaveis por temas atuais
+   sobre analise de sentimento, reputacao digital, comentarios negativos,
+   social listening, relatorios para agencias e crise de imagem.
+3. Escolha uma pauta com dor clara, busca provavel e conexao direta com o
+   Sentimenta.
+4. Nao repita assunto ja publicado. Se o tema for parecido, escolha um angulo
+   novo.
+5. Colete pelo menos 3 fontes quando usar afirmacoes externas.
+6. Escreva um artigo de 800 a 1400 palavras em portugues brasileiro claro.
+7. Estruture com resposta curta, subtitulos, exemplo pratico, FAQ e CTA.
+8. Nao use tabelas em pipe Markdown. Se precisar comparar itens, use blocos com
+   subtitulos e bullets, e confira se o preview nao mostra `|` ou `---`.
+9. Depois do texto final, gere imagem de capa via OpenRouter no estilo editorial
+   SaaS do Sentimenta: teal, off-white, rose suave, amber quente, dashboard
+   discreto, comentarios e sinais de sentimento. A capa precisa ser nova,
+   diferente das existentes e especifica para o contexto do artigo. Sem texto
+   legivel e sem logos falsos.
+10. Entre no admin do blog.
+11. Crie novo rascunho.
+12. Preencha titulo, slug, resumo, categoria, persona, tags, capa, alt, CTA,
+    SEO title, SEO description e corpo em Markdown.
+13. Confira o preview.
+14. Clique em Criar e publicar ou Salvar e publicar.
+15. Abra o artigo publicado e valide titulo, imagem, corpo, CTA e presenca na
+    listagem do blog.
+16. Responda com relatorio final contendo URL publica, fontes usadas, validacao
+    e eventuais problemas.
 
-Fase 2: rascunho automatico
+Regras:
+- Nao invente dados.
+- Nao copie texto de fontes.
+- Nao publique artigo generico sobre Google Ads ou Meta Ads sem conexao clara
+  com reputacao/comentarios.
+- Nao poste se o conteudo estiver duplicado.
+- Nao publique tabela quebrada; se o preview mostrar pipe Markdown literal,
+  reescreva em bullets ou salve como rascunho.
+- Nao publique artigo novo com capa repetida de artigo antigo. Se a imagem nova
+  nao tiver URL publica, salve como rascunho e relate o bloqueio.
+- Nao exponha senhas ou tokens no relatorio.
+- Se houver duvida forte sobre qualidade ou factualidade, salve como rascunho e
+  explique por que nao publicou.
+```
 
-- criar `scripts/generate-blog-article.mjs`;
-- gerar artigo em Markdown;
-- gerar metadados SEO/GEO/AEO;
-- criar rascunho via API admin;
-- salvar artifact com fontes e justificativa.
+## Quando nao publicar automaticamente
 
-Fase 3: imagem
+Salvar como rascunho e pedir revisao se:
 
-- criar `scripts/generate-blog-cover.mjs`;
-- chamar OpenRouter;
-- salvar imagem em storage;
-- anexar `cover_image_url` ao post;
-- validar proporcao e carregamento.
+- o tema envolve acusacao contra pessoa ou marca especifica;
+- o artigo depende de noticia muito recente e fontes divergentes;
+- o agente nao conseguiu validar as fontes;
+- a imagem ficou ruim ou desalinhada;
+- a imagem nova nao pode ser hospedada e a unica alternativa seria repetir capa
+  antiga;
+- o preview mostrar tabela Markdown quebrada, pipes `|` visiveis ou linhas
+  `---` soltas;
+- o admin apresentou erro;
+- o CTA ou pagina publicada nao abriu;
+- o conteudo parece repetido.
 
-Fase 4: QA e aprovacao
+## Evolucao futura
 
-- criar `scripts/qa-blog-draft.mjs`;
-- rodar Playwright;
-- atualizar issue `Blog Automation Inbox`;
-- manter modo `draft_only` ate 5 execucoes boas.
+Se esse fluxo manual via navegador funcionar bem, depois podemos automatizar
+partes por API:
 
-Fase 5: publicacao controlada
+- listar posts via API;
+- criar rascunho via API;
+- publicar via API;
+- manter Playwright so para validacao visual.
 
-- liberar `publish_with_approval`;
-- depois liberar `auto_publish` apenas para pautas evergreen;
-- manter bloqueio automatico para temas sensiveis, noticias ou claims fortes.
-
-## Decisoes pendentes
-
-Antes de codar, decidir:
-
-1. Frequencia: 1 rascunho por dia ou 3 por semana?
-2. Modo inicial: recomendo `draft_only`.
-3. Fonte paga de pesquisa: SerpAPI, DataForSEO ou outra.
-4. Onde armazenar imagens: storage do backend, S3/R2 ou pasta publica com upload.
-5. Quais temas bloquear: Ads, politica, saude, juridico, concorrentes diretos etc.
-6. Quem aprova publicacao no inicio.
-
-## Minha recomendacao
-
-Comecar simples:
-
-1. Rodar diario em GitHub Actions.
-2. Usar `draft_only`.
-3. Criar no maximo 1 rascunho por dia.
-4. Usar Search Console + SERP API + Reddit como fontes iniciais.
-5. Gerar imagem automaticamente, mas revisar antes de publicar.
-6. Exigir 5 execucoes boas antes de qualquer auto-publicacao.
-
-Assim o Sentimenta ganha cadencia de conteudo sem transformar o blog em uma
-maquina de publicar texto generico.
+Mas o MVP certo agora e navegador + admin + QA final.

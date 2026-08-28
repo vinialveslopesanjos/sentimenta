@@ -83,6 +83,11 @@ let paidTrackingInitialized = false;
 let campaignLandingTracked = false;
 let pageInstanceId: string | null = null;
 
+function isLocalQaRuntime(): boolean {
+  if (typeof window === "undefined") return false;
+  return ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+}
+
 function clientTelemetryId() {
   if (pageInstanceId) return pageInstanceId;
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
@@ -307,7 +312,7 @@ function initPaidTracking() {
 }
 
 export function initAnalytics() {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || isLocalQaRuntime()) return;
   initialized = true;
   initPaidTracking();
 

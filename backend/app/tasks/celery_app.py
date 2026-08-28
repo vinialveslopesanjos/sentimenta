@@ -7,6 +7,13 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 from celery import Celery
 from celery.schedules import crontab
 from app.core.config import settings
+from app.core.sync_schedule import (
+    DAILY_SYNC_HOUR_UTC,
+    DAILY_SYNC_MINUTE_UTC,
+    WEEKLY_SYNC_CELERY_DAY_OF_WEEK,
+    WEEKLY_SYNC_HOUR_UTC,
+    WEEKLY_SYNC_MINUTE_UTC,
+)
 
 celery_app = Celery(
     "sentiment_worker",
@@ -37,12 +44,16 @@ celery_app.conf.beat_schedule = {
     },
     "weekly-sync": {
         "task": "app.tasks.pipeline_tasks.task_daily_sync",
-        "schedule": crontab(hour=3, minute=25, day_of_week=1),  # Monday 3:25AM - Free/Starter (offset from daily)
+        "schedule": crontab(
+            hour=WEEKLY_SYNC_HOUR_UTC,
+            minute=WEEKLY_SYNC_MINUTE_UTC,
+            day_of_week=WEEKLY_SYNC_CELERY_DAY_OF_WEEK,
+        ),
         "kwargs": {"frequency_filter": "weekly"},
     },
     "daily-sync": {
         "task": "app.tasks.pipeline_tasks.task_daily_sync",
-        "schedule": crontab(hour=3, minute=15),  # Daily 3:15AM - Pro/Business/Enterprise
+        "schedule": crontab(hour=DAILY_SYNC_HOUR_UTC, minute=DAILY_SYNC_MINUTE_UTC),
         "kwargs": {"frequency_filter": "daily"},
     },
     "reconcile-stale-runs": {

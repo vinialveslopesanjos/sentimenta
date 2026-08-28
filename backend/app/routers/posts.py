@@ -162,17 +162,29 @@ def get_post_detail(
 
     summary = None
     if summary_row:
+        has_valid_summary = (summary_row.total_analyzed or 0) > 0
+
+        def positive_counts(values):
+            if not has_valid_summary or not isinstance(values, dict):
+                return None
+            filtered = {
+                str(key): value
+                for key, value in values.items()
+                if isinstance(value, (int, float)) and value > 0
+            }
+            return filtered or None
+
         summary = {
             "total_comments": summary_row.total_comments,
             "total_analyzed": summary_row.total_analyzed,
-            "avg_score": summary_row.avg_score,
-            "avg_polarity": summary_row.avg_polarity,
-            "avg_intensity": summary_row.avg_intensity,
-            "weighted_score": summary_row.weighted_score,
-            "emotions_distribution": summary_row.emotions_distribution,
-            "topics_frequency": summary_row.topics_frequency,
-            "sentiment_distribution": summary_row.sentiment_distribution,
-            "word_frequency": word_frequency,
+            "avg_score": summary_row.avg_score if has_valid_summary else None,
+            "avg_polarity": summary_row.avg_polarity if has_valid_summary else None,
+            "avg_intensity": summary_row.avg_intensity if has_valid_summary else None,
+            "weighted_score": summary_row.weighted_score if has_valid_summary else None,
+            "emotions_distribution": positive_counts(summary_row.emotions_distribution),
+            "topics_frequency": positive_counts(summary_row.topics_frequency),
+            "sentiment_distribution": positive_counts(summary_row.sentiment_distribution),
+            "word_frequency": word_frequency if has_valid_summary else None,
         }
 
     return PostDetailResponse(

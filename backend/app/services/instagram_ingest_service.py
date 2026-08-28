@@ -184,6 +184,16 @@ def ingest_instagram_profile(
         for post_data in posts_data:
             pid = post_data["platform_post_id"]
             permalink = post_data.get("permalink")
+            post_timestamp = _parse_timestamp(post_data.get("timestamp"))
+
+            # A manual date is a strict lower bound. Posts with an older or
+            # unknown timestamp cannot be claimed as part of the selected window.
+            if since_date and (
+                post_timestamp is None or post_timestamp.date() < since_date
+            ):
+                skipped += 1
+                continue
+
             # Match by platform_post_id first, then by post_url (migration support)
             existing = existing_posts.get(pid) or (existing_by_url.get(permalink) if permalink else None)
 
@@ -200,7 +210,7 @@ def ingest_instagram_profile(
                 existing.like_count = post_data.get("like_count", 0) or existing.like_count
                 existing.comment_count_api = post_data.get("comment_count", 0) or existing.comment_count_api
                 existing.view_count = post_data.get("view_count", 0) or existing.view_count
-                existing.published_at = _parse_timestamp(post_data.get("timestamp")) or existing.published_at
+                existing.published_at = post_timestamp or existing.published_at
                 existing.post_url = post_data.get("permalink") or existing.post_url
                 media_url = post_data.get("media_url")
                 if media_url:
@@ -229,7 +239,6 @@ def ingest_instagram_profile(
                         skipped += 1
             else:
                 # New post — in incremental mode, skip posts older than boundary
-                post_timestamp = _parse_timestamp(post_data.get("timestamp"))
                 if is_incremental and oldest_post_date and post_timestamp:
                     if post_timestamp < oldest_post_date:
                         skipped += 1
@@ -252,7 +261,7 @@ def ingest_instagram_profile(
                     comment_count_api=_comments,
                     view_count=post_data.get("view_count", 0) or 0,
                     engagement_rate=_calc_engagement_rate(_likes, _comments, _shares, followers),
-                    published_at=_parse_timestamp(post_data.get("timestamp")),
+                    published_at=post_timestamp,
                     post_url=post_data.get("permalink"),
                     raw_payload=post_data,
                     fetched_at=datetime.now(timezone.utc),
@@ -461,7 +470,7 @@ def _fetch_comments_apify_path(
 
     _step = step_callback or (lambda msg: None)
 
-    # Build post URL -> post_obj mapping and comment counts for sampling
+    # Build post URL -> post_obj mapping and the source's last declared counts.
     post_map: dict[str, object] = {}  # url -> post_obj
     comment_counts: dict[str, int] = {}  # url -> estimated count
 
@@ -503,13 +512,17 @@ def _fetch_comments_apify_path(
             stats["status"] = "failed"
         return
 
-    # Apply smart sampling (top-liked reservation) when in sample mode
-    if sample_mode == "sample":
-        from app.services.apify_service import _apply_smart_sample
+    # Engagement mode ranks only the candidate set returned by the provider.
+    # It is intentionally non-probabilistic and must never be presented as a
+    # representative sample of the complete conversation.
+    if sample_mode in {"engagement", "sample"}:
+        from app.services.apify_service import prioritize_comments_by_engagement
+        from app.services.collection_preview_service import ENGAGEMENT_PRIORITY_MAX_PER_POST
+
         for url in comments_by_url:
-            population = comment_counts.get(url, len(comments_by_url[url]))
-            comments_by_url[url] = _apply_smart_sample(
-                comments_by_url[url], population
+            comments_by_url[url] = prioritize_comments_by_engagement(
+                comments_by_url[url],
+                max_items=min(max_comments, ENGAGEMENT_PRIORITY_MAX_PER_POST),
             )
 
     # Save comments to DB — accumulate ALL, commit once, then report progress.

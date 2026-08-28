@@ -31,28 +31,65 @@ function getGreeting() {
   return "Boa noite";
 }
 
+function formatCompactPt(value?: number | null) {
+  if (!value || value <= 0) return "—";
+  if (value >= 1_000_000) {
+    return `${(value / 1_000_000).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}M`;
+  }
+  if (value >= 1_000) {
+    return `${(value / 1_000).toLocaleString("pt-BR", { maximumFractionDigits: value >= 10_000 ? 0 : 1 })} mil`;
+  }
+  return value.toLocaleString("pt-BR");
+}
+
+function formatGeneratedDate(value?: string | null) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime()) || date.getFullYear() <= 1970) return "";
+  return `Gerado em ${date.toLocaleDateString("pt-BR")}`;
+}
+
+function clampPercent(value: number) {
+  return Math.max(0, Math.min(100, value));
+}
+
+function hasPostAnalysis(post: any) {
+  const analyzed = post.summary?.total_analyzed ?? 0;
+  return analyzed > 0 && typeof post.summary?.avg_score === "number";
+}
+
 // Inline SVG donut score — breathing hero
 function ScoreHero({ score }: { score: number }) {
   const radius = 46;
   const stroke = 9;
   const circumference = 2 * Math.PI * radius;
-  const filled = (score / 10) * circumference;
+  const normalizedScore = Math.max(0, Math.min(10, Number(score) || 0));
+  const filled = (normalizedScore / 10) * circumference;
 
   const label =
-    score >= 8.5
+    normalizedScore >= 8.5
       ? "excelente"
-      : score >= 7
-        ? "otimo"
-        : score >= 5.5
+      : normalizedScore >= 7
+        ? "ótimo"
+        : normalizedScore >= 5.5
           ? "regular"
           : "em alerta";
 
+  const narrative =
+    normalizedScore >= 8.5
+      ? "Seu público está em sintonia com você."
+      : normalizedScore >= 7
+        ? "A reputação está positiva, com bons sinais de apoio."
+        : normalizedScore >= 5.5
+          ? "Seu público está dividido; vale acompanhar de perto."
+          : "A reputação pede atenção: investigue os sinais negativos.";
+
   const color =
-    score >= 8.5
+    normalizedScore >= 8.5
       ? "#34D399"
-      : score >= 7
+      : normalizedScore >= 7
         ? "#8B5CF6"
-        : score >= 5.5
+        : normalizedScore >= 5.5
           ? "#FBBF24"
           : "#F472B6";
 
@@ -82,7 +119,7 @@ function ScoreHero({ score }: { score: number }) {
           <motion.circle
             cx="55" cy="55" r={radius}
             fill="none"
-            stroke={score >= 8.5 ? "url(#scoreGrad)" : color}
+            stroke={normalizedScore >= 8.5 ? "url(#scoreGrad)" : color}
             strokeWidth={stroke}
             strokeLinecap="round"
             transform="rotate(-90 55 55)"
@@ -100,7 +137,7 @@ function ScoreHero({ score }: { score: number }) {
             fontFamily="Outfit, sans-serif"
             fontWeight="700"
           >
-            {score}
+            {normalizedScore.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}
           </text>
           <text
             x="55" y="67"
@@ -118,7 +155,7 @@ function ScoreHero({ score }: { score: number }) {
       {/* Narrative */}
       <div className="flex-1">
         <p style={{ fontSize: "11px", color: "#94A3B8", fontWeight: 500, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: "4px" }}>
-          Reputacao geral
+          Reputação geral
         </p>
         <p
           style={{
@@ -129,8 +166,7 @@ function ScoreHero({ score }: { score: number }) {
             lineHeight: 1.3,
           }}
         >
-          Seu publico esta em{" "}
-          <span style={{ color }}>sintonia</span> com voce.
+          {narrative}
         </p>
         <div className="flex items-center gap-2 mt-2.5">
           <span
@@ -138,8 +174,8 @@ function ScoreHero({ score }: { score: number }) {
             style={{
               fontSize: "11px",
               fontWeight: 500,
-              background: score >= 8.5 ? "rgba(52,211,153,0.1)" : "rgba(139,92,246,0.1)",
-              color: score >= 8.5 ? "#059669" : "#7C3AED",
+              background: normalizedScore >= 8.5 ? "rgba(52,211,153,0.1)" : "rgba(139,92,246,0.1)",
+              color: normalizedScore >= 8.5 ? "#059669" : "#7C3AED",
             }}
           >
             {label}
@@ -204,6 +240,8 @@ export function DashboardScreen() {
     if (!trendsData?.data_points?.length) return [];
     return trendsData.data_points.map((dp) => {
       const total = dp.positive + dp.neutral + dp.negative || 1;
+      const positivo = clampPercent(Math.round((dp.positive / total) * 100));
+      const neutro = clampPercent(Math.round((dp.neutral / total) * 100));
       return {
         month: (() => {
           try {
@@ -212,9 +250,9 @@ export function DashboardScreen() {
           } catch {}
           return dp.period.length > 5 ? dp.period.slice(5, 10).replace('-', '/') : dp.period;
         })(),
-        positivo: Math.round((dp.positive / total) * 100),
-        neutro: Math.round((dp.neutral / total) * 100),
-        negativo: Math.round((dp.negative / total) * 100),
+        positivo,
+        neutro,
+        negativo: clampPercent(100 - positivo - neutro),
       };
     });
   }, [trendsData]);
@@ -226,8 +264,8 @@ export function DashboardScreen() {
     const lines = text.split("\n").filter((l) => l.trim());
     return {
       profile: conns[0]?.username || "",
-      period: `Gerado em ${new Date(healthReport.generated_at).toLocaleDateString("pt-BR")}`,
-      summary: lines[0] || "Sem dados suficientes para gerar relatorio.",
+      period: formatGeneratedDate(healthReport.generated_at),
+      summary: lines[0] || "Sem dados suficientes para gerar relatório.",
       strengths: lines[1] || "",
       attention: lines[2] || "",
       nextStep: lines[3] || "",
@@ -301,7 +339,7 @@ export function DashboardScreen() {
                   icon: <MessageSquare size={15} className="text-cyan-500" />,
                   bg: "rgba(103,232,249,0.12)",
                   value: summary.total_comments.toLocaleString(),
-                  label: "comentarios",
+                  label: "comentários",
                   color: "#0891B2",
                 },
                 {
@@ -315,7 +353,7 @@ export function DashboardScreen() {
                   icon: <Link2 size={15} className="text-emerald-500" />,
                   bg: "rgba(52,211,153,0.1)",
                   value: summary.total_connections.toLocaleString(),
-                  label: "conexoes",
+                  label: "conexões",
                   color: "#059669",
                 },
               ].map((k, i) => (
@@ -406,9 +444,7 @@ export function DashboardScreen() {
                       <div>
                         <p className="text-[9px] text-slate-400 uppercase font-semibold">Seguidores</p>
                         <p className="text-xs font-semibold text-slate-700">
-                          {conn.followers_count && conn.followers_count > 0
-                            ? (conn.followers_count >= 10000 ? (conn.followers_count / 1000).toFixed(1) + 'k' : conn.followers_count.toLocaleString("pt-BR"))
-                            : "—"}
+                          {formatCompactPt(conn.followers_count)}
                         </p>
                       </div>
                       <div className="text-center">
@@ -416,12 +452,12 @@ export function DashboardScreen() {
                         <p className="text-xs font-semibold text-slate-700">{(conn as any).total_posts ?? "—"}</p>
                       </div>
                       <div className="text-right">
-                        <p className="text-[9px] text-slate-400 uppercase font-semibold">Coments</p>
+                        <p className="text-[9px] text-slate-400 uppercase font-semibold">Comentários</p>
                         <p className="text-xs font-semibold text-slate-700">{(conn as any).total_analyzed ?? "—"}</p>
                       </div>
                     </div>
                     <div className="flex items-center gap-1" style={{ fontSize: "12px", fontWeight: 500, color: "#8B5CF6" }}>
-                      Ver analise detalhada
+                      Ver análise detalhada
                       <ChevronRight size={13} />
                     </div>
                   </DreamCard>
@@ -440,13 +476,13 @@ export function DashboardScreen() {
               </div>
             </motion.div>
 
-            {/* Distribuicao Temporal */}
+            {/* Distribuição temporal */}
             <motion.div {...stagger(7)}>
               <DreamCard className="p-5">
                 <div className="flex items-center justify-between mb-4">
                   <div>
                     <p style={{ fontSize: "10px", fontWeight: 600, color: "#94A3B8", textTransform: "uppercase", letterSpacing: "0.06em" }}>
-                      Distribuicao Temporal
+                      Distribuição temporal
                     </p>
                     <p style={{ fontSize: "12px", color: "#475569", marginTop: "2px" }}>
                       Sentimento mensal ao longo do tempo
@@ -523,7 +559,7 @@ export function DashboardScreen() {
                   <div className="flex items-center gap-2">
                     <Sparkles size={17} style={{ color: "#8B5CF6" }} />
                     <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "15px", fontWeight: 600, color: "#1E293B" }}>
-                      Saude da Reputacao (IA)
+                      Saúde da reputação (IA)
                     </span>
                   </div>
                   <button
@@ -543,9 +579,11 @@ export function DashboardScreen() {
 
                 {aiReport ? (
                   <>
-                    <p style={{ fontSize: "11px", color: "#94A3B8", marginBottom: "12px" }} className="relative z-10">
-                      Perfil: {aiReport.profile} · {aiReport.period}
-                    </p>
+                    {(aiReport.profile || aiReport.period) && (
+                      <p style={{ fontSize: "11px", color: "#94A3B8", marginBottom: "12px" }} className="relative z-10">
+                        {[aiReport.profile ? `Perfil: ${aiReport.profile}` : "", aiReport.period].filter(Boolean).join(" · ")}
+                      </p>
+                    )}
 
                     <div className="space-y-3 relative z-10">
                       <div>
@@ -571,7 +609,7 @@ export function DashboardScreen() {
                           {aiReport.attention && (
                             <div>
                               <div className="flex items-center gap-1.5 mb-1.5">
-                                <span style={{ fontSize: "12px", fontWeight: 600, color: "#D97706" }}>Pontos de atencao</span>
+                                <span style={{ fontSize: "12px", fontWeight: 600, color: "#D97706" }}>Pontos de atenção</span>
                               </div>
                               <p style={{ fontSize: "13px", color: "#475569", lineHeight: 1.55 }}>{aiReport.attention}</p>
                             </div>
@@ -580,7 +618,7 @@ export function DashboardScreen() {
                           {aiReport.nextStep && (
                             <DreamCard className="p-3.5" tint="violet">
                               <div className="flex items-center gap-1.5 mb-1.5">
-                                <span style={{ fontSize: "12px", fontWeight: 600, color: "#7C3AED" }}>Proximo passo sugerido</span>
+                                <span style={{ fontSize: "12px", fontWeight: 600, color: "#7C3AED" }}>Próximo passo sugerido</span>
                               </div>
                               <p style={{ fontSize: "13px", color: "#475569", lineHeight: 1.55 }}>{aiReport.nextStep}</p>
                             </DreamCard>
@@ -593,7 +631,7 @@ export function DashboardScreen() {
                         className="flex items-center gap-1"
                         style={{ fontSize: "13px", fontWeight: 500, color: "#8B5CF6" }}
                       >
-                        {aiExpanded ? "Ver menos" : "Ver relatorio completo"}
+                        {aiExpanded ? "Ver menos" : "Ver relatório completo"}
                         <ChevronRight
                           size={14}
                           className={`transition-transform ${aiExpanded ? "rotate-90" : ""}`}
@@ -603,7 +641,7 @@ export function DashboardScreen() {
                   </>
                 ) : (
                   <p style={{ fontSize: "13px", color: "#94A3B8" }} className="relative z-10">
-                    Clique em Atualizar para gerar o relatorio de saude.
+                    Clique em Atualizar para gerar o relatório de saúde.
                   </p>
                 )}
               </DreamCard>
@@ -620,9 +658,10 @@ export function DashboardScreen() {
 
               <div className="space-y-2.5">
                 {summary.recent_posts?.slice(0, 5).map((post, i) => {
-                  const score = post.summary?.avg_score ?? 0;
+                  const isAnalyzed = hasPostAnalysis(post);
+                  const score = isAnalyzed ? post.summary!.avg_score! : null;
                   const tint =
-                    score >= 8 ? "emerald" : score >= 6.5 ? "none" : "amber";
+                    !isAnalyzed ? "none" : score >= 8 ? "emerald" : score >= 6.5 ? "none" : "amber";
                   return (
                     <motion.div
                       key={post.id}
@@ -670,25 +709,34 @@ export function DashboardScreen() {
                             {post.content_text ? post.content_text.substring(0, 30) + "..." : "Sem texto"}
                           </p>
                           <p style={{ fontSize: "11px", color: "#64748B" }}>
-                            {post.platform} · {post.comment_count} comentarios
+                            {post.platform} · {post.comment_count} comentários
                           </p>
                         </div>
                         <div className="flex flex-col items-end flex-shrink-0">
-                          <span
-                            style={{
-                              fontFamily: "'Outfit', sans-serif",
-                              fontSize: "17px",
-                              fontWeight: 700,
-                              color:
-                                score >= 8
-                                  ? "#059669"
-                                  : score >= 6.5
-                                    ? "#7C3AED"
-                                    : "#D97706",
-                            }}
-                          >
-                            {score.toFixed(1)}
-                          </span>
+                          {isAnalyzed && score !== null ? (
+                            <span
+                              style={{
+                                fontFamily: "'Outfit', sans-serif",
+                                fontSize: "17px",
+                                fontWeight: 700,
+                                color:
+                                  score >= 8
+                                    ? "#059669"
+                                    : score >= 6.5
+                                      ? "#7C3AED"
+                                      : "#D97706",
+                              }}
+                            >
+                              {score.toFixed(1)}
+                            </span>
+                          ) : (
+                            <span
+                              className="px-2 py-1 rounded-full"
+                              style={{ fontSize: "10px", fontWeight: 600, color: "#7C3AED", background: "rgba(139,92,246,0.1)" }}
+                            >
+                              Aguardando análise
+                            </span>
+                          )}
                           <ChevronRight size={13} style={{ color: "#CBD5E1" }} />
                         </div>
                       </DreamCard>

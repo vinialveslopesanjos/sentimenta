@@ -1,20 +1,36 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { RefreshCw, BarChart3, Trash2, ChevronDown, Settings2, X, Info } from "lucide-react";
-import { connectionsApi, authApi, creditsApi } from "@/lib/api";
+import {
+  RefreshCw,
+  BarChart3,
+  Trash2,
+  ChevronDown,
+  Settings2,
+  X,
+  Info,
+  CircleCheck,
+  TriangleAlert,
+  Clock3,
+  CircleX,
+  CircleDashed,
+  type LucideIcon,
+} from "lucide-react";
+import type { Connection, ConnectionHealthState } from "@sentimenta/types";
+import { connectionsApi, authApi, creditsApi, type CollectionPreview } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import {
+  constrainSyncSettings,
   DEFAULT_SYNC_SETTINGS,
   loadSyncSettings,
   saveSyncSettings,
   toSyncPayload,
+  type CollectionLimits,
   type SyncSettings,
 } from "@/lib/syncSettings";
-import { relativeTime } from "@/lib/helpers";
 import { track } from "@/lib/tracking";
 import { toast } from "sonner";
 import { Button } from "@/components/ds/Button";
@@ -23,25 +39,124 @@ import { useActiveRuns } from "@/components/ActiveRunsContext";
 import type { PreflightEstimate } from "@/lib/types";
 import { Badge } from "@/components/ds/Badge";
 import { GlassSocialIcon } from "@/components/GlassSocialIcons";
+import {
+  PlatformCapabilityBadge,
+  PlatformCapabilityMatrix,
+} from "@/components/PlatformCapabilityMatrix";
+import { PLATFORM_CAPABILITIES } from "@/lib/platformCapabilities";
 
-type Connection = {
-  id: string;
-  platform: string;
-  username: string;
-  display_name: string | null;
-  profile_image_url: string | null;
-  followers_count: number;
-  status: string;
-  connected_at: string;
-  last_sync_at: string | null;
-  auto_sync: boolean;
+type BadgeVariant = "primary" | "positive" | "warning" | "negative" | "muted";
+
+const HEALTH_VISUALS: Record<
+  ConnectionHealthState,
+  {
+    variant: BadgeVariant;
+    icon: LucideIcon;
+    labelKey:
+      | "health.states.healthy.label"
+      | "health.states.degraded.label"
+      | "health.states.stale.label"
+      | "health.states.failed.label"
+      | "health.states.never_synced.label";
+    actionKey:
+      | "health.actions.viewData"
+      | "health.actions.reviewAndSync"
+      | "health.actions.syncNow"
+      | "health.actions.tryAgain"
+      | "health.actions.firstSync";
+  }
+> = {
+  healthy: {
+    variant: "positive",
+    icon: CircleCheck,
+    labelKey: "health.states.healthy.label",
+    actionKey: "health.actions.viewData",
+  },
+  degraded: {
+    variant: "warning",
+    icon: TriangleAlert,
+    labelKey: "health.states.degraded.label",
+    actionKey: "health.actions.reviewAndSync",
+  },
+  stale: {
+    variant: "muted",
+    icon: Clock3,
+    labelKey: "health.states.stale.label",
+    actionKey: "health.actions.syncNow",
+  },
+  failed: {
+    variant: "negative",
+    icon: CircleX,
+    labelKey: "health.states.failed.label",
+    actionKey: "health.actions.tryAgain",
+  },
+  never_synced: {
+    variant: "primary",
+    icon: CircleDashed,
+    labelKey: "health.states.never_synced.label",
+    actionKey: "health.actions.firstSync",
+  },
 };
 
+const HEALTH_REASON_KEYS: Record<string, string> = {
+  healthy: "health.reasons.healthy",
+  connection_not_active: "health.reasons.connection_not_active",
+  auto_sync_disabled: "health.reasons.auto_sync_disabled",
+  latest_attempt_failed: "health.reasons.latest_attempt_failed",
+  latest_attempt_partial: "health.reasons.latest_attempt_partial",
+  sync_stuck: "health.reasons.sync_stuck",
+  zero_valid_analyses: "health.reasons.zero_valid_analyses",
+  last_success_outside_sla: "health.reasons.last_success_outside_sla",
+  legacy_sync_unverified: "health.reasons.legacy_sync_unverified",
+  first_sync_in_progress: "health.reasons.first_sync_in_progress",
+  never_synced: "health.reasons.never_synced",
+};
+
+const ATTEMPT_STATUS_KEYS: Record<string, string> = {
+  completed: "health.attemptStatuses.completed",
+  partial: "health.attemptStatuses.partial",
+  failed: "health.attemptStatuses.failed",
+  cancelled: "health.attemptStatuses.cancelled",
+  running: "health.attemptStatuses.running",
+};
+
+function formatExecutionDate(value: string, locale: string): string {
+  return new Intl.DateTimeFormat(locale, {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function formatRelativeExecution(value: string, locale: string): string {
+  const deltaMs = new Date(value).getTime() - Date.now();
+  const absoluteMs = Math.abs(deltaMs);
+  const formatter = new Intl.RelativeTimeFormat(locale, { numeric: "auto" });
+  if (absoluteMs >= 86_400_000) return formatter.format(Math.round(deltaMs / 86_400_000), "day");
+  if (absoluteMs >= 3_600_000) return formatter.format(Math.round(deltaMs / 3_600_000), "hour");
+  return formatter.format(Math.round(deltaMs / 60_000), "minute");
+}
+
 type PlatformId = "instagram" | "youtube" | "twitter" | "tiktok";
+
+function hasValidCollectionLimits(value: unknown): value is CollectionLimits {
+  if (!value || typeof value !== "object") return false;
+  const limits = value as Partial<CollectionLimits>;
+  return Number.isFinite(limits.max_posts_per_sync)
+    && Number(limits.max_posts_per_sync) >= 1
+    && Number.isFinite(limits.max_comments_per_post)
+    && Number(limits.max_comments_per_post) >= 10
+    && typeof limits.sync_frequency === "string"
+    && limits.sync_frequency.length > 0;
+}
 
 export default function ConnectPage() {
   const t = useTranslations("connect");
   const tc = useTranslations("common");
+  const tp = useTranslations("platformCapabilities");
+  const locale = useLocale();
   const router = useRouter();
   const [connections, setConnections] = useState<Connection[]>([]);
   const [loading, setLoading] = useState(true);
@@ -69,6 +184,11 @@ export default function ConnectPage() {
     confirming: boolean;
   }>({ open: false, target: "one", connId: null, label: "", estimate: null, loading: false, confirming: false });
   const [creditBalance, setCreditBalance] = useState<{ total: number; plan_credits: number; plan_allocation: number } | null>(null);
+  const [collectionLimits, setCollectionLimits] = useState<CollectionLimits | null>(null);
+  const [limitsStatus, setLimitsStatus] = useState<"loading" | "ready" | "error">("loading");
+  const [preparedConnectionId, setPreparedConnectionId] = useState<string | "all">("all");
+  const [collectionPreview, setCollectionPreview] = useState<CollectionPreview | null>(null);
+  const [previewStatus, setPreviewStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
 
   const loadConnections = useCallback(async () => {
     const token = getToken();
@@ -87,13 +207,86 @@ export default function ConnectPage() {
     const token = getToken();
     if (token) {
       authApi.me(token).then(u => setUserPlan(u.plan || "free")).catch(() => {});
-      creditsApi.getCredits(token).then(c => setCreditBalance({ total: c.total, plan_credits: c.plan_credits, plan_allocation: c.plan_allocation })).catch(() => {});
+      creditsApi.getCredits(token).then(c => {
+        setUserPlan(c.plan || "free");
+        setCreditBalance({ total: c.total, plan_credits: c.plan_credits, plan_allocation: c.plan_allocation });
+        if (!hasValidCollectionLimits(c.collection_limits)) {
+          setCollectionLimits(null);
+          setLimitsStatus("error");
+          return;
+        }
+        setCollectionLimits(c.collection_limits);
+        setLimitsStatus("ready");
+        setSyncParams(current => saveSyncSettings(constrainSyncSettings(current, c.collection_limits)));
+      }).catch(() => {
+        setCollectionLimits(null);
+        setLimitsStatus("error");
+      });
     }
   }, [loadConnections]);
 
+  useEffect(() => {
+    if (!configOpen || limitsStatus !== "ready" || !collectionLimits) {
+      setCollectionPreview(null);
+      setPreviewStatus("idle");
+      return;
+    }
+
+    const token = getToken();
+    if (!token) return;
+    let cancelled = false;
+    setPreviewStatus("loading");
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const preview = await connectionsApi.previewCollection(token, {
+          connection_id: preparedConnectionId === "all" ? undefined : preparedConnectionId,
+          max_posts: syncParams.max_posts,
+          max_comments_per_post: syncParams.max_comments_per_post,
+          since_date: syncParams.since_date || undefined,
+          comment_selection_mode: syncParams.comment_sample_mode,
+        });
+        if (cancelled) return;
+        setCollectionPreview(preview);
+        setPreviewStatus("ready");
+      } catch {
+        if (cancelled) return;
+        setCollectionPreview(null);
+        setPreviewStatus("error");
+      }
+    }, 250);
+
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
+  }, [
+    collectionLimits,
+    configOpen,
+    limitsStatus,
+    preparedConnectionId,
+    syncParams.comment_sample_mode,
+    syncParams.max_comments_per_post,
+    syncParams.max_posts,
+    syncParams.since_date,
+  ]);
+
   const updateSyncParams = useCallback((next: SyncSettings) => {
-    const saved = saveSyncSettings(next);
+    const saved = saveSyncSettings(
+      collectionLimits ? constrainSyncSettings(next, collectionLimits) : next,
+    );
     setSyncParams(saved);
+  }, [collectionLimits]);
+
+  const openSyncConfiguration = useCallback((connectionId: string | "all") => {
+    setPreparedConnectionId(connectionId);
+    setConfigOpen(true);
+    window.setTimeout(() => {
+      document.getElementById("collection-settings")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 0);
   }, []);
 
   const handleCheck = async (platformId: PlatformId) => {
@@ -150,10 +343,10 @@ export default function ConnectPage() {
   const estimateSyncTime = useCallback((params: SyncSettings) => {
     const posts = Math.min(params.max_posts || 10, 200);
     const commentsPerPost = params.max_comments_per_post || 50;
-    const isSample = params.comment_sample_mode === "sample";
+    const prioritizesEngagement = params.comment_sample_mode === "engagement";
     // Realistic: Apify scrapes ~10 posts/min, LLM analyzes ~500 comments/min (batched)
     // Demographics adds ~1min overhead for scrape + LLM inference
-    const effectiveCommentsPerPost = isSample ? Math.min(commentsPerPost, 80) : Math.min(commentsPerPost, 300);
+    const effectiveCommentsPerPost = prioritizesEngagement ? Math.min(commentsPerPost, 200) : Math.min(commentsPerPost, 300);
     const totalComments = posts * effectiveCommentsPerPost;
     const scrapeMinutes = posts * 0.1; // ~6s per post via Apify
     const analysisMinutes = totalComments / 500; // ~500 comments/min batched LLM
@@ -191,7 +384,7 @@ export default function ConnectPage() {
         connections.map(c => connectionsApi.preflight(token, c.id, "sync", payload).catch(() => null))
       );
       const valid = estimates.filter((e): e is PreflightEstimate => e !== null);
-      if (valid.length === 0) throw new Error(t("syncError"));
+      if (valid.length !== connections.length) throw new Error(t("syncError"));
       const sum = valid.reduce((acc, e) => ({
         ...acc,
         estimated_posts: acc.estimated_posts + e.estimated_posts,
@@ -267,6 +460,15 @@ export default function ConnectPage() {
     });
   };
 
+  const handlePreparedSync = async () => {
+    if (limitsStatus !== "ready" || !collectionLimits) return;
+    if (preparedConnectionId === "all") {
+      await requestSyncAll();
+      return;
+    }
+    await requestSync(preparedConnectionId);
+  };
+
   const handleDelete = async (connId: string) => {
     const token = getToken()!;
     track("profile_deleted", { connection_id: connId });
@@ -306,12 +508,67 @@ export default function ConnectPage() {
     }
   };
 
-  const platforms = [
+  const platforms = ([
     { id: "instagram" as PlatformId, name: t("platforms.instagram.name"), desc: t("platforms.instagram.desc"), placeholder: t("platforms.instagram.placeholder"), hasInput: true, buttonText: t("platforms.instagram.button"), secondaryButton: t("platforms.instagram.oauthButton") },
     { id: "youtube" as PlatformId, name: t("platforms.youtube.name"), desc: t("platforms.youtube.desc"), placeholder: t("platforms.youtube.placeholder"), hasInput: true, buttonText: t("platforms.youtube.button") },
     { id: "tiktok" as PlatformId, name: t("platforms.tiktok.name"), desc: t("platforms.tiktok.desc"), placeholder: t("platforms.tiktok.placeholder"), hasInput: true, buttonText: t("platforms.tiktok.button") },
-    { id: "twitter" as PlatformId, name: t("platforms.twitter.name"), desc: t("platforms.twitter.desc"), placeholder: t("platforms.twitter.placeholder"), hasInput: true, buttonText: t("platforms.twitter.button"), disabled: true, disabledText: t("comingSoon") },
-  ];
+    { id: "twitter" as PlatformId, name: t("platforms.twitter.name"), desc: t("platforms.twitter.desc"), placeholder: t("platforms.twitter.placeholder"), hasInput: true, buttonText: t("platforms.twitter.button") },
+  ]).map(platform => ({
+    ...platform,
+    capability: PLATFORM_CAPABILITIES[platform.id],
+    disabled: !PLATFORM_CAPABILITIES[platform.id].connectable,
+  }));
+
+  const numberFormatter = new Intl.NumberFormat(locale);
+  const postOptions = collectionLimits
+    ? Array.from(new Set([1, 10, 20, 50, 100, collectionLimits.max_posts_per_sync]))
+        .filter(value => value <= collectionLimits.max_posts_per_sync)
+        .sort((a, b) => a - b)
+    : [];
+  const commentOptions = collectionLimits
+    ? Array.from(new Set([10, 50, 200, collectionLimits.max_comments_per_post]))
+        .filter(value => value <= collectionLimits.max_comments_per_post)
+        .sort((a, b) => a - b)
+    : [];
+  const preparedConnection = preparedConnectionId === "all"
+    ? null
+    : connections.find(connection => connection.id === preparedConnectionId) ?? null;
+  const targetLabel = preparedConnection
+    ? t("scope.oneProfile", { username: preparedConnection.username })
+    : t("scope.allProfiles", { count: connections.length });
+  const collectionModeLabel = syncParams.comment_sample_mode === "all"
+    ? t("collectionFull")
+    : t("collectionEngagement");
+  const periodLabel = syncParams.since_date
+    ? t("scope.sinceDate", {
+        date: new Intl.DateTimeFormat(locale, { dateStyle: "medium" }).format(
+          new Date(`${syncParams.since_date}T12:00:00`),
+        ),
+      })
+    : t("scope.noStartDate");
+  const frequencyLabel = collectionLimits?.sync_frequency === "daily"
+    ? t("frequencies.daily")
+    : collectionLimits?.sync_frequency === "weekly"
+      ? t("frequencies.weekly")
+      : t("frequencies.notDeclared");
+  const targetCount = preparedConnection ? 1 : connections.length;
+  const theoreticalComments = syncParams.max_posts
+    * syncParams.max_comments_per_post
+    * targetCount;
+  const currencyFormatter = new Intl.NumberFormat(locale, {
+    style: "currency",
+    currency: "BRL",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  const previewCost = collectionPreview
+    ? collectionPreview.operational_cost_brl_min === collectionPreview.operational_cost_brl_max
+      ? currencyFormatter.format(collectionPreview.operational_cost_brl_max)
+      : `${currencyFormatter.format(collectionPreview.operational_cost_brl_min)}–${currencyFormatter.format(collectionPreview.operational_cost_brl_max)}`
+    : null;
+  const preparedSyncing = preparedConnectionId === "all"
+    ? connections.some(connection => syncing[connection.id])
+    : Boolean(syncing[preparedConnectionId]);
 
   return (
     <div className="space-y-8">
@@ -328,12 +585,16 @@ export default function ConnectPage() {
         <p className="tracking-widest mb-4" style={{ fontSize: "0.65rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.12em" }}>{t("addProfile")}</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           {platforms.map(p => (
-            <div key={p.id} className="rounded-2xl p-5 transition-all" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", opacity: p.disabled ? 0.55 : 1 }}>
+            <div
+              key={p.id}
+              data-testid={`connect-platform-${p.id}`}
+              data-status={p.capability.status}
+              className="rounded-2xl p-5 transition-all"
+              style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", opacity: p.disabled ? 0.72 : 1 }}
+            >
               <div className="mb-4 flex items-center gap-2">
                 <GlassSocialIcon platform={p.id} size={44} />
-                {p.disabled && p.disabledText && (
-                  <span className="px-2 py-0.5 rounded-full" style={{ fontSize: "0.62rem", fontWeight: 600, backgroundColor: "var(--bg-subtle)", color: "var(--text-muted)", border: "1px solid var(--border)" }}>{p.disabledText}</span>
-                )}
+                <PlatformCapabilityBadge platform={p.id} />
               </div>
               <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.95rem", fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>{p.name}</h3>
               <p className="mb-4" style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>{p.desc}</p>
@@ -342,7 +603,7 @@ export default function ConnectPage() {
               {success[p.id] && <p className="text-xs mb-2" style={{ color: "var(--sentiment-positive)" }}>{success[p.id]}</p>}
 
               {p.disabled ? (
-                <Button variant="secondary" size="sm" fullWidth disabled>{p.disabledText || t("comingSoon")}</Button>
+                <Button variant="secondary" size="sm" fullWidth disabled>{tp(`statuses.${p.capability.status}`)}</Button>
               ) : <>
                   {p.hasInput && (
                     <input
@@ -423,124 +684,340 @@ export default function ConnectPage() {
             </div>
           ))}
         </div>
+        <div className="mt-5">
+          <PlatformCapabilityMatrix surface="profiles" />
+        </div>
       </div>
 
       {/* Config accordion */}
       {!loading && connections.length > 0 && (
-        <div className="rounded-2xl overflow-hidden" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
+        <div
+          id="collection-settings"
+          data-testid="collection-settings"
+          className="scroll-mt-6 rounded-2xl overflow-hidden"
+          style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}
+        >
           <div className="px-4 md:px-5 pt-4">
-            {/* Credit info box */}
-            <div className="px-4 py-3 rounded-xl flex items-start gap-3" style={{ backgroundColor: "var(--primary-bg)", border: "1px solid color-mix(in srgb, var(--primary) 20%, transparent)" }}>
-              <Info className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--primary)" }} />
+            <div
+              data-testid="collection-plan-limits"
+              className="px-4 py-3 rounded-xl flex items-start gap-3"
+              style={{
+                backgroundColor: limitsStatus === "error" ? "var(--sentiment-negative-bg)" : "var(--primary-bg)",
+                border: `1px solid ${limitsStatus === "error" ? "var(--sentiment-negative)" : "color-mix(in srgb, var(--primary) 20%, transparent)"}`,
+              }}
+            >
+              {limitsStatus === "error" ? (
+                <TriangleAlert className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--sentiment-negative)" }} aria-hidden="true" />
+              ) : (
+                <Info className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--primary)" }} aria-hidden="true" />
+              )}
               <div style={{ fontSize: "0.75rem", color: "var(--text-primary)", lineHeight: 1.5 }}>
-                {(() => {
-                  const planConfig: Record<string, { credits: string; sync: string; posts: string; demo: boolean; extra?: string }> = {
-                    free: { credits: "0", sync: "sem sincronização", posts: "0", demo: false, extra: "Inicie o trial de 14 dias" },
-                    starter: { credits: "10.000", sync: "semanal", posts: "30", demo: false },
-                    pro: { credits: "40.000", sync: "diário", posts: "60", demo: true },
-                    business: { credits: "40.000", sync: "diário", posts: "120", demo: true },
-                    admin: { credits: "ilimitados", sync: "diário", posts: "ilimitados", demo: true },
-                    enterprise: { credits: "ilimitados", sync: "diário", posts: "ilimitados", demo: true },
-                  };
-                  const cfg = planConfig[userPlan] || planConfig.free;
-                  const isInactivePlan = userPlan === "free";
-                  const remaining = creditBalance ? creditBalance.total.toLocaleString("pt-BR") : "...";
-                  return (
-                    <>
-                      {isInactivePlan ? (
-                        <>
-                          <span style={{ fontWeight: 600 }}>Sem assinatura ativa</span>
-                          <br />
-                          Inicie o trial de 14 dias com cartão para analisar comentários.
-                          <br />
-                          <a href="/dashboard/settings?tab=billing" style={{ color: "var(--primary)", fontWeight: 500 }}>{cfg.extra}</a>
-                        </>
-                      ) : (
-                        <>
-                          {cfg.credits === "ilimitados" ? (
-                            <span style={{ fontWeight: 600 }}>Seu plano: créditos sem limite</span>
-                          ) : (
-                            <>
-                              <span style={{ fontWeight: 600 }}>Seu plano: {cfg.credits} créditos/mês</span>
-                              {creditBalance && <span style={{ color: "var(--text-muted)" }}> ({remaining} restantes)</span>}
-                            </>
-                          )}
-                          <br />
-                          1 crédito = 1 comentário analisado.
-                          {cfg.demo && " Demographics: 5 créditos/perfil."}
-                          {" "}Sync {cfg.sync}, até {cfg.posts} posts.
-                          {cfg.extra && <><br /><a href="/dashboard/settings?tab=billing" style={{ color: "var(--primary)", fontWeight: 500 }}>{cfg.extra}</a></>}
-                          {!cfg.extra && userPlan !== "admin" && userPlan !== "enterprise" && (
-                            <><br /><span style={{ color: "var(--text-muted)" }}>Acabou? <a href="/dashboard/settings?tab=billing" style={{ color: "var(--primary)", fontWeight: 500 }}>Compre pacotes extras</a></span></>
-                          )}
-                        </>
-                      )}
-                    </>
-                  );
-                })()}
+                {limitsStatus === "loading" && <p>{t("limits.loading")}</p>}
+                {limitsStatus === "error" && (
+                  <>
+                    <p style={{ fontWeight: 600 }}>{t("limits.errorTitle")}</p>
+                    <p style={{ color: "var(--text-muted)" }}>{t("limits.errorDescription")}</p>
+                  </>
+                )}
+                {limitsStatus === "ready" && creditBalance && collectionLimits && (
+                  <>
+                    <p>
+                      <span style={{ fontWeight: 600 }}>
+                        {t("planCredits", { credits: numberFormatter.format(creditBalance.plan_allocation) })}
+                      </span>
+                      <span style={{ color: "var(--text-muted)" }}>
+                        {t("remainingCredits", { credits: numberFormatter.format(creditBalance.total) })}
+                      </span>
+                    </p>
+                    <p>{t("creditRule")}</p>
+                    {["pro", "business", "admin", "enterprise"].includes(userPlan) && <p>{t("demographicRule")}</p>}
+                    <p style={{ fontWeight: 600 }}>
+                      {t("planCollectionLimits", {
+                        posts: numberFormatter.format(collectionLimits.max_posts_per_sync),
+                        comments: numberFormatter.format(collectionLimits.max_comments_per_post),
+                        frequency: frequencyLabel,
+                      })}
+                    </p>
+                    <p>
+                      <Link href="/dashboard/settings?tab=billing" style={{ color: "var(--primary)", fontWeight: 500 }}>
+                        {userPlan === "free" ? t("upgradePlan") : t("manageCredits")}
+                      </Link>
+                    </p>
+                  </>
+                )}
               </div>
             </div>
           </div>
-          <button onClick={() => setConfigOpen(!configOpen)} className="w-full flex items-center justify-between p-4 md:p-5 transition-colors">
+          <button
+            type="button"
+            data-testid="collection-settings-toggle"
+            aria-expanded={configOpen}
+            aria-controls="collection-settings-panel"
+            onClick={() => {
+              if (!configOpen) setPreparedConnectionId("all");
+              setConfigOpen(!configOpen);
+            }}
+            className="w-full flex items-center justify-between p-4 md:p-5 transition-colors"
+          >
             <div className="flex items-center gap-3">
-              <Settings2 className="w-4 h-4" style={{ color: "var(--primary)" }} />
+              <Settings2 className="w-4 h-4" style={{ color: "var(--primary)" }} aria-hidden="true" />
               <span style={{ fontSize: "0.82rem", fontWeight: 500, color: "var(--text-primary)" }}>{t("analysisSettings")}</span>
               <span className="hidden sm:inline" style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>{t("analysisSettingsSub")}</span>
             </div>
-            <ChevronDown className={`w-4 h-4 transition-transform ${configOpen ? "rotate-180" : ""}`} style={{ color: "var(--text-muted)" }} />
+            <ChevronDown className={`w-4 h-4 transition-transform ${configOpen ? "rotate-180" : ""}`} style={{ color: "var(--text-muted)" }} aria-hidden="true" />
           </button>
           {configOpen && (
-            <div className="px-4 md:px-5 pb-5 space-y-5" style={{ borderTop: "1px solid var(--border)" }}>
-              <div className="pt-4 grid grid-cols-1 md:grid-cols-2 gap-5">
-                <div>
-                  <label className="mb-2 block" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>{t("postsToAnalyze")}</label>
-                  <select
-                    value={syncParams.max_posts}
-                    onChange={e => updateSyncParams({ ...syncParams, max_posts: Number(e.target.value) })}
-                    className="w-full px-3 py-2 rounded-xl transition-all"
-                    style={{ fontSize: "0.78rem", border: "1px solid var(--border)", backgroundColor: "var(--bg-subtle)", color: "var(--text-primary)" }}
+            <div id="collection-settings-panel" data-testid="collection-settings-panel" className="px-4 md:px-5 pb-5 space-y-5" style={{ borderTop: "1px solid var(--border)" }}>
+              {limitsStatus === "ready" && collectionLimits ? (
+                <>
+                  <div className="pt-4 grid grid-cols-1 md:grid-cols-2 gap-5">
+                    <div>
+                      <label htmlFor="collection-post-limit" className="mb-2 block" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>{t("postsToAnalyze")}</label>
+                      <select
+                        id="collection-post-limit"
+                        data-testid="collection-post-limit"
+                        value={syncParams.max_posts}
+                        onChange={e => updateSyncParams({ ...syncParams, max_posts: Number(e.target.value) })}
+                        className="w-full px-3 py-2 rounded-xl transition-all"
+                        style={{ fontSize: "0.78rem", border: "1px solid var(--border)", backgroundColor: "var(--bg-subtle)", color: "var(--text-primary)" }}
+                      >
+                        {postOptions.map(value => (
+                          <option key={value} value={value}>
+                            {value === collectionLimits.max_posts_per_sync
+                              ? t("postsPlanLimit", { count: numberFormatter.format(value) })
+                              : value === 1
+                                ? t("postsOptions.1")
+                                : t("postsOption", { count: numberFormatter.format(value) })}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <p className="mb-2" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>{t("commentsPerPost")}</p>
+                      <div className="flex gap-2 flex-wrap" role="group" aria-label={t("commentsPerPost")}>
+                        {commentOptions.map(value => (
+                          <button
+                            key={value}
+                            type="button"
+                            data-testid={value === collectionLimits.max_comments_per_post ? "collection-comment-limit-plan" : `collection-comment-limit-${value}`}
+                            aria-pressed={syncParams.max_comments_per_post === value}
+                            onClick={() => updateSyncParams({ ...syncParams, max_comments_per_post: value })}
+                            className="px-3 py-2 rounded-xl transition-all"
+                            style={{
+                              fontSize: "0.78rem",
+                              fontWeight: 500,
+                              backgroundColor: syncParams.max_comments_per_post === value ? "var(--primary-bg)" : "var(--bg-subtle)",
+                              color: syncParams.max_comments_per_post === value ? "var(--primary)" : "var(--text-muted)",
+                              border: syncParams.max_comments_per_post === value ? "1px solid var(--primary)" : "1px solid var(--border)",
+                            }}
+                          >
+                            {value === collectionLimits.max_comments_per_post
+                              ? t("commentsPlanLimit", { count: numberFormatter.format(value) })
+                              : numberFormatter.format(value)}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <label htmlFor="collection-since-date" className="mb-2 block" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>{t("since")}</label>
+                      <input
+                        id="collection-since-date"
+                        data-testid="collection-since-date"
+                        type="date"
+                        value={syncParams.since_date}
+                        onChange={e => updateSyncParams({ ...syncParams, since_date: e.target.value })}
+                        className="w-full px-3 py-2 rounded-xl transition-all"
+                        style={{ fontSize: "0.78rem", border: "1px solid var(--border)", backgroundColor: "var(--bg-subtle)", color: "var(--text-primary)" }}
+                      />
+                      <p className="mt-2" style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>{t("sinceDescription")}</p>
+                    </div>
+                    <div>
+                      <p className="mb-2" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>{t("collectionMode")}</p>
+                      <div className="flex gap-2 flex-wrap" role="group" aria-label={t("collectionMode")}>
+                        {([
+                          { label: t("collectionFull"), value: "all" as const },
+                          { label: t("collectionEngagement"), value: "engagement" as const },
+                        ]).map(option => (
+                          <button
+                            key={option.value}
+                            type="button"
+                            data-testid={`collection-mode-${option.value}`}
+                            aria-pressed={syncParams.comment_sample_mode === option.value}
+                            onClick={() => updateSyncParams({ ...syncParams, comment_sample_mode: option.value })}
+                            className="px-3 py-2 rounded-xl transition-all"
+                            style={{
+                              fontSize: "0.78rem",
+                              fontWeight: 500,
+                              backgroundColor: syncParams.comment_sample_mode === option.value ? "var(--primary-bg)" : "var(--bg-subtle)",
+                              color: syncParams.comment_sample_mode === option.value ? "var(--primary)" : "var(--text-muted)",
+                              border: syncParams.comment_sample_mode === option.value ? "1px solid var(--primary)" : "1px solid var(--border)",
+                            }}
+                          >
+                            {option.label}
+                          </button>
+                        ))}
+                      </div>
+                      <p data-testid="collection-mode-description" className="mt-2" style={{ fontSize: "0.68rem", lineHeight: 1.5, color: "var(--text-faint)" }}>
+                        {syncParams.comment_sample_mode === "all" ? t("collectionFullDesc") : t("collectionEngagementDesc")}
+                      </p>
+                    </div>
+                  </div>
+
+                  <section
+                    data-testid="collection-scope-summary"
+                    aria-labelledby="collection-scope-title"
+                    className="rounded-2xl p-4 md:p-5"
+                    style={{ backgroundColor: "var(--bg-subtle)", border: "1px solid var(--border)" }}
                   >
-                    <option value={1}>{t("postsOptions.1")}</option>
-                    <option value={10}>10 posts</option>
-                    <option value={20}>20 posts</option>
-                    <option value={50}>50 posts</option>
-                    <option value={100}>100 posts</option>
-                  </select>
-                </div>
-                <div>
-                  <p className="mb-2" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>{t("commentsPerPost")}</p>
-                  <div className="flex gap-2 flex-wrap">
-                    {[{ label: t("commentsOptions.10"), value: 10 }, { label: t("commentsOptions.50"), value: 50 }, { label: t("commentsOptions.200"), value: 200 }, { label: tc("all"), value: 10000 }].map(opt => (
-                      <button key={opt.value} onClick={() => updateSyncParams({ ...syncParams, max_comments_per_post: opt.value })} className="px-3 py-2 rounded-xl transition-all" style={{ fontSize: "0.78rem", fontWeight: 500, backgroundColor: syncParams.max_comments_per_post === opt.value ? "var(--primary-bg)" : "var(--bg-subtle)", color: syncParams.max_comments_per_post === opt.value ? "var(--primary)" : "var(--text-muted)", border: syncParams.max_comments_per_post === opt.value ? "1px solid var(--primary)" : "1px solid var(--border)" }}>
-                        {opt.label}
-                      </button>
-                    ))}
+                    <div className="flex items-start gap-3">
+                      <CircleCheck className="w-4 h-4 mt-0.5 shrink-0" style={{ color: "var(--primary)" }} aria-hidden="true" />
+                      <div className="min-w-0 flex-1">
+                        <h3 id="collection-scope-title" style={{ fontSize: "0.82rem", fontWeight: 700, color: "var(--text-primary)" }}>{t("scope.title")}</h3>
+                        <p className="mt-1" style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>{t("scope.subtitle")}</p>
+                        <dl className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                          {[
+                            [t("scope.targetLabel"), targetLabel],
+                            [t("scope.postsLabel"), t("scope.upToPosts", { count: numberFormatter.format(syncParams.max_posts) })],
+                            [t("scope.commentsLabel"), t("scope.upToComments", { count: numberFormatter.format(syncParams.max_comments_per_post) })],
+                            [t("scope.periodLabel"), periodLabel],
+                          ].map(([label, value]) => (
+                            <div key={label}>
+                              <dt style={{ fontSize: "0.62rem", fontWeight: 700, color: "var(--text-faint)", letterSpacing: "0.05em", textTransform: "uppercase" }}>{label}</dt>
+                              <dd className="mt-1" style={{ fontSize: "0.75rem", fontWeight: 600, color: "var(--text-primary)", lineHeight: 1.4 }}>{value}</dd>
+                            </div>
+                          ))}
+                        </dl>
+                        <p className="mt-4" style={{ fontSize: "0.72rem", color: "var(--text-primary)", lineHeight: 1.5 }}>
+                          <span style={{ fontWeight: 700 }}>{t("scope.modeLabel")}: {collectionModeLabel}.</span>{" "}
+                          <span data-testid="collection-volume-prediction">
+                            {t("scope.maximum", { count: numberFormatter.format(theoreticalComments) })}
+                          </span>
+                        </p>
+                        <p className="mt-1" style={{ fontSize: "0.68rem", color: "var(--text-muted)", lineHeight: 1.5 }}>
+                          {syncParams.comment_sample_mode === "all" ? t("scope.allOutcome") : t("scope.engagementOutcome")}
+                        </p>
+
+                        <div
+                          data-testid="collection-forecast"
+                          data-forecast-version={collectionPreview?.model_version ?? "unavailable"}
+                          className="mt-5 pt-4"
+                          style={{ borderTop: "1px solid var(--border)" }}
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <h4 style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--text-primary)" }}>
+                              {t("forecast.title")}
+                            </h4>
+                            {collectionPreview && (
+                              <span style={{ fontSize: "0.62rem", color: "var(--text-faint)" }}>
+                                {t(`forecast.confidence.${collectionPreview.forecast_confidence}`)}
+                              </span>
+                            )}
+                          </div>
+
+                          {previewStatus === "loading" && (
+                            <p data-testid="collection-forecast-loading" className="mt-3" role="status" style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
+                              {t("forecast.loading")}
+                            </p>
+                          )}
+                          {previewStatus === "error" && (
+                            <p data-testid="collection-forecast-error" className="mt-3" role="status" style={{ fontSize: "0.7rem", color: "var(--sentiment-negative)" }}>
+                              {t("forecast.error")}
+                            </p>
+                          )}
+                          {previewStatus === "ready" && collectionPreview && (
+                            <>
+                              <dl className="mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                                <div data-testid="forecast-found">
+                                  <dt style={{ fontSize: "0.62rem", fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("forecast.foundLabel")}</dt>
+                                  <dd className="mt-1" style={{ fontSize: "0.75rem", fontWeight: 650, color: "var(--text-primary)", lineHeight: 1.4 }}>
+                                    {collectionPreview.found_status === "unknown"
+                                      ? t("forecast.foundUnknown")
+                                      : t(`forecast.found.${collectionPreview.found_status}`, {
+                                          comments: numberFormatter.format(collectionPreview.found_known_comments),
+                                          knownPosts: numberFormatter.format(collectionPreview.posts_with_known_counts),
+                                          posts: numberFormatter.format(collectionPreview.requested_post_slots),
+                                        })}
+                                  </dd>
+                                </div>
+                                <div data-testid="forecast-candidates">
+                                  <dt style={{ fontSize: "0.62rem", fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("forecast.candidatesLabel")}</dt>
+                                  <dd className="mt-1" style={{ fontSize: "0.75rem", fontWeight: 650, color: "var(--text-primary)", lineHeight: 1.4 }}>
+                                    {t("forecast.upToComments", { count: numberFormatter.format(collectionPreview.estimated_candidate_comments_max) })}
+                                  </dd>
+                                </div>
+                                <div data-testid="forecast-analyzed">
+                                  <dt style={{ fontSize: "0.62rem", fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("forecast.analyzedLabel")}</dt>
+                                  <dd className="mt-1" style={{ fontSize: "0.75rem", fontWeight: 650, color: "var(--text-primary)", lineHeight: 1.4 }}>
+                                    {t("forecast.upToComments", { count: numberFormatter.format(collectionPreview.estimated_analyzed_comments_max) })}
+                                  </dd>
+                                </div>
+                                <div data-testid="forecast-coverage">
+                                  <dt style={{ fontSize: "0.62rem", fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("forecast.coverageLabel")}</dt>
+                                  <dd className="mt-1" style={{ fontSize: "0.75rem", fontWeight: 650, color: "var(--text-primary)", lineHeight: 1.4 }}>
+                                    {collectionPreview.estimated_coverage_pct === null
+                                      ? t("forecast.coverageUnknown")
+                                      : t("forecast.coverageValue", { value: collectionPreview.estimated_coverage_pct })}
+                                  </dd>
+                                </div>
+                                <div data-testid="forecast-cost">
+                                  <dt style={{ fontSize: "0.62rem", fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("forecast.costLabel")}</dt>
+                                  <dd className="mt-1" style={{ fontSize: "0.75rem", fontWeight: 650, color: "var(--text-primary)", lineHeight: 1.4 }}>
+                                    {previewCost}
+                                  </dd>
+                                </div>
+                                <div data-testid="forecast-duration">
+                                  <dt style={{ fontSize: "0.62rem", fontWeight: 700, color: "var(--text-faint)", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t("forecast.durationLabel")}</dt>
+                                  <dd className="mt-1" style={{ fontSize: "0.75rem", fontWeight: 650, color: "var(--text-primary)", lineHeight: 1.4 }}>
+                                    {t("forecast.durationValue", {
+                                      min: collectionPreview.duration_minutes_min,
+                                      max: collectionPreview.duration_minutes_max,
+                                    })}
+                                  </dd>
+                                </div>
+                              </dl>
+
+                              <div data-testid="forecast-explanation" className="mt-4 space-y-1.5" style={{ fontSize: "0.68rem", color: "var(--text-muted)", lineHeight: 1.5 }}>
+                                <p>
+                                  {syncParams.comment_sample_mode === "engagement"
+                                    ? collectionPreview.selection_applies_to_profiles > 0
+                                      ? t("forecast.engagementApplied", {
+                                          count: collectionPreview.selection_applies_to_profiles,
+                                          limit: collectionPreview.engagement_priority_max_per_post,
+                                        })
+                                      : t("forecast.engagementNotApplied")
+                                    : t("forecast.allApplied")}
+                                </p>
+                                <p>{syncParams.since_date ? t("forecast.periodApplied") : t("forecast.periodOpen")}</p>
+                                <p>{t("forecast.costDisclosure")}</p>
+                                <p>{t("forecast.unknownDisclosure")}</p>
+                              </div>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </section>
+
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
+                    <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>{t("scope.confirmation")}</p>
+                    <Button
+                      data-testid="collection-start"
+                      variant="primary"
+                      size="sm"
+                      onClick={handlePreparedSync}
+                      disabled={preparedSyncing}
+                    >
+                      {preparedSyncing ? t("startingCollection") : t("startCollection")}
+                    </Button>
                   </div>
-                  {syncParams.comment_sample_mode === "sample" && syncParams.max_comments_per_post < 10000 && (
-                    <p className="mt-2" style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>{t("sampleRecommendation")}</p>
-                  )}
+                </>
+              ) : (
+                <div className="pt-5" role="status">
+                  <p style={{ fontSize: "0.75rem", color: "var(--text-muted)" }}>
+                    {limitsStatus === "loading" ? t("limits.loading") : t("limits.blocked")}
+                  </p>
                 </div>
-                <div>
-                  <p className="mb-2" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>{t("since")}</p>
-                  <input type="date" value={syncParams.since_date} onChange={e => updateSyncParams({ ...syncParams, since_date: e.target.value })} className="w-full px-3 py-2 rounded-xl transition-all" style={{ fontSize: "0.78rem", border: "1px solid var(--border)", backgroundColor: "var(--bg-subtle)", color: "var(--text-primary)" }} />
-                </div>
-                <div>
-                  <p className="mb-2" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.05em" }}>{t("collectionMode")}</p>
-                  <div className="flex gap-2 flex-wrap">
-                    {[{ label: t("collectionFull"), value: "all" as const }, { label: t("collectionSample"), value: "sample" as const }].map(opt => (
-                      <button key={opt.value} onClick={() => updateSyncParams({ ...syncParams, comment_sample_mode: opt.value })} className="px-3 py-2 rounded-xl transition-all" style={{ fontSize: "0.78rem", fontWeight: 500, backgroundColor: syncParams.comment_sample_mode === opt.value ? "var(--primary-bg)" : "var(--bg-subtle)", color: syncParams.comment_sample_mode === opt.value ? "var(--primary)" : "var(--text-muted)", border: syncParams.comment_sample_mode === opt.value ? "1px solid var(--primary)" : "1px solid var(--border)" }}>
-                        {opt.label}
-                      </button>
-                    ))}
-                  </div>
-                  {syncParams.comment_sample_mode === "sample" && (
-                    <p className="mt-2" style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>{t("sampleDesc")}</p>
-                  )}
-                </div>
-              </div>
-              <div className="flex justify-end pt-2">
-                <Button variant="primary" size="sm" onClick={requestSyncAll}>{t("addNewData")}</Button>
-              </div>
+              )}
             </div>
           )}
         </div>
@@ -563,46 +1040,161 @@ export default function ConnectPage() {
           </div>
         ) : (
           <div className="rounded-2xl overflow-x-auto" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
-            <table className="w-full min-w-[700px]">
+            <table aria-label={t("table.ariaLabel")} className="w-full min-w-[1120px]">
               <thead>
                 <tr style={{ borderBottom: "1px solid var(--border)" }}>
-                  {[t("table.profile"), t("table.followers"), t("table.lastSync"), t("table.status"), t("table.autoSync"), t("table.actions")].map(h => (
-                    <th key={h} className="px-5 py-3 text-left" style={{ fontSize: "0.6rem", fontWeight: 600, color: "var(--text-muted)", letterSpacing: "0.08em" }}>{h}</th>
+                  {[t("table.profile"), t("table.followers"), t("table.executions"), t("table.status"), t("table.autoSync"), t("table.actions")].map(h => (
+                    <th key={h} className="px-5 py-3 text-left" style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.07em" }}>{h}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {connections.map(conn => (
-                  <tr key={conn.id} className="transition-colors" style={{ borderBottom: "1px solid var(--border)" }}>
+                {connections.map(conn => {
+                  const healthState = conn.health?.state ?? "never_synced";
+                  const healthVisual = HEALTH_VISUALS[healthState];
+                  const healthyWithoutAnalysis = healthState === "healthy" && conn.health?.last_attempt_valid_count === 0;
+                  const HealthIcon = healthyWithoutAnalysis ? TriangleAlert : healthVisual.icon;
+                  const healthLabelKey = healthyWithoutAnalysis ? "health.states.healthyWithoutAnalysis.label" : healthVisual.labelKey;
+                  const reasonKey = healthyWithoutAnalysis
+                    ? "health.reasons.healthy_without_analysis"
+                    : HEALTH_REASON_KEYS[conn.health?.reason_code ?? "never_synced"] ?? HEALTH_REASON_KEYS.never_synced;
+                  const isSyncing = Boolean(syncing[conn.id] || conn.health?.is_syncing);
+                  const lastSuccessAt = conn.health?.last_success_at ?? conn.last_sync_at;
+                  const lastAttemptAt = conn.health?.last_attempt_at ?? null;
+                  const lastAttemptStatus = conn.health?.last_attempt_status ?? null;
+                  const attemptStatusKey = lastAttemptStatus ? ATTEMPT_STATUS_KEYS[lastAttemptStatus] : null;
+                  const nextScheduledAt = conn.health?.next_scheduled_at ?? null;
+
+                  return (
+                  <tr
+                    key={conn.id}
+                    data-testid={`connection-health-row-${conn.id}`}
+                    data-registration-status={conn.status}
+                    data-health-state={healthState}
+                    data-last-attempt-at={lastAttemptAt ?? "never"}
+                    data-last-success-at={lastSuccessAt ?? "never"}
+                    data-next-scheduled-at={nextScheduledAt ?? "not_scheduled"}
+                    className="transition-colors"
+                    style={{ borderBottom: "1px solid var(--border)" }}
+                  >
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-3">
                         <GlassSocialIcon platform={conn.platform} size={32} />
                         <div>
                           <p style={{ fontSize: "0.82rem", fontWeight: 500, color: "var(--text-primary)" }}>{conn.username.startsWith("@") ? conn.username : `@${conn.username}`}</p>
                           {conn.display_name && <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>{conn.display_name}</p>}
+                          <p style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>
+                            {conn.status === "active" ? t("registration.connected") : t("registration.needsAttention")}
+                          </p>
                         </div>
                       </div>
                     </td>
                     <td className="px-5 py-4" style={{ fontSize: "0.82rem", color: "var(--text-primary)" }}>
                       {conn.followers_count > 0 ? conn.followers_count.toLocaleString("pt-BR") : "\u2014"}
                     </td>
-                    <td className="px-5 py-4" style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>{relativeTime(conn.last_sync_at)}</td>
+                    <td className="px-5 py-4">
+                      <dl
+                        data-testid={`connection-freshness-${conn.id}`}
+                        data-contrast-scope="connection-freshness"
+                        className="min-w-[250px] space-y-2.5"
+                        aria-label={t("health.freshnessSummary", { username: conn.username })}
+                      >
+                        <div
+                          data-testid={`connection-last-success-${conn.id}`}
+                          className="rounded-xl px-3 py-2"
+                          style={{
+                            backgroundColor: lastSuccessAt ? "var(--bg-subtle)" : "var(--sentiment-negative-bg)",
+                            border: `1px solid ${lastSuccessAt ? "var(--border)" : "color-mix(in srgb, var(--sentiment-negative) 30%, var(--border))"}`,
+                          }}
+                        >
+                          <dt data-contrast-role="critical-label" style={{ fontSize: "0.7rem", fontWeight: 800, color: "var(--text-muted)", letterSpacing: "0.055em", textTransform: "uppercase" }}>
+                            {t("health.freshnessLastSuccess")}
+                          </dt>
+                          <dd data-contrast-role="critical-value" className="mt-1" style={{ fontSize: "0.8125rem", fontWeight: 700, color: "var(--text-primary)", lineHeight: 1.45 }}>
+                            {lastSuccessAt ? formatExecutionDate(lastSuccessAt, locale) : t("health.noSuccessfulSync")}
+                          </dd>
+                          {lastSuccessAt && (
+                            <dd style={{ fontSize: "0.75rem", color: "var(--text-muted)", lineHeight: 1.45 }}>{formatRelativeExecution(lastSuccessAt, locale)}</dd>
+                          )}
+                        </div>
+                        <div className="px-3">
+                          <dt data-contrast-role="critical-label" style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.055em", textTransform: "uppercase" }}>
+                            {t("health.lastAttempt")}
+                          </dt>
+                          <dd data-contrast-role="critical-value" className="mt-1" style={{ fontSize: "0.8125rem", color: "var(--text-primary)", lineHeight: 1.45 }}>
+                            {lastAttemptAt ? formatExecutionDate(lastAttemptAt, locale) : t("health.noAttempt")}
+                            {attemptStatusKey && (
+                              <span style={{ color: "var(--text-muted)", fontWeight: 600 }}> · {t(attemptStatusKey)}</span>
+                            )}
+                          </dd>
+                          {lastAttemptAt && (
+                            <dd style={{ fontSize: "0.75rem", color: "var(--text-muted)", lineHeight: 1.45 }}>{formatRelativeExecution(lastAttemptAt, locale)}</dd>
+                          )}
+                        </div>
+                        <div className="px-3">
+                          <dt data-contrast-role="critical-label" style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--text-muted)", letterSpacing: "0.055em", textTransform: "uppercase" }}>
+                            {t("health.nextExecution")}
+                          </dt>
+                          <dd data-contrast-role="critical-value" className="mt-1" style={{ fontSize: "0.8125rem", color: "var(--text-primary)", lineHeight: 1.45 }}>
+                            {nextScheduledAt ? formatExecutionDate(nextScheduledAt, locale) : t("health.notScheduled")}
+                          </dd>
+                          {nextScheduledAt && (
+                            <dd style={{ fontSize: "0.75rem", color: "var(--text-muted)", lineHeight: 1.45 }}>{formatRelativeExecution(nextScheduledAt, locale)}</dd>
+                          )}
+                        </div>
+                      </dl>
+                    </td>
                     <td className="px-5 py-4">
                       {conn.platform === "twitter" ? (
-                        // Coleta do Twitter está desligada no pipeline (twitter_disabled)
                         <Badge variant="muted" dot>{t("statusLabels.unavailable")}</Badge>
-                      ) : syncing[conn.id] ? (
-                        <Badge variant="primary" dot>{t("statusLabels.sync")}</Badge>
-                      ) : conn.status === "active" ? (
-                        <Badge variant="positive" dot>{t("statusLabels.active")}</Badge>
                       ) : (
-                        <Badge variant="negative" dot>{t("statusLabels.error")}</Badge>
+                        <div
+                        className="flex max-w-[290px] flex-col items-start gap-1.5"
+                        role="status"
+                        aria-label={`${t(healthLabelKey)}. ${t(reasonKey)}`}
+                      >
+                        <Badge variant={isSyncing ? "primary" : healthyWithoutAnalysis ? "warning" : healthVisual.variant}>
+                          {isSyncing ? (
+                            <RefreshCw className="h-3 w-3 animate-spin" aria-hidden="true" />
+                          ) : (
+                            <HealthIcon className="h-3 w-3" aria-hidden="true" />
+                          )}
+                          {isSyncing ? t("health.syncing") : t(healthLabelKey)}
+                        </Badge>
+                        <p data-contrast-role="critical-value" style={{ fontSize: "0.75rem", lineHeight: 1.5, color: "var(--text-muted)" }}>
+                          {t(reasonKey)}
+                        </p>
+                        {healthState === "healthy" && !healthyWithoutAnalysis ? (
+                          <Link
+                            href={`/dashboard/profile/${conn.id}`}
+                            className="rounded underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2"
+                            style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--primary)" }}
+                          >
+                            {t(healthVisual.actionKey)}
+                          </Link>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => openSyncConfiguration(conn.id)}
+                            disabled={isSyncing}
+                            className="rounded text-left underline-offset-2 hover:underline focus-visible:outline focus-visible:outline-2 disabled:opacity-60"
+                            style={{ fontSize: "0.75rem", fontWeight: 700, color: "var(--primary)" }}
+                          >
+                            {isSyncing ? t("health.syncing") : t("configureCollection")}
+                          </button>
+                        )}
+                        </div>
                       )}
                     </td>
                     <td className="px-5 py-4">
                       <button
+                        type="button"
+                        role="switch"
+                        aria-checked={conn.auto_sync}
                         onClick={() => handleToggleAutoSync(conn.id, conn.auto_sync)}
                         disabled={togglingSync[conn.id] || conn.platform === "twitter"}
+                        aria-label={conn.auto_sync ? `Pausar sync automática de @${conn.username}` : `Ativar sync automática de @${conn.username}`}
+                        title={conn.auto_sync ? "Pausar sync automática" : "Ativar sync automática"}
                         className="w-10 rounded-full relative transition-colors disabled:opacity-50"
                         style={{ height: 22, backgroundColor: conn.auto_sync && conn.platform !== "twitter" ? "var(--primary)" : "var(--bg-subtle)", border: conn.auto_sync && conn.platform !== "twitter" ? "none" : "1px solid var(--border)" }}
                       >
@@ -611,19 +1203,27 @@ export default function ConnectPage() {
                     </td>
                     <td className="px-5 py-4">
                       <div className="flex items-center gap-1">
-                        <Link href={`/profile/${conn.id}`} className="p-1.5 rounded-lg transition-colors">
+                        <Link href={`/dashboard/profile/${conn.id}`} className="p-1.5 rounded-lg transition-colors" aria-label={`Ver análise de @${conn.username}`} title="Ver análise">
                           <BarChart3 className="w-3.5 h-3.5" style={{ color: "var(--text-muted)" }} />
                         </Link>
-                        <button onClick={() => requestSync(conn.id)} disabled={syncing[conn.id] || activeRuns.some(r => r.connection_id === conn.id)} className="p-1.5 rounded-lg transition-colors disabled:opacity-50">
+                        <button
+                          type="button"
+                          onClick={() => openSyncConfiguration(conn.id)}
+                          disabled={syncing[conn.id] || conn.platform === "twitter" || activeRuns.some(r => r.connection_id === conn.id)}
+                          className="p-1.5 rounded-lg transition-colors disabled:opacity-50"
+                          aria-label={t("configureCollectionFor", { username: conn.username })}
+                          title={t("configureCollection")}
+                        >
                           <RefreshCw className={`w-3.5 h-3.5 ${syncing[conn.id] ? "animate-spin" : ""}`} style={{ color: "var(--text-muted)" }} />
                         </button>
-                        <button onClick={() => setConfirmDelete(conn.id)} className="p-1.5 rounded-lg transition-colors">
+                        <button onClick={() => setConfirmDelete(conn.id)} className="p-1.5 rounded-lg transition-colors" aria-label={`Remover @${conn.username}`} title="Remover perfil">
                           <Trash2 className="w-3.5 h-3.5" style={{ color: "var(--text-muted)" }} />
                         </button>
                       </div>
                     </td>
                   </tr>
-                ))}
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -646,7 +1246,9 @@ export default function ConnectPage() {
         <div className="fixed inset-0 flex items-center justify-center z-50 p-4" style={{ backgroundColor: "rgba(0,0,0,0.25)", backdropFilter: "blur(4px)" }}>
           <div className="rounded-2xl p-8 max-w-md w-full text-center relative" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 20px 60px -15px rgba(0,0,0,0.2)" }}>
             <button
+              type="button"
               onClick={() => setSyncEstimate(e => ({ ...e, show: false }))}
+              aria-label={tc("close")}
               className="absolute top-4 right-4 p-1 rounded-lg transition-colors"
               style={{ color: "var(--text-faint)" }}
             >

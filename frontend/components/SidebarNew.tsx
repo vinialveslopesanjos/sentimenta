@@ -15,8 +15,8 @@ import {
   ChevronDown,
   LogOut,
   Menu,
-  X,
   FileText,
+  Activity,
 } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Logo } from "./ds/Logo";
@@ -24,6 +24,7 @@ import { GlassInstagram, GlassYoutube, GlassTiktok, GlassTwitter, GlassX } from 
 import { authApi, connectionsApi, creditsApi } from "@/lib/api";
 import { clearTokens, getRefreshToken, getToken } from "@/lib/auth";
 import { CreditIndicator } from "./CreditBalance";
+import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "./ui/sheet";
 
 interface SubItem {
   label: string;
@@ -69,6 +70,7 @@ export default function SidebarNew() {
   const navItems = navItemDefs.map(d => ({ ...d, label: tn(d.labelKey) }));
   if (userPlan === "admin") {
     navItems.push({ icon: FileText, labelKey: "account", path: "/dashboard/admin/blog", label: "Blog" });
+    navItems.push({ icon: Activity, labelKey: "account", path: "/dashboard/admin/operations", label: "Operações" });
   }
 
   useEffect(() => {
@@ -137,7 +139,10 @@ export default function SidebarNew() {
             {isDashActive && !connections.some(c => pathname.startsWith(c.path)) && (
               <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 rounded-r-full" style={{ backgroundColor: "var(--primary)" }} />
             )}
-            <div
+            <button
+              type="button"
+              aria-label={tn("dashboard")}
+              aria-current={isDashActive && !connections.some(c => pathname.startsWith(c.path)) ? "page" : undefined}
               className="flex items-center gap-3 flex-1"
               onClick={() => navigate("/dashboard")}
             >
@@ -147,13 +152,17 @@ export default function SidebarNew() {
                   Dashboard
                 </span>
               )}
-            </div>
+            </button>
             {!collapsed && connections.length > 0 && (
               <button
+                type="button"
                 onClick={(e) => {
                   e.stopPropagation();
                   setDashExpanded(!dashExpanded);
                 }}
+                aria-label={dashExpanded ? tn("hideProfiles") : tn("showProfiles")}
+                aria-expanded={dashExpanded}
+                aria-controls="sidebar-profile-links"
                 className="p-0.5 rounded-md hover:opacity-70 transition-opacity"
               >
                 <ChevronDown
@@ -165,13 +174,16 @@ export default function SidebarNew() {
 
           {/* Children dropdown — real connections */}
           {!collapsed && dashExpanded && connections.length > 0 && (
-            <div className="ml-3 pl-3 mt-0.5 space-y-0.5" style={{ borderLeft: "1px solid var(--border)" }}>
+            <div id="sidebar-profile-links" className="ml-3 pl-3 mt-0.5 space-y-0.5" style={{ borderLeft: "1px solid var(--border)" }}>
               {connections.map(child => {
                 const isActive = pathname.startsWith(child.path);
                 return (
                   <button
+                    type="button"
                     key={child.path}
                     onClick={() => navigate(child.path)}
+                    aria-label={`${child.label} · ${child.platform}`}
+                    aria-current={isActive ? "page" : undefined}
                     className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg transition-all duration-200"
                     style={{
                       backgroundColor: isActive ? "var(--primary-bg)" : "transparent",
@@ -202,8 +214,11 @@ export default function SidebarNew() {
             (item.path !== "/dashboard" && pathname.startsWith(item.path));
           return (
             <button
+              type="button"
               key={item.path}
               onClick={() => navigate(item.path)}
+              aria-label={item.label}
+              aria-current={isActive ? "page" : undefined}
               className="flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 relative"
               style={{
                 backgroundColor: isActive ? "var(--primary-bg)" : "transparent",
@@ -227,8 +242,9 @@ export default function SidebarNew() {
       {/* Bottom */}
       <div className="px-2.5 pb-4 space-y-1 pt-3 shrink-0">
         {!collapsed && creditData && (
-          <div
-            className="mb-1 cursor-pointer"
+          <button
+            type="button"
+            className="mb-1 w-full cursor-pointer text-left"
             onClick={() => navigate("/dashboard/settings?tab=billing")}
           >
             <CreditIndicator
@@ -236,10 +252,13 @@ export default function SidebarNew() {
               planAllocation={creditData.planAllocation}
               planCredits={creditData.planCredits}
             />
-          </div>
+          </button>
         )}
         <button
+          type="button"
           onClick={() => setCollapsed(!collapsed)}
+          aria-label={collapsed ? tn("expand") : tn("collapse")}
+          aria-expanded={!collapsed}
           className="hidden md:flex w-full items-center gap-3 px-3 py-2.5 rounded-xl transition-all"
           style={{ color: "var(--text-faint)" }}
         >
@@ -247,7 +266,9 @@ export default function SidebarNew() {
           {!collapsed && <span style={{ fontSize: "0.85rem" }}>{tn("collapse")}</span>}
         </button>
         <button
+          type="button"
           onClick={handleLogout}
+          aria-label={tn("logout")}
           className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all"
           style={{ color: "var(--text-faint)" }}
         >
@@ -260,19 +281,30 @@ export default function SidebarNew() {
 
   return (
     <>
-      {/* Mobile hamburger */}
-      <button
-        onClick={() => setMobileOpen(true)}
-        className="fixed z-[60] md:hidden w-10 h-10 rounded-full flex items-center justify-center"
-        style={{ top: "7px", left: "12px", backgroundColor: "var(--bg-card)", color: "var(--text-muted)", border: "1px solid var(--border)", boxShadow: "0 2px 12px -2px rgba(0,0,0,0.08)" }}
-      >
-        <Menu className="w-[18px] h-[18px]" strokeWidth={1.8} />
-      </button>
-
-      {/* Mobile overlay */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-[55] bg-black/40 md:hidden" onClick={() => setMobileOpen(false)} />
-      )}
+      <Sheet open={mobileOpen} onOpenChange={setMobileOpen}>
+        <SheetTrigger asChild>
+          <button
+            type="button"
+            aria-label={tn("openMenu")}
+            className="fixed z-[60] flex h-10 w-10 items-center justify-center rounded-full md:hidden"
+            style={{ top: "7px", left: "12px", backgroundColor: "var(--bg-card)", color: "var(--text-muted)", border: "1px solid var(--border)", boxShadow: "0 2px 12px -2px rgba(0,0,0,0.08)" }}
+          >
+            <Menu className="h-[18px] w-[18px]" strokeWidth={1.8} />
+          </button>
+        </SheetTrigger>
+        <SheetContent
+          id="mobile-sidebar"
+          aria-modal="true"
+          side="left"
+          closeLabel={tn("closeMenu")}
+          overlayClassName="z-[65] bg-black/40 md:hidden"
+          className="z-[70] h-screen w-[260px] max-w-[calc(100%-2rem)] gap-0 border-r p-0 md:hidden"
+          style={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border)", boxShadow: "4px 0 16px -4px rgba(0,0,0,0.1)" }}
+        >
+          <SheetTitle className="sr-only">{tn("openMenu")}</SheetTitle>
+          {sidebarContent}
+        </SheetContent>
+      </Sheet>
 
       {/* Desktop sidebar */}
       <aside
@@ -284,22 +316,6 @@ export default function SidebarNew() {
         {sidebarContent}
       </aside>
 
-      {/* Mobile sidebar */}
-      <aside
-        className={`fixed left-0 top-0 h-screen w-[260px] flex flex-col z-[60] transition-transform duration-300 md:hidden ${
-          mobileOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-        style={{ backgroundColor: "var(--bg-card)", borderRight: "1px solid var(--border)", boxShadow: "4px 0 16px -4px rgba(0,0,0,0.1)" }}
-      >
-        <button
-          onClick={() => setMobileOpen(false)}
-          className="absolute top-4 right-3 p-1 rounded-lg"
-          style={{ color: "var(--text-muted)" }}
-        >
-          <X className="w-5 h-5" />
-        </button>
-        {sidebarContent}
-      </aside>
     </>
   );
 }

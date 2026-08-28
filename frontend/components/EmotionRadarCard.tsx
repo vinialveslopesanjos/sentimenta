@@ -1,5 +1,9 @@
 "use client";
 
+import { useLocale, useTranslations } from "next-intl";
+import { ChartTextAlternative } from "@/components/charts/ChartTextAlternative";
+import { formatChartNumber } from "@/lib/chartAccessibility";
+
 interface EmotionPoint {
   emotion: string;
   value: number;
@@ -9,6 +13,7 @@ interface EmotionRadarCardProps {
   title: string;
   data: EmotionPoint[];
   compact?: boolean;
+  chartId?: string;
 }
 
 const EMOTION_COLORS: Record<string, string> = {
@@ -61,9 +66,8 @@ function describeSector(cx: number, cy: number, innerRadius: number, outerRadius
 }
 
 function formatEmotion(raw: string) {
-  return raw
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (char) => char.toUpperCase());
+  const normalized = raw.replace(/_/g, " ").toLocaleLowerCase("pt-BR");
+  return normalized.charAt(0).toLocaleUpperCase("pt-BR") + normalized.slice(1);
 }
 
 function formatNumber(value: number) {
@@ -72,7 +76,9 @@ function formatNumber(value: number) {
   return String(value);
 }
 
-export default function EmotionRadarCard({ title, data, compact = false }: EmotionRadarCardProps) {
+export default function EmotionRadarCard({ title, data, compact = false, chartId = "emotion-radar" }: EmotionRadarCardProps) {
+  const locale = useLocale();
+  const ta = useTranslations("charts.accessibility");
   const total = data.reduce((sum, item) => sum + item.value, 0);
   const ranked = [...data]
     .filter((item) => item.value > 0)
@@ -117,8 +123,8 @@ export default function EmotionRadarCard({ title, data, compact = false }: Emoti
       </h3>
 
       <div className={compact ? "grid grid-cols-1 gap-5 items-center mt-5" : "grid grid-cols-1 lg:grid-cols-[minmax(320px,0.9fr)_minmax(340px,1fr)] gap-8 md:gap-12 items-center mt-7"}>
-        <div className="flex justify-center">
-          <svg viewBox="0 0 340 340" className={`w-full ${compact ? "max-w-[260px]" : "max-w-[360px]"}`} role="img" aria-label={title}>
+        <div data-chart-visual={chartId} className="flex justify-center">
+          <svg viewBox="0 0 340 340" className={`w-full ${compact ? "max-w-[260px]" : "max-w-[360px]"}`} aria-hidden="true" focusable="false">
             {[70, 105, 140].map((radius) => (
               <circle
                 key={radius}
@@ -181,6 +187,29 @@ export default function EmotionRadarCard({ title, data, compact = false }: Emoti
           ))}
         </div>
       </div>
+
+      {ranked.length > 0 && (
+        <ChartTextAlternative
+          chartId={chartId}
+          title={title}
+          summary={ta("dominantPercent", {
+            category: ranked[0].label,
+            value: ranked[0].pct,
+          })}
+          period={ta("currentSlice")}
+          unit={ta("units.occurrencesAndPercentage")}
+          columns={[
+            { key: "emotion", label: ta("columns.emotion") },
+            { key: "occurrences", label: ta("columns.occurrences"), numeric: true },
+            { key: "percentage", label: ta("columns.percentage"), numeric: true },
+          ]}
+          rows={ranked.map(item => ({
+            emotion: item.label,
+            occurrences: formatChartNumber(item.value, locale, 0),
+            percentage: `${item.pct}%`,
+          }))}
+        />
+      )}
     </section>
   );
 }

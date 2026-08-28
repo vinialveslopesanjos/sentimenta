@@ -2,27 +2,40 @@ import { Section } from "./ds/Section";
 import { getScoreStyle } from "./ds/tokens";
 import { useTheme } from "./ThemeContext";
 import { useState } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Search } from "lucide-react";
+import { ChartTextAlternative } from "./charts/ChartTextAlternative";
+import { formatChartNumber, getPeakFact } from "@/lib/chartAccessibility";
 const heatmapHours = ["00", "02", "04", "06", "08", "10", "12", "14", "16", "18", "20", "22"];
 
-interface HeatmapProps { data: number[][]; title?: string; }
+interface HeatmapProps { data: number[][]; title?: string; chartId?: string; }
 
-export function Heatmap({ data, title }: HeatmapProps) {
+export function Heatmap({ data, title, chartId = "activity-heatmap" }: HeatmapProps) {
   const { t } = useTheme();
   const tc = useTranslations("charts");
+  const ta = useTranslations("charts.accessibility");
+  const locale = useLocale();
   const heatmapDays = tc.raw("heatmap.days") as string[];
   const displayTitle = title ?? tc("heatmap.title");
+  const maxValue = Math.max(...data.flat(), 0);
+  const rows = data.flatMap((row, dayIndex) => row.map((value, hourIndex) => ({
+    day: heatmapDays[dayIndex] ?? String(dayIndex + 1),
+    hour: `${heatmapHours[hourIndex] ?? String(hourIndex * 2).padStart(2, "0")}h`,
+    value,
+  })));
+  const peak = getPeakFact(rows, row => `${row.day} ${row.hour}`, row => row.value);
   function getHeatColor(value: number) {
-    if (value >= 40) return t.primary;
-    if (value >= 30) return t.primaryMuted;
-    if (value >= 20) return t.primaryFaint;
-    if (value >= 10) return t.textXfaint;
+    if (value <= 0 || maxValue <= 0) return t.primaryBg;
+    const intensity = Math.log1p(value) / Math.log1p(maxValue);
+    if (intensity >= 0.82) return t.primary;
+    if (intensity >= 0.62) return t.primaryMuted;
+    if (intensity >= 0.38) return t.primaryFaint;
+    if (intensity >= 0.16) return t.textXfaint;
     return t.primaryBg;
   }
   return (
     <Section title={displayTitle} subtitle={tc("heatmap.subtitle")}>
-      <div className="overflow-x-auto">
+      <div data-chart-visual={chartId} className="overflow-x-auto">
         <div className="min-w-[500px]">
           <div className="flex gap-1 mb-1 pl-10">
             {heatmapHours.map(h => <div key={h} className="flex-1 text-center" style={{ fontSize: "0.62rem", color: "var(--text-faint)", fontWeight: 500 }}>{h}h</div>)}
@@ -37,6 +50,23 @@ export function Heatmap({ data, title }: HeatmapProps) {
           ))}
         </div>
       </div>
+      <ChartTextAlternative
+        chartId={chartId}
+        title={displayTitle}
+        summary={peak ? ta("peak", {
+          value: formatChartNumber(peak.value, locale, 0),
+          unit: peak.value === 1 ? ta("units.commentSingular") : ta("units.commentsShort"),
+          period: peak.period,
+        }) : ""}
+        period={`${heatmapDays[0]} — ${heatmapDays[heatmapDays.length - 1]} · ${heatmapHours[0]}h — ${heatmapHours[heatmapHours.length - 1]}h`}
+        unit={ta("units.comments")}
+        columns={[
+          { key: "day", label: ta("columns.day") },
+          { key: "hour", label: ta("columns.hour") },
+          { key: "value", label: ta("columns.comments"), numeric: true },
+        ]}
+        rows={rows.map(row => ({ ...row, value: formatChartNumber(row.value, locale, 0) }))}
+      />
     </Section>
   );
 }
@@ -71,10 +101,10 @@ export interface CommentRow {
   user: string;
   text: string;
   emotion: string;
-  score: number;
+  score: number | null;
   date: string;
   post: string;
-  sentiment: "Positivo" | "Neutro" | "Negativo";
+  sentiment: "Positivo" | "Neutro" | "Negativo" | "Pendente";
 }
 
 // Emotion color coding helper
@@ -91,6 +121,17 @@ function getEmotionColor(emotion: string): { color: string; bg: string } {
   }
   // Neutro or unknown
   return { color: "var(--text-muted)", bg: "var(--bg-subtle)" };
+}
+
+function PendingAnalysisBadge() {
+  return (
+    <span
+      className="px-2 py-0.5 rounded-md whitespace-nowrap"
+      style={{ fontSize: "0.62rem", fontWeight: 700, color: "var(--primary)", backgroundColor: "var(--primary-bg)" }}
+    >
+      Aguardando análise
+    </span>
+  );
 }
 
 export function CommentsTable({ comments, platformName }: { comments: CommentRow[]; platformName: string }) {
@@ -142,12 +183,16 @@ export function CommentsTable({ comments, platformName }: { comments: CommentRow
             </thead>
             <tbody>
               {visibleRows.map((c, i) => {
-                const ss = getScoreStyle(c.score);
+                const ss = c.score != null ? getScoreStyle(c.score) : null;
                 const emotionStyle = getEmotionColor(c.emotion);
                 return (
                   <tr key={i} className="transition-colors" style={{ borderBottom: "1px solid var(--border)" }}>
                     <td className="py-2.5 px-3">
-                      <span className="px-2 py-0.5 rounded-md" style={{ fontSize: "0.68rem", fontWeight: 600, color: ss.color, backgroundColor: ss.bg }}>{c.score.toFixed(1)}</span>
+                      {c.score != null && ss ? (
+                        <span className="px-2 py-0.5 rounded-md" style={{ fontSize: "0.68rem", fontWeight: 600, color: ss.color, backgroundColor: ss.bg }}>{c.score.toFixed(1)}</span>
+                      ) : (
+                        <PendingAnalysisBadge />
+                      )}
                     </td>
                     <td className="py-2.5 px-3">
                       <span style={{ fontWeight: 500, color: "var(--text-primary)" }}>@{c.user}</span>
@@ -156,7 +201,11 @@ export function CommentsTable({ comments, platformName }: { comments: CommentRow
                       <p className="line-clamp-2" style={{ color: "var(--text-muted)", wordBreak: "break-word" }}>{c.text}</p>
                     </td>
                     <td className="py-2.5 px-3">
-                      <span className="px-2 py-0.5 rounded-md whitespace-nowrap" style={{ fontSize: "0.62rem", fontWeight: 600, color: emotionStyle.color, backgroundColor: emotionStyle.bg }}>{c.emotion}</span>
+                      {c.emotion ? (
+                        <span className="px-2 py-0.5 rounded-md whitespace-nowrap" style={{ fontSize: "0.62rem", fontWeight: 600, color: emotionStyle.color, backgroundColor: emotionStyle.bg }}>{c.emotion}</span>
+                      ) : (
+                        <span style={{ color: "var(--text-faint)" }}>—</span>
+                      )}
                     </td>
                     <td className="py-2.5 px-3">
                       <span style={{ color: "var(--text-faint)", fontSize: "0.72rem" }}>{c.date}</span>
@@ -171,14 +220,20 @@ export function CommentsTable({ comments, platformName }: { comments: CommentRow
         {/* Mobile: card list */}
         <div className="md:hidden space-y-2">
           {visibleRows.map((c, i) => {
-            const ss = getScoreStyle(c.score);
+            const ss = c.score != null ? getScoreStyle(c.score) : null;
             const emotionStyle = getEmotionColor(c.emotion);
             return (
               <div key={i} className="p-3 rounded-xl" style={{ backgroundColor: "var(--bg-subtle)" }}>
                 <div className="flex items-center gap-2 mb-1.5">
-                  <span className="px-2 py-0.5 rounded-md" style={{ fontSize: "0.65rem", fontWeight: 600, color: ss.color, backgroundColor: ss.bg }}>{c.score.toFixed(1)}</span>
+                  {c.score != null && ss ? (
+                    <span className="px-2 py-0.5 rounded-md" style={{ fontSize: "0.65rem", fontWeight: 600, color: ss.color, backgroundColor: ss.bg }}>{c.score.toFixed(1)}</span>
+                  ) : (
+                    <PendingAnalysisBadge />
+                  )}
                   <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "var(--text-primary)" }}>@{c.user}</span>
-                  <span className="ml-auto px-2 py-0.5 rounded-md" style={{ fontSize: "0.6rem", fontWeight: 600, color: emotionStyle.color, backgroundColor: emotionStyle.bg }}>{c.emotion}</span>
+                  {c.emotion && (
+                    <span className="ml-auto px-2 py-0.5 rounded-md" style={{ fontSize: "0.6rem", fontWeight: 600, color: emotionStyle.color, backgroundColor: emotionStyle.bg }}>{c.emotion}</span>
+                  )}
                 </div>
                 <p style={{ fontSize: "0.78rem", lineHeight: 1.6, color: "var(--text-muted)", wordBreak: "break-word" }}>{c.text}</p>
               </div>

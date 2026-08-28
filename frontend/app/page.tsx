@@ -1,17 +1,21 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import Link from "next/link";
 import { motion, useInView, useScroll, useTransform, AnimatePresence, useSpring } from "framer-motion";
 import {
   ArrowRight, ChevronDown, CheckCircle2, Zap, Eye, Shield, MessageCircle,
-  TrendingUp, Sparkles, Play, Star, Info, Smile, Frown, Meh,
+  TrendingUp, Sparkles, Play, Star, Send, Info, Smile, Frown, Meh,
   Heart, ThumbsDown, Flame, AlertTriangle,
 } from "lucide-react";
 import { Logo } from "@/components/ds/Logo";
 import { Button } from "@/components/ds/Button";
-import SentimentPreview from "@/components/SentimentPreview";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import {
+  PlatformCapabilityMatrix,
+  PlatformCapabilityPicker,
+} from "@/components/PlatformCapabilityMatrix";
+import type { PlatformCapabilityId } from "@/lib/platformCapabilities";
 import { useTranslations } from "next-intl";
 import {
   GlassChartIcon,
@@ -129,6 +133,16 @@ export default function LandingPage() {
   const t = useTranslations("landing");
   const tc = useTranslations("common");
 
+  const demoKeys = ["s1", "s2", "s3", "s4", "s5"] as const;
+  const demoMeta = t.raw("demoResultsMeta") as Record<string, { emotion: string; score: number; sentiment: string; emoji: string }>;
+  const demoResults: Record<string, { emotion: string; score: number; sentiment: string; type: "pos" | "neg" | "neu"; emoji: string }> = {};
+  const demoSuggestions: string[] = [];
+  for (const k of demoKeys) {
+    const text = t(`demoResults.${k}`);
+    const meta = demoMeta[k];
+    demoSuggestions.push(text);
+    demoResults[text] = { ...meta, type: meta.score >= 7 ? "pos" : meta.score <= 4 ? "neg" : "neu" };
+  }
 
   const emotionNames = t.raw("emotions") as Record<string, string>;
   const emotionList = ["joy", "anger", "sadness", "neutral", "love", "disgust", "surprise", "fear"];
@@ -153,6 +167,10 @@ export default function LandingPage() {
   const [tickerIdx, setTickerIdx] = useState(0);
   useEffect(() => { const ti = setInterval(() => setTickerIdx(i => (i + 1) % tickerItemsBase.length), 2200); return () => clearInterval(ti); }, []);
 
+  const [demoInput, setDemoInput] = useState("");
+  const [demoResult, setDemoResult] = useState<typeof demoResults[string] | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+
   const { scrollYProgress: rawScroll } = useScroll();
   const pageScroll = useSpring(rawScroll, { stiffness: 60, damping: 20, restDelta: 0.001 });
   const y1 = useTransform(pageScroll, [0, 1], [0, 600]);
@@ -164,15 +182,28 @@ export default function LandingPage() {
   const rotate1 = useTransform(pageScroll, [0, 1], [0, 180]);
   const rotate2 = useTransform(pageScroll, [0, 1], [0, -180]);
 
+  const analyzeSentiment = useCallback((text: string) => {
+    setDemoInput(text); setAnalyzing(true); setDemoResult(null);
+    setTimeout(() => {
+      const result = demoResults[text] || {
+        emotion: text.includes("!") ? "Surpresa" : text.includes("?") ? "Neutro" : "Alegria",
+        score: 5 + Math.random() * 4,
+        sentiment: text.includes("não") || text.includes("absurdo") || text.includes("horror") ? "Negativo" : "Positivo",
+        type: (text.includes("não") || text.includes("absurdo") ? "neg" : "pos") as "pos" | "neg",
+        emoji: text.includes("não") ? "😟" : "😊",
+      };
+      setDemoResult(result); setAnalyzing(false);
+    }, 1200);
+  }, []);
+
   const [selectedEmotions, setSelectedEmotions] = useState([emotionNames.joy, emotionNames.anger]);
   const toggleEmotion = (e: string) => setSelectedEmotions(prev => prev.includes(e) ? prev.filter(x => x !== e) : [...prev, e]);
-  const platformOptions = ["Instagram", "TikTok", "YouTube", "X/Twitter"];
-  const frequencyOptions = [t("configure.frequencyHourly"), t("configure.frequencyDaily"), t("configure.frequencyWeekly")];
-  const [selectedPlatforms, setSelectedPlatforms] = useState(["Instagram"]);
+  const frequencyOptions = [t("configure.frequencyDaily"), t("configure.frequencyWeekly")];
+  const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformCapabilityId[]>(["instagram"]);
   const [selectedFrequency, setSelectedFrequency] = useState([t("configure.frequencyDaily")]);
   const [alertThreshold, setAlertThreshold] = useState(65);
   const [profileDraft, setProfileDraft] = useState("");
-  const togglePlatform = (platform: string) => {
+  const togglePlatform = (platform: PlatformCapabilityId) => {
     setSelectedPlatforms(prev => prev.includes(platform) ? prev.filter(p => p !== platform) : [...prev, platform]);
   };
 
@@ -210,7 +241,6 @@ export default function LandingPage() {
             <a href="#demo" style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>{t("nav.liveTest")}</a>
             <a href="#como" style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>{t("nav.howItWorks")}</a>
             <a href="#preco" style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>{t("nav.pricing")}</a>
-            <Link href="/diagnostico" style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>{t("nav.diagnostic")}</Link>
             <LanguageSwitcher />
             <Link href="/login" style={{ fontSize: "0.85rem", fontWeight: 500, color: "var(--primary)" }}>{t("nav.login")}</Link>
             <Link href="/login"><Button size="sm">{t("nav.startFree")}</Button></Link>
@@ -226,7 +256,12 @@ export default function LandingPage() {
       <section className="landing-hero relative pt-28 pb-0 px-4 md:px-8 overflow-hidden min-h-[100vh]">
         <div className="max-w-[1200px] mx-auto relative">
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex items-center justify-center mb-4 md:mb-12">
-            <div className="liquid-ticker flex items-center gap-2 px-4 py-2 rounded-full transition-all max-w-[95vw]">
+            <div
+              role="note"
+              data-testid="landing-hero-example-ticker"
+              data-demo-mode="illustrative"
+              className="liquid-ticker flex items-center gap-2 px-4 py-2 rounded-full transition-all max-w-[95vw]"
+            >
               <div className="w-2 h-2 rounded-full animate-pulse shrink-0" style={{ backgroundColor: "#39b8c6" }} />
               <span className="shrink-0" style={{ fontSize: "0.72rem", color: "#1a6f78", fontWeight: 600, letterSpacing: "0.02em" }}>{t("hero.live")}</span>
               <AnimatePresence mode="wait">
@@ -260,8 +295,8 @@ export default function LandingPage() {
                   {t("hero.ctaDiagnostic")} →
                 </Link>
               </motion.div>
-              <motion.div initial={{ opacity: 0.9 }} animate={{ opacity: 1 }} transition={{ delay: 0.22 }} className="flex items-center gap-6 mt-8 flex-wrap">
-                {[{ v: "12K+", l: t("hero.statsComments") }, { v: "8", l: t("hero.statsEmotions") }, { v: "<2min", l: t("hero.statsFirstRead") }].map(s => (
+              <motion.div data-testid="landing-hero-evidence-stats" initial={{ opacity: 0.9 }} animate={{ opacity: 1 }} transition={{ delay: 0.22 }} className="flex items-center gap-6 mt-8 flex-wrap">
+                {[{ v: "12K+", l: t("hero.statsComments") }, { v: "8", l: t("hero.statsEmotions") }, { v: t("hero.statsForecastValue"), l: t("hero.statsFirstRead") }].map(s => (
                   <div key={s.l} className="flex items-center gap-2">
                     <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>{s.v}</span>
                     <span style={{ fontSize: "0.72rem", color: "var(--text-faint)" }}>{s.l}</span>
@@ -271,7 +306,28 @@ export default function LandingPage() {
             </div>
 
             <motion.div style={{ y: heroY }} className="relative hidden lg:block liquid-preview-wrap">
-              <motion.div initial={{ opacity: 0, y: 40, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.7, delay: 0.3 }} className="space-y-4 liquid-lens-stack">
+              <motion.div
+                initial={{ opacity: 0, y: 40, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.7, delay: 0.3 }}
+                className="space-y-4 liquid-lens-stack"
+                data-demo-mode="illustrative"
+              >
+                <div
+                  role="note"
+                  data-testid="landing-preview-disclosure"
+                  className="flex items-start gap-3 rounded-2xl px-4 py-3"
+                  style={{
+                    backgroundColor: "color-mix(in srgb, var(--primary) 8%, var(--bg-card))",
+                    border: "1px solid color-mix(in srgb, var(--primary) 32%, var(--border))",
+                  }}
+                >
+                  <Info aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--primary)" }} />
+                  <div>
+                    <p style={{ color: "var(--text-primary)", fontSize: "0.75rem", fontWeight: 800 }}>{t("hero.previewDisclosureTitle")}</p>
+                    <p className="mt-1" style={{ color: "var(--text-muted)", fontSize: "0.66rem", lineHeight: 1.45 }}>{t("hero.previewDisclosureMeta")}</p>
+                  </div>
+                </div>
                 <GlassCard active>
                   <div className="p-6">
                     <div className="flex items-center justify-between mb-4">
@@ -362,20 +418,110 @@ export default function LandingPage() {
       </section>
 
       {/* DEMO */}
-      <section id="demo" className="landing-liquid-section landing-demo-section py-12 md:py-18 px-4 md:px-8 relative">
+      <section
+        id="demo"
+        aria-labelledby="landing-demo-title"
+        data-testid="landing-interactive-demo"
+        data-demo-mode="illustrative"
+        data-live-monitoring="false"
+        className="landing-liquid-section landing-demo-section py-12 md:py-18 px-4 md:px-8 relative"
+      >
         <div className="max-w-[900px] mx-auto">
           <FadeIn>
             <div className="liquid-section-header text-center mb-12">
               <span className="liquid-section-badge inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-5" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--primary)" }}>
                 <Zap className="w-3 h-3" /> {t("demo.badge")}
               </span>
-              <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.5rem)", fontWeight: 800, color: "var(--text-primary)", letterSpacing: 0 }}>
+              <h2 id="landing-demo-title" style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.5rem)", fontWeight: 800, color: "var(--text-primary)", letterSpacing: 0 }}>
                 {t("demo.title")}<br />{t("demo.titleLine2")}
               </h2>
             </div>
           </FadeIn>
           <FadeIn delay={0.1}>
-            <SentimentPreview />
+            <GlassCard active className="landing-demo-card overflow-visible">
+              <div className="p-5 md:p-8">
+                <div
+                  role="note"
+                  data-testid="landing-interactive-demo-disclosure"
+                  className="mb-6 flex items-start gap-3 rounded-2xl px-4 py-3.5"
+                  style={{
+                    backgroundColor: "color-mix(in srgb, var(--primary) 7%, var(--bg-card))",
+                    border: "1px solid color-mix(in srgb, var(--primary) 30%, var(--border))",
+                  }}
+                >
+                  <Info aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--primary)" }} />
+                  <div>
+                    <p style={{ color: "var(--text-primary)", fontSize: "0.78rem", fontWeight: 800 }}>{t("demo.disclosureTitle")}</p>
+                    <p className="mt-1" style={{ color: "var(--text-secondary)", fontSize: "0.72rem", lineHeight: 1.55 }}>{t("demo.disclosureDescription")}</p>
+                    <p className="mt-1.5" style={{ color: "var(--text-muted)", fontSize: "0.68rem", fontWeight: 650 }}>{t("demo.disclosureScope")}</p>
+                  </div>
+                </div>
+                <div className="landing-demo-control flex items-center gap-3 mb-6">
+                  <div className="flex-1 relative">
+                    <input type="text" value={demoInput} onChange={e => setDemoInput(e.target.value)} onKeyDown={e => e.key === "Enter" && demoInput.trim() && analyzeSentiment(demoInput)}
+                      placeholder={t("demo.inputPlaceholder")}
+                      className="landing-demo-input w-full px-5 py-4 rounded-2xl transition-all"
+                      style={{ fontSize: "0.95rem", color: "var(--text-primary)" }}
+                    />
+                  </div>
+                  <button aria-label={t("demo.analyzeButton")} onClick={() => demoInput.trim() && analyzeSentiment(demoInput)} className="landing-demo-send w-12 h-12 rounded-2xl flex items-center justify-center text-white transition-colors" style={{ backgroundColor: "var(--primary)" }}>
+                    <Send className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="landing-demo-suggestions flex flex-wrap gap-2 mb-6">
+                  <span className="w-full" style={{ fontSize: "0.72rem", color: "var(--text-faint)", fontWeight: 700, marginBottom: 2 }}>{t("demo.trySuggestions")}</span>
+                  {demoSuggestions.map(s => (
+                    <button key={s} onClick={() => analyzeSentiment(s)} className="landing-suggestion-chip px-3 py-1.5 rounded-xl transition-colors" style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--primary)" }}>
+                      {s.length > 40 ? s.slice(0, 40) + "..." : s}
+                    </button>
+                  ))}
+                </div>
+                <AnimatePresence mode="wait">
+                  {analyzing && (
+                    <motion.div key="analyzing" initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }} className="flex items-center justify-center py-8 gap-3">
+                      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1, ease: "linear" }} className="w-5 h-5 border-2 rounded-full" style={{ borderColor: "var(--primary)", borderTopColor: "transparent" }} />
+                      <span style={{ fontSize: "0.88rem", color: "var(--primary)", fontWeight: 500 }}>{t("demo.analyzingWithAI")}</span>
+                    </motion.div>
+                  )}
+                  {demoResult && !analyzing && (
+                    <motion.div key="result" initial={{ opacity: 0.94, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} className="landing-demo-result grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="col-span-2 md:col-span-4">
+                        <span
+                          data-testid="landing-demo-result-label"
+                          className="inline-flex rounded-full px-3 py-1"
+                          style={{ backgroundColor: "var(--primary-bg)", color: "var(--primary)", fontSize: "0.66rem", fontWeight: 850, letterSpacing: "0.07em" }}
+                        >
+                          {t("demo.resultLabel")}
+                        </span>
+                      </div>
+                      <div className="rounded-2xl p-5 text-center">
+                        <span style={{ fontSize: "2rem" }}>{demoResult.emoji}</span>
+                        <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.95rem", fontWeight: 600, color: "var(--text-primary)", marginTop: 6 }}>{demoResult.emotion}</p>
+                        <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>{t("demo.emotionDetected")}</p>
+                      </div>
+                      <div className="rounded-2xl p-5 text-center">
+                        <div className="relative w-14 h-14 mx-auto mb-2">
+                          <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
+                            <circle cx="50" cy="50" r="38" fill="none" stroke={theme.primaryBg} strokeWidth="8" />
+                            <circle cx="50" cy="50" r="38" fill="none" stroke={getColor(demoResult.type)} strokeWidth="8" strokeLinecap="round" strokeDasharray={`${(demoResult.score / 10) * 240} ${240 - (demoResult.score / 10) * 240}`} />
+                          </svg>
+                          <span className="absolute inset-0 flex items-center justify-center" style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1rem", fontWeight: 700, color: getColor(demoResult.type) }}>{demoResult.score.toFixed(1)}</span>
+                        </div>
+                        <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>{t("demo.scoreOf10")}</p>
+                      </div>
+                      <div className="rounded-2xl p-5 text-center text-white" style={{ backgroundColor: getColor(demoResult.type) }}>
+                        <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.3rem", fontWeight: 700, marginBottom: 4 }}>{demoResult.sentiment}</p>
+                        <p style={{ fontSize: "0.68rem", opacity: 0.7 }}>{t("demo.classification")}</p>
+                      </div>
+                      <div className="rounded-2xl p-5 text-center">
+                        <p data-testid="landing-demo-confidence" style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.1rem", fontWeight: 700, color: "var(--primary)" }}>{t("demo.exampleValue")}</p>
+                        <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>{t("demo.aiConfidence")}</p>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </GlassCard>
           </FadeIn>
         </div>
       </section>
@@ -409,7 +555,9 @@ export default function LandingPage() {
                 <div className="p-5 md:p-7">
                   <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>{t("configure.platforms")}</h3>
                   <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>{t("configure.platformsSub")}</p>
-                  <div className="mt-5"><PillSelector items={platformOptions} selected={selectedPlatforms} onSelect={togglePlatform} grid /></div>
+                  <div className="mt-5">
+                    <PlatformCapabilityPicker selected={selectedPlatforms} onToggle={togglePlatform} surface="home" />
+                  </div>
                 </div>
               </GlassCard>
             </FadeIn>
@@ -423,6 +571,13 @@ export default function LandingPage() {
               </GlassCard>
             </FadeIn>
           </div>
+          <FadeIn delay={0.23}>
+            <GlassCard className="landing-config-card mb-4">
+              <div className="p-5 md:p-7">
+                <PlatformCapabilityMatrix surface="home" embedded />
+              </div>
+            </GlassCard>
+          </FadeIn>
           <FadeIn delay={0.25}>
             <GlassCard className="landing-config-card">
               <div className="p-5 md:p-7">
@@ -595,7 +750,7 @@ export default function LandingPage() {
               {creditExplanation}
             </p>
             <p className="text-center mt-4" style={{ fontSize: "0.85rem", color: "var(--text-muted)" }}>
-              {t("pricing.diagnosticNote")}{" "}
+              {t("pricing.diagnosticNote")} {" "}
               <Link href="/diagnostico" style={{ color: "var(--primary)", fontWeight: 500, textDecoration: "underline", textUnderlineOffset: 4 }}>
                 {t("pricing.diagnosticCta")}
               </Link>
@@ -644,11 +799,6 @@ export default function LandingPage() {
               <Link href="/login" className="inline-block px-10 py-4 bg-white rounded-full hover:bg-white/90 transition-all shadow-[0_8px_32px_-8px_rgba(0,0,0,0.2)]" style={{ fontSize: "0.95rem", fontWeight: 600, color: "#0e2325" }}>
                 {t("cta.button")}
               </Link>
-              <p className="mt-5">
-                <Link href="/diagnostico" style={{ fontSize: "0.85rem", color: "rgba(255,255,255,0.75)", textDecoration: "underline", textUnderlineOffset: 4 }}>
-                  {t("cta.diagnosticLink")}
-                </Link>
-              </p>
             </div>
           </div>
         </section>

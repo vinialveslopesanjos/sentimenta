@@ -128,7 +128,7 @@ export function ConnectScreen() {
     try {
       setSyncingId(connId);
       await api.connections.sync(connId);
-      setFeedback({ type: "success", msg: "Sincronizacao iniciada!" });
+      setFeedback({ type: "success", msg: "Sincronização iniciada!" });
       await fetchConnections();
     } catch (err: any) {
       setFeedback({ type: "error", msg: err.message || "Erro ao sincronizar" });
@@ -180,7 +180,7 @@ export function ConnectScreen() {
           Conectar Perfis
         </h1>
         <p className="text-slate-400 mt-1" style={{ fontSize: "13px" }}>
-          Conecte suas fontes de dados para analise.
+          Conecte suas fontes de dados para análise.
         </p>
       </div>
 
@@ -189,7 +189,7 @@ export function ConnectScreen() {
         <div className="flex items-center gap-2 px-3 py-2 bg-cyan-50 rounded-2xl">
           <Zap size={14} className="text-cyan-500" />
           <span className="text-cyan-700" style={{ fontSize: "12px", fontWeight: 500 }}>
-            Sincronizacao automatica ativa
+            Sincronização automática ativa
           </span>
         </div>
 
@@ -214,7 +214,7 @@ export function ConnectScreen() {
                 Instagram
               </span>
               <p className="text-slate-400 text-center mt-1" style={{ fontSize: "10px" }}>
-                Perfil publico buscavel sem login
+                Perfil público buscável sem login
               </p>
               <input
                 placeholder="@usuario"
@@ -245,7 +245,7 @@ export function ConnectScreen() {
                 YouTube
               </span>
               <p className="text-slate-400 text-center mt-1" style={{ fontSize: "10px" }}>
-                Analise de comentarios em videos
+                Análise de comentários em vídeos
               </p>
               <input
                 placeholder="@canal ou URL"
@@ -273,7 +273,7 @@ export function ConnectScreen() {
             </div>
             <div>
               <span className="text-slate-500" style={{ fontSize: "13px", fontWeight: 500 }}>TikTok</span>
-              <p className="text-slate-300" style={{ fontSize: "11px" }}>Em Breve</p>
+              <p className="text-slate-300" style={{ fontSize: "11px" }}>Em breve</p>
             </div>
           </DreamCard>
         </div>
@@ -323,7 +323,7 @@ export function ConnectScreen() {
 
               <div>
                 <p className="text-slate-400 mb-2" style={{ fontSize: "11px", fontWeight: 500 }}>
-                  Comentarios por post
+                  Comentários por post
                 </p>
                 <div className="flex gap-2">
                   {["10", "100", "Todos"].map((opt) => (

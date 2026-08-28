@@ -44,7 +44,7 @@ SentimentIQ targets the underserved **SMB and creator segment** of this market, 
 | Differentiator | SentimentIQ | Enterprise Tools (Brandwatch, Sprout Social) |
 |---|---|---|
 | **Price** | $29/mo (Pro) | $199-800+/mo |
-| **Setup time** | 2 minutes | Days-weeks |
+| **Setup and analysis time** | Variable; forecast and stage visible | Days-weeks |
 | **Focus** | Sentiment-first, comment-level | Broad social listening |
 | **AI depth** | Emotion, sarcasm, topics per comment | Aggregate sentiment only |
 | **Language** | Portuguese, Spanish, English | Primarily English |
@@ -75,7 +75,7 @@ SentimentIQ addresses all five challenges by providing:
 - **Affordable pricing** starting at $29/month for professionals
 - **Native multi-language support** with a focus on Portuguese, Spanish, and English
 - **Comment-level granularity** including sentiment scores (0-10), emotion detection, topic extraction, sarcasm identification, and confidence scoring
-- **Simple, focused UX** that delivers insights in under 2 minutes from account connection
+- **Simple, focused UX** that shows a volume/time forecast before collection and keeps the current processing stage visible. No public SLA is claimed until a versioned production study supports one.
 
 ---
 

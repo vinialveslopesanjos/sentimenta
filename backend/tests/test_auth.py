@@ -61,6 +61,25 @@ def test_login_success(client):
     assert "sentimenta_access_token" in res.cookies
 
 
+def test_isolated_qa_mode_allows_a_full_fixture_login_sweep(client, test_user, monkeypatch):
+    from app.core.config import settings
+
+    user, _ = test_user
+    monkeypatch.setattr(settings, "QA_LOCAL_MODE", True)
+    monkeypatch.setattr(settings, "READ_ONLY_MODE", True)
+    monkeypatch.setattr(settings, "DEBUG", True)
+
+    responses = [
+        client.post(
+            "/api/v1/auth/login",
+            json={"email": user.email, "password": "testpass123"},
+        )
+        for _ in range(8)
+    ]
+
+    assert [response.status_code for response in responses] == [200] * 8
+
+
 def test_login_unverified_email(client):
     """Login should fail with 403 if email is not verified."""
     client.post(

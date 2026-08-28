@@ -122,7 +122,7 @@ export function LogsScreen() {
                 <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "18px", fontWeight: 500, color: "#334155" }}>
                   {totalComments.toLocaleString()}
                 </p>
-                <p className="text-slate-400" style={{ fontSize: "9px" }}>Comentarios</p>
+                <p className="text-slate-400" style={{ fontSize: "9px" }}>Comentários</p>
               </DreamCard>
               <DreamCard className="p-3 text-center">
                 <DollarSign size={16} className="text-emerald-400 mx-auto mb-1" />
@@ -175,7 +175,7 @@ export function LogsScreen() {
                         </p>
                       </div>
                       <div className="text-center">
-                        <p className="text-slate-400" style={{ fontSize: "9px" }}>Comentarios</p>
+                        <p className="text-slate-400" style={{ fontSize: "9px" }}>Comentários</p>
                         <p className="text-slate-600" style={{ fontSize: "11px", fontWeight: 500 }}>
                           {run.comments_fetched}
                         </p>
