@@ -413,6 +413,7 @@
     "errorLoading": "Could not load the dashboard. Please try again.",
     "errorGeneric": "Error loading dashboard data.",
     "lastSuccess": "Last success: {time}",
+    "lastSuccessUnverified": "No verified success",
     "refresh": "Refresh",
     "reputation": {
       "good": "Good reputation",
@@ -481,7 +482,8 @@
     "monitoredPosts": "posts monitored",
     "connectedProfiles": "profiles connected",
     "trackedEmotions": "emotions tracked",
-    "connectedPlatforms": "CONNECTED PLATFORMS",
+    "connectedPlatforms": "Monitored profiles",
+    "connectedPlatformsSub": "Open a profile to review its reading and data origin.",
     "noPlatformConnected": "No platforms connected",
     "aiDiagnosis": "AI Diagnosis",
     "automaticDiagnosis": "Automatic diagnosis",
@@ -607,10 +609,13 @@
       "noPlatform": "No channel",
       "noTrendShort": "No series",
       "volumeSub": "diagnostic base",
+      "historicalVolumeSub": "preserved historical total",
       "postsSub": "content with readings",
+      "historicalPostsSub": "content in the historical basis",
       "postsWithoutAnalysisSub": "content collected; no valid reading",
       "profilesSub": "monitored sources",
       "emotionsSub": "emotional voices",
+      "historicalEmotionsSub": "categories in the historical reading",
       "emotionsWithoutAnalysisSub": "not calculated without valid analysis"
     },
     "sections": {

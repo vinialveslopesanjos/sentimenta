@@ -413,6 +413,7 @@
     "errorLoading": "Não foi possível carregar o dashboard. Tente novamente.",
     "errorGeneric": "Erro ao carregar dados do dashboard.",
     "lastSuccess": "Último sucesso: {time}",
+    "lastSuccessUnverified": "Sem sucesso comprovado",
     "refresh": "Atualizar",
     "reputation": {
       "good": "Boa reputação",
@@ -481,7 +482,8 @@
     "monitoredPosts": "posts monitorados",
     "connectedProfiles": "perfis conectados",
     "trackedEmotions": "emoções rastreadas",
-    "connectedPlatforms": "PLATAFORMAS CONECTADAS",
+    "connectedPlatforms": "Perfis monitorados",
+    "connectedPlatformsSub": "Abra um perfil para conferir a leitura e a origem dos dados.",
     "noPlatformConnected": "Nenhuma plataforma conectada",
     "aiDiagnosis": "Diagnóstico de IA",
     "automaticDiagnosis": "Diagnóstico automático",
@@ -607,10 +609,13 @@
       "noPlatform": "Sem canal",
       "noTrendShort": "Sem série",
       "volumeSub": "base para o diagnóstico",
+      "historicalVolumeSub": "total histórico preservado",
       "postsSub": "conteúdos com leitura",
+      "historicalPostsSub": "conteúdos da base histórica",
       "postsWithoutAnalysisSub": "conteúdos coletados; sem leitura válida",
       "profilesSub": "fontes monitoradas",
       "emotionsSub": "vozes emocionais",
+      "historicalEmotionsSub": "categorias na leitura histórica",
       "emotionsWithoutAnalysisSub": "não calculadas sem análise válida"
     },
     "sections": {
