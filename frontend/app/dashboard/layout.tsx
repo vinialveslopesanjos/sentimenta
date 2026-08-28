@@ -2,13 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { authApi, creditsApi, dataSnapshotsApi } from "@/lib/api";
+import { ApiRequestError, authApi, creditsApi, dataSnapshotsApi } from "@/lib/api";
 import { clearTokens, getToken } from "@/lib/auth";
 import type { DataSnapshot } from "@sentimenta/types";
 import { identifyUser } from "@/lib/tracking";
 import SidebarNew from "@/components/SidebarNew";
 import { ThemeProvider, useTheme } from "@/components/ThemeContext";
-import { Bell, Plus, Moon, Sun } from "lucide-react";
+import { AlertTriangle, Bell, Plus, Moon, RefreshCw, Sun } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import OnboardingModal from "@/components/OnboardingModal";
@@ -37,6 +37,8 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [ok, setOk] = useState(false);
+  const [sessionLoadState, setSessionLoadState] = useState<"loading" | "error">("loading");
+  const [sessionRetry, setSessionRetry] = useState(0);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [creditsDepleted, setCreditsDepleted] = useState(false);
   const [userPlan, setUserPlan] = useState("free");
@@ -50,6 +52,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const tc = useTranslations("common");
 
   useEffect(() => {
+    let cancelled = false;
     const token = getToken();
     if (!token) {
       router.replace("/login");
@@ -59,6 +62,7 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
     authApi
       .me(token)
       .then((user) => {
+        if (cancelled) return;
         if (!user.email_verified) {
           router.replace("/verify-email");
           return;
@@ -76,14 +80,23 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
         setOk(true);
       })
       .catch((err) => {
+        if (cancelled) return;
         if (err instanceof Error && err.message === "email_not_verified") {
           router.replace("/verify-email");
           return;
         }
-        clearTokens();
-        router.replace("/login");
+        if (err instanceof ApiRequestError && [401, 403].includes(err.status ?? 0)) {
+          clearTokens();
+          router.replace("/login");
+          return;
+        }
+        setSessionLoadState("error");
       });
-  }, [router]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, [router, sessionRetry]);
 
   useEffect(() => {
     if (!ok || !isAnalyticSurface(pathname)) return;
@@ -118,6 +131,61 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   }, [dataStatusRetry, ok, pathname]);
 
   if (!ok) {
+    if (sessionLoadState === "error") {
+      return (
+        <div
+          className="fixed inset-0 grid place-items-center px-5"
+          style={{ backgroundColor: "var(--bg-page)" }}
+        >
+          <div
+            data-testid="session-load-recovery"
+            role="alert"
+            className="w-full max-w-md rounded-3xl border p-7 text-center shadow-sm"
+            style={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border)" }}
+          >
+            <div
+              className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl"
+              style={{ backgroundColor: "var(--secondary-bg)", color: "var(--secondary)" }}
+            >
+              <AlertTriangle className="h-6 w-6" aria-hidden="true" />
+            </div>
+            <h1 className="text-xl font-semibold" style={{ color: "var(--text-primary)" }}>
+              {tl("sessionRecovery.title")}
+            </h1>
+            <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-muted)" }}>
+              {tl("sessionRecovery.description")}
+            </p>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:justify-center">
+              <button
+                type="button"
+                onClick={() => {
+                  setOk(false);
+                  setSessionLoadState("loading");
+                  setSessionRetry((current) => current + 1);
+                }}
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-5 py-2.5 text-sm font-semibold"
+                style={{ backgroundColor: "var(--primary)", color: "var(--primary-foreground)" }}
+              >
+                <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                {tl("sessionRecovery.retry")}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  clearTokens();
+                  router.replace("/login");
+                }}
+                className="min-h-11 rounded-xl border px-5 py-2.5 text-sm font-semibold"
+                style={{ borderColor: "var(--border)", color: "var(--text-secondary)" }}
+              >
+                {tl("sessionRecovery.signInAgain")}
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="fixed inset-0 grid place-items-center" style={{ backgroundColor: "var(--bg-page)" }}>
         <div className="flex flex-col items-center gap-4">

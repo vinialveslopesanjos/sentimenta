@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { Mail, Lock, Eye, EyeOff } from "lucide-react";
 import { useTranslations } from "next-intl";
-import { authApi } from "@/lib/api";
+import { ApiRequestError, authApi } from "@/lib/api";
 import { getToken, setTokens } from "@/lib/auth";
 import { getAttribution, track, trackCompletedSignup } from "@/lib/tracking";
 import SocialLogin from "@/components/SocialLogin";
@@ -93,7 +93,13 @@ function LoginPageInner() {
         router.replace("/dashboard");
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : t("errors.authFailed"));
+      if (err instanceof ApiRequestError && err.kind === "timeout") {
+        setError(t("errors.timeout"));
+      } else if (err instanceof ApiRequestError && err.kind === "network") {
+        setError(t("errors.connection"));
+      } else {
+        setError(err instanceof Error ? err.message : t("errors.authFailed"));
+      }
     } finally { setLoading(false); }
   };
 
@@ -260,7 +266,7 @@ function LoginPageInner() {
             )}
 
             {error && (
-              <p className="px-3 py-2 rounded-xl" style={{ fontSize: "0.78rem", color: "var(--sentiment-negative)", backgroundColor: "var(--sentiment-negative-bg)" }}>{error}</p>
+              <p role="alert" className="px-3 py-2 rounded-xl" style={{ fontSize: "0.78rem", color: "var(--sentiment-negative)", backgroundColor: "var(--sentiment-negative-bg)" }}>{error}</p>
             )}
             {success && (
               <p className="px-3 py-2 rounded-xl" style={{ fontSize: "0.78rem", color: "var(--sentiment-positive)", backgroundColor: "var(--sentiment-positive-bg)" }}>{success}</p>

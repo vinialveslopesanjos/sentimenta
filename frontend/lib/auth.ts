@@ -16,6 +16,22 @@ function hasSessionCookie(): boolean {
     .some((part) => part.startsWith(`${SESSION_MARKER_COOKIE}=`));
 }
 
+function clearSessionMarkerCookie(): void {
+  if (typeof document === "undefined") return;
+
+  const expiredCookie = `${SESSION_MARKER_COOKIE}=; Max-Age=0; Path=/; SameSite=Lax`;
+  document.cookie = expiredCookie;
+
+  // Production may set the marker on the parent domain. Expire each domain
+  // candidate as well so an invalid session cannot bounce forever between
+  // /login and /dashboard.
+  const hostname = window.location.hostname;
+  const labels = hostname.split(".").filter(Boolean);
+  for (let index = 0; index < labels.length - 1; index += 1) {
+    document.cookie = `${expiredCookie}; Domain=${labels.slice(index).join(".")}`;
+  }
+}
+
 export function getToken(): string | null {
   if (typeof window === "undefined") return null;
   if (memoryAccessToken) return memoryAccessToken;
@@ -42,6 +58,7 @@ export function clearTokens() {
   memoryRefreshToken = null;
   localStorage.removeItem(TOKEN_KEY);
   localStorage.removeItem(REFRESH_KEY);
+  clearSessionMarkerCookie();
 }
 
 export function isAuthenticated(): boolean {
