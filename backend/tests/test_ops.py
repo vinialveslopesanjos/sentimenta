@@ -1,7 +1,11 @@
 import uuid
 from datetime import datetime, timedelta, timezone
 
+from starlette.requests import Request
+
 from app.core.security import create_access_token, hash_password
+from app.main import app
+from app.middleware.operational_telemetry import _route_template
 from app.models.data_snapshot import DataSnapshot
 from app.models.operational_event import OperationalEvent
 from app.models.pipeline_run import PipelineRun
@@ -200,3 +204,26 @@ def test_product_drilldown_404_is_persisted_without_the_resource_identifier(clie
     assert events[0].event_type == "drilldown_404"
     assert events[0].route_template == "/api/v1/posts/{post_id}"
     assert str(missing_id) not in events[0].route_template
+
+
+def test_product_drilldown_template_is_recovered_when_scope_has_no_route():
+    missing_id = uuid.uuid4()
+    path = f"/api/v1/posts/{missing_id}"
+    request = Request(
+        {
+            "type": "http",
+            "app": app,
+            "method": "GET",
+            "scheme": "http",
+            "path": path,
+            "raw_path": path.encode(),
+            "root_path": "",
+            "query_string": b"",
+            "headers": [],
+            "client": ("testclient", 50000),
+            "server": ("testserver", 80),
+        }
+    )
+
+    assert _route_template(request) == "/api/v1/posts/{post_id}"
+    assert str(missing_id) not in _route_template(request)

@@ -4,6 +4,7 @@ import logging
 from collections.abc import Awaitable, Callable
 
 from fastapi import Request, Response
+from starlette.routing import Match
 
 from app.core.config import settings
 from app.db.session import SessionLocal
@@ -22,7 +23,24 @@ _DRILLDOWN_PREFIXES = (
 def _route_template(request: Request) -> str:
     route = request.scope.get("route")
     template = getattr(route, "path", None)
-    return str(template or request.url.path)
+    if template:
+        return str(template)
+
+    # Function middleware does not receive the matched route in the outer
+    # request scope on every Starlette version. Resolve it from the registered
+    # routes instead of falling back to the raw URL, which could persist a
+    # customer/resource identifier in telemetry.
+    for candidate in request.app.router.routes:
+        try:
+            match, _ = candidate.matches(request.scope)
+        except (AttributeError, KeyError):
+            continue
+        if match == Match.FULL:
+            candidate_template = getattr(candidate, "path", None)
+            if candidate_template:
+                return str(candidate_template)
+
+    return ""
 
 
 def _is_product_drilldown(template: str) -> bool:
