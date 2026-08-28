@@ -21,7 +21,7 @@
         "audit:prod": "npm audit --workspaces --omit=dev --audit-level=high",
         "test:e2e": "playwright test",
         "test:e2e:smoke": "playwright test e2e/smoke",
-        "test:e2e:trust": "playwright test e2e/product/release-trust-gate.spec.ts e2e/product/count-funnel-reconciliation.spec.ts e2e/product/comparison-timeline-order.spec.ts e2e/product/qa-alert-empty-states.spec.ts e2e/product/zero-valid-propagation.spec.ts e2e/product/computer-use-findings-regression.spec.ts e2e/product/operational-trust.spec.ts"
+        "test:e2e:trust": "playwright test e2e/product/auth-loading-recovery.spec.ts e2e/product/release-trust-gate.spec.ts e2e/product/count-funnel-reconciliation.spec.ts e2e/product/comparison-timeline-order.spec.ts e2e/product/qa-alert-empty-states.spec.ts e2e/product/zero-valid-propagation.spec.ts e2e/product/computer-use-findings-regression.spec.ts e2e/product/operational-trust.spec.ts"
     },
     "devDependencies": {
         "@playwright/test": "^1.57.0",

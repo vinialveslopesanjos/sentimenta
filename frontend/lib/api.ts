@@ -14,10 +14,28 @@ import type { ApiBlogSettings, BlogCategory, BlogPersona, BlogPost, BlogSettings
 import { normalizeBlogPost, normalizeBlogSettings } from "./blog";
 
 const API_URL = "/api/v1";
+const DEFAULT_REQUEST_TIMEOUT_MS = 30_000;
+const AUTH_REQUEST_TIMEOUT_MS = 8_000;
+
+export type ApiRequestErrorKind = "timeout" | "network" | "http";
+
+export class ApiRequestError extends Error {
+  readonly kind: ApiRequestErrorKind;
+  readonly status?: number;
+
+  constructor(message: string, kind: ApiRequestErrorKind, status?: number) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.kind = kind;
+    this.status = status;
+  }
+}
 
 interface FetchOptions extends RequestInit {
   token?: string;
   _retried?: boolean;
+  timeoutMs?: number;
+  retryNetworkError?: boolean;
 }
 
 function formatApiErrorDetail(detail: unknown, fallback: string): string {
@@ -49,17 +67,66 @@ function formatApiErrorDetail(detail: unknown, fallback: string): string {
   return fallback;
 }
 
+async function fetchWithTimeout(
+  url: string,
+  options: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const callerSignal = options.signal;
+  let timedOut = false;
+
+  const forwardCallerAbort = () => controller.abort(callerSignal?.reason);
+  if (callerSignal?.aborted) {
+    forwardCallerAbort();
+  } else {
+    callerSignal?.addEventListener("abort", forwardCallerAbort, { once: true });
+  }
+
+  const timeoutId = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+
+  try {
+    return await fetch(url, { ...options, signal: controller.signal });
+  } catch (error) {
+    if (timedOut) {
+      throw new ApiRequestError(
+        "A resposta da Sentimenta demorou demais. Tente novamente.",
+        "timeout",
+      );
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+    callerSignal?.removeEventListener("abort", forwardCallerAbort);
+  }
+}
+
+function networkError(error: unknown): ApiRequestError {
+  const message = error instanceof Error ? error.message : "Failed to fetch";
+  return new ApiRequestError(
+    `Falha de conexão com a API (${API_URL}). ${message}`,
+    "network",
+  );
+}
+
 async function tryRefreshToken(): Promise<string | null> {
   const { getRefreshToken, setTokens, clearTokens } = await import("./auth");
   const refreshToken = getRefreshToken();
 
   try {
-    const res = await fetch(`${API_URL}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
-    });
+    const res = await fetchWithTimeout(
+      `${API_URL}/auth/refresh`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify(refreshToken ? { refresh_token: refreshToken } : {}),
+      },
+      AUTH_REQUEST_TIMEOUT_MS,
+    );
     if (!res.ok) {
       clearTokens();
       return null;
@@ -73,7 +140,14 @@ async function tryRefreshToken(): Promise<string | null> {
 }
 
 async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T> {
-  const { token, headers: customHeaders, _retried, ...rest } = options;
+  const {
+    token,
+    headers: customHeaders,
+    _retried,
+    timeoutMs = DEFAULT_REQUEST_TIMEOUT_MS,
+    retryNetworkError = true,
+    ...rest
+  } = options;
   const { COOKIE_AUTH_SENTINEL } = await import("./auth");
 
   const headers: Record<string, string> = {
@@ -87,15 +161,31 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
 
   let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}`, { credentials: "include", headers, ...rest });
+    res = await fetchWithTimeout(
+      `${API_URL}${path}`,
+      { credentials: "include", headers, ...rest },
+      timeoutMs,
+    );
   } catch (error) {
+    if (error instanceof ApiRequestError && error.kind === "timeout") {
+      throw error;
+    }
+    if (!retryNetworkError) {
+      throw networkError(error);
+    }
     // Retry once for transient backend reload/network blips in local dev.
     try {
       await new Promise((resolve) => setTimeout(resolve, 250));
-      res = await fetch(`${API_URL}${path}`, { credentials: "include", headers, ...rest });
-    } catch {
-      const message = error instanceof Error ? error.message : "Failed to fetch";
-      throw new Error(`Falha de conexão com API (${API_URL}). ${message}`);
+      res = await fetchWithTimeout(
+        `${API_URL}${path}`,
+        { credentials: "include", headers, ...rest },
+        timeoutMs,
+      );
+    } catch (retryError) {
+      if (retryError instanceof ApiRequestError && retryError.kind === "timeout") {
+        throw retryError;
+      }
+      throw networkError(retryError);
     }
   }
 
@@ -118,7 +208,11 @@ async function apiFetch<T>(path: string, options: FetchOptions = {}): Promise<T>
       throw new Error("email_not_verified");
     }
 
-    throw new Error(formatApiErrorDetail(error.detail, `API error: ${res.status}`));
+    throw new ApiRequestError(
+      formatApiErrorDetail(error.detail, `API error: ${res.status}`),
+      "http",
+      res.status,
+    );
   }
 
   if (res.status === 204 || res.headers.get("content-length") === "0") {
@@ -140,6 +234,8 @@ export const authApi = {
     apiFetch<{ access_token: string; refresh_token: string }>("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password }),
+      timeoutMs: AUTH_REQUEST_TIMEOUT_MS,
+      retryNetworkError: false,
     }),
 
   logout: (token: string, refreshToken?: string | null) =>
@@ -183,7 +279,11 @@ export const authApi = {
       plan_changed_at: string | null;
       email_verified: boolean;
       onboarding_data: Record<string, string> | null;
-    }>("/auth/me", { token }),
+    }>("/auth/me", {
+      token,
+      timeoutMs: AUTH_REQUEST_TIMEOUT_MS,
+      retryNetworkError: false,
+    }),
 
   sendVerification: (token: string) =>
     apiFetch<{ message: string }>("/auth/send-verification", { method: "POST", token }),

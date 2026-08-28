@@ -53,7 +53,13 @@
   "layout": {
     "darkMode": "Dark mode",
     "lightMode": "Light mode",
-    "openAlerts": "Open alerts"
+    "openAlerts": "Open alerts",
+    "sessionRecovery": {
+      "title": "We couldn't confirm your session",
+      "description": "The connection took longer than expected. Your data is safe; try again or sign in again.",
+      "retry": "Try again",
+      "signInAgain": "Sign in again"
+    }
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -390,6 +396,8 @@
       "enterName": "Please enter your name.",
       "acceptTerms": "You must accept the terms to create an account.",
       "authFailed": "Authentication failed.",
+      "timeout": "Signing in took longer than expected. Check your connection and try again.",
+      "connection": "We couldn't connect to Sentimenta. Check your connection and try again.",
       "socialLoginFailed": "Failed to authenticate via social login.",
       "socialConnectFailed": "Failed to connect with {provider}."
     },
