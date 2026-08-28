@@ -146,6 +146,9 @@ jobs:
           python -m pip install -r backend/requirements.txt
           npx playwright install chromium --with-deps
 
+      - name: Build shared packages
+        run: npm run build:packages
+
       - name: Seed E2E database
         working-directory: backend
         env:
@@ -239,6 +242,9 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r backend/requirements.txt
           npx playwright install chromium --with-deps
+
+      - name: Build shared packages
+        run: npm run build:packages
 
       - name: Seed isolated product QA database
         # Freshness and rolling 24-hour ops checks must be evaluated relative
