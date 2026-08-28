@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import uuid
 
 from app.core.config import settings
@@ -140,6 +140,85 @@ def test_instagram_ingest_is_incremental(db, test_user, monkeypatch):
     comment_c1 = db.query(Comment).filter(Comment.platform_comment_id == "C1").first()
     assert comment_c1.like_count == 1
     assert comment_c1.text_original == "bom"
+
+
+def test_instagram_public_ingest_respects_manual_start_date(
+    db,
+    test_user,
+    monkeypatch,
+):
+    user, _ = test_user
+    connection = _create_instagram_connection(db, user.id)
+    posts = [
+        {
+            "platform_post_id": "NEW",
+            "post_type": "image",
+            "caption": "Dentro do período",
+            "permalink": "https://instagram.com/p/NEW/",
+            "timestamp": "2026-08-10T10:00:00+00:00",
+            "comment_count": 1,
+        },
+        {
+            "platform_post_id": "OLD",
+            "post_type": "image",
+            "caption": "Fora do período",
+            "permalink": "https://instagram.com/p/OLD/",
+            "timestamp": "2026-07-31T23:59:59+00:00",
+            "comment_count": 1,
+        },
+        {
+            "platform_post_id": "UNKNOWN_DATE",
+            "post_type": "image",
+            "caption": "Sem data comprovável",
+            "permalink": "https://instagram.com/p/UNKNOWN_DATE/",
+            "timestamp": None,
+            "comment_count": 1,
+        },
+    ]
+    requested_urls: list[str] = []
+
+    monkeypatch.setattr(
+        "app.services.apify_service.fetch_posts_apify",
+        lambda username, max_posts, step_callback=None: posts,
+    )
+
+    def fake_fetch_comments(
+        post_urls,
+        max_per_post,
+        per_post_limits=None,
+        sample_mode="all",
+        comment_counts=None,
+        step_callback=None,
+    ):
+        requested_urls.extend(post_urls)
+        return {url: [] for url in post_urls}
+
+    monkeypatch.setattr(
+        "app.services.apify_service.fetch_comments_apify",
+        fake_fetch_comments,
+    )
+    monkeypatch.setattr(
+        "app.services.instagram_ingest_service.cache_image_stable",
+        lambda url, key: None,
+    )
+
+    stats = ingest_instagram_profile(
+        db,
+        connection,
+        max_posts=10,
+        max_comments_per_post=50,
+        since_date=date(2026, 8, 1),
+    )
+
+    saved_ids = {
+        row[0]
+        for row in db.query(Post.platform_post_id)
+        .filter(Post.connection_id == connection.id)
+        .all()
+    }
+    assert stats["posts_fetched"] == 1
+    assert saved_ids == {"NEW"}
+    assert requested_urls == ["https://instagram.com/p/NEW/"]
 
 
 def test_analyze_post_comments_skips_existing_analysis(db, test_connection, monkeypatch):

@@ -178,7 +178,7 @@ export function LoginScreen() {
           >
             {isLogin
               ? "Clareza emocional em tempo real."
-              : "Comece a entender seu publico agora."}
+              : "Comece a entender seu público agora."}
           </motion.p>
         </motion.div>
 
@@ -426,7 +426,7 @@ export function LoginScreen() {
             className="text-center mt-4"
             style={{ fontSize: "11px", color: "#94A3B8" }}
           >
-            Ao continuar, voce aceita nossos Termos e Politica de Privacidade.
+            Ao continuar, você aceita nossos Termos e Política de Privacidade.
           </p>
         </motion.div>
       </div>

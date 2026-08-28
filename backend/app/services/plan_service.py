@@ -20,6 +20,11 @@ from app.models.demographics import UsageLog
 
 logger = logging.getLogger(__name__)
 
+# Public request bounds for a manual collection. Plan limits can be higher,
+# but the API contract remains the final cap exposed to the product UI.
+SYNC_REQUEST_MAX_POSTS = 200
+SYNC_REQUEST_MAX_COMMENTS_PER_POST = 10_000
+
 # ─── Platform Cost Estimates (USD per operation) ────────────────────
 # Verified from 1,575 Apify runs (Mar/2026) — real pay-per-result pricing
 PLATFORM_COSTS_USD = {

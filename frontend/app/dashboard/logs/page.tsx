@@ -2,14 +2,19 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useTranslations } from "next-intl";
-import { RefreshCw, CheckCircle, XCircle, AlertTriangle, Clock, FileText, MessageCircle, DollarSign, Trash2, ChevronDown, ChevronUp, Ban } from "lucide-react";
-import { pipelineApi } from "@/lib/api";
+import { RefreshCw, CheckCircle, XCircle, AlertTriangle, Clock, FileText, MessageCircle, DollarSign, Trash2, Ban } from "lucide-react";
+import { dataSnapshotsApi, pipelineApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import type { PipelineRun } from "@/lib/types";
 import { fmt, fmtDatetime } from "@/lib/helpers";
 import { Button } from "@/components/ds/Button";
 import { Badge } from "@/components/ds/Badge";
 import { GlassSocialIcon } from "@/components/GlassSocialIcons";
+import { SnapshotStamp } from "@/components/data/SnapshotStamp";
+import { CountFunnel } from "@/components/data/CountFunnel";
+import { ExecutionHumanSummary } from "@/components/data/ExecutionHumanSummary";
+import { getPipelineRunHumanSummary } from "@/lib/executionSummary";
+import type { SnapshotReference } from "@sentimenta/types";
 
 const USD_TO_BRL = Number(process.env.NEXT_PUBLIC_USD_BRL ?? "5.00");
 const USD_PER_COMMENT_APIFY = 0.50 / 1000;
@@ -37,11 +42,9 @@ function calcDuration(started: string, ended: string | null) {
   return `${min}m ${sec}s`;
 }
 
-type LogStatus = "completed" | "partial" | "cancelled" | "failed" | "running";
-
 const statusConfig: Record<string, { variant: "positive" | "warning" | "negative" | "muted" | "primary"; icon: React.ElementType; labelKey: string }> = {
-  completed: { variant: "positive", icon: CheckCircle, labelKey: "status.completed" },
-  partial: { variant: "warning", icon: AlertTriangle, labelKey: "status.partial" },
+  success: { variant: "positive", icon: CheckCircle, labelKey: "status.completed" },
+  attention: { variant: "warning", icon: AlertTriangle, labelKey: "status.partial" },
   cancelled: { variant: "muted", icon: Ban, labelKey: "status.cancelled" },
   failed: { variant: "negative", icon: XCircle, labelKey: "status.failed" },
   running: { variant: "primary", icon: RefreshCw, labelKey: "status.running" },
@@ -58,24 +61,36 @@ type RunTypeFilter = (typeof RUN_TYPE_FILTERS)[number]["key"];
 
 export default function LogsPage() {
   const t = useTranslations("logs");
-  const tc = useTranslations("common");
   const [runs, setRuns] = useState<PipelineRun[]>([]);
+  const [latestSnapshot, setLatestSnapshot] = useState<SnapshotReference | null>(null);
   const [loading, setLoading] = useState(true);
   const [typeFilter, setTypeFilter] = useState<RunTypeFilter>("all");
   const [expandedLogs, setExpandedLogs] = useState<Set<string>>(new Set());
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const toggleLog = (id: string) => {
+    const shouldReveal = !expandedLogs.has(id);
     setExpandedLogs(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
+    if (shouldReveal) {
+      requestAnimationFrame(() => requestAnimationFrame(() => {
+        const technicalLog = document.getElementById(`technical-log-${id}`);
+        technicalLog?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        technicalLog?.focus({ preventScroll: true });
+      }));
+    }
   };
 
   const loadRuns = useCallback(async () => {
     const token = getToken();
     if (!token) return;
     try {
-      const data = await pipelineApi.listRuns(token);
+      const [data, snapshot] = await Promise.all([
+        pipelineApi.listRuns(token),
+        dataSnapshotsApi.latest(token).catch(() => null),
+      ]);
       const sorted = [...data].sort((a, b) => new Date(b.started_at).getTime() - new Date(a.started_at).getTime());
       setRuns(sorted);
+      setLatestSnapshot(snapshot);
     } finally {
       setLoading(false);
     }
@@ -110,8 +125,9 @@ export default function LogsPage() {
 
   const filteredRuns = typeFilter === "all" ? runs : runs.filter((r) => r.run_type === typeFilter);
   const totalRuns = runs.length;
-  const completed = runs.filter((r) => r.status === "completed").length;
+  const completed = runs.filter((r) => getPipelineRunHumanSummary(r).effective_status === "success").length;
   const totalCostUsd = runs.reduce((sum, run) => sum + estimateRunCostUsd(run), 0);
+  const hasConnectedProfile = (latestSnapshot?.profiles.length ?? 0) > 0;
 
   return (
     <div className="space-y-6">
@@ -122,6 +138,9 @@ export default function LogsPage() {
         </div>
         <Button variant="ghost" size="sm" icon={<RefreshCw className="w-4 h-4" />} onClick={loadRuns}>{t("refresh")}</Button>
       </div>
+
+      <SnapshotStamp snapshot={latestSnapshot} />
+      <CountFunnel snapshot={latestSnapshot} surface="logs" />
 
       {!loading && runs.length > 0 && (
         <div className="flex items-center gap-2 flex-wrap">
@@ -160,24 +179,33 @@ export default function LogsPage() {
 
       {!loading && runs.length === 0 && (
         <div className="rounded-2xl p-16 flex flex-col items-center text-center" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
-          <p style={{ fontSize: "1rem", fontWeight: 500, color: "var(--text-muted)", marginBottom: 8 }}>{t("emptyTitle")}</p>
-          <p style={{ fontSize: "0.82rem", color: "var(--text-faint)" }}>{t("emptySubtitle")}</p>
+          <p style={{ fontSize: "1rem", fontWeight: 500, color: "var(--text-muted)", marginBottom: 8 }}>{t(hasConnectedProfile ? "emptyConnectedTitle" : "emptyTitle")}</p>
+          <p style={{ fontSize: "0.82rem", color: "var(--text-faint)" }}>{t(hasConnectedProfile ? "emptyConnectedSubtitle" : "emptySubtitle")}</p>
         </div>
       )}
 
       {!loading && filteredRuns.length > 0 && (
         <div className="space-y-3">
           {filteredRuns.map(run => {
-            const sc = statusConfig[run.status] || statusConfig.partial;
+            const humanSummary = getPipelineRunHumanSummary(run);
+            const sc = statusConfig[humanSummary.effective_status] || statusConfig.attention;
             const StatusIcon = sc.icon;
             const isExpanded = expandedLogs.has(run.id);
             const duration = calcDuration(run.started_at, run.ended_at);
             const runCostUsd = estimateRunCostUsd(run);
             const notesData = (() => { if (!run.notes) return null; try { return JSON.parse(run.notes); } catch { return null; } })();
-            const steps: { msg: string; ts: string }[] = notesData?.steps ?? [];
+            const steps: { msg: string; ts: string }[] = Array.isArray(notesData?.steps) ? notesData.steps : [];
+            const hasUnstructuredNote = Boolean(run.notes && !notesData);
 
             return (
-              <div key={run.id} className="rounded-2xl overflow-hidden transition-all" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
+              <div
+                key={run.id}
+                data-testid={`pipeline-run-${run.id}`}
+                data-raw-status={run.status}
+                data-effective-status={humanSummary.effective_status}
+                className="rounded-2xl overflow-hidden transition-all"
+                style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}
+              >
                 <div className="p-4 md:p-5">
                   <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
                     <div className="flex items-center gap-3">
@@ -192,27 +220,43 @@ export default function LogsPage() {
                     <Badge variant={sc.variant}><StatusIcon className="w-3 h-3" /> {t(sc.labelKey)}</Badge>
                   </div>
 
-                  {steps.length > 0 && (
-                    <button onClick={() => toggleLog(run.id)} className="flex items-center gap-1 transition-colors mb-4" style={{ fontSize: "0.72rem", color: "var(--text-muted)" }}>
-                      {isExpanded ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />} {t("viewLog")}
-                    </button>
-                  )}
+                  <ExecutionHumanSummary
+                    run={run}
+                    technicalLogExpanded={isExpanded}
+                    onToggleTechnicalLog={() => toggleLog(run.id)}
+                  />
 
-                  {isExpanded && steps.length > 0 && (
-                    <div className="mb-4 rounded-xl p-4 font-mono text-xs overflow-auto max-h-48 space-y-1" style={{ backgroundColor: "var(--bg-subtle)" }}>
+                  {isExpanded && (
+                    <div
+                      id={`technical-log-${run.id}`}
+                      data-testid={`technical-log-${run.id}`}
+                      tabIndex={-1}
+                      role="region"
+                      aria-label={t("technicalLog.title", { id: run.id.slice(0, 8) })}
+                      className="mt-3 rounded-xl p-4 font-mono text-xs overflow-auto max-h-56 space-y-2"
+                      style={{ backgroundColor: "var(--bg-subtle)", border: "1px solid var(--border)" }}
+                    >
+                      <p style={{ color: "var(--text-primary)", fontWeight: 750 }}>{t("technicalLog.title", { id: run.id.slice(0, 8) })}</p>
                       {steps.map((step, i) => (
-                        <div key={i} className="flex items-start gap-2">
-                          <span style={{ color: "var(--sentiment-positive)" }}>$</span>
+                        <div key={`${step.ts}-${i}`} className="flex items-start gap-2">
+                          <span aria-hidden="true" style={{ color: "var(--sentiment-positive)" }}>$</span>
                           <span style={{ color: "var(--text-muted)" }}>{step.msg}</span>
                         </div>
                       ))}
+                      {hasUnstructuredNote && <p style={{ color: "var(--text-muted)" }}>{t("technicalLog.unstructuredDetails")}</p>}
+                      {steps.length === 0 && !hasUnstructuredNote && (
+                        <p style={{ color: "var(--text-muted)" }}>{t("technicalLog.noDetails")}</p>
+                      )}
                     </div>
                   )}
 
+                  <p className="mb-2 mt-4" style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>
+                    {t("operationalScope")}
+                  </p>
                   <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                     {[
                       { icon: FileText, label: t("stats.posts"), value: `${fmt(run.posts_fetched)}/${run.target_posts != null ? fmt(run.target_posts) : "\u2014"}` },
-                      { icon: MessageCircle, label: t("stats.comments"), value: `${fmt(run.comments_fetched)}/${run.target_comments != null ? fmt(run.target_comments) : "\u2014"}` },
+                      { icon: MessageCircle, label: t("stats.collected"), value: `${fmt(run.comments_fetched)}/${run.target_comments != null ? fmt(run.target_comments) : "\u2014"}` },
                       { icon: CheckCircle, label: t("stats.analyzed"), value: run.comments_fetched > 0 ? `${fmt(run.comments_analyzed)}/${fmt(run.comments_fetched)} (${Math.round(run.comments_analyzed / run.comments_fetched * 100)}%)` : fmt(run.comments_analyzed) },
                       { icon: Clock, label: t("stats.duration"), value: duration ?? "\u2014" },
                       { icon: DollarSign, label: t("stats.cost"), value: fmtCostBRL(runCostUsd) },
@@ -244,7 +288,13 @@ export default function LogsPage() {
                     {run.status === "running" && (
                       <Button variant="danger" size="sm" onClick={() => handleCancel(run.id)}>{t("cancel")}</Button>
                     )}
-                    <button onClick={() => handleDelete(run.id)} className="p-1 rounded-lg transition-colors">
+                    <button
+                      type="button"
+                      aria-label={t("deleteRun", { id: run.id.slice(0, 8) })}
+                      title={t("deleteRun", { id: run.id.slice(0, 8) })}
+                      onClick={() => handleDelete(run.id)}
+                      className="p-1 rounded-lg transition-colors"
+                    >
                       <Trash2 className="w-3 h-3" style={{ color: "var(--text-muted)" }} />
                     </button>
                   </div>

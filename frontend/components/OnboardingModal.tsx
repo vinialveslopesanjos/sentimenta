@@ -5,7 +5,8 @@ import { useTranslations } from "next-intl";
 import { authApi } from "@/lib/api";
 import { getToken } from "@/lib/auth";
 import { Button } from "@/components/ds/Button";
-import { User, Target, X } from "lucide-react";
+import { User, Target } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 
 interface OnboardingModalProps {
   onComplete: () => void;
@@ -47,12 +48,15 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
   };
 
   return (
-    <div className="fixed inset-0 flex items-center justify-center z-[70] p-4" style={{ backgroundColor: "rgba(0,0,0,0.4)", backdropFilter: "blur(8px)" }}>
-      <div className="rounded-2xl p-8 max-w-md w-full max-h-[90vh] overflow-y-auto relative" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 24px 48px -12px rgba(0,0,0,0.18)" }}>
-        <button onClick={onComplete} className="absolute top-4 right-4 p-1 rounded-lg transition-colors" style={{ color: "var(--text-faint)" }}>
-          <X className="w-4 h-4" />
-        </button>
-
+    <Dialog open onOpenChange={(open) => { if (!open) onComplete(); }}>
+      <DialogContent
+        data-testid="onboarding-dialog"
+        aria-modal="true"
+        closeLabel={t("close")}
+        overlayClassName="z-[79] bg-black/40 backdrop-blur-md"
+        className="z-[80] max-h-[90vh] w-full max-w-md gap-0 overflow-y-auto rounded-2xl p-8"
+        style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 24px 48px -12px rgba(0,0,0,0.18)" }}
+      >
         {/* Progress */}
         <div className="flex gap-2 mb-6">
           {[0, 1].map(i => (
@@ -64,9 +68,9 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
           <div>
             <div className="flex items-center gap-2 mb-2">
               <User className="w-5 h-5" style={{ color: "var(--primary)" }} />
-              <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.15rem", fontWeight: 700, color: "var(--text-primary)" }}>{t("profileTitle")}</h2>
+              <DialogTitle style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.15rem", fontWeight: 700, color: "var(--text-primary)" }}>{t("profileTitle")}</DialogTitle>
             </div>
-            <p className="mb-6" style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>{t("profileSubtitle")}</p>
+            <DialogDescription className="mb-6" style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>{t("profileSubtitle")}</DialogDescription>
             <div className="space-y-2">
               {PROFILE_TYPES.map(pt => (
                 <button
@@ -119,9 +123,9 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
           <div>
             <div className="flex items-center gap-2 mb-2">
               <Target className="w-5 h-5" style={{ color: "var(--primary)" }} />
-              <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.15rem", fontWeight: 700, color: "var(--text-primary)" }}>{t("goalTitle")}</h2>
+              <DialogTitle style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.15rem", fontWeight: 700, color: "var(--text-primary)" }}>{t("goalTitle")}</DialogTitle>
             </div>
-            <p className="mb-6" style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>{t("goalSubtitle")}</p>
+            <DialogDescription className="mb-6" style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>{t("goalSubtitle")}</DialogDescription>
             <div className="space-y-2">
               {GOALS.map(g => (
                 <button
@@ -147,7 +151,7 @@ export default function OnboardingModal({ onComplete }: OnboardingModalProps) {
             </div>
           </div>
         )}
-      </div>
-    </div>
+      </DialogContent>
+    </Dialog>
   );
 }

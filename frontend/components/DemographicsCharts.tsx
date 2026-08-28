@@ -3,9 +3,11 @@
 import {
   ResponsiveContainer, PieChart, Pie, Cell,
 } from "recharts";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Section } from "./ds/Section";
 import { useTheme } from "./ThemeContext";
+import { ChartTextAlternative } from "./charts/ChartTextAlternative";
+import { formatChartNumber } from "@/lib/chartAccessibility";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // Shared types
@@ -607,6 +609,8 @@ export function EmotionsByGender({ data }: { data: EmotionsByGenderDatum[] }) {
 export function DemographicsSummary({ genderDist, ageDist, topLocations, coverage }: DemographicsOverviewProps) {
   const { t } = useTheme();
   const td = useTranslations("demographics");
+  const ta = useTranslations("charts.accessibility");
+  const locale = useLocale();
   const genderChartColors: Record<string, string> = { male: t.primary, female: t.secondaryLight, business: t.accent };
 
   const genderData = Object.entries(genderDist).filter(([name]) => VALID_GENDERS.has(name)).map(([name, value]) => ({ name, value }));
@@ -620,15 +624,17 @@ export function DemographicsSummary({ genderDist, ageDist, topLocations, coverag
       <div className="grid grid-cols-3 gap-3">
         {/* Gender */}
         <div className="text-center p-3 rounded-xl" style={{ backgroundColor: "var(--bg-subtle)" }}>
-          <ResponsiveContainer width="100%" height={80}>
-            <PieChart>
-              <Pie data={genderData} cx="50%" cy="50%" innerRadius={22} outerRadius={34} dataKey="value" paddingAngle={2} isAnimationActive={false}>
-                {genderData.map((entry, i) => (
-                  <Cell key={entry.name} fill={genderChartColors[entry.name] || t.chart[i % t.chart.length]} />
-                ))}
-              </Pie>
-            </PieChart>
-          </ResponsiveContainer>
+          <div data-chart-visual="dashboard-demographics-gender" aria-hidden="true">
+            <ResponsiveContainer width="100%" height={80}>
+              <PieChart accessibilityLayer={false}>
+                <Pie data={genderData} cx="50%" cy="50%" innerRadius={22} outerRadius={34} dataKey="value" paddingAngle={2} isAnimationActive={false}>
+                  {genderData.map((entry, i) => (
+                    <Cell key={entry.name} fill={genderChartColors[entry.name] || t.chart[i % t.chart.length]} />
+                  ))}
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+          </div>
           <p style={{ fontSize: "0.72rem", fontWeight: 700, color: "var(--text-primary)" }}>
             {topGender ? td(`genders.${topGender.name}`) : "-"}
           </p>
@@ -659,6 +665,27 @@ export function DemographicsSummary({ genderDist, ageDist, topLocations, coverag
           <p style={{ fontSize: "0.58rem", color: "var(--text-faint)" }}>{td("summary.topCountry")}</p>
         </div>
       </div>
+      {topGender && (
+        <ChartTextAlternative
+          chartId="dashboard-demographics-gender"
+          title={td("summary.dominantGender")}
+          summary={ta("dominant", {
+            category: td(`genders.${topGender.name}`),
+            value: formatChartNumber(topGender.value, locale, 0),
+            unit: ta("units.occurrences"),
+          })}
+          period={ta("currentSlice")}
+          unit={ta("units.occurrences")}
+          columns={[
+            { key: "category", label: ta("columns.series") },
+            { key: "occurrences", label: ta("columns.occurrences"), numeric: true },
+          ]}
+          rows={genderData.map(item => ({
+            category: td(`genders.${item.name}`),
+            occurrences: formatChartNumber(item.value, locale, 0),
+          }))}
+        />
+      )}
       {/* Coverage mini bar */}
       <div className="mt-3 flex items-center gap-2">
         <div className="flex-1 h-1.5 rounded-full" style={{ backgroundColor: "var(--border)" }}>

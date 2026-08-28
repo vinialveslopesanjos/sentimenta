@@ -165,7 +165,15 @@ def login(
 ):
     from app.middleware.rate_limiter import rate_limiter
     client_ip = request.client.host if request.client else "unknown"
-    rate_limiter.check(f"login:{client_ip}", max_requests=5, window_seconds=60)
+    qa_fixture_sweep = settings.QA_LOCAL_MODE and settings.READ_ONLY_MODE and settings.DEBUG
+    rate_limiter.check(
+        f"login:{client_ip}",
+        # The isolated, localhost-only, read-only QA sweep signs in with many
+        # deterministic accounts in one minute. Production keeps the strict
+        # five-attempt ceiling.
+        max_requests=100 if qa_fixture_sweep else 5,
+        window_seconds=60,
+    )
 
     user = authenticate_user(db, data.email, data.password)
     if not user:

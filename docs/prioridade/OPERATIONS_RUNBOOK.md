@@ -69,6 +69,14 @@ psql -d sentimenta_restore_test -c "select count(*) from users;"
 dropdb sentimenta_restore_test
 ```
 
+## Local Real Data
+
+For frontend and product work that needs realistic production data, do not point
+localhost at the production database. Use the snapshot workflow documented in
+[`LOCAL_REAL_DATA_WORKFLOW.md`](LOCAL_REAL_DATA_WORKFLOW.md): copy a controlled
+backup to `.local/snapshots/`, restore it into local Postgres, and run the local
+API with `READ_ONLY_MODE=true`.
+
 ## Monitoring Alerts
 
 Create alerts for:

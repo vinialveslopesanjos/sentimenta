@@ -9,6 +9,7 @@ from app.schemas.connection import ConnectionResponse  # noqa: E402
 
 class PostResponse(BaseModel):
     id: uuid.UUID
+    connection_id: uuid.UUID
     platform: str
     platform_post_id: str
     post_type: str | None
@@ -123,10 +124,12 @@ class TrendDataPoint(BaseModel):
 class TrendResponse(BaseModel):
     data_points: list[TrendDataPoint]
     granularity: str
+    timezone: str = "UTC"
 
 
 class PostWithSummary(BaseModel):
     id: uuid.UUID
+    connection_id: uuid.UUID
     platform: str
     platform_post_id: str
     post_type: str | None

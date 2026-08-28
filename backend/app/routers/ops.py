@@ -3,7 +3,7 @@
 from datetime import datetime, timedelta, timezone
 
 import redis
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -12,6 +12,7 @@ from app.core.deps import get_current_user
 from app.db.session import get_db
 from app.models.pipeline_run import PipelineRun
 from app.models.user import User
+from app.services.operational_trust_service import build_operational_trust_report
 from app.tasks.celery_app import celery_app
 
 router = APIRouter(prefix="/ops", tags=["ops"])
@@ -124,3 +125,13 @@ def operational_health(
         "celery": celery,
         "pipeline": pipeline,
     }
+
+
+@router.get("/trust")
+def operational_trust(
+    hours: int = Query(default=24, ge=1, le=168),
+    db: Session = Depends(get_db),
+    _: User = Depends(_require_admin),
+):
+    """Return the PII-free trust metrics and active internal alerts."""
+    return build_operational_trust_report(db, hours=hours)

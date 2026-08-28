@@ -11,6 +11,9 @@ from app.models.stripe_event import StripeEvent
 from app.models.diagnostic_lead import DiagnosticLead
 from app.models.blog_post import BlogPost
 from app.models.blog_settings import BlogSettings
+from app.models.data_snapshot import DataSnapshot
+from app.models.operational_event import OperationalEvent
+from app.models.support_ticket import SupportTicket
 
 __all__ = [
     "User",
@@ -30,4 +33,7 @@ __all__ = [
     "DiagnosticLead",
     "BlogPost",
     "BlogSettings",
+    "DataSnapshot",
+    "OperationalEvent",
+    "SupportTicket",
 ]

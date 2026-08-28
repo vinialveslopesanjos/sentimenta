@@ -3,12 +3,14 @@ import {
   ResponsiveContainer, ScatterChart, Scatter, XAxis, YAxis, CartesianGrid, Tooltip,
   ComposedChart, Line, Bar, Legend, Cell, ZAxis, ReferenceLine,
 } from "recharts";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
 import { Section } from "./ds/Section";
 import { Badge } from "./ds/Badge";
 import { getScoreStyle } from "./ds/tokens";
 import { useTheme } from "./ThemeContext";
 import { AlertTriangle, TrendingDown, TrendingUp, User, Shield, Flame, Zap, MessageCircle, ChevronDown } from "lucide-react";
+import { ChartTextAlternative } from "./charts/ChartTextAlternative";
+import { formatChartNumber } from "@/lib/chartAccessibility";
 
 const CHART_MARGIN = { top: 8, right: 4, bottom: 0, left: 0 };
 const COMPACT_X_AXIS = {
@@ -104,9 +106,11 @@ function LegacyGapAnalysis({ posts, platformLabel }: { posts: GapPost[]; platfor
 // #2 — POST LIFECYCLE (sentiment over time within a post)
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-export function GapAnalysis({ posts, platformLabel }: { posts: GapPost[]; platformLabel: string }) {
+export function GapAnalysis({ posts, platformLabel, historical = false }: { posts: GapPost[]; platformLabel: string; historical?: boolean }) {
   const { t } = useTheme();
   const tc = useTranslations("charts");
+  const ta = useTranslations("charts.accessibility");
+  const locale = useLocale();
   const [hovered, setHovered] = useState<number | null>(null);
   const chartPosts = posts.map(p => ({
     ...p,
@@ -155,10 +159,10 @@ export function GapAnalysis({ posts, platformLabel }: { posts: GapPost[]; platfo
         <span style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>{tc("gapAnalysis.eachDot")}</span>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-5">
-        <Signal icon={<AlertTriangle className="w-4 h-4" />} label={tc("gapAnalysis.priorityRisk")} post={riskPost} tone={t.sentimentNegative} />
-        <Signal icon={<TrendingUp className="w-4 h-4" />} label={tc("gapAnalysis.priorityOpportunity")} post={opportunityPost} tone={t.sentimentPositive} />
+        <Signal icon={<AlertTriangle className="w-4 h-4" />} label={tc(historical ? "gapAnalysis.historicalPriorityRisk" : "gapAnalysis.priorityRisk")} post={riskPost} tone={t.sentimentNegative} />
+        <Signal icon={<TrendingUp className="w-4 h-4" />} label={tc(historical ? "gapAnalysis.historicalPriorityOpportunity" : "gapAnalysis.priorityOpportunity")} post={opportunityPost} tone={t.sentimentPositive} />
       </div>
-      <div className="relative">
+      <div data-chart-visual="profile-gap-analysis" className="relative">
         <div className="absolute top-2 left-12 z-10 px-2 py-0.5 rounded" style={{ fontSize: "0.58rem", fontWeight: 700, color: t.accent, backgroundColor: `${t.accentBg}` }}>
           {tc("gapAnalysis.hiddenGem")}
         </div>
@@ -172,7 +176,7 @@ export function GapAnalysis({ posts, platformLabel }: { posts: GapPost[]; platfo
           {tc("gapAnalysis.viralCrisis")}
         </div>
         <ResponsiveContainer width="100%" height={300}>
-          <ScatterChart id={`gap-scatter-v2-${platformLabel}`} margin={{ top: 20, right: 20, bottom: 10, left: 10 }}>
+          <ScatterChart id={`gap-scatter-v2-${platformLabel}`} margin={{ top: 20, right: 20, bottom: 10, left: 10 }} accessibilityLayer={false}>
             <CartesianGrid strokeDasharray="3 3" stroke={t.border} />
             <XAxis
               type="number"
@@ -229,6 +233,37 @@ export function GapAnalysis({ posts, platformLabel }: { posts: GapPost[]; platfo
           </ScatterChart>
         </ResponsiveContainer>
       </div>
+      <ChartTextAlternative
+        chartId="profile-gap-analysis"
+        title={tc("gapAnalysis.title")}
+        summary={riskPost ? ta("gapRisk", {
+          post: riskPost.title,
+          engagement: formatChartNumber(riskPost.engagement, locale, 0),
+          score: formatChartNumber(riskPost.sentiment, locale),
+          comments: formatChartNumber(riskPost.comments, locale, 0),
+        }) : opportunityPost ? ta("gapOpportunity", {
+          post: opportunityPost.title,
+          engagement: formatChartNumber(opportunityPost.engagement, locale, 0),
+          score: formatChartNumber(opportunityPost.sentiment, locale),
+          comments: formatChartNumber(opportunityPost.comments, locale, 0),
+        }) : ""}
+        period={ta("currentSlice")}
+        unit={ta("units.mixedMetrics")}
+        columns={[
+          { key: "post", label: ta("columns.post") },
+          { key: "relative", label: ta("columns.relativeEngagement"), numeric: true },
+          { key: "actual", label: ta("columns.realEngagement"), numeric: true },
+          { key: "score", label: ta("columns.score"), numeric: true },
+          { key: "comments", label: ta("columns.comments"), numeric: true },
+        ]}
+        rows={chartPosts.map(post => ({
+          post: post.title,
+          relative: `${formatChartNumber(post.engagement, locale, 0)}/100`,
+          actual: `${formatChartNumber(post.rawEngagement ?? post.engagement, locale, 2)}%`,
+          score: formatChartNumber(post.sentiment, locale),
+          comments: formatChartNumber(post.comments, locale, 0),
+        }))}
+      />
     </Section>
   );
 }
@@ -430,6 +465,8 @@ interface TopicNode {
 export function TopicTreemap({ topics, platformLabel }: { topics: TopicNode[]; platformLabel: string }) {
   const { t } = useTheme();
   const tc = useTranslations("charts");
+  const ta = useTranslations("charts.accessibility");
+  const locale = useLocale();
   const [hovered, setHovered] = useState<number | null>(null);
 
   // Sort descending by count
@@ -476,7 +513,7 @@ export function TopicTreemap({ topics, platformLabel }: { topics: TopicNode[]; p
           <span className="flex items-center gap-1"><span className="w-2.5 h-2.5 rounded" style={{ backgroundColor: t.sentimentNegative }} /> {tc("topicTreemap.negativeLabel")}</span>
         </div>
       </div>
-      <div className="grid gap-2" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
+      <div data-chart-visual="profile-topic-treemap" className="grid gap-2" style={{ gridTemplateColumns: `repeat(${cols}, 1fr)` }}>
         {sorted.map((topic, i) => {
           const h = getNormalizedSize(topic.count);
           return (
@@ -501,6 +538,27 @@ export function TopicTreemap({ topics, platformLabel }: { topics: TopicNode[]; p
           );
         })}
       </div>
+      <ChartTextAlternative
+        chartId="profile-topic-treemap"
+        title={tc("topicTreemap.title")}
+        summary={ta("topicLead", {
+          topic: sorted[0].topic,
+          count: formatChartNumber(sorted[0].count, locale, 0),
+          score: formatChartNumber(sorted[0].avgScore, locale),
+        })}
+        period={ta("currentSlice")}
+        unit={ta("units.mixedMetrics")}
+        columns={[
+          { key: "topic", label: ta("columns.topic") },
+          { key: "occurrences", label: ta("columns.occurrences"), numeric: true },
+          { key: "score", label: ta("columns.score"), numeric: true },
+        ]}
+        rows={sorted.map(topic => ({
+          topic: topic.topic,
+          occurrences: formatChartNumber(topic.count, locale, 0),
+          score: formatChartNumber(topic.avgScore, locale),
+        }))}
+      />
     </Section>
   );
 }

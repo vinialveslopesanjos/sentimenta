@@ -66,7 +66,7 @@ export function ConnectionDetailScreen() {
   const navigate = useNavigate();
   const { id } = useParams();
   const [scorePeriod, setScorePeriod] = useState<"Dia" | "Semana" | "Mes">("Dia");
-  const [temporalView, setTemporalView] = useState<"Sentimento" | "Emocoes" | "Topicos">("Sentimento");
+  const [temporalView, setTemporalView] = useState<"Sentimento" | "Emoções" | "Tópicos">("Sentimento");
   const [searchQuery, setSearchQuery] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
 
@@ -128,7 +128,7 @@ export function ConnectionDetailScreen() {
     return (
       <div className="min-h-screen bg-[#FDFBFF] flex items-center justify-center">
         <StatusBar />
-        <p className="text-slate-400" style={{ fontSize: "14px" }}>Conexao nao encontrada</p>
+        <p className="text-slate-400" style={{ fontSize: "14px" }}>Conexão não encontrada</p>
       </div>
     );
   }
@@ -138,7 +138,7 @@ export function ConnectionDetailScreen() {
   const totalSent = sentDist ? sentDist.positive + sentDist.neutral + sentDist.negative : 0;
   const positivePercent = totalSent > 0 ? Math.round((sentDist!.positive / totalSent) * 100) : 0;
   const neutralPercent = totalSent > 0 ? Math.round((sentDist!.neutral / totalSent) * 100) : 0;
-  const negativePercent = totalSent > 0 ? Math.round((sentDist!.negative / totalSent) * 100) : 0;
+  const negativePercent = totalSent > 0 ? Math.max(0, Math.min(100, 100 - positivePercent - neutralPercent)) : 0;
 
   // Build emotions list from emotions_distribution
   const emotionEntries = dash.emotions_distribution
@@ -288,7 +288,7 @@ export function ConnectionDetailScreen() {
             <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "20px", fontWeight: 500, color: "#06B6D4" }}>
               {dash.avg_score !== null ? dash.avg_score.toFixed(1) : "—"}
             </p>
-            <p className="text-slate-400" style={{ fontSize: "9px" }}>Score medio</p>
+            <p className="text-slate-400" style={{ fontSize: "9px" }}>Score médio</p>
           </DreamCard>
 
           <DreamCard className="p-3">
@@ -298,7 +298,7 @@ export function ConnectionDetailScreen() {
             <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "20px", fontWeight: 500, color: "#334155" }}>
               {negativePercent}%
             </p>
-            <p className="text-slate-400" style={{ fontSize: "9px" }}>Comentarios negativos</p>
+            <p className="text-slate-400" style={{ fontSize: "9px" }}>Comentários negativos</p>
           </DreamCard>
 
           <DreamCard className="p-3">
@@ -308,7 +308,7 @@ export function ConnectionDetailScreen() {
             <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "20px", fontWeight: 500, color: "#334155" }}>
               {dash.avg_polarity !== null ? dash.avg_polarity.toFixed(2) : "—"}
             </p>
-            <p className="text-slate-400" style={{ fontSize: "9px" }}>Polaridade media</p>
+            <p className="text-slate-400" style={{ fontSize: "9px" }}>Polaridade média</p>
           </DreamCard>
         </div>
 
@@ -320,7 +320,7 @@ export function ConnectionDetailScreen() {
             <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "20px", fontWeight: 500, color: "#334155" }}>
               {dash.total_comments}
             </p>
-            <p className="text-slate-400" style={{ fontSize: "9px" }}>Comentarios</p>
+            <p className="text-slate-400" style={{ fontSize: "9px" }}>Comentários</p>
           </DreamCard>
 
           <DreamCard className="p-3">
@@ -344,16 +344,16 @@ export function ConnectionDetailScreen() {
           </DreamCard>
         </div>
 
-        {/* Volume de Comentarios */}
+        {/* Volume de comentários */}
         {commentVolumeData.length > 0 && (
           <DreamCard className="p-5">
             <p
               style={{ fontFamily: "'Outfit', sans-serif", fontSize: "15px", fontWeight: 500, color: "#334155" }}
             >
-              Volume de Comentarios
+              Volume de comentários
             </p>
             <p className="text-slate-300 mb-4" style={{ fontSize: "11px" }}>
-              Quantidade de comentarios por periodo
+              Quantidade de comentários por período
             </p>
             <div className="h-[140px]">
               <ResponsiveContainer width="99%" height="100%">
@@ -398,7 +398,7 @@ export function ConnectionDetailScreen() {
           </DreamCard>
         )}
 
-        {/* Tendencia de Score */}
+        {/* Tendência de score */}
         {scoreTrendData.length > 0 && (
           <DreamCard className="p-5">
             <div className="flex items-center justify-between mb-4">
@@ -406,10 +406,10 @@ export function ConnectionDetailScreen() {
                 <p
                   style={{ fontFamily: "'Outfit', sans-serif", fontSize: "15px", fontWeight: 500, color: "#334155" }}
                 >
-                  Tendencia de Score
+                  Tendência de score
                 </p>
                 <p className="text-slate-300" style={{ fontSize: "11px" }}>
-                  Score medio ao longo do tempo
+                  Score médio ao longo do tempo
                 </p>
               </div>
               <div className="flex bg-slate-50 rounded-xl p-0.5">
@@ -423,7 +423,7 @@ export function ConnectionDetailScreen() {
                       }`}
                     style={{ fontSize: "10px", fontWeight: 500 }}
                   >
-                    {p}
+                    {p === "Mes" ? "Mês" : p}
                   </button>
                 ))}
               </div>
@@ -466,7 +466,7 @@ export function ConnectionDetailScreen() {
           </DreamCard>
         )}
 
-        {/* Analise Temporal */}
+        {/* Análise temporal */}
         {temporalData.length > 0 && (
           <DreamCard className="p-5">
             <div className="flex items-center justify-between mb-4">
@@ -474,14 +474,14 @@ export function ConnectionDetailScreen() {
                 <p
                   style={{ fontFamily: "'Outfit', sans-serif", fontSize: "15px", fontWeight: 500, color: "#334155" }}
                 >
-                  Analise Temporal
+                  Análise temporal
                 </p>
                 <p className="text-slate-300" style={{ fontSize: "11px" }}>
-                  Distribuicao por periodo
+                  Distribuição por período
                 </p>
               </div>
               <div className="flex bg-slate-50 rounded-xl p-0.5">
-                {(["Sentimento", "Emocoes", "Topicos"] as const).map((v) => (
+                {(["Sentimento", "Emoções", "Tópicos"] as const).map((v) => (
                   <button
                     key={v}
                     onClick={() => setTemporalView(v)}
@@ -519,18 +519,20 @@ export function ConnectionDetailScreen() {
                 </div>
                 <div>
                   <p className="text-slate-400 mb-2" style={{ fontSize: "10px", fontWeight: 500 }}>
-                    Distribuicao 100%
+                    Distribuição 100%
                   </p>
                   <div className="h-[120px]">
                     <ResponsiveContainer width="99%" height="100%">
                       <BarChart
                         data={temporalData.map((d) => {
                           const total = d.positivo + d.neutro + d.negativo;
+                          const positivo = total > 0 ? Math.round((d.positivo / total) * 100) : 0;
+                          const neutro = total > 0 ? Math.round((d.neutro / total) * 100) : 0;
                           return {
                             period: d.period,
-                            positivo: total > 0 ? Math.round((d.positivo / total) * 100) : 0,
-                            neutro: total > 0 ? Math.round((d.neutro / total) * 100) : 0,
-                            negativo: total > 0 ? Math.round((d.negativo / total) * 100) : 0,
+                            positivo,
+                            neutro,
+                            negativo: total > 0 ? Math.max(0, Math.min(100, 100 - positivo - neutro)) : 0,
                           };
                         })}
                       >
@@ -561,7 +563,7 @@ export function ConnectionDetailScreen() {
               </div>
             )}
 
-            {temporalView === "Emocoes" && (
+            {temporalView === "Emoções" && (
               <div className="space-y-4">
                 {emotionsList.length > 0 ? (
                   <div className="h-[220px]">
@@ -569,18 +571,18 @@ export function ConnectionDetailScreen() {
                       <RadarChart data={emotionsList.map((e) => ({ name: e.name, value: e.value }))}>
                         <PolarGrid stroke="rgba(196,181,253,0.2)" />
                         <PolarAngleAxis dataKey="name" tick={{ fontSize: 9, fill: "#64748B" }} />
-                        <Radar name="Emocoes" dataKey="value" stroke="#8B5CF6" fill="#8B5CF6" fillOpacity={0.25} strokeWidth={2} />
+                        <Radar name="Emoções" dataKey="value" stroke="#8B5CF6" fill="#8B5CF6" fillOpacity={0.25} strokeWidth={2} />
                         <Tooltip contentStyle={{ background: "white", border: "none", borderRadius: "12px", boxShadow: "0 4px 12px rgba(0,0,0,0.06)", fontSize: "10px" }} />
                       </RadarChart>
                     </ResponsiveContainer>
                   </div>
                 ) : (
-                  <p className="text-slate-300 text-center py-8" style={{ fontSize: "12px" }}>Sem dados de emocoes</p>
+                  <p className="text-slate-300 text-center py-8" style={{ fontSize: "12px" }}>Sem dados de emoções</p>
                 )}
               </div>
             )}
 
-            {temporalView === "Topicos" && (
+            {temporalView === "Tópicos" && (
               <div className="space-y-3">
                 {topicsList.length > 0 ? (
                   <div className="flex flex-wrap gap-2 justify-center py-4">
@@ -605,7 +607,7 @@ export function ConnectionDetailScreen() {
                     })}
                   </div>
                 ) : (
-                  <p className="text-slate-300 text-center py-8" style={{ fontSize: "12px" }}>Sem dados de topicos</p>
+                  <p className="text-slate-300 text-center py-8" style={{ fontSize: "12px" }}>Sem dados de tópicos</p>
                 )}
               </div>
             )}
@@ -618,7 +620,7 @@ export function ConnectionDetailScreen() {
             <div className="flex items-center gap-1.5 mb-3">
               <span style={{ fontSize: "14px" }}>😊</span>
               <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", fontWeight: 500, color: "#334155" }}>
-                Emocoes
+                Emoções
               </span>
               <span className="text-slate-300 ml-auto" style={{ fontSize: "9px" }}>top 7</span>
             </div>
@@ -646,7 +648,7 @@ export function ConnectionDetailScreen() {
             <div className="flex items-center gap-1.5 mb-3">
               <span style={{ fontSize: "14px" }}>🏷️</span>
               <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "13px", fontWeight: 500, color: "#334155" }}>
-                Topicos
+                Tópicos
               </span>
               <span className="text-slate-300 ml-auto" style={{ fontSize: "9px" }}>top 7</span>
             </div>
@@ -678,7 +680,7 @@ export function ConnectionDetailScreen() {
               style={{ fontFamily: "'Outfit', sans-serif", fontSize: "15px", fontWeight: 500, color: "#334155" }}
               className="mb-3"
             >
-              Distribuicao de Sentimento
+              Distribuição de sentimento
             </p>
             <div className="flex rounded-xl overflow-hidden h-4 mb-3">
               <div
@@ -753,7 +755,7 @@ export function ConnectionDetailScreen() {
             <div className="flex items-center gap-2">
               <MessageSquare size={16} className="text-cyan-400" />
               <div>
-                <p className="text-slate-400" style={{ fontSize: "10px" }}>Comentarios</p>
+                <p className="text-slate-400" style={{ fontSize: "10px" }}>Comentários</p>
                 <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "16px", fontWeight: 500, color: "#334155" }}>
                   {dash.engagement_totals.total_comments.toLocaleString()}
                 </p>
@@ -775,13 +777,15 @@ export function ConnectionDetailScreen() {
 
           <div className="space-y-3">
             {dash.posts.slice(0, 6).map((post) => {
-              const score = post.summary?.avg_score ?? null;
+              const isAnalyzed = (post.summary?.total_analyzed ?? 0) > 0 && typeof post.summary?.avg_score === "number";
+              const score = isAnalyzed ? post.summary!.avg_score! : null;
+              const postScoreForStyle = score ?? 0;
               const tint =
-                score !== null && score >= 8 ? "emerald" : score !== null && score >= 6.5 ? "none" : "amber";
+                !isAnalyzed ? "none" : postScoreForStyle >= 8 ? "emerald" : postScoreForStyle >= 6.5 ? "none" : "amber";
               const scoreColor =
-                score !== null && score >= 8
+                postScoreForStyle >= 8
                   ? "#059669"
-                  : score !== null && score >= 6.5
+                  : postScoreForStyle >= 6.5
                     ? "#7C3AED"
                     : "#D97706";
               const thumbUrl = buildThumbnailSrc(post.thumbnail_url);
@@ -807,20 +811,29 @@ export function ConnectionDetailScreen() {
                       {post.content_text || "Post sem texto"}
                     </p>
                     <p style={{ fontSize: "11px", color: "#64748B" }}>
-                      {post.platform} · {post.comment_count} comentarios · {fmtDate(post.published_at)}
+                      {post.platform} · {post.comment_count} comentários · {fmtDate(post.published_at)}
                     </p>
                   </div>
-                  <span
-                    className="flex-shrink-0"
-                    style={{
-                      fontFamily: "'Outfit', sans-serif",
-                      fontSize: "17px",
-                      fontWeight: 700,
-                      color: scoreColor,
-                    }}
-                  >
-                    {score !== null ? score.toFixed(1) : "—"}
-                  </span>
+                  {score !== null ? (
+                    <span
+                      className="flex-shrink-0"
+                      style={{
+                        fontFamily: "'Outfit', sans-serif",
+                        fontSize: "17px",
+                        fontWeight: 700,
+                        color: scoreColor,
+                      }}
+                    >
+                      {score.toFixed(1)}
+                    </span>
+                  ) : (
+                    <span
+                      className="flex-shrink-0 px-2 py-1 rounded-full"
+                      style={{ fontSize: "10px", fontWeight: 600, color: "#7C3AED", background: "rgba(139,92,246,0.1)" }}
+                    >
+                      Aguardando análise
+                    </span>
+                  )}
                 </DreamCard>
               );
             })}
@@ -833,7 +846,7 @@ export function ConnectionDetailScreen() {
             style={{ fontFamily: "'Outfit', sans-serif", fontSize: "17px", fontWeight: 600, color: "#1E293B" }}
             className="mb-3"
           >
-            Comentarios
+            Comentários
           </p>
 
           <div className="flex gap-2 mb-4">
@@ -847,7 +860,7 @@ export function ConnectionDetailScreen() {
             >
               <Search size={14} style={{ color: "#C4B5FD" }} />
               <input
-                placeholder="Buscar comentarios..."
+                placeholder="Buscar comentários..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="flex-1 bg-transparent outline-none"
@@ -871,45 +884,56 @@ export function ConnectionDetailScreen() {
 
           <div className="space-y-3">
             {filteredComments.map((c) => {
-              const score = c.analysis?.score_0_10 ?? 0;
+              const score = c.analysis?.score_0_10 ?? null;
+              const hasScore = typeof score === "number" && Number.isFinite(score);
+              const scoreForStyle = hasScore ? score : 6.5;
               const tint =
-                score >= 8.5 ? "emerald" : score >= 6.5 ? "cyan" : "amber";
+                !hasScore ? "none" : scoreForStyle >= 8.5 ? "emerald" : scoreForStyle >= 6.5 ? "cyan" : "amber";
               const scoreColor =
-                score >= 8.5 ? "#059669" : score >= 6.5 ? "#0891B2" : "#D97706";
+                scoreForStyle >= 8.5 ? "#059669" : scoreForStyle >= 6.5 ? "#0891B2" : "#D97706";
               const tagBg =
-                score >= 8.5
+                scoreForStyle >= 8.5
                   ? "rgba(52,211,153,0.1)"
-                  : score >= 6.5
+                  : scoreForStyle >= 6.5
                     ? "rgba(34,211,238,0.1)"
                     : "rgba(251,191,36,0.1)";
               const tagColor =
-                score >= 8.5 ? "#059669" : score >= 6.5 ? "#0891B2" : "#D97706";
-              const emotion = c.analysis?.emotions?.[0] || "—";
+                scoreForStyle >= 8.5 ? "#059669" : scoreForStyle >= 6.5 ? "#0891B2" : "#D97706";
+              const emotion = c.analysis?.emotions?.[0] || "";
 
               return (
                 <DreamCard key={c.id} className="p-4" tint={tint as any}>
                   <div className="flex items-start gap-3">
                     {/* Score badge */}
-                    <div
-                      className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
-                      style={{ background: `${tagBg}` }}
-                    >
-                      <span
-                        style={{
-                          fontFamily: "'Outfit', sans-serif",
-                          fontSize: "13px",
-                          fontWeight: 700,
-                          color: scoreColor,
-                        }}
+                    {hasScore ? (
+                      <div
+                        className="flex-shrink-0 w-10 h-10 rounded-xl flex items-center justify-center"
+                        style={{ background: `${tagBg}` }}
                       >
-                        {score.toFixed(0)}
+                        <span
+                          style={{
+                            fontFamily: "'Outfit', sans-serif",
+                            fontSize: "13px",
+                            fontWeight: 700,
+                            color: scoreColor,
+                          }}
+                        >
+                          {scoreForStyle.toFixed(0)}
+                        </span>
+                      </div>
+                    ) : (
+                      <span
+                        className="flex-shrink-0 px-2 py-1 rounded-full"
+                        style={{ fontSize: "10px", fontWeight: 600, color: "#7C3AED", background: "rgba(139,92,246,0.1)" }}
+                      >
+                        Aguardando análise
                       </span>
-                    </div>
+                    )}
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-1">
                         <span style={{ fontSize: "12px", fontWeight: 600, color: "#1E293B" }} className="truncate">
-                          {c.author_username || c.author_name || "Anonimo"}
+                          {c.author_username || c.author_name || "Anônimo"}
                         </span>
                         <span style={{ fontSize: "10px", color: "#94A3B8", flexShrink: 0 }}>
                           {c.published_at ? fmtDate(c.published_at) : ""}
@@ -923,17 +947,19 @@ export function ConnectionDetailScreen() {
                           ✦ {c.analysis.summary_pt}
                         </p>
                       )}
-                      <span
-                        className="px-2.5 py-1 rounded-full"
-                        style={{
-                          fontSize: "10px",
-                          fontWeight: 500,
-                          background: tagBg,
-                          color: tagColor,
-                        }}
-                      >
-                        {emotion}
-                      </span>
+                      {emotion && (
+                        <span
+                          className="px-2.5 py-1 rounded-full"
+                          style={{
+                            fontSize: "10px",
+                            fontWeight: 500,
+                            background: tagBg,
+                            color: tagColor,
+                          }}
+                        >
+                          {emotion}
+                        </span>
+                      )}
                     </div>
                   </div>
                 </DreamCard>

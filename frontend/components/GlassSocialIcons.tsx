@@ -1,3 +1,7 @@
+"use client";
+
+import { useId } from "react";
+
 /**
  * Glass-style social media icons
  * Simplified from Figma export — uses inline SVGs with glass effect
@@ -32,14 +36,15 @@ function GlassShell({ size = 48, children, glowColor, className = "" }: GlassIco
 
 export function GlassInstagram({ size = 48, className }: GlassIconProps) {
   const s = size * 0.4;
+  const gradientId = `ig-grad-${useId().replace(/:/g, "")}`;
   return (
     <GlassShell size={size} className={className} glowColor="linear-gradient(135deg, #E1306C, #FCAF45)">
       <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
-        <rect x="2" y="2" width="20" height="20" rx="5" stroke="url(#ig-grad)" strokeWidth="2" />
-        <circle cx="12" cy="12" r="5" stroke="url(#ig-grad)" strokeWidth="2" />
-        <circle cx="18" cy="6" r="1.5" fill="url(#ig-grad)" />
+        <rect x="2" y="2" width="20" height="20" rx="5" stroke={`url(#${gradientId})`} strokeWidth="2" />
+        <circle cx="12" cy="12" r="5" stroke={`url(#${gradientId})`} strokeWidth="2" />
+        <circle cx="18" cy="6" r="1.5" fill={`url(#${gradientId})`} />
         <defs>
-          <linearGradient id="ig-grad" x1="2" y1="22" x2="22" y2="2">
+          <linearGradient id={gradientId} x1="2" y1="22" x2="22" y2="2">
             <stop stopColor="#FCAF45" />
             <stop offset="0.5" stopColor="#E1306C" />
             <stop offset="1" stopColor="#833AB4" />
@@ -64,12 +69,13 @@ export function GlassYoutube({ size = 48, className }: GlassIconProps) {
 
 export function GlassTiktok({ size = 48, className }: GlassIconProps) {
   const s = size * 0.4;
+  const gradientId = `tt-grad-${useId().replace(/:/g, "")}`;
   return (
     <GlassShell size={size} className={className} glowColor="linear-gradient(135deg, #25F4EE, #FE2C55)">
       <svg width={s} height={s} viewBox="0 0 24 24" fill="none">
-        <path d="M9 12C6.8 12 5 13.8 5 16C5 18.2 6.8 20 9 20C11.2 20 13 18.2 13 16V4C14 6.5 16.5 8 19 8" stroke="url(#tt-grad)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        <path d="M9 12C6.8 12 5 13.8 5 16C5 18.2 6.8 20 9 20C11.2 20 13 18.2 13 16V4C14 6.5 16.5 8 19 8" stroke={`url(#${gradientId})`} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
         <defs>
-          <linearGradient id="tt-grad" x1="5" y1="20" x2="19" y2="4">
+          <linearGradient id={gradientId} x1="5" y1="20" x2="19" y2="4">
             <stop stopColor="#FE2C55" />
             <stop offset="0.5" stopColor="#000" />
             <stop offset="1" stopColor="#25F4EE" />

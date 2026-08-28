@@ -8,6 +8,8 @@ import type {
   HealthReport,
   CommentListResponse,
 } from "./types";
+import type { Connection, ConnectionComparison } from "@sentimenta/types";
+import type { DataSnapshot, SnapshotReference } from "@sentimenta/types";
 import type { ApiBlogSettings, BlogCategory, BlogPersona, BlogPost, BlogSettings } from "./blog";
 import { normalizeBlogPost, normalizeBlogSettings } from "./blog";
 
@@ -244,24 +246,60 @@ export const authApi = {
 };
 
 // Connections
+export interface CollectionPreview {
+  model_version: string;
+  selection_mode: "all" | "engagement";
+  engagement_priority_max_per_post: number;
+  target_profiles: number;
+  selection_applies_to_profiles: number;
+  requested_posts_per_profile: number;
+  requested_comments_per_post: number;
+  request_comment_ceiling: number;
+  observed_posts: number;
+  requested_post_slots: number;
+  posts_with_known_counts: number;
+  found_status: "complete" | "partial" | "unknown";
+  found_known_comments: number;
+  last_observed_at: string | null;
+  estimated_candidate_comments_known: number;
+  estimated_candidate_comments_max: number;
+  estimated_selected_comments_known: number;
+  estimated_selected_comments_max: number;
+  estimated_analyzed_comments_max: number;
+  estimated_coverage_pct: number | null;
+  available_credits: number;
+  operational_cost_brl_min: number;
+  operational_cost_brl_max: number;
+  duration_minutes_min: number;
+  duration_minutes_max: number;
+  forecast_confidence: "low" | "medium";
+  fixed_costs_included: boolean;
+  explanation_codes: string[];
+}
+
 export const connectionsApi = {
   list: (token: string) =>
-    apiFetch<
-      Array<{
-        id: string;
-        platform: string;
-        username: string;
-        display_name: string | null;
-        profile_image_url: string | null;
-        followers_count: number;
-        status: string;
-        connected_at: string;
-        last_sync_at: string | null;
-        persona: string | null;
-        auto_sync: boolean;
-        has_oauth_token: boolean;
-      }>
-    >("/connections", { token }),
+    apiFetch<Connection[]>("/connections", { token }),
+
+  previewCollection: (
+    token: string,
+    params: {
+      connection_id?: string;
+      max_posts: number;
+      max_comments_per_post: number;
+      since_date?: string;
+      comment_selection_mode: "all" | "engagement";
+    },
+  ) => {
+    const query = new URLSearchParams({
+      max_posts: String(params.max_posts),
+      max_comments_per_post: String(params.max_comments_per_post),
+      comment_selection_mode: params.comment_selection_mode,
+    });
+    if (params.connection_id) query.set("connection_id", params.connection_id);
+    if (params.since_date) query.set("since_date", params.since_date);
+    return apiFetch<CollectionPreview>(`/connections/collection-preview?${query.toString()}`, { token });
+  },
 
   updateConnection: (token: string, connectionId: string, params: { persona?: string | null, ignore_author_comments?: boolean, auto_sync?: boolean }) =>
     apiFetch(`/connections/${connectionId}`, {
@@ -337,6 +375,7 @@ export const postsApi = {
     return apiFetch<
       Array<{
         id: string;
+        connection_id: string;
         platform: string;
         platform_post_id: string;
         post_type: string | null;
@@ -423,27 +462,15 @@ export const dashboardApi = {
         negative_rate: number;
       }>;
       generated_at: string;
+      snapshot: SnapshotReference | null;
     }>(`/dashboard/compare?days=${days}`, { token }),
 
   compareConnections: (token: string, connectionIds: string[], days = 3650) =>
     apiFetch<{
       days: number;
-      connections: Array<{
-        connection_id: string;
-        platform: string;
-        username: string;
-        display_name: string | null;
-        profile_image_url: string | null;
-        total_comments: number;
-        total_analyzed: number;
-        avg_score: number | null;
-        avg_polarity: number | null;
-        sentiment_distribution: { positive: number; neutral: number; negative: number };
-        positive_rate: number;
-        negative_rate: number;
-        emotions_distribution: Record<string, number>;
-      }>;
+      connections: ConnectionComparison[];
       generated_at: string;
+      snapshot: SnapshotReference | null;
     }>(`/dashboard/compare-connections?connection_ids=${connectionIds.join(",")}&days=${days}`, { token }),
 
   engagementHeatmap: (token: string, connectionId?: string) => {
@@ -553,7 +580,20 @@ export const dashboardApi = {
         avg_score: number | null;
         message: string;
       }>;
+      evaluation: {
+        status: "alerts_found" | "no_alerts_valid_coverage" | "unable_to_evaluate";
+        reason_code: string;
+        coverage: {
+          status: string;
+          ratio: number | null;
+          reason_code: string;
+          [key: string]: unknown;
+        };
+        evaluated_count: number;
+        min_analyzed_per_profile: number;
+      };
       generated_at: string;
+      snapshot: SnapshotReference | null;
     }>(`/dashboard/alerts${qs ? `?${qs}` : ""}`, { token });
   },
 };
@@ -660,6 +700,11 @@ export const creditsApi = {
       cycle_end: string | null;
       plan: string;
       plan_allocation: number;
+      collection_limits: {
+        max_posts_per_sync: number;
+        max_comments_per_post: number;
+        sync_frequency: string;
+      };
       demographic_cost: number;
       packs: Array<{ id: string; credits: number; price_brl: number }>;
     }>("/billing/credits", { token }),
@@ -697,6 +742,11 @@ export const pipelineApi = {
 
   deleteRun: (token: string, runId: string) =>
     apiFetch<void>(`/pipeline/runs/${runId}`, { method: "DELETE", token }),
+};
+
+export const dataSnapshotsApi = {
+  latest: (token: string) =>
+    apiFetch<DataSnapshot | null>("/data-snapshots/latest", { token }),
 };
 
 // Comments
@@ -835,4 +885,64 @@ export const blogAdminApi = {
     });
     return normalizeBlogPost(post);
   },
+};
+
+export type OperationalTrustAlert = {
+  code: string;
+  severity: "critical" | "warning" | "info";
+  message: string;
+  value: number | null;
+  threshold: number | null;
+  action: string;
+  href: string | null;
+};
+
+export type OperationalPlatformMetric = {
+  platform: string;
+  active_connections: number;
+  terminal_runs: number;
+  completed_runs: number;
+  partial_runs: number;
+  failed_runs: number;
+  operational_success_rate: number | null;
+  usable_result_rate: number | null;
+  duration_seconds: { sample_count: number; p50: number | null; p95: number | null };
+  last_data_at: string | null;
+  data_age_seconds: number | null;
+  last_valid_data_at: string | null;
+  valid_data_age_seconds: number | null;
+};
+
+export type OperationalTrustReport = {
+  status: "ok" | "degraded" | "critical";
+  generated_at: string;
+  window: { hours: number; start: string; end: string };
+  thresholds: Record<string, number>;
+  metrics: {
+    pipeline: {
+      terminal_runs: number;
+      completed_runs: number;
+      partial_runs: number;
+      failed_runs: number;
+      running_runs: number;
+      stuck_runs: number;
+      stuck_run_refs: string[];
+      operational_success_rate: number | null;
+      partial_rate: number | null;
+      zero_valid_analyses: number;
+      zero_valid_run_refs: string[];
+      duration_seconds: { sample_count: number; p50: number | null; p95: number | null };
+    };
+    platforms: OperationalPlatformMetric[];
+    count_reconciliation: { snapshots_evaluated: number; divergences: number; sample_snapshot_refs: string[] };
+    drilldown_404: { count: number; by_route: Record<string, number> };
+    support_tickets: { total: number; trust_related: number; by_category: Record<string, number> };
+  };
+  alerts: OperationalTrustAlert[];
+  instrumentation: Record<string, string>;
+};
+
+export const opsApi = {
+  getTrust: (token: string, hours = 24) =>
+    apiFetch<OperationalTrustReport>(`/ops/trust?hours=${hours}`, { token }),
 };

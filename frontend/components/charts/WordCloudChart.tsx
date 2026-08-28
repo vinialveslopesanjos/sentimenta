@@ -1,7 +1,9 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
-import { useTranslations } from "next-intl";
+import { useLocale, useTranslations } from "next-intl";
+import { ChartTextAlternative } from "@/components/charts/ChartTextAlternative";
+import { formatChartNumber } from "@/lib/chartAccessibility";
 
 // Stopwords PT-BR + EN — articles, prepositions, conjunctions, pronouns, common verbs, adverbs
 const STOPWORDS = new Set([
@@ -145,6 +147,8 @@ interface Props {
   maxWords?: number;
   height?: number;
   filterStopwords?: boolean;
+  title?: string;
+  chartId?: string;
 }
 
 export default function WordCloudChart({
@@ -152,8 +156,12 @@ export default function WordCloudChart({
   maxWords = 20,
   height = 280,
   filterStopwords = true,
+  title,
+  chartId = "word-cloud",
 }: Props) {
   const tch = useTranslations("charts");
+  const ta = useTranslations("charts.accessibility");
+  const locale = useLocale();
   const [hovered, setHovered] = useState<number | null>(null);
   const W = 520;
   const H = height;
@@ -182,61 +190,87 @@ export default function WordCloudChart({
     );
   }
 
+  const chartTitle = title ?? ta("wordCloudTitle");
+  const rankedPlaced = [...placed].sort((a, b) => b.value - a.value);
+  const topTerms = rankedPlaced
+    .slice(0, 3)
+    .map(word => `${word.text} (${formatChartNumber(word.value, locale, 0)})`)
+    .join(", ");
+
   return (
-    <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="block select-none">
-      <defs>
-        <filter id="wordGlow">
-          <feGaussianBlur stdDeviation="2.5" result="blur" />
-          <feMerge>
-            <feMergeNode in="blur" />
-            <feMergeNode in="SourceGraphic" />
-          </feMerge>
-        </filter>
-      </defs>
-      {placed.map((w, i) => (
-        <text
-          key={`${w.text}-${i}`}
-          x={w.x}
-          y={w.y}
-          textAnchor="middle"
-          dominantBaseline="middle"
-          fontSize={w.fontSize}
-          fill={w.color}
-          fontFamily="Outfit, sans-serif"
-          fontWeight={w.fontSize > 28 ? 700 : 500}
-          filter={hovered === i ? "url(#wordGlow)" : "none"}
-          opacity={hovered !== null && hovered !== i ? 0.3 : 1}
-          style={{ cursor: "pointer", transition: "opacity 0.2s, filter 0.2s" }}
-          onMouseEnter={() => setHovered(i)}
-          onMouseLeave={() => setHovered(null)}
-        >
-          {w.text}
-        </text>
-      ))}
-      {hovered !== null && placed[hovered] && (
-        <g>
-          <rect
-            x={placed[hovered].x - 28}
-            y={placed[hovered].y - placed[hovered].fontSize - 18}
-            width={56}
-            height={18}
-            rx={6}
-            fill="var(--bg-card)"
-            stroke="var(--border)"
-          />
-          <text
-            x={placed[hovered].x}
-            y={placed[hovered].y - placed[hovered].fontSize - 6}
-            textAnchor="middle"
-            dominantBaseline="middle"
-            fontSize={10}
-            fill="var(--text-primary)"
-            fontFamily="Outfit, sans-serif"
-          >
-            {placed[hovered].value}x
-          </text>
-        </g>
-      )}
-    </svg>
+    <div>
+      <div data-chart-visual={chartId} aria-hidden="true">
+        <svg width="100%" viewBox={`0 0 ${W} ${H}`} className="block select-none" focusable="false">
+          <defs>
+            <filter id="wordGlow">
+              <feGaussianBlur stdDeviation="2.5" result="blur" />
+              <feMerge>
+                <feMergeNode in="blur" />
+                <feMergeNode in="SourceGraphic" />
+              </feMerge>
+            </filter>
+          </defs>
+          {placed.map((w, i) => (
+            <text
+              key={`${w.text}-${i}`}
+              x={w.x}
+              y={w.y}
+              textAnchor="middle"
+              dominantBaseline="middle"
+              fontSize={w.fontSize}
+              fill={w.color}
+              fontFamily="Outfit, sans-serif"
+              fontWeight={w.fontSize > 28 ? 700 : 500}
+              filter={hovered === i ? "url(#wordGlow)" : "none"}
+              opacity={hovered !== null && hovered !== i ? 0.3 : 1}
+              style={{ cursor: "pointer", transition: "opacity 0.2s, filter 0.2s" }}
+              onMouseEnter={() => setHovered(i)}
+              onMouseLeave={() => setHovered(null)}
+            >
+              {w.text}
+            </text>
+          ))}
+          {hovered !== null && placed[hovered] && (
+            <g>
+              <rect
+                x={placed[hovered].x - 28}
+                y={placed[hovered].y - placed[hovered].fontSize - 18}
+                width={56}
+                height={18}
+                rx={6}
+                fill="var(--bg-card)"
+                stroke="var(--border)"
+              />
+              <text
+                x={placed[hovered].x}
+                y={placed[hovered].y - placed[hovered].fontSize - 6}
+                textAnchor="middle"
+                dominantBaseline="middle"
+                fontSize={10}
+                fill="var(--text-primary)"
+                fontFamily="Outfit, sans-serif"
+              >
+                {placed[hovered].value}x
+              </text>
+            </g>
+          )}
+        </svg>
+      </div>
+      <ChartTextAlternative
+        chartId={chartId}
+        title={chartTitle}
+        summary={ta("topTerms", { terms: topTerms })}
+        period={ta("currentSlice")}
+        unit={ta("units.occurrences")}
+        columns={[
+          { key: "term", label: ta("columns.term") },
+          { key: "occurrences", label: ta("columns.occurrences"), numeric: true },
+        ]}
+        rows={rankedPlaced.map(word => ({
+          term: word.text,
+          occurrences: formatChartNumber(word.value, locale, 0),
+        }))}
+      />
+    </div>
   );
 }

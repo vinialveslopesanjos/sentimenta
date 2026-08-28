@@ -1,6 +1,6 @@
 ﻿import uuid
 from collections import Counter
-from datetime import datetime, timezone, timedelta
+from datetime import date, datetime, timezone, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -17,13 +17,32 @@ from app.models.social_connection import SocialConnection
 from app.models.follower_snapshot import FollowerSnapshot
 from app.models.user import User
 from app.models.demographics import UserEnrichment
-from app.services.report_service import generate_health_report, DEFAULT_HEALTH_PROMPT
+from app.services.report_service import (
+    DEFAULT_HEALTH_PROMPT,
+    build_health_report_basis,
+    build_snapshot_report_data,
+    enforce_health_report_policy,
+    generate_health_report,
+)
+from app.services.data_snapshot_service import get_latest_data_snapshot, snapshot_reference
+from app.services.alert_coverage_service import coverage_for_requested_window, evaluate_alert_outcome
+from app.services.connection_health_service import build_connection_health_map
 from app.utils.queries import latest_analysis_subquery as _latest_analysis_subquery
 from app.services.plan_service import enforce_feature_access, PlanLimitError, get_user_monthly_usage, PLATFORM_COSTS_USD
 
 router = APIRouter(prefix="/dashboard", tags=["dashboard"])
 
 import re
+
+
+def _latest_snapshot_reference(db: Session, user_id: uuid.UUID) -> dict | None:
+    return snapshot_reference(get_latest_data_snapshot(db, user_id=user_id))
+
+
+def _with_snapshot(payload: dict, db: Session, user_id: uuid.UUID) -> dict:
+    result = dict(payload)
+    result["snapshot"] = _latest_snapshot_reference(db, user_id)
+    return result
 
 _STOPWORDS_PT = frozenset({
     "de", "da", "do", "das", "dos", "a", "o", "as", "os", "e", "em", "na", "no",
@@ -90,6 +109,37 @@ def _clean_post_text(text: str | None, max_len: int = 100) -> str | None:
     if len(t) > max_len:
         return t[:max_len] + "..."
     return t
+
+
+def _coerce_period_date(value: object) -> date | None:
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value.date()
+    if isinstance(value, date):
+        return value
+    if isinstance(value, str):
+        try:
+            return datetime.fromisoformat(value[:10]).date()
+        except ValueError:
+            return None
+    return None
+
+
+def _utc_period_date_expression(db: Session):
+    """Return a database expression that groups timestamps by their UTC date."""
+    bind = db.get_bind()
+    if bind is not None and bind.dialect.name == "postgresql":
+        return func.date(func.timezone("UTC", Comment.published_at))
+    # SQLite is used by deterministic tests and stores our UTC timestamps
+    # without applying a session timezone.
+    return func.date(Comment.published_at)
+
+
+def _utc_date(value: datetime) -> date:
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc).date()
+    return value.astimezone(timezone.utc).date()
 
 
 
@@ -224,12 +274,16 @@ def _build_dashboard_summary(user_id: str, db: Session) -> dict:
             .all()
         )
         for s in summaries:
+            if (s.total_analyzed or 0) <= 0:
+                continue
             if s.emotions_distribution:
                 for emo, cnt in s.emotions_distribution.items():
-                    emotions_agg[emo] += cnt
+                    if isinstance(cnt, (int, float)) and cnt > 0:
+                        emotions_agg[emo] += cnt
             if s.topics_frequency:
                 for topic, cnt in s.topics_frequency.items():
-                    topics_agg[topic] += cnt
+                    if isinstance(cnt, (int, float)) and cnt > 0:
+                        topics_agg[topic] += cnt
 
     # Word frequency from comment texts
     comment_texts = [
@@ -284,6 +338,7 @@ def _build_dashboard_summary(user_id: str, db: Session) -> dict:
         "recent_posts": [
             {
                 "id": str(p.id),
+                "connection_id": str(p.connection_id),
                 "platform": p.platform,
                 "platform_post_id": p.platform_post_id,
                 "post_type": p.post_type,
@@ -323,7 +378,11 @@ def get_dashboard_summary(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    return _build_dashboard_summary(str(current_user.id), db)
+    return _with_snapshot(
+        _build_dashboard_summary(str(current_user.id), db),
+        db,
+        current_user.id,
+    )
 
 
 @router.get("/connection/{connection_id}")
@@ -353,10 +412,14 @@ def get_connection_dashboard(
         Comment.connection_id == connection_id
     ).scalar() or 0
 
-    total_analyzed = db.query(func.count(Comment.id)).filter(
-        Comment.connection_id == connection_id,
-        Comment.status == "processed",
-    ).scalar() or 0
+    latest_analysis = _latest_analysis_subquery()
+    total_analyzed = (
+        db.query(func.count(latest_analysis.c.id))
+        .join(Comment, Comment.id == latest_analysis.c.comment_id)
+        .filter(Comment.connection_id == connection_id)
+        .scalar()
+        or 0
+    )
 
     # Aggregate from PostAnalysisSummary
     summaries = (
@@ -372,11 +435,13 @@ def get_connection_dashboard(
     emotions_agg = Counter()
     topics_agg = Counter()
 
-    if summaries:
+    valid_summaries = [summary for summary in summaries if (summary.total_analyzed or 0) > 0]
+
+    if valid_summaries:
         # Weighted averages by total_analyzed per post (not simple mean of means)
-        w_score_pairs = [(s.avg_score, s.total_analyzed or 0) for s in summaries if s.avg_score is not None and s.total_analyzed]
-        w_pol_pairs = [(s.avg_polarity, s.total_analyzed or 0) for s in summaries if s.avg_polarity is not None and s.total_analyzed]
-        w_scores_pairs = [(s.weighted_score, s.total_analyzed or 0) for s in summaries if s.weighted_score is not None and s.total_analyzed]
+        w_score_pairs = [(s.avg_score, s.total_analyzed or 0) for s in valid_summaries if s.avg_score is not None and s.total_analyzed]
+        w_pol_pairs = [(s.avg_polarity, s.total_analyzed or 0) for s in valid_summaries if s.avg_polarity is not None and s.total_analyzed]
+        w_scores_pairs = [(s.weighted_score, s.total_analyzed or 0) for s in valid_summaries if s.weighted_score is not None and s.total_analyzed]
 
         if w_score_pairs:
             total_w = sum(n for _, n in w_score_pairs)
@@ -388,28 +453,30 @@ def get_connection_dashboard(
             total_w = sum(n for _, n in w_scores_pairs)
             weighted_avg_score = round(sum(s * n for s, n in w_scores_pairs) / total_w, 2) if total_w else None
 
-        neg_total = sum(s.sentiment_distribution.get("negative", 0) for s in summaries if s.sentiment_distribution)
-        neu_total = sum(s.sentiment_distribution.get("neutral", 0) for s in summaries if s.sentiment_distribution)
-        pos_total = sum(s.sentiment_distribution.get("positive", 0) for s in summaries if s.sentiment_distribution)
+        neg_total = sum(s.sentiment_distribution.get("negative", 0) for s in valid_summaries if s.sentiment_distribution)
+        neu_total = sum(s.sentiment_distribution.get("neutral", 0) for s in valid_summaries if s.sentiment_distribution)
+        pos_total = sum(s.sentiment_distribution.get("positive", 0) for s in valid_summaries if s.sentiment_distribution)
         sentiment_distribution = {"negative": neg_total, "neutral": neu_total, "positive": pos_total}
 
-        for s in summaries:
+        for s in valid_summaries:
             if s.emotions_distribution:
                 for emo, cnt in s.emotions_distribution.items():
-                    emotions_agg[emo] += cnt
+                    if isinstance(cnt, (int, float)) and cnt > 0:
+                        emotions_agg[emo] += cnt
             if s.topics_frequency:
                 for topic, cnt in s.topics_frequency.items():
-                    topics_agg[topic] += cnt
+                    if isinstance(cnt, (int, float)) and cnt > 0:
+                        topics_agg[topic] += cnt
 
     # Word frequency from comment texts
     conn_comment_texts = [
         row[0]
         for row in db.query(
             func.coalesce(Comment.text_clean, Comment.text_original)
-        ).filter(
-            Comment.connection_id == connection_id,
-            Comment.status == "processed",
-        ).all()
+        )
+        .join(latest_analysis, latest_analysis.c.comment_id == Comment.id)
+        .filter(Comment.connection_id == connection_id)
+        .all()
         if row[0]
     ]
     word_frequency = _compute_word_frequency(conn_comment_texts, limit=30)
@@ -478,6 +545,7 @@ def get_connection_dashboard(
         s = summary_map.get(str(p.id))
         posts_with_summary.append({
             "id": str(p.id),
+            "connection_id": str(p.connection_id),
             "platform": p.platform,
             "platform_post_id": p.platform_post_id,
             "post_type": p.post_type,
@@ -492,13 +560,13 @@ def get_connection_dashboard(
                 or p.media_urls.get("url")
             ) if isinstance(p.media_urls, dict) else None,
             "summary": {
-                "avg_score": s.avg_score,
-                "sentiment_distribution": s.sentiment_distribution,
+                "avg_score": s.avg_score if (s.total_analyzed or 0) > 0 else None,
+                "sentiment_distribution": s.sentiment_distribution if (s.total_analyzed or 0) > 0 else None,
                 "total_analyzed": s.total_analyzed,
             } if s else None,
         })
 
-    return {
+    return _with_snapshot({
         "connection": {
             "id": str(conn.id),
             "platform": conn.platform,
@@ -521,8 +589,8 @@ def get_connection_dashboard(
         "avg_polarity": avg_polarity,
         "weighted_avg_score": weighted_avg_score,
         "sentiment_distribution": sentiment_distribution,
-        "emotions_distribution": dict(emotions_agg.most_common(10)),
-        "topics_frequency": dict(topics_agg.most_common(15)),
+        "emotions_distribution": dict(emotions_agg.most_common(10)) if emotions_agg else None,
+        "topics_frequency": dict(topics_agg.most_common(15)) if topics_agg else None,
         "word_frequency": word_frequency,
         "posts": posts_with_summary,
         "engagement_totals": engagement,
@@ -531,7 +599,7 @@ def get_connection_dashboard(
         "total_shares": total_shares,
         "engagement_rate": engagement_rate,
         "topics_with_scores": topics_with_scores,
-    }
+    }, db, current_user.id)
 
 
 @cached(prefix="dashboard_trends", ttl=300)
@@ -548,14 +616,15 @@ def _build_trends(user_id: str, connection_id_str: str | None, granularity: str,
     conn_ids = [c.id for c in conn_query.all()]
 
     if not conn_ids:
-        return {"data_points": [], "granularity": granularity}
+        return {"data_points": [], "granularity": granularity, "timezone": "UTC"}
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     latest_analysis = _latest_analysis_subquery()
+    period_expr = _utc_period_date_expression(db)
 
     def trends_query(with_cutoff: bool):
         query = db.query(
-            cast(Comment.published_at, Date).label("period"),
+            period_expr.label("period"),
             func.count(Comment.id).label("total_comments"),
             func.count(latest_analysis.c.id).label("analyzed_comments"),
             func.sum(Comment.like_count).label("total_likes"),
@@ -578,34 +647,34 @@ def _build_trends(user_id: str, connection_id_str: str | None, granularity: str,
         if with_cutoff:
             query = query.filter(Comment.published_at >= cutoff)
         return (
-            query.group_by(cast(Comment.published_at, Date))
-            .order_by(cast(Comment.published_at, Date))
+            query.group_by(period_expr)
+            .order_by(period_expr)
             .all()
         )
 
-    # Query comments grouped by date. days=0 means all-time; otherwise fallback if empty.
+    # days=0 means all-time. A requested window with no data remains empty;
+    # silently replacing it with older data would falsify the selected period.
     if days <= 0:
         query = trends_query(with_cutoff=False)
     else:
         query = trends_query(with_cutoff=True)
-        if not query:
-            query = trends_query(with_cutoff=False)
 
     # Aggregate by granularity
     data_points_map = {}
     for row in query:
-        if row.period is None:
+        period = _coerce_period_date(row.period)
+        if period is None:
             continue
 
         if granularity == "day":
-            key = row.period.isoformat()
+            key = period.isoformat()
         elif granularity == "week":
             # ISO week start (Monday)
-            d = row.period
+            d = period
             week_start = d - timedelta(days=d.weekday())
             key = week_start.isoformat()
         else:  # month
-            key = f"{row.period.year}-{row.period.month:02d}-01"
+            key = f"{period.year}-{period.month:02d}-01"
 
         if key not in data_points_map:
             data_points_map[key] = {
@@ -634,14 +703,14 @@ def _build_trends(user_id: str, connection_id_str: str | None, granularity: str,
 
     # Finalize avg scores
     data_points = []
-    for dp in data_points_map.values():
+    for dp in sorted(data_points_map.values(), key=lambda item: item["period"]):
         if dp["_score_count"] > 0:
             dp["avg_score"] = round(dp["_score_sum"] / dp["_score_count"], 2)
         del dp["_score_sum"]
         del dp["_score_count"]
         data_points.append(dp)
 
-    return {"data_points": data_points, "granularity": granularity}
+    return {"data_points": data_points, "granularity": granularity, "timezone": "UTC"}
 
 
 @router.get("/trends")
@@ -680,7 +749,7 @@ def get_trends_detailed(
     conn_ids = [c.id for c in conn_query.all()]
 
     if not conn_ids:
-        return {"data_points": [], "granularity": granularity}
+        return {"data_points": [], "granularity": granularity, "timezone": "UTC"}
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     latest_analysis = _latest_analysis_subquery()
@@ -703,13 +772,11 @@ def get_trends_detailed(
         rows = detailed_rows(with_cutoff=False)
     else:
         rows = detailed_rows(with_cutoff=True)
-        if not rows:
-            rows = detailed_rows(with_cutoff=False)
 
     data_points_map: dict = {}
 
     for row in rows:
-        period_date = row.published_at.date()
+        period_date = _utc_date(row.published_at)
 
         if granularity == "day":
             key = period_date.isoformat()
@@ -762,7 +829,7 @@ def get_trends_detailed(
             "topics": dict(dp["topics"].most_common(10)),
         })
 
-    return {"data_points": data_points, "granularity": granularity}
+    return {"data_points": data_points, "granularity": granularity, "timezone": "UTC"}
 
 
 class HealthReportRequest(BaseModel):
@@ -770,109 +837,34 @@ class HealthReportRequest(BaseModel):
 
 
 def _build_health_report(db: Session, user_id, custom_prompt: str | None = None):
-    connections = (
-        db.query(SocialConnection)
-        .filter(SocialConnection.user_id == user_id)
-        .all()
-    )
+    # Capture the immutable reference before building input or calling the LLM.
+    # A newer sync during generation must not silently rebind this report.
+    snapshot = _latest_snapshot_reference(db, user_id)
+    generated_at = datetime.now(timezone.utc)
+    basis = build_health_report_basis(snapshot, generated_at=generated_at)
+    data_summary = build_snapshot_report_data(snapshot) if snapshot else {}
 
-    if not connections:
+    if not snapshot or basis["recommendation_mode"] == "blocked":
         return {
-            "report_text": "Nenhuma rede social conectada. Conecte suas contas para gerar o relatório.",
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-            "data_summary": {},
+            "snapshot": snapshot,
+            "report_basis": basis,
+            "report_text": None,
+            "generated_at": generated_at.isoformat(),
+            "data_summary": data_summary,
         }
 
-    # Build data summary for the LLM
-    platforms_data = []
-    all_emotions = Counter()
-    all_topics = Counter()
-
-    for conn in connections:
-        posts = db.query(Post).filter(Post.connection_id == conn.id).all()
-        post_ids = [p.id for p in posts]
-
-        summaries = (
-            db.query(PostAnalysisSummary)
-            .filter(PostAnalysisSummary.post_id.in_(post_ids))
-            .all()
-        ) if post_ids else []
-
-        total_comments = db.query(func.count(Comment.id)).filter(
-            Comment.connection_id == conn.id
-        ).scalar() or 0
-
-        total_analyzed = db.query(func.count(Comment.id)).filter(
-            Comment.connection_id == conn.id,
-            Comment.status == "processed",
-        ).scalar() or 0
-
-        scores = [s.avg_score for s in summaries if s.avg_score is not None]
-        avg = round(sum(scores) / len(scores), 2) if scores else None
-
-        sent = {"negative": 0, "neutral": 0, "positive": 0}
-        for s in summaries:
-            if s.sentiment_distribution:
-                for k, v in s.sentiment_distribution.items():
-                    sent[k] = sent.get(k, 0) + v
-
-            if s.emotions_distribution:
-                for emo, cnt in s.emotions_distribution.items():
-                    all_emotions[emo] += cnt
-            if s.topics_frequency:
-                for topic, cnt in s.topics_frequency.items():
-                    all_topics[topic] += cnt
-
-        platforms_data.append({
-            "platform": conn.platform,
-            "username": conn.username,
-            "followers": conn.followers_count,
-            "total_posts": len(posts),
-            "total_comments": total_comments,
-            "total_analyzed": total_analyzed,
-            "avg_score": avg,
-            "sentiment_distribution": sent,
-        })
-
-    # Fetch 5 sample comments per sentiment (positive, neutral, negative)
-    conn_ids = [c.id for c in connections]
-    sample_comments = {"positive": [], "neutral": [], "negative": []}
-    sentiment_ranges = {
-        "positive": (7.0, 10.0),
-        "neutral": (4.0, 6.99),
-        "negative": (0.0, 3.99),
-    }
-    for sentiment, (lo, hi) in sentiment_ranges.items():
-        rows = (
-            db.query(Comment.text_clean, CommentAnalysis.score_0_10)
-            .join(CommentAnalysis, CommentAnalysis.comment_id == Comment.id)
-            .filter(
-                Comment.connection_id.in_(conn_ids),
-                Comment.status == "processed",
-                CommentAnalysis.score_0_10 >= lo,
-                CommentAnalysis.score_0_10 <= hi,
-            )
-            .order_by(CommentAnalysis.score_0_10.desc() if sentiment == "positive" else CommentAnalysis.score_0_10.asc())
-            .limit(5)
-            .all()
-        )
-        sample_comments[sentiment] = [
-            {"text": r.text_clean[:200], "score": r.score_0_10}
-            for r in rows
-        ]
-
-    data_summary = {
-        "platforms": platforms_data,
-        "top_emotions": dict(all_emotions.most_common(7)),
-        "top_topics": dict(all_topics.most_common(10)),
-        "sample_comments": sample_comments,
-    }
-
-    report_text = generate_health_report(data_summary, custom_prompt=custom_prompt)
+    # Custom prompts can only influence a report whose evidence allows current
+    # recommendations. Historical and qualified reports use the guarded prompt.
+    effective_prompt = custom_prompt if basis["recommendation_mode"] == "current" else None
+    raw_report = generate_health_report(data_summary, custom_prompt=effective_prompt)
+    report_text, source = enforce_health_report_policy(raw_report, snapshot, basis)
+    basis["source"] = source
 
     return {
+        "snapshot": snapshot,
+        "report_basis": basis,
         "report_text": report_text,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": generated_at.isoformat(),
         "data_summary": data_summary,
     }
 
@@ -892,6 +884,49 @@ def _count_analyzed(db: Session, user_id) -> int:
         Comment.connection_id.in_(conn_ids),
         Comment.status == "processed",
     ).scalar() or 0
+
+
+def _normalize_cached_health_report(cached_report: dict) -> dict:
+    """Keep a cached report bound to its original snapshot and migrate legacy cache safely."""
+    result = dict(cached_report)
+    snapshot = result.get("snapshot")
+    generated_at = result.get("generated_at")
+    computed_basis = build_health_report_basis(snapshot, generated_at=generated_at)
+    cached_basis = result.get("report_basis") or {}
+    raw_report = result.get("report_text") or ""
+
+    cached_snapshot_id = cached_basis.get("snapshot_id")
+    computed_snapshot_id = computed_basis.get("snapshot_id")
+    if cached_snapshot_id and cached_snapshot_id != computed_snapshot_id:
+        computed_basis.update({
+            "recommendation_mode": "blocked",
+            "reason_code": "report_snapshot_mismatch",
+            "source": "none",
+        })
+        result["report_text"] = None
+        result["report_basis"] = computed_basis
+        return result
+
+    basis_matches = (
+        cached_basis.get("contract_version") == computed_basis["contract_version"]
+        and cached_snapshot_id == computed_snapshot_id
+        and cached_basis.get("recommendation_mode") == computed_basis["recommendation_mode"]
+    )
+    if basis_matches:
+        result["report_basis"] = cached_basis
+        return result
+
+    if not snapshot or computed_basis["recommendation_mode"] == "blocked":
+        result["report_text"] = None
+    elif computed_basis["recommendation_mode"] == "current":
+        result["report_text"] = raw_report.strip() or None
+        computed_basis["source"] = "legacy_llm" if raw_report else "none"
+    else:
+        safe_report, source = enforce_health_report_policy(raw_report, snapshot, computed_basis)
+        result["report_text"] = safe_report
+        computed_basis["source"] = source
+    result["report_basis"] = computed_basis
+    return result
 
 
 @router.get("/health-report")
@@ -916,6 +951,7 @@ def get_health_report(
             pass
 
     if cached_report:
+        cached_report = _normalize_cached_health_report(cached_report)
         # Check if there's new data since last report
         cached_analyzed = 0
         for p in cached_report.get("data_summary", {}).get("platforms", []):
@@ -925,11 +961,14 @@ def get_health_report(
         return cached_report
 
     # No cache — return empty so frontend shows "Gerar relatório" button
+    snapshot = _latest_snapshot_reference(db, current_user.id)
     return {
         "report_text": None,
         "generated_at": None,
         "data_summary": {},
         "has_new_data": _count_analyzed(db, current_user.id) > 0,
+        "snapshot": snapshot,
+        "report_basis": build_health_report_basis(snapshot, generated_at=None),
     }
 
 
@@ -950,7 +989,8 @@ def post_health_report(
     result = _build_health_report(db, current_user.id, custom_prompt=body.custom_prompt)
 
     r = get_redis()
-    if r and "indisponível" not in result.get("report_text", ""):
+    report_text = result.get("report_text") or ""
+    if r and report_text and "indisponível" not in report_text:
         try:
             cache_key = f"health_report:{current_user.id}"
             r.setex(cache_key, HEALTH_REPORT_TTL, _json.dumps(result, default=str))
@@ -1021,11 +1061,11 @@ def get_platform_compare(
 
     platforms.sort(key=lambda p: p["positive_rate"], reverse=True)
 
-    return {
+    return _with_snapshot({
         "days": days,
         "platforms": platforms,
         "generated_at": datetime.now(timezone.utc).isoformat(),
-    }
+    }, db, current_user.id)
 
 
 @router.get("/compare-connections")
@@ -1036,7 +1076,11 @@ def get_connections_compare(
     db: Session = Depends(get_db),
 ):
     """Compare sentiment data between specific connections (profiles)."""
-    ids = [uuid.UUID(cid.strip()) for cid in connection_ids.split(",") if cid.strip()]
+    ids = list(dict.fromkeys(
+        uuid.UUID(cid.strip())
+        for cid in connection_ids.split(",")
+        if cid.strip()
+    ))
 
     # Verify ownership
     valid_conns = (
@@ -1051,16 +1095,28 @@ def get_connections_compare(
     conn_map = {c.id: c for c in valid_conns}
 
     if not valid_ids:
-        return {"days": days, "connections": [], "generated_at": datetime.now(timezone.utc).isoformat()}
+        return _with_snapshot(
+            {"days": days, "connections": [], "generated_at": datetime.now(timezone.utc).isoformat()},
+            db,
+            current_user.id,
+        )
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     latest_analysis = _latest_analysis_subquery()
+    health_by_connection = build_connection_health_map(
+        db,
+        valid_conns,
+        user_id=current_user.id,
+        plan=current_user.plan,
+    )
 
     rows = (
         db.query(
             Comment.connection_id.label("connection_id"),
             func.count(Comment.id).label("total_comments"),
             func.count(latest_analysis.c.id).label("total_analyzed"),
+            func.min(Comment.published_at).label("observed_period_start"),
+            func.max(Comment.published_at).label("observed_period_end"),
             func.avg(latest_analysis.c.score_0_10).label("avg_score"),
             func.avg(latest_analysis.c.polarity).label("avg_polarity"),
             func.sum(case((latest_analysis.c.score_0_10 > 6, 1), else_=0)).label("positive"),
@@ -1077,36 +1133,57 @@ def get_connections_compare(
         .all()
     )
 
-    # Get emotions per connection from PostAnalysisSummary
+    rows_by_connection = {row.connection_id: row for row in rows}
+
+    # Preserve the order selected by the user and keep an explicit zero-data
+    # series instead of silently removing a requested profile.
     connections_data = []
-    for row in rows:
-        conn = conn_map.get(row.connection_id)
-        total_analyzed = int(row.total_analyzed or 0)
-        positive = int(row.positive or 0)
-        neutral = int(row.neutral or 0)
-        negative = int(row.negative or 0)
+    for connection_id in (item for item in ids if item in conn_map):
+        conn = conn_map[connection_id]
+        row = rows_by_connection.get(connection_id)
+        total_comments = int(row.total_comments or 0) if row is not None else 0
+        total_analyzed = int(row.total_analyzed or 0) if row is not None else 0
+        positive = int(row.positive or 0) if row is not None else 0
+        neutral = int(row.neutral or 0) if row is not None else 0
+        negative = int(row.negative or 0) if row is not None else 0
         safe_total = total_analyzed if total_analyzed > 0 else 1
 
-        # Get emotions from summaries
-        post_ids = [p.id for p in db.query(Post.id).filter(Post.connection_id == row.connection_id).all()]
+        # Emotions use the same valid-analysis and time-window denominator as
+        # the score, not all-time post summaries.
         emotions_agg = Counter()
-        if post_ids:
-            summaries = db.query(PostAnalysisSummary).filter(PostAnalysisSummary.post_id.in_(post_ids)).all()
-            for s in summaries:
-                if s.emotions_distribution:
-                    for emo, cnt in s.emotions_distribution.items():
-                        emotions_agg[emo] += cnt
+        emotion_rows = (
+            db.query(latest_analysis.c.emotions)
+            .join(Comment, Comment.id == latest_analysis.c.comment_id)
+            .filter(
+                Comment.connection_id == connection_id,
+                Comment.published_at.isnot(None),
+                Comment.published_at >= cutoff,
+            )
+            .all()
+        )
+        for emotion_row in emotion_rows:
+            if emotion_row.emotions and isinstance(emotion_row.emotions, list):
+                for emotion in emotion_row.emotions:
+                    emotions_agg[str(emotion)] += 1
+
+        health = health_by_connection[connection_id].as_dict()
 
         connections_data.append({
-            "connection_id": str(row.connection_id),
-            "platform": conn.platform if conn else "unknown",
-            "username": conn.username if conn else "unknown",
-            "display_name": conn.display_name if conn else None,
-            "profile_image_url": conn.profile_image_url if conn else None,
-            "total_comments": int(row.total_comments or 0),
+            "connection_id": str(connection_id),
+            "platform": conn.platform,
+            "username": conn.username,
+            "display_name": conn.display_name,
+            "profile_image_url": conn.profile_image_url,
+            # Legacy names remain for existing clients. `total_analyzed` is
+            # already the count of latest valid scored analyses.
+            "total_comments": total_comments,
             "total_analyzed": total_analyzed,
-            "avg_score": round(float(row.avg_score), 2) if row.avg_score is not None else None,
-            "avg_polarity": round(float(row.avg_polarity), 2) if row.avg_polarity is not None else None,
+            "saved_count": total_comments,
+            "valid_count": total_analyzed,
+            "observed_period_start": row.observed_period_start if row is not None else None,
+            "observed_period_end": row.observed_period_end if row is not None else None,
+            "avg_score": round(float(row.avg_score), 2) if row is not None and row.avg_score is not None else None,
+            "avg_polarity": round(float(row.avg_polarity), 2) if row is not None and row.avg_polarity is not None else None,
             "sentiment_distribution": {
                 "positive": positive,
                 "neutral": neutral,
@@ -1115,15 +1192,14 @@ def get_connections_compare(
             "positive_rate": round((positive / safe_total) * 100, 2),
             "negative_rate": round((negative / safe_total) * 100, 2),
             "emotions_distribution": dict(emotions_agg.most_common(10)),
+            "health": health,
         })
 
-    connections_data.sort(key=lambda c: c["positive_rate"], reverse=True)
-
-    return {
+    return _with_snapshot({
         "days": days,
         "connections": connections_data,
         "generated_at": datetime.now(timezone.utc).isoformat(),
-    }
+    }, db, current_user.id)
 
 
 @router.get("/alerts")
@@ -1134,7 +1210,8 @@ def get_reputation_alerts(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    evaluated_at = datetime.now(timezone.utc)
+    cutoff = evaluated_at - timedelta(days=days)
     latest_analysis = _latest_analysis_subquery()
 
     rows = (
@@ -1202,12 +1279,40 @@ def get_reputation_alerts(
         )
     )
 
-    return {
+    latest_snapshot = get_latest_data_snapshot(db, user_id=current_user.id)
+    reference = snapshot_reference(latest_snapshot)
+    expected_profile_ids = [
+        str(profile.get("connection_id"))
+        for profile in (reference or {}).get("profiles", [])
+        if profile.get("connection_id")
+    ]
+    window_coverage = coverage_for_requested_window(
+        latest_snapshot.coverage if latest_snapshot else None,
+        requested_start=cutoff,
+        requested_end=evaluated_at,
+        expected_profile_ids=expected_profile_ids,
+        eligible_count=latest_snapshot.eligible_count if latest_snapshot else None,
+        valid_count=latest_snapshot.valid_count if latest_snapshot else None,
+    )
+    analyzed_by_profile = {
+        str(row.connection_id): int(row.total_analyzed or 0)
+        for row in rows
+    }
+    evaluation = evaluate_alert_outcome(
+        alerts_count=len(alerts),
+        snapshot_reference=reference,
+        coverage=window_coverage,
+        analyzed_by_profile=analyzed_by_profile,
+        min_analyzed=min_analyzed,
+    )
+
+    return _with_snapshot({
         "days": days,
         "total_alerts": len(alerts),
         "alerts": alerts,
-        "generated_at": datetime.now(timezone.utc).isoformat(),
-    }
+        "evaluation": evaluation,
+        "generated_at": evaluated_at.isoformat(),
+    }, db, current_user.id)
 
 
 # ---------------------------------------------------------------------------
@@ -1333,12 +1438,13 @@ def get_trends_by_platform(
 
     cutoff = datetime.now(timezone.utc) - timedelta(days=days) if days > 0 else None
     latest_analysis = _latest_analysis_subquery()
+    period_expr = func.date(Comment.published_at)
 
     platforms: dict[str, list] = {}
     for conn in connections:
         query = (
             db.query(
-                cast(Comment.published_at, Date).label("period"),
+                period_expr.label("period"),
                 func.avg(latest_analysis.c.score_0_10).label("avg_score"),
             )
             .outerjoin(latest_analysis, latest_analysis.c.comment_id == Comment.id)
@@ -1351,8 +1457,8 @@ def get_trends_by_platform(
             query = query.filter(Comment.published_at >= cutoff)
 
         rows = (
-            query.group_by(cast(Comment.published_at, Date))
-            .order_by(cast(Comment.published_at, Date))
+            query.group_by(period_expr)
+            .order_by(period_expr)
             .all()
         )
 
@@ -1361,9 +1467,10 @@ def get_trends_by_platform(
             platforms[platform_key] = []
 
         for row in rows:
-            if row.period is not None:
+            period = _coerce_period_date(row.period)
+            if period is not None:
                 platforms[platform_key].append({
-                    "date": row.period.isoformat(),
+                    "date": period.isoformat(),
                     "score": round(float(row.avg_score), 2) if row.avg_score is not None else None,
                 })
 

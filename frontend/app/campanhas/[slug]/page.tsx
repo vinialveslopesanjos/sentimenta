@@ -39,7 +39,7 @@ export default async function CampaignPage({ params }: CampaignRouteProps) {
             </Link>
             <CampaignCta
               href={page.ctaHref}
-              label="Comece gratis"
+              label="Comece grátis"
               campaign={page.slug}
               location="nav"
             />
@@ -78,14 +78,14 @@ export default async function CampaignPage({ params }: CampaignRouteProps) {
           <div className="mb-4 flex items-center gap-2">
             <BarChart3 className="h-5 w-5" style={{ color: "var(--primary)" }} />
             <span className="text-sm font-semibold" style={{ color: "var(--text-primary)" }}>
-              Exemplo do que voce passa a enxergar
+              Exemplo do que você passa a enxergar
             </span>
           </div>
           <div className="grid grid-cols-3 gap-3">
             {[
               ["Score", "7.8"],
               ["Negativos", "18%"],
-              ["Risco", "Medio"],
+              ["Risco", "Médio"],
             ].map(([label, value]) => (
               <div key={label} className="rounded-md p-4" style={{ backgroundColor: "var(--bg-subtle)" }}>
                 <p className="text-xs" style={{ color: "var(--text-muted)" }}>{label}</p>
@@ -95,9 +95,9 @@ export default async function CampaignPage({ params }: CampaignRouteProps) {
           </div>
           <div className="mt-4 space-y-3">
             {[
-              ["Elogio recorrente", "produto facil de entender"],
-              ["Critica recorrente", "duvida sobre preco"],
-              ["Acao sugerida", "responder objeção no proximo post"],
+              ["Elogio recorrente", "produto fácil de entender"],
+              ["Crítica recorrente", "dúvida sobre preço"],
+              ["Ação sugerida", "responder objeção no próximo post"],
             ].map(([label, value]) => (
               <div key={label} className="flex gap-3 rounded-md border p-4" style={{ borderColor: "var(--border)" }}>
                 <MessageSquareText className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--primary)" }} />
@@ -126,7 +126,7 @@ export default async function CampaignPage({ params }: CampaignRouteProps) {
         <div>
           <div className="mb-5 flex items-center gap-2">
             <AlertTriangle className="h-5 w-5" style={{ color: "var(--secondary)" }} />
-            <h2 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>Dores que essa pagina ataca</h2>
+            <h2 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>Dores que essa página ataca</h2>
           </div>
           <div className="space-y-3">
             {page.painPoints.map((point) => (

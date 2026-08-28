@@ -13,10 +13,13 @@ import {
   Bar,
 } from "recharts";
 import { Eye, ThumbsUp, MessageCircle } from "lucide-react";
+import { useLocale, useTranslations } from "next-intl";
 
 import { Section } from "@/components/ds/Section";
 import { StatCard } from "@/components/ds/StatCard";
 import { useTheme } from "@/components/ThemeContext";
+import { ChartTextAlternative } from "@/components/charts/ChartTextAlternative";
+import { formatChartNumber, getPeriodRange, getTrendFact } from "@/lib/chartAccessibility";
 
 // Hardcoded pt-BR strings (sem arquivo de tradução)
 const labels = {
@@ -64,6 +67,8 @@ function shortDate(iso: string): string {
 
 export default function YouTubeStats({ data }: { data: YouTubeStatsData }) {
   const { t } = useTheme();
+  const locale = useLocale();
+  const ta = useTranslations("charts.accessibility");
   const stats = data.channel_stats;
 
   const growthData = useMemo(
@@ -79,6 +84,45 @@ export default function YouTubeStats({ data }: { data: YouTubeStatsData }) {
       })),
     [data.top_videos],
   );
+  const growthFact = getTrendFact(growthData, point => point.date, point => point.subscribers);
+  const growthSummary = growthFact
+    ? growthFact.start === growthFact.end
+      ? ta("singlePoint", {
+          series: labels.subscribers,
+          value: formatChartNumber(growthFact.to, locale, 0),
+          unit: ta("units.subscribers"),
+          period: growthFact.end,
+        })
+      : growthFact.direction === "up"
+        ? ta("trendUp", {
+            series: labels.subscribers,
+            delta: formatChartNumber(Math.abs(growthFact.delta), locale, 0),
+            unit: ta("units.subscribers"),
+            from: formatChartNumber(growthFact.from, locale, 0),
+            to: formatChartNumber(growthFact.to, locale, 0),
+            start: growthFact.start,
+            end: growthFact.end,
+          })
+        : growthFact.direction === "down"
+          ? ta("trendDown", {
+              series: labels.subscribers,
+              delta: formatChartNumber(Math.abs(growthFact.delta), locale, 0),
+              unit: ta("units.subscribers"),
+              from: formatChartNumber(growthFact.from, locale, 0),
+              to: formatChartNumber(growthFact.to, locale, 0),
+              start: growthFact.start,
+              end: growthFact.end,
+            })
+          : ta("trendStable", {
+              series: labels.subscribers,
+              unit: ta("units.subscribers"),
+              from: formatChartNumber(growthFact.from, locale, 0),
+              to: formatChartNumber(growthFact.to, locale, 0),
+              delta: 0,
+              start: growthFact.start,
+              end: growthFact.end,
+            })
+    : "";
 
   const tooltipStyle = {
     borderRadius: 12,
@@ -105,9 +149,9 @@ export default function YouTubeStats({ data }: { data: YouTubeStatsData }) {
       {/* Subscriber Growth chart */}
       {growthData.length > 1 && (
         <Section title={labels.subscriberGrowth}>
-          <div style={{ width: "100%", height: 240 }}>
+          <div data-chart-visual="youtube-subscriber-growth" style={{ width: "100%", height: 240 }}>
             <ResponsiveContainer>
-              <AreaChart data={growthData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }}>
+              <AreaChart data={growthData} margin={{ top: 8, right: 8, bottom: 0, left: 0 }} accessibilityLayer={false}>
                 <defs>
                   <linearGradient id="yt-subscribers-fill" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="0%" stopColor={t.primary} stopOpacity={0.3} />
@@ -139,6 +183,21 @@ export default function YouTubeStats({ data }: { data: YouTubeStatsData }) {
               </AreaChart>
             </ResponsiveContainer>
           </div>
+          <ChartTextAlternative
+            chartId="youtube-subscriber-growth"
+            title={labels.subscriberGrowth}
+            summary={growthSummary}
+            period={getPeriodRange(growthData, point => point.date, ta("currentSlice"))}
+            unit={ta("units.subscribers")}
+            columns={[
+              { key: "date", label: ta("columns.date") },
+              { key: "subscribers", label: ta("columns.subscribers"), numeric: true },
+            ]}
+            rows={growthData.map(point => ({
+              date: point.date,
+              subscribers: formatChartNumber(point.subscribers, locale, 0),
+            }))}
+          />
         </Section>
       )}
 

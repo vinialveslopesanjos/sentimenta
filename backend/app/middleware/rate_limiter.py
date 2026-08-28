@@ -9,21 +9,31 @@ from app.core.config import settings
 
 
 rate_limit_redis_client: Optional[redis.Redis] = None
+rate_limit_redis_unavailable_until = 0.0
+REDIS_TIMEOUT_SECONDS = 0.2
+REDIS_RETRY_AFTER_SECONDS = 30.0
 
 
 def get_rate_limit_redis() -> Optional[redis.Redis]:
-    global rate_limit_redis_client
+    global rate_limit_redis_client, rate_limit_redis_unavailable_until
     if not settings.RATE_LIMIT_REDIS_URL:
         return None
     if rate_limit_redis_client is None:
+        now = time.monotonic()
+        if rate_limit_redis_unavailable_until > now:
+            return None
         try:
             rate_limit_redis_client = redis.from_url(
                 settings.RATE_LIMIT_REDIS_URL,
                 decode_responses=True,
+                socket_connect_timeout=REDIS_TIMEOUT_SECONDS,
+                socket_timeout=REDIS_TIMEOUT_SECONDS,
+                retry_on_timeout=False,
             )
             rate_limit_redis_client.ping()
         except Exception:
             rate_limit_redis_client = None
+            rate_limit_redis_unavailable_until = now + REDIS_RETRY_AFTER_SECONDS
     return rate_limit_redis_client
 
 

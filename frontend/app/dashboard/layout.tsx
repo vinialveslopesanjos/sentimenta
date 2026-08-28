@@ -2,8 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { authApi, creditsApi } from "@/lib/api";
+import { authApi, creditsApi, dataSnapshotsApi } from "@/lib/api";
 import { clearTokens, getToken } from "@/lib/auth";
+import type { DataSnapshot } from "@sentimenta/types";
 import { identifyUser } from "@/lib/tracking";
 import SidebarNew from "@/components/SidebarNew";
 import { ThemeProvider, useTheme } from "@/components/ThemeContext";
@@ -12,6 +13,23 @@ import { useTranslations } from "next-intl";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
 import OnboardingModal from "@/components/OnboardingModal";
 import { CreditDepletedBanner } from "@/components/CreditBalance";
+import { GlobalDataStatus } from "@/components/data/GlobalDataStatus";
+
+const ANALYTIC_ROUTE_PREFIXES = [
+  "/dashboard/analysis",
+  "/dashboard/alerts",
+  "/dashboard/profile/",
+  "/dashboard/post/",
+  "/dashboard/instagram",
+  "/dashboard/youtube",
+  "/dashboard/tiktok",
+  "/dashboard/twitter",
+];
+
+function isAnalyticSurface(pathname: string): boolean {
+  return pathname === "/dashboard"
+    || ANALYTIC_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
 
 function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const router = useRouter();
@@ -20,6 +38,9 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [creditsDepleted, setCreditsDepleted] = useState(false);
   const [userPlan, setUserPlan] = useState("free");
+  const [dataSnapshot, setDataSnapshot] = useState<DataSnapshot | null>(null);
+  const [dataStatusLoadState, setDataStatusLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const [dataStatusRetry, setDataStatusRetry] = useState(0);
   const { theme, toggleTheme } = useTheme();
   const tl = useTranslations("layout");
   const tc = useTranslations("common");
@@ -58,6 +79,30 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
       });
   }, [router]);
 
+  useEffect(() => {
+    if (!ok || !isAnalyticSurface(pathname)) return;
+    const token = getToken();
+    if (!token) return;
+
+    let cancelled = false;
+    setDataStatusLoadState((current) => current === "ready" ? "ready" : "loading");
+    dataSnapshotsApi.latest(token)
+      .then((snapshot) => {
+        if (cancelled) return;
+        setDataSnapshot(snapshot);
+        setDataStatusLoadState("ready");
+      })
+      .catch(() => {
+        if (cancelled) return;
+        setDataSnapshot(null);
+        setDataStatusLoadState("error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [dataStatusRetry, ok, pathname]);
+
   if (!ok) {
     return (
       <div className="fixed inset-0 grid place-items-center" style={{ backgroundColor: "var(--bg-page)" }}>
@@ -92,7 +137,9 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
           <div className="flex items-center gap-2 md:gap-3">
             <LanguageSwitcher />
             <button
+              type="button"
               onClick={toggleTheme}
+              aria-label={theme === "light" ? tl("darkMode") : tl("lightMode")}
               className="p-2 rounded-xl transition-colors"
               style={{ color: "var(--text-muted)" }}
               title={theme === "light" ? tl("darkMode") : tl("lightMode")}
@@ -100,14 +147,18 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
               {theme === "light" ? <Moon className="w-[18px] h-[18px]" strokeWidth={1.5} /> : <Sun className="w-[18px] h-[18px]" strokeWidth={1.5} />}
             </button>
             <button
+              type="button"
               className="relative p-2 rounded-xl transition-colors"
               onClick={() => router.push("/dashboard/alerts")}
+              aria-label={tl("openAlerts")}
+              title={tl("openAlerts")}
               style={{ color: "var(--text-muted)" }}
             >
               <Bell className="w-[18px] h-[18px]" strokeWidth={1.5} />
-              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ backgroundColor: "var(--secondary)" }} />
+              <span aria-hidden="true" className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full" style={{ backgroundColor: "var(--secondary)" }} />
             </button>
             <button
+              type="button"
               onClick={() => router.push("/dashboard/connect")}
               className="hidden sm:inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-medium transition-colors"
               style={{
@@ -120,6 +171,13 @@ function AppLayoutInner({ children }: { children: React.ReactNode }) {
             </button>
           </div>
         </header>
+        {isAnalyticSurface(pathname) && (
+          <GlobalDataStatus
+            snapshot={dataSnapshot}
+            loadState={dataStatusLoadState}
+            onRetry={() => setDataStatusRetry((value) => value + 1)}
+          />
+        )}
         <main className="p-4 md:p-6 lg:p-8">
           <div className="max-w-[1320px] mx-auto">
             {creditsDepleted && (

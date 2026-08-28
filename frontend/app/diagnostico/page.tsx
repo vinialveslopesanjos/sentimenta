@@ -61,7 +61,7 @@ export default function DiagnosticoPage() {
 
       if (!res.ok) {
         const payload = await res.json().catch(() => ({}));
-        throw new Error(payload.detail || "Nao foi possivel enviar agora.");
+        throw new Error(payload.detail || "Não foi possível enviar agora.");
       }
 
       track("diagnostic_request_submitted", {
@@ -71,7 +71,7 @@ export default function DiagnosticoPage() {
       setSent(true);
       setForm(initialForm);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Nao foi possivel enviar agora.");
+      setError(err instanceof Error ? err.message : "Não foi possível enviar agora.");
     } finally {
       setSending(false);
     }
@@ -100,21 +100,22 @@ export default function DiagnosticoPage() {
             Voltar
           </Link>
           <span className="inline-flex rounded-full px-3 py-1 text-xs font-semibold" style={{ color: "var(--primary)", backgroundColor: "var(--primary-bg)" }}>
-            Diagnostico gratuito
+            Diagnóstico gratuito
           </span>
           <h1 className="mt-5" style={{ color: "var(--text-primary)", fontFamily: "'Outfit', sans-serif", fontSize: "clamp(2rem, 5vw, 3.4rem)", fontWeight: 800, letterSpacing: "0", lineHeight: 1.04 }}>
-            Me mande um perfil ou post publico. Eu devolvo 3 achados praticos.
+            Me mande um perfil ou post público. Eu devolvo 3 achados práticos.
           </h1>
           <p className="mt-5 text-lg leading-8" style={{ color: "var(--text-muted)" }}>
-            A ideia e simples: olhar comentarios reais e mostrar sentimento geral, temas que aparecem e pontos
-            que merecem resposta ou atencao.
+            A ideia é simples: olhar comentários reais e mostrar sentimento geral, temas que aparecem e pontos
+            que merecem resposta ou atenção.
           </p>
 
           <div className="mt-8 space-y-3">
             {[
-              "Nao precisa conectar conta para pedir a amostra.",
-              "Use um @ publico ou link de post de Instagram/YouTube.",
-              "Voce recebe uma resposta manual, sem promessa inventada.",
+              "Não precisa conectar conta para pedir a amostra.",
+              "Use um @ público ou link de post de Instagram/YouTube.",
+              "Você recebe uma resposta manual, sem promessa inventada.",
+              "Eu respondo em até 24h úteis com uma leitura curta e acionável.",
             ].map((item) => (
               <div key={item} className="flex gap-3">
                 <CheckCircle2 className="mt-1 h-5 w-5 shrink-0" style={{ color: "var(--sentiment-positive)" }} />
@@ -149,10 +150,10 @@ export default function DiagnosticoPage() {
             <form onSubmit={handleSubmit} className="space-y-5">
               <div>
                 <h2 className="text-2xl font-bold" style={{ color: "var(--text-primary)" }}>
-                  Pedir diagnostico
+                  Pedir diagnóstico
                 </h2>
                 <p className="mt-2 text-sm leading-6" style={{ color: "var(--text-muted)" }}>
-                  Preencha o minimo necessario para eu saber o que analisar.
+                  Preencha o mínimo necessário para eu saber o que analisar.
                 </p>
               </div>
 
@@ -183,16 +184,16 @@ export default function DiagnosticoPage() {
               </div>
 
               <label className="block">
-                <span className="mb-2 block text-sm font-medium" style={{ color: "var(--text-primary)" }}>Voce e...</span>
+                <span className="mb-2 block text-sm font-medium" style={{ color: "var(--text-primary)" }}>Você é...</span>
                 <select
                   value={form.role}
                   onChange={(event) => update("role", event.target.value)}
                   className="w-full rounded-xl px-4 py-3 text-sm outline-none"
                   style={{ border: "1px solid var(--border)", backgroundColor: "var(--bg-subtle)", color: "var(--text-primary)" }}
                 >
-                  <option value="agencia">Agencia</option>
+                  <option value="agencia">Agência</option>
                   <option value="social-media">Social media</option>
-                  <option value="criador">Criador de conteudo</option>
+                  <option value="criador">Criador de conteúdo</option>
                   <option value="marca">Marca/empresa</option>
                   <option value="outro">Outro</option>
                 </select>
@@ -208,7 +209,7 @@ export default function DiagnosticoPage() {
               />
 
               <label className="block">
-                <span className="mb-2 block text-sm font-medium" style={{ color: "var(--text-primary)" }}>Perfil ou post publico</span>
+                <span className="mb-2 block text-sm font-medium" style={{ color: "var(--text-primary)" }}>Perfil ou post público</span>
                 <input
                   required
                   value={form.profileOrPost}
@@ -227,7 +228,7 @@ export default function DiagnosticoPage() {
                   onChange={(event) => update("context", event.target.value)}
                   className="w-full resize-none rounded-xl px-4 py-3 text-sm outline-none"
                   style={{ border: "1px solid var(--border)", backgroundColor: "var(--bg-subtle)", color: "var(--text-primary)" }}
-                  placeholder="Ex: quero entender se a campanha gerou critica, duvida ou oportunidade de resposta."
+                  placeholder="Ex: quero entender se a campanha gerou crítica, dúvida ou oportunidade de resposta."
                 />
               </label>
 
@@ -244,7 +245,7 @@ export default function DiagnosticoPage() {
                 disabled={sending}
                 icon={sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
               >
-                {sending ? "Enviando..." : "Pedir diagnostico gratuito"}
+                {sending ? "Enviando..." : "Pedir diagnóstico gratuito"}
               </Button>
             </form>
           )}

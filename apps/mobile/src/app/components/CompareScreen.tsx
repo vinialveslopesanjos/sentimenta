@@ -88,7 +88,7 @@ export function CompareScreen() {
       { metric: "Score", profile1: compA.avg_score ?? 0, profile2: compB.avg_score ?? 0 },
       { metric: "Positivo %", profile1: compA.positive_rate, profile2: compB.positive_rate },
       { metric: "Negativo %", profile1: compA.negative_rate, profile2: compB.negative_rate },
-      { metric: "Comentarios", profile1: compA.total_comments, profile2: compB.total_comments },
+      { metric: "Comentários", profile1: compA.total_comments, profile2: compB.total_comments },
       { metric: "Polaridade", profile1: (compA.avg_polarity || 0) * 100, profile2: (compB.avg_polarity || 0) * 100 },
     ];
   }, [compA, compB]);
@@ -118,7 +118,7 @@ export function CompareScreen() {
         bVal: compB.negative_rate,
       },
       {
-        label: "Comentarios",
+        label: "Comentários",
         a: formatNumber(compA.total_comments),
         b: formatNumber(compB.total_comments),
         aVal: compA.total_comments,

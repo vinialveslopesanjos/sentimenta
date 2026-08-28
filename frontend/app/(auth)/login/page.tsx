@@ -124,11 +124,11 @@ function LoginPageInner() {
           </div>
         </div>
 
-        <div className={`relative z-10 grid grid-cols-3 gap-4 mb-6 transition-all duration-500 delay-200 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
+        <div data-testid="login-trust-stats" className={`relative z-10 grid grid-cols-3 gap-4 mb-6 transition-all duration-500 delay-200 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`}>
           {[
             { label: t("stats.emotionsTracked"), value: "8" },
             { label: t("stats.platforms"), value: "4" },
-            { label: t("stats.aiAccuracy"), value: "94%" },
+            { label: t("stats.dataOrigin"), value: t("stats.oneClick") },
           ].map(stat => (
             <div key={stat.label} className="text-center">
               <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.5rem", fontWeight: 700, color: "white" }}>{stat.value}</p>
@@ -137,7 +137,7 @@ function LoginPageInner() {
           ))}
         </div>
 
-        <div className={`relative z-10 rounded-2xl p-6 border border-white/[0.08] transition-all duration-500 delay-300 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`} style={{ backgroundColor: "rgba(255,255,255,0.04)", backdropFilter: "blur(12px)" }}>
+        <div data-testid="login-trust-message" className={`relative z-10 rounded-2xl p-6 border border-white/[0.08] transition-all duration-500 delay-300 ${mounted ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"}`} style={{ backgroundColor: "rgba(255,255,255,0.04)", backdropFilter: "blur(12px)" }}>
           <p style={{ fontSize: "0.85rem", lineHeight: 1.7, color: "rgba(255,255,255,0.6)" }}>
             &ldquo;{t("testimonial")}&rdquo;
           </p>
@@ -214,7 +214,13 @@ function LoginPageInner() {
                   className="w-full pl-11 pr-11 py-3 rounded-xl transition-all"
                   style={{ fontSize: "0.85rem", border: "1px solid var(--border)", backgroundColor: "var(--bg-subtle)", color: "var(--text-primary)" }}
                 />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors" style={{ color: "var(--text-faint)" }}>
+                <button
+                  type="button"
+                  aria-label={showPassword ? t("hidePassword") : t("showPassword")}
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 transition-colors"
+                  style={{ color: "var(--text-faint)" }}
+                >
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>

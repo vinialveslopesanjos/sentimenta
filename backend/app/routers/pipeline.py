@@ -11,8 +11,11 @@ from app.core.deps import get_current_user, get_current_user_token_or_query
 from app.db.session import get_db
 from app.models.pipeline_run import PipelineRun
 from app.models.social_connection import SocialConnection
+from app.models.data_snapshot import DataSnapshot
 from app.models.user import User
 from app.schemas.pipeline import PipelineRunResponse, PipelineStatusResponse
+from app.services.data_snapshot_service import snapshot_reference
+from app.services.pipeline_run_summary_service import build_pipeline_run_human_summary
 
 router = APIRouter(prefix="/pipeline", tags=["pipeline"])
 
@@ -31,9 +34,21 @@ def list_pipeline_runs(
         .all()
     )
 
+    snapshots = (
+        db.query(DataSnapshot)
+        .filter(
+            DataSnapshot.user_id == current_user.id,
+            DataSnapshot.trigger_run_id.in_([run.id for run in runs]),
+        )
+        .order_by(DataSnapshot.created_at.asc(), DataSnapshot.id.asc())
+        .all()
+    ) if runs else []
+    snapshots_by_run = {snapshot.trigger_run_id: snapshot for snapshot in snapshots}
+
     result = []
     for run in runs:
         conn = run.connection
+        run_snapshot = snapshot_reference(snapshots_by_run.get(run.id))
         result.append(PipelineRunResponse(
             id=run.id,
             connection_id=run.connection_id,
@@ -52,6 +67,8 @@ def list_pipeline_runs(
             notes=run.notes,
             target_posts=run.target_posts,
             target_comments=run.target_comments,
+            snapshot=run_snapshot,
+            human_summary=build_pipeline_run_human_summary(run, run_snapshot),
         ))
 
     return result
@@ -77,6 +94,17 @@ def get_pipeline_run(
             SocialConnection.id == run.connection_id
         ).first()
 
+    run_snapshot = (
+        db.query(DataSnapshot)
+        .filter(
+            DataSnapshot.user_id == current_user.id,
+            DataSnapshot.trigger_run_id == run.id,
+        )
+        .order_by(DataSnapshot.created_at.desc())
+        .first()
+    )
+
+    run_snapshot_reference = snapshot_reference(run_snapshot)
     return PipelineRunResponse(
         id=run.id,
         connection_id=run.connection_id,
@@ -95,6 +123,8 @@ def get_pipeline_run(
         notes=run.notes,
         target_posts=run.target_posts,
         target_comments=run.target_comments,
+        snapshot=run_snapshot_reference,
+        human_summary=build_pipeline_run_human_summary(run, run_snapshot_reference),
     )
 
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { ArrowLeft, Heart, MessageCircle, Eye, ThumbsUp, ExternalLink, Search } from "lucide-react";
 import { ResponsiveContainer, RadarChart, PolarGrid, PolarAngleAxis, Radar } from "recharts";
 import { postsApi, commentsApi } from "@/lib/api";
@@ -30,12 +30,12 @@ interface PostDetail {
   view_count?: number;
   published_at: string | null;
   post_url: string | null;
-  connection_id?: string;
+  connection_id: string;
 }
 
 interface PostSummaryData {
   avg_score: number | null;
-  weighted_avg_score?: number | null;
+  weighted_score?: number | null;
   avg_polarity?: number | null;
   sentiment_distribution: { positive: number; neutral: number; negative: number } | null;
   total_analyzed: number;
@@ -46,7 +46,7 @@ interface PostSummaryData {
 
 export default function PostDetailPage() {
   const params = useParams();
-  const router = useRouter();
+  const searchParams = useSearchParams();
   const t = useTranslations("post");
   const tc = useTranslations("common");
   const postId = params.id as string;
@@ -54,6 +54,7 @@ export default function PostDetailPage() {
   const [post, setPost] = useState<PostDetail | null>(null);
   const [summary, setSummary] = useState<PostSummaryData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
   const [expanded, setExpanded] = useState(false);
 
   const [comments, setComments] = useState<CommentListResponse | null>(null);
@@ -64,14 +65,21 @@ export default function PostDetailPage() {
   const [offset, setOffset] = useState(0);
   const LIMIT = 20;
   const searchTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const commentsSection = useRef<HTMLDivElement | null>(null);
 
   const loadPost = useCallback(async () => {
     const token = getToken();
     if (!token) return;
+    setLoading(true);
+    setLoadError(false);
     try {
       const res = await postsApi.detail(token, postId);
       setPost(res.post as unknown as PostDetail);
-      if (res.summary) setSummary(res.summary as unknown as PostSummaryData);
+      setSummary(res.summary ? res.summary as unknown as PostSummaryData : null);
+    } catch {
+      setPost(null);
+      setSummary(null);
+      setLoadError(true);
     } finally { setLoading(false); }
   }, [postId]);
 
@@ -132,15 +140,19 @@ export default function PostDetailPage() {
   const neuRate = dist ? Math.round((dist.neutral / distTotal) * 100) : 0;
   const negRate = dist ? Math.round((dist.negative / distTotal) * 100) : 0;
 
-  const avgScore = summary?.avg_score ?? null;
-  const weightedScore = summary?.weighted_avg_score ?? null;
-  const avgPolarity = summary?.avg_polarity ?? null;
-  const emotionsDist = summary?.emotions_distribution ?? null;
-  const topicsDist = summary?.topics_frequency ?? null;
-  const wordFreq = summary?.word_frequency ?? null;
+  const hasValidAnalysis = (summary?.total_analyzed ?? 0) > 0;
+  const avgScore = hasValidAnalysis ? summary?.avg_score ?? null : null;
+  const weightedScore = hasValidAnalysis ? summary?.weighted_score ?? null : null;
+  const avgPolarity = hasValidAnalysis ? summary?.avg_polarity ?? null : null;
+  const emotionsDist = hasValidAnalysis ? summary?.emotions_distribution ?? null : null;
+  const topicsDist = hasValidAnalysis ? summary?.topics_frequency ?? null : null;
+  const wordFreq = hasValidAnalysis ? summary?.word_frequency ?? null : null;
 
-  const emotionsList = emotionsDist ? Object.entries(emotionsDist).sort((a, b) => b[1] - a[1]).map(([k]) => k) : [];
-  const topicsList = topicsDist ? Object.entries(topicsDist).sort((a, b) => b[1] - a[1]).map(([k]) => k) : [];
+  const emotionsList = emotionsDist ? Object.entries(emotionsDist).filter(([, count]) => count > 0).sort((a, b) => b[1] - a[1]).map(([k]) => k) : [];
+  const topicsList = topicsDist ? Object.entries(topicsDist).filter(([, count]) => count > 0).sort((a, b) => b[1] - a[1]).map(([k]) => k) : [];
+  const commentItems = comments?.items ?? [];
+  const hasCollectedComments = (post?.comment_count ?? 0) > 0;
+  const hasActiveCommentFilters = Boolean(searchQuery || commentFilter || emotionFilter);
 
   const TEXT_LIMIT = 200;
   const postText = post?.content_text ?? "";
@@ -148,16 +160,39 @@ export default function PostDetailPage() {
   const displayText = isLong && !expanded ? postText.slice(0, TEXT_LIMIT) + "\u2026" : postText;
 
   const platformLabel = post?.platform ? post.platform.charAt(0).toUpperCase() + post.platform.slice(1) : "Post";
+  const connectionContext = post?.connection_id ?? searchParams.get("connection_id");
+  const origin = searchParams.get("from");
+  const backHref = origin === "dashboard"
+    ? "/dashboard"
+    : connectionContext
+      ? `/dashboard/profile/${connectionContext}`
+      : "/dashboard";
+
+  const openCommentEvidence = () => {
+    commentsSection.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+    commentsSection.current?.focus({ preventScroll: true });
+  };
 
   return (
     <div className="space-y-5">
       {/* Breadcrumb */}
       <div className="flex items-center gap-3">
-        <button onClick={() => router.back()} className="p-2 rounded-xl transition-colors">
+        <Link
+          href={backHref}
+          data-testid="post-context-back"
+          aria-label={origin === "dashboard" ? t("backToDashboard") : t("backToProfile")}
+          className="p-2 rounded-xl transition-colors"
+        >
           <ArrowLeft className="w-5 h-5" style={{ color: "var(--primary)" }} />
-        </button>
-        {post?.connection_id && (
-          <Link href={`/profile/${post.connection_id}`} style={{ fontSize: "0.82rem", fontWeight: 500, color: "var(--primary)" }}>{t("backToProfile")}</Link>
+        </Link>
+        {connectionContext && (
+          <Link
+            href={`/dashboard/profile/${connectionContext}`}
+            data-testid="post-profile-link"
+            style={{ fontSize: "0.82rem", fontWeight: 500, color: "var(--primary)" }}
+          >
+            {t("backToProfile")}
+          </Link>
         )}
         <span style={{ color: "var(--text-xfaint)" }}>/</span>
         <span style={{ fontSize: "0.82rem", fontWeight: 500, color: "var(--text-primary)" }}>{t("post")}</span>
@@ -170,6 +205,14 @@ export default function PostDetailPage() {
             <div className="h-5 w-24 rounded" style={{ backgroundColor: "var(--bg-subtle)" }} />
             <div className="h-4 w-full rounded" style={{ backgroundColor: "var(--bg-subtle)" }} />
             <div className="h-4 w-3/4 rounded" style={{ backgroundColor: "var(--bg-subtle)" }} />
+          </div>
+        ) : loadError ? (
+          <div role="alert" data-testid="post-load-error" className="flex flex-col items-start gap-3">
+            <div>
+              <p style={{ fontSize: "0.88rem", fontWeight: 700, color: "var(--text-primary)" }}>{t("loadError")}</p>
+              <p className="mt-1" style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>{t("loadErrorSub")}</p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={loadPost}>{t("retry")}</Button>
           </div>
         ) : post ? (
           <>
@@ -190,10 +233,9 @@ export default function PostDetailPage() {
             ) : (
               <p className="mb-4" style={{ fontSize: "0.82rem", color: "var(--text-faint)", fontStyle: "italic" }}>{t("noText")}</p>
             )}
-            <div className="flex items-center gap-5">
+            <div className="flex flex-wrap items-center gap-x-5 gap-y-2">
               {[
                 { icon: Heart, value: fmt(post.like_count), color: "var(--sentiment-negative)" },
-                { icon: MessageCircle, value: fmt(post.comment_count), color: "var(--primary)" },
                 ...(post.view_count ? [{ icon: Eye, value: fmt(post.view_count), color: "var(--text-muted)" }] : []),
               ].map((s, i) => (
                 <div key={i} className="flex items-center gap-1.5">
@@ -201,8 +243,18 @@ export default function PostDetailPage() {
                   <span style={{ fontSize: "0.78rem", color: "var(--text-muted)" }}>{s.value}</span>
                 </div>
               ))}
+              <button
+                type="button"
+                data-testid="post-comments-evidence-trigger"
+                onClick={openCommentEvidence}
+                className="flex items-center gap-1.5 rounded-lg px-2 py-1 transition-colors"
+                style={{ color: "var(--primary)", backgroundColor: "var(--primary-bg)" }}
+              >
+                <MessageCircle className="w-4 h-4" aria-hidden="true" />
+                <span style={{ fontSize: "0.78rem", fontWeight: 700 }}>{t("openComments", { count: post.comment_count })}</span>
+              </button>
               {post.post_url && (
-                <a href={post.post_url} target="_blank" rel="noopener noreferrer" className="ml-auto flex items-center gap-1 hover:underline" style={{ fontSize: "0.78rem", color: "var(--primary)" }}>
+                <a href={post.post_url} target="_blank" rel="noopener noreferrer" className="flex w-full items-center justify-end gap-1 hover:underline sm:ml-auto sm:w-auto" style={{ fontSize: "0.78rem", color: "var(--primary)" }}>
                   {t("viewOnPlatform", { platform: platformLabel })} <ExternalLink className="w-3 h-3" />
                 </a>
               )}
@@ -227,15 +279,26 @@ export default function PostDetailPage() {
         </div>
       )}
 
+      {!loading && summary && !hasValidAnalysis && hasCollectedComments && (
+        <div
+          data-testid="post-analysis-unavailable"
+          role="status"
+          className="rounded-2xl px-4 py-3"
+          style={{ backgroundColor: "var(--primary-bg)", border: "1px solid color-mix(in srgb, var(--primary) 25%, var(--border))", color: "var(--text-primary)", fontSize: "0.78rem", lineHeight: 1.6 }}
+        >
+          {t("analysisUnavailable")}
+        </div>
+      )}
+
       {/* Sentiment */}
-      {!loading && dist && (
+      {!loading && hasValidAnalysis && dist && (
         <Section title={t("sentimentDistribution")}>
           <SentimentBar positive={dist.positive} neutral={dist.neutral} negative={dist.negative} height={24} showLabels />
         </Section>
       )}
 
       {/* Emotions + Topics */}
-      {!loading && (emotionsList.length > 0 || topicsList.length > 0) && (
+      {!loading && hasValidAnalysis && (emotionsList.length > 0 || topicsList.length > 0) && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Section title={t("emotions")}>
             <div className="flex flex-wrap gap-2">
@@ -258,16 +321,35 @@ export default function PostDetailPage() {
       {!loading && (summary?.total_analyzed ?? 0) > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <Section title={t("emotionRadar")} subtitle={t("emotionRadarSub")}>
-            <SentimentRadar distribution={emotionsDist} height={200} />
+            <SentimentRadar
+              distribution={emotionsDist}
+              height={200}
+              title={t("emotionRadar")}
+              chartId="post-emotion-radar"
+            />
           </Section>
           <Section title={t("wordCloud")} subtitle={t("wordCloudSub")}>
-            <WordCloudChart topics={wordFreq} maxWords={15} height={200} />
+            <WordCloudChart
+              topics={wordFreq}
+              maxWords={15}
+              height={200}
+              title={t("wordCloud")}
+              chartId="post-word-cloud"
+            />
           </Section>
         </div>
       )}
 
       {/* Comments */}
-      <Section title={t("comments")}>
+      {!loading && post && (
+      <div
+        ref={commentsSection}
+        data-testid="post-comments-evidence"
+        tabIndex={-1}
+        className="scroll-mt-24 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--primary)]"
+      >
+      <Section title={t("comments")} subtitle={t("commentsEvidenceSub", { count: comments?.total ?? post.comment_count })}>
+        {(commentItems.length > 0 || hasActiveCommentFilters) && (
         <div className="flex flex-wrap items-center gap-2 mb-4">
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl" style={{ backgroundColor: "var(--bg-subtle)", border: "1px solid var(--border)" }}>
             <Search className="w-3.5 h-3.5" style={{ color: "var(--text-faint)" }} />
@@ -286,6 +368,7 @@ export default function PostDetailPage() {
             ))}
           </select>
         </div>
+        )}
         {commentsLoading ? (
           <div className="space-y-3 animate-pulse">
             {[0, 1, 2, 3, 4].map(i => (
@@ -298,9 +381,16 @@ export default function PostDetailPage() {
               </div>
             ))}
           </div>
-        ) : (comments?.items ?? []).length === 0 ? (
+        ) : commentItems.length === 0 ? (
           <div className="py-12 text-center" style={{ fontSize: "0.82rem", color: "var(--text-muted)" }}>
-            {t("noComments")}
+            <p style={{ fontWeight: 700, color: "var(--text-primary)" }}>
+              {hasCollectedComments ? "Comentários coletados aguardando análise" : t("noComments")}
+            </p>
+            {hasCollectedComments && (
+              <p className="mt-2" style={{ color: "var(--text-muted)" }}>
+                Quando a análise terminar, scores, emoções e filtros aparecem aqui.
+              </p>
+            )}
           </div>
         ) : (
           <>
@@ -317,15 +407,17 @@ export default function PostDetailPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {(comments?.items ?? []).map((c) => {
+                  {commentItems.map((c) => {
                     const score = c.analysis?.score_0_10 ?? null;
                     const emotions = c.analysis?.emotions ?? [];
                     const ss = score !== null ? getScoreStyle(score) : null;
                     return (
                       <tr key={c.id} className="transition-colors" style={{ borderBottom: "1px solid var(--border)" }}>
                         <td className="py-2.5 px-3">
-                          {score !== null && ss && (
+                          {score !== null && ss ? (
                             <span className="px-2 py-0.5 rounded-md" style={{ fontSize: "0.68rem", fontWeight: 600, color: ss.color, backgroundColor: ss.bg }}>{score.toFixed(1)}</span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded-md" style={{ fontSize: "0.62rem", fontWeight: 700, color: "var(--primary)", backgroundColor: "var(--primary-bg)" }}>Aguardando análise</span>
                           )}
                         </td>
                         <td className="py-2.5 px-3">
@@ -335,12 +427,14 @@ export default function PostDetailPage() {
                           <p className="line-clamp-2" style={{ color: "var(--text-muted)" }}>{c.text_original}</p>
                         </td>
                         <td className="py-2.5 px-3">
-                          {emotions.length > 0 && (
+                          {emotions.length > 0 ? (
                             <div className="flex flex-wrap gap-1">
                               {emotions.map((e: string) => (
                                 <span key={e} className="px-2 py-0.5 rounded-md capitalize" style={{ fontSize: "0.62rem", fontWeight: 500, backgroundColor: "var(--primary-bg)", color: "var(--primary)" }}>{e}</span>
                               ))}
                             </div>
+                          ) : (
+                            <span style={{ color: "var(--text-faint)" }}>—</span>
                           )}
                         </td>
                         <td className="py-2.5 px-3">
@@ -357,15 +451,17 @@ export default function PostDetailPage() {
 
             {/* Mobile: card list */}
             <div className="md:hidden space-y-2">
-              {(comments?.items ?? []).map((c) => {
+              {commentItems.map((c) => {
                 const score = c.analysis?.score_0_10 ?? null;
                 const emotions = c.analysis?.emotions ?? [];
                 const ss = score !== null ? getScoreStyle(score) : null;
                 return (
                   <div key={c.id} className="p-3 rounded-xl" style={{ backgroundColor: "var(--bg-subtle)" }}>
                     <div className="flex items-center gap-2 mb-1.5">
-                      {score !== null && ss && (
+                      {score !== null && ss ? (
                         <span className="px-2 py-0.5 rounded-md" style={{ fontSize: "0.65rem", fontWeight: 600, color: ss.color, backgroundColor: ss.bg }}>{score.toFixed(1)}</span>
+                      ) : (
+                        <span className="px-2 py-0.5 rounded-md" style={{ fontSize: "0.6rem", fontWeight: 700, color: "var(--primary)", backgroundColor: "var(--primary-bg)" }}>Aguardando análise</span>
                       )}
                       <span style={{ fontSize: "0.78rem", fontWeight: 600, color: "var(--text-primary)" }}>{c.author_name || c.author_username || tc("anonymous")}</span>
                       {c.published_at && (
@@ -400,6 +496,8 @@ export default function PostDetailPage() {
           </>
         )}
       </Section>
+      </div>
+      )}
     </div>
   );
 }

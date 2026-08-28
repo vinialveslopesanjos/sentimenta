@@ -91,6 +91,55 @@ def test_dashboard_summary_does_not_invent_scores_for_unprocessed_comments(clien
     assert data["topics_frequency"] is None
 
 
+def test_zero_analysis_summary_cannot_leak_zero_scores_or_categories(
+    client,
+    auth_headers,
+    db,
+    test_connection,
+    test_post,
+    test_comments,
+):
+    db.add(
+        PostAnalysisSummary(
+            post_id=test_post.id,
+            total_comments=5,
+            total_analyzed=0,
+            avg_score=None,
+            weighted_score=None,
+            emotions_distribution={"confiança": 0},
+            topics_frequency={"fixture": 0},
+            sentiment_distribution={"positive": 0, "neutral": 0, "negative": 0},
+        )
+    )
+    db.commit()
+
+    summary = client.get("/api/v1/dashboard/summary", headers=auth_headers)
+    assert summary.status_code == 200
+    assert summary.json()["total_analyzed"] == 0
+    assert summary.json()["emotions_distribution"] is None
+    assert summary.json()["topics_frequency"] is None
+
+    profile = client.get(
+        f"/api/v1/dashboard/connection/{test_connection.id}",
+        headers=auth_headers,
+    )
+    assert profile.status_code == 200
+    assert profile.json()["total_analyzed"] == 0
+    assert profile.json()["avg_score"] is None
+    assert profile.json()["emotions_distribution"] is None
+    assert profile.json()["topics_frequency"] is None
+    assert profile.json()["topics_with_scores"] == []
+
+    post = client.get(f"/api/v1/posts/{test_post.id}", headers=auth_headers)
+    assert post.status_code == 200
+    post_summary = post.json()["summary"]
+    assert post_summary["total_analyzed"] == 0
+    assert post_summary["avg_score"] is None
+    assert post_summary["emotions_distribution"] is None
+    assert post_summary["topics_frequency"] is None
+    assert post_summary["sentiment_distribution"] is None
+
+
 def test_dashboard_summary_ignores_invalid_analysis_rows(client, auth_headers, db, test_comments):
     comment = test_comments[0]
     comment.status = "processed"

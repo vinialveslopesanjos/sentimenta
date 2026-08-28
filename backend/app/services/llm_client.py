@@ -26,6 +26,15 @@ MAX_RETRIES = 5
 RETRY_DELAY = 5
 RATE_LIMIT_DELAY = 30
 
+# OpenRouter list prices, USD per million tokens. Reviewed 2026-08-28.
+# Source: https://openrouter.ai/google/gemini-2.5-flash
+MODEL_PRICING_USD_PER_MILLION = {
+    "google/gemini-2.5-flash": (0.30, 2.50),
+}
+DEFAULT_PRICING_USD_PER_MILLION = MODEL_PRICING_USD_PER_MILLION[
+    "google/gemini-2.5-flash"
+]
+
 
 class LLMClient:
     """Cliente LLM via OpenRouter (formato OpenAI-compatible)."""
@@ -38,9 +47,20 @@ class LLMClient:
         if not self.api_key:
             raise ValueError("OPENROUTER_API_KEY não configurada")
 
-        # Custo OpenRouter Gemini 2.0 Flash: $0.10/M input, $0.40/M output
-        self.cost_per_1k_input = 0.0001
-        self.cost_per_1k_output = 0.0004
+        price_input_per_million, price_output_per_million = (
+            MODEL_PRICING_USD_PER_MILLION.get(
+                self.model,
+                DEFAULT_PRICING_USD_PER_MILLION,
+            )
+        )
+        if self.model not in MODEL_PRICING_USD_PER_MILLION:
+            logger.warning(
+                "No explicit token price for model %s; using the documented "
+                "Gemini 2.5 Flash baseline",
+                self.model,
+            )
+        self.cost_per_1k_input = price_input_per_million / 1000
+        self.cost_per_1k_output = price_output_per_million / 1000
 
     def analyze_comments(
         self,

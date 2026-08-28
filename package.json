@@ -14,10 +14,14 @@
         "build:types": "npm run build --workspace=@sentimenta/types",
         "build:api-client": "npm run build --workspace=@sentimenta/api-client",
         "build:packages": "npm run build:types && npm run build:api-client",
+        "dev:realdata": "node scripts/dev/start-local-realdata.mjs",
+        "dev:snapshot:pull": "node scripts/dev/pull-prod-snapshot.mjs",
+        "dev:snapshot:restore": "node scripts/dev/restore-snapshot.mjs",
         "type-check": "npm run type-check --workspaces --if-present",
         "audit:prod": "npm audit --workspaces --omit=dev --audit-level=high",
         "test:e2e": "playwright test",
-        "test:e2e:smoke": "playwright test e2e/smoke"
+        "test:e2e:smoke": "playwright test e2e/smoke",
+        "test:e2e:trust": "playwright test e2e/product/release-trust-gate.spec.ts e2e/product/count-funnel-reconciliation.spec.ts e2e/product/comparison-timeline-order.spec.ts e2e/product/qa-alert-empty-states.spec.ts e2e/product/zero-valid-propagation.spec.ts e2e/product/computer-use-findings-regression.spec.ts e2e/product/operational-trust.spec.ts"
     },
     "devDependencies": {
         "@playwright/test": "^1.57.0",

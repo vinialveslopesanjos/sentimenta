@@ -1,3 +1,5 @@
+import type { PipelineRunHumanSummary, SnapshotReference } from "@sentimenta/types";
+
 // --- Pipeline ---
 
 export interface PipelineRun {
@@ -14,6 +16,8 @@ export interface PipelineRun {
   errors_count: number;
   target_posts?: number | null;
   target_comments?: number | null;
+  snapshot?: SnapshotReference | null;
+  human_summary?: PipelineRunHumanSummary;
   total_cost_usd: number;
   started_at: string;
   ended_at: string | null;
@@ -56,6 +60,7 @@ export interface Connection {
 }
 
 export interface DashboardSummary {
+  snapshot: SnapshotReference | null;
   total_connections: number;
   total_posts: number;
   total_comments: number;
@@ -72,6 +77,7 @@ export interface DashboardSummary {
 
 export interface PostSummary {
   id: string;
+  connection_id: string;
   platform: string;
   platform_post_id: string;
   post_type: string | null;
@@ -90,6 +96,7 @@ export interface PostSummary {
 }
 
 export interface ConnectionDashboard {
+  snapshot: SnapshotReference | null;
   connection: Connection;
   total_posts: number;
   total_comments: number;
@@ -124,6 +131,7 @@ export interface TrendDataPoint {
 export interface TrendResponse {
   data_points: TrendDataPoint[];
   granularity: string;
+  timezone: string;
 }
 
 // --- Comments ---
@@ -174,13 +182,29 @@ export interface TrendsDetailedPeriod {
 export interface TrendsDetailedResponse {
   data_points: TrendsDetailedPeriod[];
   granularity: string;
+  timezone: string;
 }
 
 // --- Health Report ---
 
 export interface HealthReport {
+  snapshot: SnapshotReference | null;
+  report_basis: {
+    contract_version: number;
+    snapshot_id: string | null;
+    period_start: string | null;
+    period_end: string | null;
+    coverage_status: string;
+    coverage_ratio: number | null;
+    health: SnapshotReference["health"];
+    language_mode: SnapshotReference["language_policy"]["mode"];
+    recommendation_mode: "current" | "historical_only" | "blocked";
+    reason_code: string;
+    generated_at: string | null;
+    source: "none" | "llm" | "llm_qualified" | "snapshot_fallback" | "legacy_llm";
+  };
   report_text: string | null;
   generated_at: string | null;
   data_summary: Record<string, unknown>;
-  has_new_data?: boolean;
+  has_new_data: boolean;
 }

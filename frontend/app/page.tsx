@@ -11,6 +11,11 @@ import {
 import { Logo } from "@/components/ds/Logo";
 import { Button } from "@/components/ds/Button";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";
+import {
+  PlatformCapabilityMatrix,
+  PlatformCapabilityPicker,
+} from "@/components/PlatformCapabilityMatrix";
+import type { PlatformCapabilityId } from "@/lib/platformCapabilities";
 import { useTranslations } from "next-intl";
 import {
   GlassChartIcon,
@@ -26,28 +31,21 @@ import {
 
 function FadeIn({ children, delay = 0, className = "" }: { children: React.ReactNode; delay?: number; className?: string }) {
   const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: "-40px" });
+  const isInView = useInView(ref, { once: true, margin: "0px 0px 180px 0px" });
   return (
-    <motion.div ref={ref} initial={{ opacity: 0, y: 28 }} animate={isInView ? { opacity: 1, y: 0 } : {}} transition={{ duration: 0.55, delay, ease: [0.22, 0.61, 0.36, 1] }} className={className}>
+    <motion.div ref={ref} initial={{ opacity: 0.92, y: 10 }} animate={isInView ? { opacity: 1, y: 0 } : { opacity: 0.92, y: 10 }} transition={{ duration: 0.42, delay, ease: [0.22, 0.61, 0.36, 1] }} className={className}>
       {children}
     </motion.div>
   );
 }
 
 function GlassCard({ children, className = "", active = false }: { children: React.ReactNode; className?: string; active?: boolean }) {
-  const bgOpacity = active ? 0.5 : 0.25;
-  const borderOpacity = active ? 0.4 : 0.2;
   return (
     <div
-      className={`relative rounded-[20px] overflow-hidden transition-all duration-300 ${active ? "shadow-[0_8px_40px_-8px_rgba(57,184,198,0.18)]" : "shadow-[0_4px_24px_-8px_rgba(0,0,0,0.1)]"} ${className}`}
-      style={{
-        backgroundColor: `rgba(255, 255, 255, ${bgOpacity})`,
-        border: `0.5px solid rgba(14, 35, 37, ${borderOpacity})`,
-        backdropFilter: "blur(24px)",
-        WebkitBackdropFilter: "blur(24px)",
-      }}
+      className={`liquid-shell ${active ? "liquid-shell-active" : ""} ${className}`}
+      data-liquid-active={active ? "true" : undefined}
     >
-      <div className="relative h-full flex flex-col">{children}</div>
+      <div className="relative z-10 h-full flex flex-col">{children}</div>
     </div>
   );
 }
@@ -201,6 +199,14 @@ export default function LandingPage() {
 
   const [selectedEmotions, setSelectedEmotions] = useState([emotionNames.joy, emotionNames.anger]);
   const toggleEmotion = (e: string) => setSelectedEmotions(prev => prev.includes(e) ? prev.filter(x => x !== e) : [...prev, e]);
+  const frequencyOptions = [t("configure.frequencyDaily"), t("configure.frequencyWeekly")];
+  const [selectedPlatforms, setSelectedPlatforms] = useState<PlatformCapabilityId[]>(["instagram"]);
+  const [selectedFrequency, setSelectedFrequency] = useState([t("configure.frequencyDaily")]);
+  const [alertThreshold, setAlertThreshold] = useState(65);
+  const [profileDraft, setProfileDraft] = useState("");
+  const togglePlatform = (platform: PlatformCapabilityId) => {
+    setSelectedPlatforms(prev => prev.includes(platform) ? prev.filter(p => p !== platform) : [...prev, platform]);
+  };
 
   useEffect(() => { const onScroll = () => setScrolled(window.scrollY > 10); window.addEventListener("scroll", onScroll); return () => window.removeEventListener("scroll", onScroll); }, []);
 
@@ -210,40 +216,26 @@ export default function LandingPage() {
   const getColor = (type?: string) => type === "neg" ? theme.secondary : type === "neu" ? theme.accent : theme.primary;
 
   return (
-    <div className="min-h-screen relative" style={{ backgroundColor: "var(--bg-page)", fontFamily: "'Inter', sans-serif" }}>
+    <div className="min-h-screen relative landing-liquid-page" style={{ backgroundColor: "var(--bg-page)", fontFamily: "'Inter', sans-serif" }}>
       {/* GLOBAL BACKGROUND */}
-      <div className="fixed top-0 left-0 w-full h-full pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
-        <motion.svg style={{ y: y1, x: x1 }} className="absolute -top-[10%] -left-[20%] w-[1000px] h-[1000px] opacity-60 overflow-visible" viewBox="0 0 900 900" fill="none">
-          <defs><filter id="g-blur-teal" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur in="SourceGraphic" stdDeviation="160" /></filter><radialGradient id="g-grad-teal" cx="50%" cy="50%" r="50%"><stop stopColor="#39b8c6" stopOpacity="0.8" /><stop offset="1" stopColor="#39b8c6" stopOpacity="0" /></radialGradient></defs>
-          <ellipse cx="450" cy="450" rx="450" ry="350" fill="url(#g-grad-teal)" filter="url(#g-blur-teal)" />
-        </motion.svg>
-        <motion.svg style={{ y: y2, x: x2 }} className="absolute -top-[5%] -right-[10%] w-[1100px] h-[900px] opacity-50 overflow-visible" viewBox="0 0 800 800" fill="none">
-          <defs><filter id="g-blur-rose" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur in="SourceGraphic" stdDeviation="150" /></filter><radialGradient id="g-grad-rose" cx="50%" cy="50%" r="50%"><stop stopColor="#b6496b" stopOpacity="0.7" /><stop offset="1" stopColor="#b6496b" stopOpacity="0" /></radialGradient></defs>
-          <ellipse cx="400" cy="400" rx="300" ry="420" fill="url(#g-grad-rose)" filter="url(#g-blur-rose)" />
-        </motion.svg>
-        <motion.svg style={{ y: y3, x: x2 }} className="absolute top-[30%] -right-[15%] w-[900px] h-[800px] opacity-40 overflow-visible" viewBox="0 0 700 700" fill="none">
-          <defs><filter id="g-blur-gold" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur in="SourceGraphic" stdDeviation="130" /></filter><radialGradient id="g-grad-gold" cx="50%" cy="50%" r="50%"><stop stopColor="#b88147" stopOpacity="0.6" /><stop offset="1" stopColor="#b88147" stopOpacity="0" /></radialGradient></defs>
-          <circle cx="350" cy="350" r="380" fill="url(#g-grad-gold)" filter="url(#g-blur-gold)" />
-        </motion.svg>
-        <motion.svg style={{ y: y4, x: x1 }} className="absolute top-[50%] -left-[15%] w-[800px] h-[800px] opacity-45 overflow-visible" viewBox="0 0 600 600" fill="none">
-          <defs><filter id="g-blur-teal2" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur in="SourceGraphic" stdDeviation="140" /></filter><radialGradient id="g-grad-teal2" cx="50%" cy="50%" r="50%"><stop stopColor="#39b8c6" stopOpacity="0.7" /><stop offset="1" stopColor="#39b8c6" stopOpacity="0" /></radialGradient></defs>
-          <ellipse cx="300" cy="300" rx="280" ry="340" fill="url(#g-grad-teal2)" filter="url(#g-blur-teal2)" />
-        </motion.svg>
-
-        {/* Decorative gradient stroke rings */}
-        <motion.svg style={{ y: y3, rotate: rotate1, filter: 'invert(1) opacity(0.3)' }} className="absolute top-[8%] right-[5%] w-[500px] h-[500px] opacity-[0.15]" viewBox="0 0 500 500" fill="none">
-          <circle cx="250" cy="250" r="248" stroke="url(#ring-g1)" strokeWidth="1" /><defs><linearGradient id="ring-g1" x1="0" y1="100" x2="400" y2="450" gradientUnits="userSpaceOnUse"><stop stopColor="white" /><stop offset="1" stopColor="white" stopOpacity="0" /></linearGradient></defs>
-        </motion.svg>
-        <motion.svg style={{ y: y4, rotate: rotate2, filter: 'invert(1) opacity(0.3)' }} className="absolute top-[25%] right-[8%] w-[360px] h-[360px] opacity-[0.12]" viewBox="0 0 360 360" fill="none">
-          <circle cx="180" cy="180" r="178" stroke="url(#ring-g2)" strokeWidth="1" /><defs><linearGradient id="ring-g2" x1="-20" y1="60" x2="300" y2="340" gradientUnits="userSpaceOnUse"><stop stopColor="white" /><stop offset="1" stopColor="white" stopOpacity="0" /></linearGradient></defs>
-        </motion.svg>
-        <motion.svg style={{ y: y1, rotate: rotate1 }} className="absolute top-[45%] left-[2%] w-[300px] h-[300px] opacity-[0.1]" viewBox="0 0 300 300" fill="none">
-          <circle cx="150" cy="150" r="148" stroke="url(#ring-g3)" strokeWidth="1.5" /><defs><linearGradient id="ring-g3" x1="0" y1="50" x2="250" y2="280" gradientUnits="userSpaceOnUse"><stop stopColor="#39b8c6" /><stop offset="1" stopColor="#39b8c6" stopOpacity="0" /></linearGradient></defs>
-        </motion.svg>
+      <div className="landing-liquid-backdrop fixed top-0 left-0 w-full h-full pointer-events-none overflow-hidden" style={{ zIndex: 0 }} aria-hidden="true">
+        <svg className="absolute h-0 w-0" focusable="false">
+          <filter id="landing-liquid-distort">
+            <feTurbulence type="fractalNoise" baseFrequency="0.012 0.024" numOctaves="2" seed="7" result="noise" />
+            <feDisplacementMap in="SourceGraphic" in2="noise" scale="34" xChannelSelector="R" yChannelSelector="G" />
+          </filter>
+        </svg>
+        <motion.div style={{ y: y1, x: x1 }} className="landing-liquid-film landing-liquid-film-a" />
+        <motion.div style={{ y: y2, x: x2 }} className="landing-liquid-film landing-liquid-film-b" />
+        <motion.div style={{ y: y3, x: x2 }} className="landing-liquid-film landing-liquid-film-c" />
+        <motion.div style={{ y: y4, x: x1 }} className="landing-liquid-film landing-liquid-film-d" />
+        <motion.div style={{ rotate: rotate1 }} className="landing-liquid-rim landing-liquid-rim-a" />
+        <motion.div style={{ rotate: rotate2 }} className="landing-liquid-rim landing-liquid-rim-b" />
+        <div className="landing-liquid-grid" />
       </div>
 
       {/* NAV */}
-      <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "backdrop-blur-xl shadow-sm" : "bg-transparent"}`} style={scrolled ? { backgroundColor: "rgba(255,255,255,0.8)" } : {}}>
+      <nav className={`liquid-nav fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${scrolled ? "is-scrolled" : ""}`}>
         <div className="max-w-[1200px] mx-auto px-4 md:px-8 h-16 flex items-center justify-between">
           <Logo size="md" />
           <div className="hidden md:flex items-center gap-8">
@@ -262,10 +254,15 @@ export default function LandingPage() {
       </nav>
 
       {/* HERO */}
-      <section className="relative pt-28 pb-0 px-4 md:px-8 overflow-hidden min-h-[100vh]">
+      <section className="landing-hero relative pt-28 pb-0 px-4 md:px-8 overflow-hidden min-h-[100vh]">
         <div className="max-w-[1200px] mx-auto relative">
           <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }} className="flex items-center justify-center mb-4 md:mb-12">
-            <div className="flex items-center gap-2 px-4 py-2 rounded-full transition-all max-w-[95vw]" style={{ backgroundColor: "#ffffff", border: "1px solid #bce8ec", boxShadow: "0 4px 16px -6px rgba(57,184,198,0.1)" }}>
+            <div
+              role="note"
+              data-testid="landing-hero-example-ticker"
+              data-demo-mode="illustrative"
+              className="liquid-ticker flex items-center gap-2 px-4 py-2 rounded-full transition-all max-w-[95vw]"
+            >
               <div className="w-2 h-2 rounded-full animate-pulse shrink-0" style={{ backgroundColor: "#39b8c6" }} />
               <span className="shrink-0" style={{ fontSize: "0.72rem", color: "#1a6f78", fontWeight: 600, letterSpacing: "0.02em" }}>{t("hero.live")}</span>
               <AnimatePresence mode="wait">
@@ -280,21 +277,22 @@ export default function LandingPage() {
           </motion.div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-16 items-center min-h-[70vh]">
-            <div>
-              <motion.h1 initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.7, delay: 0.1 }}
-                style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(2.5rem, 5vw, 4rem)", fontWeight: 800, lineHeight: 1.02, color: "var(--text-primary)", letterSpacing: "-0.04em" }}>
+            <div className="landing-hero-copy">
+              <motion.h1 initial={{ opacity: 0.96, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.42, delay: 0.05 }}
+                className="liquid-hero-title"
+                style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(2.5rem, 5vw, 4rem)", fontWeight: 800, lineHeight: 1.02, color: "var(--text-primary)", letterSpacing: 0 }}>
                 {t("hero.title")}<br />
                 <span style={{ color: "var(--primary)" }}>{t("hero.titleBreak")}</span>
               </motion.h1>
-              <motion.p initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.35 }} className="mt-7 max-w-[420px]" style={{ fontSize: "1.1rem", lineHeight: 1.75, color: "var(--text-muted)" }}
+              <motion.p initial={{ opacity: 0.92, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.38, delay: 0.12 }} className="mt-7 max-w-[420px]" style={{ fontSize: "1.1rem", lineHeight: 1.75, color: "var(--text-muted)" }}
                 dangerouslySetInnerHTML={{ __html: t.raw("hero.subtitle") }}
               />
-              <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.5, delay: 0.5 }} className="flex items-center gap-3 mt-10 flex-wrap">
+              <motion.div initial={{ opacity: 0.9, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.38, delay: 0.18 }} className="flex items-center gap-3 mt-10 flex-wrap">
                 <Link href="/login"><Button variant="pill" size="lg" iconRight={<ArrowRight className="w-4 h-4" />}>{t("hero.ctaPrimary")}</Button></Link>
                 <a href="#demo"><Button variant="pill-glass" size="lg" icon={<Play className="w-3.5 h-3.5" />}>{t("hero.ctaSecondary")}</Button></a>
               </motion.div>
-              <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.7 }} className="flex items-center gap-6 mt-8 flex-wrap">
-                {[{ v: "12K+", l: t("hero.statsComments") }, { v: "8", l: t("hero.statsEmotions") }, { v: "<2min", l: t("hero.statsFirstRead") }].map(s => (
+              <motion.div data-testid="landing-hero-evidence-stats" initial={{ opacity: 0.9 }} animate={{ opacity: 1 }} transition={{ delay: 0.22 }} className="flex items-center gap-6 mt-8 flex-wrap">
+                {[{ v: "12K+", l: t("hero.statsComments") }, { v: "8", l: t("hero.statsEmotions") }, { v: t("hero.statsForecastValue"), l: t("hero.statsFirstRead") }].map(s => (
                   <div key={s.l} className="flex items-center gap-2">
                     <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)" }}>{s.v}</span>
                     <span style={{ fontSize: "0.72rem", color: "var(--text-faint)" }}>{s.l}</span>
@@ -303,8 +301,29 @@ export default function LandingPage() {
               </motion.div>
             </div>
 
-            <motion.div style={{ y: heroY }} className="relative hidden lg:block">
-              <motion.div initial={{ opacity: 0, y: 40, scale: 0.96 }} animate={{ opacity: 1, y: 0, scale: 1 }} transition={{ duration: 0.7, delay: 0.3 }} className="space-y-4">
+            <motion.div style={{ y: heroY }} className="relative hidden lg:block liquid-preview-wrap">
+              <motion.div
+                initial={{ opacity: 0, y: 40, scale: 0.96 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.7, delay: 0.3 }}
+                className="space-y-4 liquid-lens-stack"
+                data-demo-mode="illustrative"
+              >
+                <div
+                  role="note"
+                  data-testid="landing-preview-disclosure"
+                  className="flex items-start gap-3 rounded-2xl px-4 py-3"
+                  style={{
+                    backgroundColor: "color-mix(in srgb, var(--primary) 8%, var(--bg-card))",
+                    border: "1px solid color-mix(in srgb, var(--primary) 32%, var(--border))",
+                  }}
+                >
+                  <Info aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--primary)" }} />
+                  <div>
+                    <p style={{ color: "var(--text-primary)", fontSize: "0.75rem", fontWeight: 800 }}>{t("hero.previewDisclosureTitle")}</p>
+                    <p className="mt-1" style={{ color: "var(--text-muted)", fontSize: "0.66rem", lineHeight: 1.45 }}>{t("hero.previewDisclosureMeta")}</p>
+                  </div>
+                </div>
                 <GlassCard active>
                   <div className="p-6">
                     <div className="flex items-center justify-between mb-4">
@@ -395,37 +414,60 @@ export default function LandingPage() {
       </section>
 
       {/* DEMO */}
-      <section id="demo" className="py-12 md:py-18 px-4 md:px-8 relative">
+      <section
+        id="demo"
+        aria-labelledby="landing-demo-title"
+        data-testid="landing-interactive-demo"
+        data-demo-mode="illustrative"
+        data-live-monitoring="false"
+        className="landing-liquid-section landing-demo-section py-12 md:py-18 px-4 md:px-8 relative"
+      >
         <div className="max-w-[900px] mx-auto">
           <FadeIn>
-            <div className="text-center mb-12">
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-5" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--primary)", backgroundColor: "var(--bg-card)", border: "1px solid var(--border)" }}>
+            <div className="liquid-section-header text-center mb-12">
+              <span className="liquid-section-badge inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-5" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--primary)" }}>
                 <Zap className="w-3 h-3" /> {t("demo.badge")}
               </span>
-              <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.5rem)", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.03em" }}>
+              <h2 id="landing-demo-title" style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.5rem)", fontWeight: 800, color: "var(--text-primary)", letterSpacing: 0 }}>
                 {t("demo.title")}<br />{t("demo.titleLine2")}
               </h2>
             </div>
           </FadeIn>
           <FadeIn delay={0.1}>
-            <GlassCard active className="overflow-visible">
+            <GlassCard active className="landing-demo-card overflow-visible">
               <div className="p-5 md:p-8">
-                <div className="flex items-center gap-3 mb-6">
+                <div
+                  role="note"
+                  data-testid="landing-interactive-demo-disclosure"
+                  className="mb-6 flex items-start gap-3 rounded-2xl px-4 py-3.5"
+                  style={{
+                    backgroundColor: "color-mix(in srgb, var(--primary) 7%, var(--bg-card))",
+                    border: "1px solid color-mix(in srgb, var(--primary) 30%, var(--border))",
+                  }}
+                >
+                  <Info aria-hidden="true" className="mt-0.5 h-4 w-4 shrink-0" style={{ color: "var(--primary)" }} />
+                  <div>
+                    <p style={{ color: "var(--text-primary)", fontSize: "0.78rem", fontWeight: 800 }}>{t("demo.disclosureTitle")}</p>
+                    <p className="mt-1" style={{ color: "var(--text-secondary)", fontSize: "0.72rem", lineHeight: 1.55 }}>{t("demo.disclosureDescription")}</p>
+                    <p className="mt-1.5" style={{ color: "var(--text-muted)", fontSize: "0.68rem", fontWeight: 650 }}>{t("demo.disclosureScope")}</p>
+                  </div>
+                </div>
+                <div className="landing-demo-control flex items-center gap-3 mb-6">
                   <div className="flex-1 relative">
                     <input type="text" value={demoInput} onChange={e => setDemoInput(e.target.value)} onKeyDown={e => e.key === "Enter" && demoInput.trim() && analyzeSentiment(demoInput)}
                       placeholder={t("demo.inputPlaceholder")}
-                      className="w-full px-5 py-4 rounded-2xl transition-all"
-                      style={{ fontSize: "0.95rem", backgroundColor: "var(--bg-subtle)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
+                      className="landing-demo-input w-full px-5 py-4 rounded-2xl transition-all"
+                      style={{ fontSize: "0.95rem", color: "var(--text-primary)" }}
                     />
                   </div>
-                  <button onClick={() => demoInput.trim() && analyzeSentiment(demoInput)} className="w-12 h-12 rounded-2xl flex items-center justify-center text-white transition-colors" style={{ backgroundColor: "var(--primary)", boxShadow: `0 4px 16px -4px ${theme.primary}60` }}>
+                  <button aria-label={t("demo.analyzeButton")} onClick={() => demoInput.trim() && analyzeSentiment(demoInput)} className="landing-demo-send w-12 h-12 rounded-2xl flex items-center justify-center text-white transition-colors" style={{ backgroundColor: "var(--primary)" }}>
                     <Send className="w-5 h-5" />
                   </button>
                 </div>
-                <div className="flex flex-wrap gap-1.5 mb-6">
-                  <span className="w-full" style={{ fontSize: "0.72rem", color: "var(--text-faint)", fontWeight: 500, marginBottom: 2 }}>{t("demo.trySuggestions")}</span>
+                <div className="landing-demo-suggestions flex flex-wrap gap-2 mb-6">
+                  <span className="w-full" style={{ fontSize: "0.72rem", color: "var(--text-faint)", fontWeight: 700, marginBottom: 2 }}>{t("demo.trySuggestions")}</span>
                   {demoSuggestions.map(s => (
-                    <button key={s} onClick={() => analyzeSentiment(s)} className="px-3 py-1.5 rounded-xl transition-colors" style={{ fontSize: "0.68rem", fontWeight: 500, backgroundColor: "var(--bg-subtle)", color: "var(--primary)", border: "1px solid var(--border)" }}>
+                    <button key={s} onClick={() => analyzeSentiment(s)} className="landing-suggestion-chip px-3 py-1.5 rounded-xl transition-colors" style={{ fontSize: "0.7rem", fontWeight: 600, color: "var(--primary)" }}>
                       {s.length > 40 ? s.slice(0, 40) + "..." : s}
                     </button>
                   ))}
@@ -438,13 +480,22 @@ export default function LandingPage() {
                     </motion.div>
                   )}
                   {demoResult && !analyzing && (
-                    <motion.div key="result" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -16 }} className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                      <div className="rounded-2xl p-5 text-center" style={{ backgroundColor: "var(--bg-subtle)" }}>
+                    <motion.div key="result" initial={{ opacity: 0.94, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -12 }} className="landing-demo-result grid grid-cols-2 md:grid-cols-4 gap-4">
+                      <div className="col-span-2 md:col-span-4">
+                        <span
+                          data-testid="landing-demo-result-label"
+                          className="inline-flex rounded-full px-3 py-1"
+                          style={{ backgroundColor: "var(--primary-bg)", color: "var(--primary)", fontSize: "0.66rem", fontWeight: 850, letterSpacing: "0.07em" }}
+                        >
+                          {t("demo.resultLabel")}
+                        </span>
+                      </div>
+                      <div className="rounded-2xl p-5 text-center">
                         <span style={{ fontSize: "2rem" }}>{demoResult.emoji}</span>
                         <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.95rem", fontWeight: 600, color: "var(--text-primary)", marginTop: 6 }}>{demoResult.emotion}</p>
                         <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>{t("demo.emotionDetected")}</p>
                       </div>
-                      <div className="rounded-2xl p-5 text-center" style={{ backgroundColor: "var(--bg-subtle)" }}>
+                      <div className="rounded-2xl p-5 text-center">
                         <div className="relative w-14 h-14 mx-auto mb-2">
                           <svg viewBox="0 0 100 100" className="w-full h-full -rotate-90">
                             <circle cx="50" cy="50" r="38" fill="none" stroke={theme.primaryBg} strokeWidth="8" />
@@ -458,8 +509,8 @@ export default function LandingPage() {
                         <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.3rem", fontWeight: 700, marginBottom: 4 }}>{demoResult.sentiment}</p>
                         <p style={{ fontSize: "0.68rem", opacity: 0.7 }}>{t("demo.classification")}</p>
                       </div>
-                      <div className="rounded-2xl p-5 text-center" style={{ backgroundColor: "var(--bg-subtle)" }}>
-                        <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.8rem", fontWeight: 700, color: "var(--primary)" }}>94%</p>
+                      <div className="rounded-2xl p-5 text-center">
+                        <p data-testid="landing-demo-confidence" style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.1rem", fontWeight: 700, color: "var(--primary)" }}>{t("demo.exampleValue")}</p>
                         <p style={{ fontSize: "0.68rem", color: "var(--text-muted)" }}>{t("demo.aiConfidence")}</p>
                       </div>
                     </motion.div>
@@ -472,11 +523,11 @@ export default function LandingPage() {
       </section>
 
       {/* CONFIGURE */}
-      <section id="como" className="py-12 md:py-18 px-4 md:px-8 relative">
+      <section id="como" className="landing-liquid-section landing-configure-section py-12 md:py-18 px-4 md:px-8 relative">
         <div className="max-w-[1000px] mx-auto">
           <FadeIn>
-            <div className="flex flex-col md:flex-row md:items-start justify-between mb-14 gap-6">
-              <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.5rem)", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.03em", lineHeight: 1.05 }}
+            <div className="liquid-section-header flex flex-col md:flex-row md:items-start justify-between mb-14 gap-6">
+              <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.5rem)", fontWeight: 800, color: "var(--text-primary)", letterSpacing: 0, lineHeight: 1.05 }}
                 dangerouslySetInnerHTML={{ __html: t.raw("configure.title").replace(/\n/g, "<br/>") }}
               />
               <p className="max-w-[380px] md:text-right" style={{ fontSize: "0.92rem", lineHeight: 1.7, color: "var(--text-muted)" }}
@@ -484,8 +535,9 @@ export default function LandingPage() {
               />
             </div>
           </FadeIn>
+          <div className="landing-configure-stage">
           <FadeIn delay={0.1}>
-            <GlassCard className="mb-4">
+            <GlassCard className="landing-config-card mb-4">
               <div className="p-5 md:p-7">
                 <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>{t("configure.monitoredEmotions")}</h3>
                 <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>{t("configure.monitoredEmotionsSub")}</p>
@@ -495,35 +547,54 @@ export default function LandingPage() {
           </FadeIn>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
             <FadeIn delay={0.15}>
-              <GlassCard>
+              <GlassCard className="landing-config-card">
                 <div className="p-5 md:p-7">
                   <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>{t("configure.platforms")}</h3>
                   <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>{t("configure.platformsSub")}</p>
-                  <div className="mt-5"><PillSelector items={["Instagram", "TikTok", "YouTube", "X/Twitter"]} selected={["Instagram"]} onSelect={() => {}} grid /></div>
+                  <div className="mt-5">
+                    <PlatformCapabilityPicker selected={selectedPlatforms} onToggle={togglePlatform} surface="home" />
+                  </div>
                 </div>
               </GlassCard>
             </FadeIn>
             <FadeIn delay={0.2}>
-              <GlassCard>
+              <GlassCard className="landing-config-card">
                 <div className="p-5 md:p-7">
                   <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>{t("configure.frequency")}</h3>
                   <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>{t("configure.frequencySub")}</p>
-                  <div className="mt-5"><PillSelector items={[t("configure.frequencyHourly"), t("configure.frequencyDaily"), t("configure.frequencyWeekly")]} selected={[t("configure.frequencyDaily")]} onSelect={() => {}} /></div>
+                  <div className="mt-5"><PillSelector items={frequencyOptions} selected={selectedFrequency} onSelect={(value) => setSelectedFrequency([value])} /></div>
                 </div>
               </GlassCard>
             </FadeIn>
           </div>
+          <FadeIn delay={0.23}>
+            <GlassCard className="landing-config-card mb-4">
+              <div className="p-5 md:p-7">
+                <PlatformCapabilityMatrix surface="home" embedded />
+              </div>
+            </GlassCard>
+          </FadeIn>
           <FadeIn delay={0.25}>
-            <GlassCard>
+            <GlassCard className="landing-config-card">
               <div className="p-5 md:p-7">
                 <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.05rem", fontWeight: 600, color: "var(--text-primary)" }}>{t("configure.alertThreshold")}</h3>
                 <p style={{ fontSize: "0.78rem", color: "var(--text-muted)", marginTop: 2 }}>{t("configure.alertThresholdSub")}</p>
                 <div className="mt-5 flex items-center gap-5">
-                  <div className="flex-1 relative h-3 rounded-full overflow-hidden" style={{ backgroundColor: "var(--bg-subtle)" }}>
-                    <div className="absolute left-0 top-0 h-full rounded-full" style={{ width: "65%", background: `linear-gradient(90deg, ${theme.primary}, ${theme.sentimentNegative})` }} />
-                    <div className="absolute top-1/2 -translate-y-1/2 w-5 h-5 rounded-full shadow-md" style={{ left: "calc(65% - 10px)", backgroundColor: "var(--bg-card)", border: `2px solid ${theme.primary}` }} />
+                  <div className="landing-threshold-control flex-1 relative h-6">
+                    <div className="absolute left-0 right-0 top-1/2 -translate-y-1/2 h-3 rounded-full overflow-hidden" style={{ backgroundColor: "var(--bg-subtle)" }}>
+                      <div className="absolute left-0 top-0 h-full rounded-full" style={{ width: `${alertThreshold}%`, background: `linear-gradient(90deg, ${theme.primary}, ${theme.sentimentNegative})` }} />
+                    </div>
+                    <input
+                      aria-label={t("configure.alertThreshold")}
+                      type="range"
+                      min={20}
+                      max={90}
+                      value={alertThreshold}
+                      onChange={(event) => setAlertThreshold(Number(event.target.value))}
+                      className="landing-threshold-range absolute inset-0 w-full"
+                    />
                   </div>
-                  <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)", width: 60, textAlign: "right" }}>65%</span>
+                  <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1.1rem", fontWeight: 700, color: "var(--text-primary)", width: 60, textAlign: "right" }}>{alertThreshold}%</span>
                 </div>
                 <div className="flex items-center justify-between mt-3">
                   <span style={{ fontSize: "0.68rem", color: "var(--text-faint)" }}>{t("configure.relaxed")}</span>
@@ -533,10 +604,10 @@ export default function LandingPage() {
             </GlassCard>
           </FadeIn>
           <FadeIn delay={0.35}>
-            <GlassCard className="mt-4">
+            <GlassCard className="landing-config-card mt-4">
               <div className="p-5 flex items-center gap-4">
                 <span style={{ color: "var(--text-faint)" }}>+</span>
-                <input type="text" placeholder={t("configure.profilePlaceholder")} className="flex-1 bg-transparent focus:outline-none" style={{ fontSize: "0.92rem", color: "var(--text-primary)" }} readOnly />
+                <input type="text" placeholder={t("configure.profilePlaceholder")} value={profileDraft} onChange={(event) => setProfileDraft(event.target.value)} className="flex-1 bg-transparent focus:outline-none" style={{ fontSize: "0.92rem", color: "var(--text-primary)" }} />
                 <div className="w-8 h-8 rounded-full flex items-center justify-center" style={{ backgroundColor: "var(--primary-bg)" }}>
                   <Sparkles className="w-4 h-4" style={{ color: "var(--primary)" }} />
                 </div>
@@ -548,15 +619,16 @@ export default function LandingPage() {
               <Link href="/login"><Button size="lg" icon={<Sparkles className="w-4 h-4" />} iconRight={<ArrowRight className="w-4 h-4" />}>{t("configure.startMonitoring")}</Button></Link>
             </div>
           </FadeIn>
+          </div>
         </div>
       </section>
 
       {/* FEATURES */}
-      <section className="relative py-12 md:py-18 px-4 md:px-8 overflow-hidden">
+      <section className="landing-liquid-section landing-features-section relative py-12 md:py-18 px-4 md:px-8 overflow-hidden">
         <div className="max-w-[1100px] mx-auto relative">
           <FadeIn>
-            <div className="text-center mb-10">
-              <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.5rem)", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.03em" }}>
+            <div className="liquid-section-header text-center mb-10">
+              <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.5rem)", fontWeight: 800, color: "var(--text-primary)", letterSpacing: 0 }}>
                 {t("features.title")}<br />{t("features.titleLine2")}
               </h2>
             </div>
@@ -572,7 +644,7 @@ export default function LandingPage() {
               { glassIcon: <GlassBellIcon size={40} />, title: t("features.temporalHeatmap"), desc: t("features.temporalHeatmapDesc") },
             ].map((f, i) => (
               <FadeIn key={f.title} delay={i * 0.05} className={`${(f as any).tall ? "md:row-span-2" : ""} ${(f as any).wide ? "md:col-span-2" : ""}`}>
-                <GlassCard active={(f as any).tall} className="h-full">
+                <GlassCard active={(f as any).tall} className="landing-feature-card h-full">
                   <div className="p-6 h-full flex flex-col">
                     <div className="mb-3">{f.glassIcon}</div>
                     <h3 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "1rem", fontWeight: 600, color: "var(--text-primary)", marginBottom: 4 }}>{f.title}</h3>
@@ -587,9 +659,9 @@ export default function LandingPage() {
 
       {/* SOCIAL PROOF */}
       <FadeIn>
-        <section className="py-12 px-4 md:px-8">
+        <section className="landing-liquid-section landing-proof-section py-12 px-4 md:px-8">
           <div className="max-w-[680px] mx-auto">
-            <GlassCard active>
+            <GlassCard active className="landing-proof-card">
               <div className="p-8 md:p-10 text-center">
                 <div className="flex items-center justify-center gap-1 mb-6">
                   {[1, 2, 3, 4, 5].map(i => <Star key={i} className="w-5 h-5" style={{ fill: theme.primary, color: theme.primary }} />)}
@@ -613,12 +685,12 @@ export default function LandingPage() {
       </FadeIn>
 
       {/* PRICING */}
-      <section id="preco" className="py-12 md:py-18 px-4 md:px-8 relative">
+      <section id="preco" className="landing-liquid-section landing-pricing-section py-12 md:py-18 px-4 md:px-8 relative">
         <div className="max-w-[1200px] mx-auto">
           <FadeIn>
-            <div className="text-center mb-14">
-              <span className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-5" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--primary)", backgroundColor: "var(--bg-subtle)", border: "1px solid var(--border)" }}>{t("pricing.badge")}</span>
-              <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.5rem)", fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.03em" }}>{t("pricing.title")}</h2>
+            <div className="liquid-section-header text-center mb-14">
+              <span className="liquid-section-badge inline-flex items-center gap-2 px-4 py-1.5 rounded-full mb-5" style={{ fontSize: "0.72rem", fontWeight: 600, color: "var(--primary)" }}>{t("pricing.badge")}</span>
+              <h2 style={{ fontFamily: "'Outfit', sans-serif", fontSize: "clamp(1.8rem, 4vw, 2.5rem)", fontWeight: 800, color: "var(--text-primary)", letterSpacing: 0 }}>{t("pricing.title")}</h2>
               <p className="mt-3" style={{ fontSize: "0.92rem", color: "var(--text-muted)" }}>{t("pricing.subtitle")}</p>
             </div>
           </FadeIn>

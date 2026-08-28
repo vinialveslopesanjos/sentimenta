@@ -2,11 +2,11 @@ import logging
 import secrets
 import uuid
 from datetime import date, datetime, timezone, timedelta
-from typing import Optional
+from typing import Literal, Optional
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Query, status
 from fastapi.responses import RedirectResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from app.core.cache import get_redis
@@ -16,24 +16,95 @@ from app.db.session import get_db
 from app.models.social_connection import SocialConnection
 from app.models.user import User
 from app.schemas.connection import (
+    CollectionPreviewResponse,
+    ConnectionHealthResponse,
     ConnectionResponse,
     ConnectionUpdateRequest,
     OAuthURLResponse,
     SyncResponse,
     YouTubeConnectRequest,
 )
+from app.services.connection_health_service import build_connection_health_map
+from app.services.plan_service import (
+    SYNC_REQUEST_MAX_COMMENTS_PER_POST,
+    SYNC_REQUEST_MAX_POSTS,
+    get_plan_limits,
+)
 
 logger = logging.getLogger(__name__)
 
 
 class SyncRequest(BaseModel):
-    max_posts: int = Field(10, ge=1, le=200)
-    max_comments_per_post: int = Field(100, ge=10, le=10000)
+    max_posts: int = Field(10, ge=1, le=SYNC_REQUEST_MAX_POSTS)
+    max_comments_per_post: int = Field(
+        100,
+        ge=10,
+        le=SYNC_REQUEST_MAX_COMMENTS_PER_POST,
+    )
     since_date: Optional[date] = None
     use_apify_comments: bool = True
-    comment_sample_mode: str = Field("all", pattern=r"^(all|sample)$")
+    comment_sample_mode: Literal["all", "engagement"] = "all"
+
+    @field_validator("comment_sample_mode", mode="before")
+    @classmethod
+    def migrate_legacy_sample_mode(cls, value):
+        return "engagement" if value == "sample" else value
+
 
 router = APIRouter(prefix="/connections", tags=["connections"])
+
+
+def _connection_response(connection: SocialConnection, health=None) -> ConnectionResponse:
+    response = ConnectionResponse.model_validate(connection)
+    if health is None:
+        return response
+    health_response = ConnectionHealthResponse.model_validate(health.as_dict())
+    return response.model_copy(update={"health": health_response})
+
+
+@router.get("/collection-preview", response_model=CollectionPreviewResponse)
+def preview_collection(
+    connection_id: uuid.UUID | None = Query(default=None),
+    max_posts: int = Query(10, ge=1, le=SYNC_REQUEST_MAX_POSTS),
+    max_comments_per_post: int = Query(
+        100,
+        ge=10,
+        le=SYNC_REQUEST_MAX_COMMENTS_PER_POST,
+    ),
+    since_date: date | None = Query(default=None),
+    comment_selection_mode: Literal["all", "engagement", "sample"] = Query("all"),
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    """Preview a collection without contacting providers or changing data."""
+    from app.services.collection_preview_service import build_collection_preview
+
+    query = db.query(SocialConnection).filter(
+        SocialConnection.user_id == current_user.id,
+        SocialConnection.status == "active",
+    )
+    if connection_id is not None:
+        query = query.filter(SocialConnection.id == connection_id)
+    connections = query.order_by(SocialConnection.connected_at.desc()).all()
+    if connection_id is not None and not connections:
+        raise HTTPException(status_code=404, detail="Connection not found")
+
+    plan_limits = get_plan_limits(current_user.plan)
+    effective_max_posts = min(max_posts, plan_limits["max_posts_per_sync"])
+    effective_max_comments = min(
+        max_comments_per_post,
+        plan_limits["max_comments_per_post"],
+    )
+    return build_collection_preview(
+        db,
+        user_id=current_user.id,
+        plan=current_user.plan,
+        connections=connections,
+        max_posts=effective_max_posts,
+        max_comments_per_post=effective_max_comments,
+        since_date=since_date,
+        selection_mode=comment_selection_mode,
+    )
 
 @router.get("/check-profile")
 def check_profile(
@@ -279,7 +350,16 @@ def list_connections(
         .order_by(SocialConnection.connected_at.desc())
         .all()
     )
-    return connections
+    health_by_connection = build_connection_health_map(
+        db,
+        connections,
+        user_id=current_user.id,
+        plan=current_user.plan,
+    )
+    return [
+        _connection_response(connection, health_by_connection[connection.id])
+        for connection in connections
+    ]
 
 
 @router.get("/{connection_id}", response_model=ConnectionResponse)
@@ -298,7 +378,13 @@ def get_connection(
     )
     if not conn:
         raise HTTPException(status_code=404, detail="Connection not found")
-    return conn
+    health = build_connection_health_map(
+        db,
+        [conn],
+        user_id=current_user.id,
+        plan=current_user.plan,
+    )[conn.id]
+    return _connection_response(conn, health)
 
 @router.patch("/{connection_id}", response_model=ConnectionResponse)
 def update_connection(
@@ -620,10 +706,6 @@ def trigger_sync(
     effective_max_comments = min(
         params.max_comments_per_post, plan_limits["max_comments_per_post"]
     )
-
-    # When using Apify comments, allow higher comment cap (Apify handles large volumes)
-    if params.use_apify_comments:
-        effective_max_comments = min(10000, plan_limits.get("max_comments_per_post", 10000))
 
     # Create PipelineRun in router so we can return the real run_id
     run = PipelineRun(

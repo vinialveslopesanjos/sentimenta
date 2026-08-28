@@ -8,22 +8,24 @@ interface BadgeProps {
   dot?: boolean;
 }
 
-const styles: Record<BadgeVariant, { bg: string; color: string }> = {
-  primary:  { bg: "var(--primary-bg, #e7e6fe)", color: "var(--primary, #3c39f9)" },
-  positive: { bg: "var(--sentiment-positive-bg, #dcfce7)", color: "var(--sentiment-positive, #22c55e)" },
-  warning:  { bg: "var(--secondary-bg, #fde8ef)", color: "var(--secondary, #eb1463)" },
-  negative: { bg: "var(--sentiment-negative-bg, #fde8ef)", color: "var(--sentiment-negative, #ef4382)" },
-  muted:    { bg: "var(--primary-bg-hover, #cecefd)", color: "var(--text-muted, #7c71f4)" },
+const styles: Record<BadgeVariant, { bg: string; color: string; marker: string }> = {
+  primary:  { bg: "var(--primary-bg, #e7e6fe)", color: "var(--text-primary, #0e2325)", marker: "var(--primary, #3c39f9)" },
+  positive: { bg: "var(--sentiment-positive-bg, #dcfce7)", color: "var(--text-primary, #0e2325)", marker: "var(--sentiment-positive, #22c55e)" },
+  warning:  { bg: "var(--accent-bg, #fff7ed)", color: "var(--text-primary, #0e2325)", marker: "var(--accent, #b88147)" },
+  negative: { bg: "var(--sentiment-negative-bg, #fde8ef)", color: "var(--text-primary, #0e2325)", marker: "var(--sentiment-negative, #ef4382)" },
+  muted:    { bg: "var(--bg-subtle, #f4f9f9)", color: "var(--text-primary, #0e2325)", marker: "var(--text-muted, #226e77)" },
 };
 
 export function Badge({ variant = "primary", children, dot }: BadgeProps) {
   const s = styles[variant];
   return (
     <span
+      data-badge-variant={variant}
+      data-contrast-role="state-badge"
       className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full"
-      style={{ backgroundColor: s.bg, color: s.color, fontSize: "0.72rem", fontWeight: 600, fontFamily: "'Inter', sans-serif" }}
+      style={{ backgroundColor: s.bg, color: s.color, fontSize: "0.75rem", fontWeight: 700, fontFamily: "'Inter', sans-serif" }}
     >
-      {dot && <span className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.color }} />}
+      {dot && <span aria-hidden="true" className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: s.marker }} />}
       {children}
     </span>
   );

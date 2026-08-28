@@ -1,22 +1,38 @@
 import json
 import hashlib
 import functools
+import time
 from typing import Optional
 import redis
 from app.core.config import settings
 
 # Redis client (reuse the same Redis as Celery)
 redis_client: Optional[redis.Redis] = None
+redis_unavailable_until = 0.0
+REDIS_TIMEOUT_SECONDS = 0.2
+REDIS_RETRY_AFTER_SECONDS = 30.0
 
 
 def get_redis() -> Optional[redis.Redis]:
-    global redis_client
+    global redis_client, redis_unavailable_until
+    if not settings.CACHE_REDIS_URL:
+        return None
     if redis_client is None:
+        now = time.monotonic()
+        if redis_unavailable_until > now:
+            return None
         try:
-            redis_client = redis.from_url(settings.CACHE_REDIS_URL, decode_responses=True)
+            redis_client = redis.from_url(
+                settings.CACHE_REDIS_URL,
+                decode_responses=True,
+                socket_connect_timeout=REDIS_TIMEOUT_SECONDS,
+                socket_timeout=REDIS_TIMEOUT_SECONDS,
+                retry_on_timeout=False,
+            )
             redis_client.ping()
         except Exception:
             redis_client = None
+            redis_unavailable_until = now + REDIS_RETRY_AFTER_SECONDS
     return redis_client
 
 

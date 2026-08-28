@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     APP_NAME: str = "Social Media Sentiment"
     DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
     API_PREFIX: str = "/api/v1"
+    READ_ONLY_MODE: bool = os.getenv("READ_ONLY_MODE", "false").lower() == "true"
+    QA_LOCAL_MODE: bool = os.getenv("QA_LOCAL_MODE", "false").lower() == "true"
 
     # Database
     DATABASE_URL: str = os.getenv(
@@ -89,6 +91,14 @@ class Settings(BaseSettings):
     DEFAULT_MAX_COMMENTS: int = int(os.getenv("DEFAULT_MAX_COMMENTS", "500"))
     DEFAULT_BATCH_SIZE: int = int(os.getenv("DEFAULT_BATCH_SIZE", "30"))
     PROMPT_VERSION: str = os.getenv("PROMPT_VERSION", "v1")
+
+    # Internal operational trust gate
+    OPS_SUCCESS_RATE_MIN: float = float(os.getenv("OPS_SUCCESS_RATE_MIN", "0.95"))
+    OPS_PARTIAL_RATE_MAX: float = float(os.getenv("OPS_PARTIAL_RATE_MAX", "0.10"))
+    OPS_DATA_MAX_AGE_HOURS: int = int(os.getenv("OPS_DATA_MAX_AGE_HOURS", "48"))
+    OPS_DURATION_P95_MAX_SECONDS: int = int(os.getenv("OPS_DURATION_P95_MAX_SECONDS", "1800"))
+    OPS_STUCK_AFTER_MINUTES: int = int(os.getenv("OPS_STUCK_AFTER_MINUTES", "120"))
+    OPS_TRUST_TICKETS_WARN: int = int(os.getenv("OPS_TRUST_TICKETS_WARN", "3"))
 
     # CORS
     CORS_ORIGINS: list[str] = [

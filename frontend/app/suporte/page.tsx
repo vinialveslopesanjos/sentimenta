@@ -12,7 +12,7 @@ const faqKeys = ["faq1", "faq2", "faq3", "faq4", "faq5", "faq6"] as const;
 export default function SuportePage() {
   const t = useTranslations("support");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-  const [formData, setFormData] = useState({ name: "", email: "", subject: "", message: "" });
+  const [formData, setFormData] = useState({ name: "", email: "", category: "", subject: "", message: "" });
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
 
@@ -23,11 +23,11 @@ export default function SuportePage() {
       const res = await fetch("/api/v1/support/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, source_path: window.location.pathname }),
       });
       if (!res.ok) throw new Error("Failed to send");
       setSent(true);
-      setFormData({ name: "", email: "", subject: "", message: "" });
+      setFormData({ name: "", email: "", category: "", subject: "", message: "" });
     } catch {
       alert(t("sendError"));
     } finally {
@@ -142,6 +142,25 @@ export default function SuportePage() {
                     style={{ fontSize: "0.85rem", backgroundColor: "var(--bg-subtle)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
                   />
                 </div>
+              </div>
+              <div>
+                <label htmlFor="support-category" style={{ fontSize: "0.78rem", fontWeight: 500, color: "var(--text-primary)", display: "block", marginBottom: 6 }}>{t("labelCategory")}</label>
+                <select
+                  id="support-category"
+                  required
+                  value={formData.category}
+                  onChange={e => setFormData(prev => ({ ...prev, category: e.target.value }))}
+                  className="w-full px-4 py-3 rounded-xl transition-all focus:outline-none"
+                  style={{ fontSize: "0.85rem", backgroundColor: "var(--bg-subtle)", color: "var(--text-primary)", border: "1px solid var(--border)" }}
+                >
+                  <option value="" disabled>{t("categoryPlaceholder")}</option>
+                  <option value="data_trust">{t("categories.dataTrust")}</option>
+                  <option value="collection_sync">{t("categories.collectionSync")}</option>
+                  <option value="account_access">{t("categories.accountAccess")}</option>
+                  <option value="billing">{t("categories.billing")}</option>
+                  <option value="other">{t("categories.other")}</option>
+                </select>
+                <p className="mt-1.5" style={{ fontSize: "0.7rem", color: "var(--text-muted)" }}>{t("categoryHint")}</p>
               </div>
               <div>
                 <label style={{ fontSize: "0.78rem", fontWeight: 500, color: "var(--text-primary)", display: "block", marginBottom: 6 }}>{t("labelSubject")}</label>
