@@ -1,9 +1,13 @@
+import asyncio
 import uuid
 from datetime import datetime, timezone
 
-import httpx
+from google.auth import exceptions as google_auth_exceptions
+from google.auth.transport import requests as google_auth_requests
+from google.oauth2 import id_token as google_id_token
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.core.security import (
     create_access_token,
     create_refresh_token,
@@ -15,7 +19,27 @@ from app.core.security import (
 from app.models.user import User
 
 
-GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v3/userinfo"
+class GoogleSignInUnavailableError(RuntimeError):
+    """Google sign-in cannot be completed because the verifier is unavailable."""
+
+
+def _verify_google_id_token(google_token: str) -> dict:
+    """Validate a Google Identity Services ID token for this web client."""
+    if not settings.GOOGLE_CLIENT_ID:
+        raise GoogleSignInUnavailableError("Google sign-in is not configured")
+
+    try:
+        return google_id_token.verify_oauth2_token(
+            google_token,
+            google_auth_requests.Request(),
+            settings.GOOGLE_CLIENT_ID,
+        )
+    except ValueError as exc:
+        raise ValueError("Invalid Google token") from exc
+    except google_auth_exceptions.GoogleAuthError as exc:
+        raise GoogleSignInUnavailableError(
+            "Google sign-in is temporarily unavailable"
+        ) from exc
 
 
 def register_user(db: Session, email: str, password: str, name: str | None = None) -> User:
@@ -53,22 +77,21 @@ def authenticate_user(db: Session, email: str, password: str) -> User | None:
 
 
 async def authenticate_google(db: Session, google_token: str) -> User:
-    """Verify Google token and create/get user."""
-    async with httpx.AsyncClient() as client:
-        response = await client.get(
-            GOOGLE_USERINFO_URL,
-            headers={"Authorization": f"Bearer {google_token}"},
-        )
-        if response.status_code != 200:
-            raise ValueError("Invalid Google token")
-        userinfo = response.json()
+    """Verify a Google ID token and create or retrieve its local user."""
+    userinfo = await asyncio.to_thread(_verify_google_id_token, google_token)
 
     email = userinfo.get("email")
-    if not email:
+    if not isinstance(email, str) or not email.strip():
         raise ValueError("Google account has no email")
+    if userinfo.get("email_verified") not in {True, "true", "True"}:
+        raise ValueError("Google email is not verified")
+    email = email.strip().lower()
 
     # Check if user exists by google_id or email
     google_id = userinfo.get("sub")
+    if not isinstance(google_id, str) or not google_id.strip():
+        raise ValueError("Invalid Google token")
+    google_id = google_id.strip()
     user = db.query(User).filter(
         (User.google_id == google_id) | (User.email == email)
     ).first()

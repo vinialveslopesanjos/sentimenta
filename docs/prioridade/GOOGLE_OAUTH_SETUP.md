@@ -72,8 +72,11 @@ GOOGLE_CLIENT_SECRET=xxxxxxxx
   Kit quando quiser habilitar (tem review, prazo de dias). Não bloqueia o vídeo.
 
 ## Referência de código (para debugar)
-- Verificação do token Google: `backend/app/services/auth_service.py:55` (`authenticate_google`)
-  → seta `email_verified=True` tanto na criação quanto em conta existente não-verificada.
+- Verificação do token Google: `backend/app/services/auth_service.py`
+  (`_verify_google_id_token` / `authenticate_google`) → valida criptograficamente o ID
+  token, incluindo assinatura, validade, emissor e audiência (`GOOGLE_CLIENT_ID`), e só
+  aceita e-mail confirmado pelo Google. Depois, seta `email_verified=True` tanto na
+  criação quanto em conta existente não-verificada.
 - Endpoint: `POST /auth/google` (`backend/app/routers/auth.py:191`).
 - Botão + carregamento do SDK: `frontend/components/SocialLogin.tsx` (renderiza só com
   `NEXT_PUBLIC_GOOGLE_CLIENT_ID` presente; carrega `accounts.google.com/gsi/client`).

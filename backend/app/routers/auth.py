@@ -30,6 +30,7 @@ from app.schemas.auth import (
     UserUpdate,
 )
 from app.services.auth_service import (
+    GoogleSignInUnavailableError,
     authenticate_google,
     authenticate_user,
     change_password,
@@ -200,8 +201,16 @@ def login(
 async def google_login(data: GoogleLogin, response: Response, db: Session = Depends(get_db)):
     try:
         user = await authenticate_google(db, data.token)
+    except GoogleSignInUnavailableError as e:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(e),
+        ) from e
     except ValueError as e:
-        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail=str(e))
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e),
+        ) from e
     tokens = create_tokens(user)
     _set_auth_cookies(response, tokens)
     return tokens

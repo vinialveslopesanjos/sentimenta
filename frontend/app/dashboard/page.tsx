@@ -34,10 +34,7 @@ import {
   GlassZapIcon,
 } from "@/components/GlassIcons";
 import { GlassSocialIcon } from "@/components/GlassSocialIcons";
-import {
-  PlatformCapabilityBadge,
-  PlatformCapabilityMatrix,
-} from "@/components/PlatformCapabilityMatrix";
+import { PlatformCapabilityMatrix } from "@/components/PlatformCapabilityMatrix";
 import { AmbassadorsVsDetractors } from "@/components/AdvancedCharts";
 import { DemographicsSummary } from "@/components/DemographicsCharts";
 import EmotionRadarCard from "@/components/EmotionRadarCard";
@@ -124,6 +121,9 @@ interface ConnectionItem {
   persona: string | null;
   auto_sync: boolean;
   has_oauth_token: boolean;
+  health?: {
+    state: SnapshotHealthState;
+  } | null;
 }
 
 interface TopComments {
@@ -471,17 +471,20 @@ export default function DashboardPage() {
   const timeSinceLabels = { never: tc("never"), now: tc("now"), ago: tc("ago") };
   const heatmapDays: string[] = tch.raw("heatmap.days") as unknown as string[];
 
-  // Last sync time from connections
-  const lastSyncTimes = connections.map(c => c.last_sync_at).filter(Boolean) as string[];
-  const latestSync = lastSyncTimes.length > 0
-    ? lastSyncTimes.sort((a, b) => new Date(b).getTime() - new Date(a).getTime())[0]
-    : null;
-  const latestSuccessfulSync = summary?.snapshot ? summary.snapshot.last_success_at : latestSync;
-  const lastSuccessBadgeVariant = !latestSuccessfulSync
-    ? "negative" as const
-    : summary?.snapshot && ["degraded", "stale", "failed"].includes(summary.snapshot.health)
-      ? "warning" as const
-      : "positive" as const;
+  // A legacy last_sync_at records an attempt, not a proven successful
+  // collection and analysis. Only the immutable snapshot can substantiate the
+  // success wording shown in this trust-critical badge.
+  const latestSuccessfulSync = summary?.snapshot?.last_success_at ?? null;
+  const lastSuccessLabel = !summary?.snapshot
+    ? td("lastSuccessUnverified")
+    : td("lastSuccess", { time: timeSince(latestSuccessfulSync, timeSinceLabels) });
+  const lastSuccessBadgeVariant = !summary?.snapshot
+    ? "warning" as const
+    : !latestSuccessfulSync
+      ? "negative" as const
+      : ["degraded", "stale", "failed"].includes(summary.snapshot.health)
+        ? "warning" as const
+        : "positive" as const;
 
   // Emotion pie data from summary
   const emotionPie = summary?.emotions_distribution
@@ -919,8 +922,12 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <span data-testid="dashboard-last-success-badge" data-last-success-at={latestSuccessfulSync ?? "never"}>
-            <Badge variant={lastSuccessBadgeVariant} dot>{td("lastSuccess", { time: timeSince(latestSuccessfulSync, timeSinceLabels) })}</Badge>
+          <span
+            data-testid="dashboard-last-success-badge"
+            data-last-success-at={latestSuccessfulSync ?? "never"}
+            data-success-evidence={summary?.snapshot ? "verified" : "unverified"}
+          >
+            <Badge variant={lastSuccessBadgeVariant} dot>{lastSuccessLabel}</Badge>
           </span>
           <Button variant="ghost" size="sm" icon={<RefreshCw className={`w-3.5 h-3.5 ${refreshing ? "animate-spin" : ""}`} />} onClick={handleRefresh} disabled={refreshing}>{refreshing ? "..." : td("refresh")}</Button>
         </div>
@@ -934,11 +941,13 @@ export default function DashboardPage() {
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           <div className="lg:col-span-7"><CardSkeleton /></div>
           <div className="lg:col-span-5 grid grid-cols-2 gap-4">
-            {Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} />)}
+            {Array.from({ length: 4 }).map((_, i) => <CardSkeleton key={i} />)}
           </div>
+          <div className="lg:col-span-12"><CardSkeleton /></div>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 ui-reveal">
+        <div className="space-y-4 ui-reveal">
+          <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
           <div
             data-testid="dashboard-reputation-summary"
             data-evidence-state={summaryLanguageMode}
@@ -1006,39 +1015,104 @@ export default function DashboardPage() {
           </div>
 
           <div className="lg:col-span-5 grid grid-cols-2 gap-4">
-            <DashboardMetricTile strong icon={<GlassChartIcon size={34} />} value={totalComments.toLocaleString("pt-BR")} label={td("analyzedComments")} sub={td("diagnosticHero.volumeSub")} />
-            <DashboardMetricTile icon={<GlassHeartIcon size={34} />} value={totalPosts.toLocaleString("pt-BR")} label={td("monitoredPosts")} sub={hasAnalyzedData ? td("diagnosticHero.postsSub") : td("diagnosticHero.postsWithoutAnalysisSub")} accent="var(--secondary)" />
+            <DashboardMetricTile
+              strong={currentEvidenceAllowed}
+              icon={<GlassChartIcon size={34} />}
+              value={totalComments.toLocaleString("pt-BR")}
+              label={td("analyzedComments")}
+              sub={currentEvidenceAllowed ? td("diagnosticHero.volumeSub") : td("diagnosticHero.historicalVolumeSub")}
+            />
+            <DashboardMetricTile
+              icon={<GlassHeartIcon size={34} />}
+              value={totalPosts.toLocaleString("pt-BR")}
+              label={td("monitoredPosts")}
+              sub={currentEvidenceAllowed
+                ? td("diagnosticHero.postsSub")
+                : hasAnalyzedData
+                  ? td("diagnosticHero.historicalPostsSub")
+                  : td("diagnosticHero.postsWithoutAnalysisSub")}
+              accent="var(--secondary)"
+            />
             <DashboardMetricTile icon={<GlassLinkIcon size={34} />} value={connectedProfiles} label={td("connectedProfiles")} sub={td("diagnosticHero.profilesSub")} accent="var(--accent)" />
-            <DashboardMetricTile icon={<GlassZapIcon size={34} />} value={hasAnalyzedData ? "8" : "—"} label={td("trackedEmotions")} sub={hasAnalyzedData ? td("diagnosticHero.emotionsSub") : td("diagnosticHero.emotionsWithoutAnalysisSub")} accent="var(--primary)" />
-            <div className="col-span-2 rounded-2xl p-4 md:p-5" style={{ backgroundColor: "var(--bg-card)", border: "1px solid var(--border)", boxShadow: "0 1px 8px -2px rgba(0,0,0,0.06)" }}>
-              <p style={{ fontSize: "0.68rem", fontWeight: 800, color: "var(--text-muted)", letterSpacing: "0.08em", marginBottom: 12 }}>{td("connectedPlatforms")}</p>
-              {connections.length > 0 ? (
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  {[...connections].sort((a, b) => {
-                    const order: Record<string, number> = { instagram: 0, youtube: 1, tiktok: 2, twitter: 3 };
-                    return (order[a.platform] ?? 9) - (order[b.platform] ?? 9);
-                  }).map(c => (
-                    <Link
-                      key={c.id}
-                      href={`/dashboard/profile/${c.id}`}
-                      data-testid={`dashboard-connected-profile-${c.id}`}
-                      className="flex items-center gap-2 p-2 rounded-xl transition-colors group"
-                      style={{ backgroundColor: "var(--bg-subtle)" }}
-                    >
-                      <GlassSocialIcon platform={c.platform.toLowerCase()} size={28} />
-                      <div className="min-w-0 text-left">
-                        <p className="truncate" style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--text-primary)" }}>{platformLabel(c.platform)}</p>
-                        <p className="truncate" style={{ fontSize: "0.58rem", color: "var(--text-faint)" }}>{c.username.startsWith("@") ? c.username : `@${c.username}`}</p>
-                        <span className="mt-1 block"><PlatformCapabilityBadge platform={c.platform} /></span>
-                      </div>
-                    </Link>
-                  ))}
-                </div>
-              ) : (
-                <p style={{ fontSize: "0.78rem", color: "var(--text-faint)", textAlign: "center", padding: "12px 0" }}>{td("noPlatformConnected")}</p>
-              )}
-            </div>
+            <DashboardMetricTile
+              icon={<GlassZapIcon size={34} />}
+              value={hasAnalyzedData ? "8" : "—"}
+              label={td("trackedEmotions")}
+              sub={currentEvidenceAllowed
+                ? td("diagnosticHero.emotionsSub")
+                : hasAnalyzedData
+                  ? td("diagnosticHero.historicalEmotionsSub")
+                  : td("diagnosticHero.emotionsWithoutAnalysisSub")}
+              accent="var(--primary)"
+            />
           </div>
+        </div>
+
+        <section
+          aria-labelledby="dashboard-connected-profiles-title"
+          data-testid="dashboard-connected-profiles"
+          className="py-1"
+        >
+          <div className="mb-3">
+            <h2
+              id="dashboard-connected-profiles-title"
+              style={{ fontFamily: "'Outfit', sans-serif", fontSize: "0.95rem", fontWeight: 800, color: "var(--text-primary)" }}
+            >
+              {td("connectedPlatforms")}
+            </h2>
+            <p className="mt-1" style={{ fontSize: "0.75rem", color: "var(--text-muted)", lineHeight: 1.5 }}>
+              {td("connectedPlatformsSub")}
+            </p>
+          </div>
+
+          {connections.length > 0 ? (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              {[...connections].sort((a, b) => {
+                const order: Record<string, number> = { instagram: 0, youtube: 1, tiktok: 2, twitter: 3 };
+                return (order[a.platform] ?? 9) - (order[b.platform] ?? 9);
+              }).map((connection) => {
+                const dataHealth = profileSnapshotHealth(summary?.snapshot?.profiles, connection.id)
+                  ?? connection.health?.state
+                  ?? summary?.snapshot?.health
+                  ?? "never_synced";
+                const dataHealthTone = healthTone(dataHealth);
+                const username = connection.username.startsWith("@") ? connection.username : `@${connection.username}`;
+
+                return (
+                  <Link
+                    key={connection.id}
+                    href={`/dashboard/profile/${connection.id}`}
+                    data-testid={`dashboard-connected-profile-${connection.id}`}
+                    data-health-state={dataHealth}
+                    className="group flex min-w-0 items-center gap-3 rounded-xl border p-3.5 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+                    style={{ backgroundColor: "var(--bg-card)", borderColor: "var(--border)" }}
+                  >
+                    <GlassSocialIcon platform={connection.platform.toLowerCase()} size={34} />
+                    <div className="min-w-0 flex-1 text-left">
+                      <p style={{ fontSize: "0.76rem", fontWeight: 750, color: "var(--text-primary)" }}>
+                        {platformLabel(connection.platform)}
+                      </p>
+                      <p className="truncate" title={username} style={{ fontSize: "0.68rem", color: "var(--text-muted)", marginTop: 1 }}>
+                        {username}
+                      </p>
+                      <span className="mt-2 flex min-w-0 items-center gap-1.5">
+                        <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: dataHealthTone }} />
+                        <span className="truncate" style={{ fontSize: "0.68rem", color: dataHealthTone, fontWeight: 700 }}>
+                          {connectionHealth(`${dataHealth}.label`)}
+                        </span>
+                      </span>
+                    </div>
+                    <ArrowRight aria-hidden="true" className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: "var(--text-faint)" }} />
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="rounded-xl border px-4 py-5 text-center" style={{ borderColor: "var(--border)", fontSize: "0.78rem", color: "var(--text-faint)" }}>
+              {td("noPlatformConnected")}
+            </p>
+          )}
+        </section>
         </div>
       )}
 

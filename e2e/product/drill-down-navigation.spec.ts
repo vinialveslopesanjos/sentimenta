@@ -57,6 +57,9 @@ test("every main card drills down to the exact profile, post and comment evidenc
   const compactProfileCard = page.getByTestId(`dashboard-connected-profile-${connectionId}`);
   await compactProfileCard.scrollIntoViewIfNeeded();
   await expect(compactProfileCard).toHaveAttribute("href", profilePath);
+  await expect(compactProfileCard).toHaveAttribute("data-health-state", "healthy");
+  await expect(compactProfileCard).toContainText("Saudável");
+  await expect(compactProfileCard).not.toContainText("Disponível");
   await compactProfileCard.click();
   await expect(page).toHaveURL(new RegExp(`${profilePath}$`));
   await expect(page.getByTestId("profile-reputation-summary")).toBeVisible({ timeout: 15_000 });
