@@ -113,6 +113,155 @@ def test_login_nonexistent_user(client):
     assert res.status_code == 401
 
 
+def test_google_login_accepts_identity_id_token(client, monkeypatch):
+    captured = {}
+
+    def fake_verify(token):
+        captured["token"] = token
+        return {
+            "sub": "google-user-123",
+            "email": "Google.User@Example.com",
+            "email_verified": True,
+            "name": "Google User",
+            "picture": "https://example.com/avatar.png",
+        }
+
+    monkeypatch.setattr(
+        "app.services.auth_service._verify_google_id_token",
+        fake_verify,
+    )
+
+    res = client.post(
+        "/api/v1/auth/google",
+        json={"token": "signed-google-id-token"},
+    )
+
+    assert res.status_code == 200
+    assert captured["token"] == "signed-google-id-token"
+    assert "access_token" in res.json()
+    assert "sentimenta_access_token" in res.cookies
+
+    db = TestSessionLocal()
+    user = db.query(User).filter(User.email == "google.user@example.com").one()
+    assert user.google_id == "google-user-123"
+    assert user.email_verified is True
+    assert user.name == "Google User"
+    assert user.avatar_url == "https://example.com/avatar.png"
+    db.close()
+
+
+def test_google_login_links_existing_email_and_verifies_it(client, monkeypatch):
+    db = TestSessionLocal()
+    db.add(
+        User(
+            email="existing-google@example.com",
+            password_hash=None,
+            email_verified=False,
+        )
+    )
+    db.commit()
+    db.close()
+
+    monkeypatch.setattr(
+        "app.services.auth_service._verify_google_id_token",
+        lambda _token: {
+            "sub": "google-existing-456",
+            "email": "existing-google@example.com",
+            "email_verified": True,
+            "name": "Existing Google User",
+        },
+    )
+
+    res = client.post(
+        "/api/v1/auth/google",
+        json={"token": "signed-google-id-token"},
+    )
+
+    assert res.status_code == 200
+    db = TestSessionLocal()
+    users = db.query(User).filter(User.email == "existing-google@example.com").all()
+    assert len(users) == 1
+    assert users[0].google_id == "google-existing-456"
+    assert users[0].email_verified is True
+    db.close()
+
+
+def test_google_login_rejects_invalid_id_token(client, monkeypatch):
+    def reject_token(_token):
+        raise ValueError("Invalid Google token")
+
+    monkeypatch.setattr(
+        "app.services.auth_service._verify_google_id_token",
+        reject_token,
+    )
+
+    res = client.post(
+        "/api/v1/auth/google",
+        json={"token": "invalid-google-id-token"},
+    )
+
+    assert res.status_code == 401
+    assert res.json()["detail"] == "Invalid Google token"
+
+
+def test_google_login_rejects_unverified_google_email(client, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.auth_service._verify_google_id_token",
+        lambda _token: {
+            "sub": "google-user-unverified",
+            "email": "unverified-google@example.com",
+            "email_verified": False,
+        },
+    )
+
+    res = client.post(
+        "/api/v1/auth/google",
+        json={"token": "signed-google-id-token"},
+    )
+
+    assert res.status_code == 401
+    assert res.json()["detail"] == "Google email is not verified"
+
+
+def test_google_login_reports_missing_server_configuration(client, monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "")
+
+    res = client.post(
+        "/api/v1/auth/google",
+        json={"token": "signed-google-id-token"},
+    )
+
+    assert res.status_code == 503
+    assert res.json()["detail"] == "Google sign-in is not configured"
+
+
+def test_google_token_verifier_uses_configured_client_id(monkeypatch):
+    from app.core.config import settings
+    from app.services import auth_service
+
+    captured = {}
+
+    def fake_verify(token, request, audience):
+        captured.update(token=token, request=request, audience=audience)
+        return {"sub": "google-user-789"}
+
+    monkeypatch.setattr(settings, "GOOGLE_CLIENT_ID", "web-client-id")
+    monkeypatch.setattr(
+        auth_service.google_id_token,
+        "verify_oauth2_token",
+        fake_verify,
+    )
+
+    claims = auth_service._verify_google_id_token("signed-google-id-token")
+
+    assert claims == {"sub": "google-user-789"}
+    assert captured["token"] == "signed-google-id-token"
+    assert captured["audience"] == "web-client-id"
+    assert captured["request"] is not None
+
+
 def test_me_authenticated(client, auth_headers):
     res = client.get("/api/v1/auth/me", headers=auth_headers)
     assert res.status_code == 200
